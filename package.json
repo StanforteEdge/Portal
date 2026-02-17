@@ -1,0 +1,16 @@
+{
+  "name": "stanforteedge-portal",
+  "private": true,
+  "workspaces": [
+    "PWA",
+    "api"
+  ],
+  "scripts": {
+    "dev": "npm run dev -w api",
+    "dev:pwa": "npm run dev -w PWA",
+    "dev:api": "npm run dev -w api",
+    "build": "npm run build -w api",
+    "build:pwa": "npm run build -w PWA",
+    "build:api": "npm run build -w api"
+  }
+}
