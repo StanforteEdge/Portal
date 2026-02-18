@@ -9,7 +9,7 @@ import { selectTheme } from "@/stores/themeSlice";
 import { useAppSelector } from "@/stores/hooks";
 import { FormattedMenu, linkTo, nestedMenu, enter, leave } from "./mobile-menu";
 import Lucide from "@/components/Base/Lucide";
-import logoUrl from "@/assets/images/logo.svg";
+import { BRAND_LOGO_FULL_DARK } from "@/constants/branding";
 import clsx from "clsx";
 import SimpleBar from "simplebar";
 
@@ -48,8 +48,8 @@ function Main() {
           <a href="" className="flex mr-auto">
             <img
               alt="Midone Tailwind HTML Admin Template"
-              className="w-6"
-              src={logoUrl}
+              className="w-32 h-auto"
+              src={BRAND_LOGO_FULL_DARK}
             />
           </a>
           <a href="#" onClick={(e) => e.preventDefault()}>

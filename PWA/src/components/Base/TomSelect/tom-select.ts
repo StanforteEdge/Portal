@@ -1,7 +1,11 @@
 import { TomSelectProps, TomSelectElement } from "./index";
-import { TomSettings, RecursivePartial } from "tom-select/src/types/index";
 import TomSelect from "tom-select";
-import _ from "lodash";
+import * as _ from "lodash";
+
+type RecursivePartial<T> = {
+  [P in keyof T]?: T[P] extends object ? RecursivePartial<T[P]> : T[P];
+};
+type TomSettings = Record<string, any>;
 
 const setValue = <T extends string | string[]>(
   el: TomSelectElement,

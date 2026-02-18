@@ -1,4 +1,4 @@
-import _ from "lodash";
+import * as _ from "lodash";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import { Menu } from "@/components/Base/Headless";

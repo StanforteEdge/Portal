@@ -76,10 +76,10 @@ module.exports = {
       addBase({
         // Default colors
         ":root": {
-          "--color-theme-1": toRGB(colors.blue["800"]),
-          "--color-theme-2": toRGB(colors.blue["900"]),
-          "--color-primary": toRGB(colors.blue["900"]),
-          "--color-secondary": toRGB(colors.slate["200"]),
+          "--color-theme-1": toRGB("#034785"),
+          "--color-theme-2": toRGB("#356D9D"),
+          "--color-primary": toRGB("#034785"),
+          "--color-secondary": toRGB("#356D9D"),
           "--color-success": toRGB(colors.lime["500"]),
           "--color-info": toRGB(colors.cyan["500"]),
           "--color-warning": toRGB(colors.yellow["400"]),
@@ -104,19 +104,19 @@ module.exports = {
         },
         // Theme 1 colors
         ".theme-1": {
-          "--color-theme-1": toRGB(colors.emerald["800"]),
-          "--color-theme-2": toRGB(colors.emerald["900"]),
-          "--color-primary": toRGB(colors.emerald["900"]),
-          "--color-secondary": toRGB(colors.slate["200"]),
-          "--color-success": toRGB(colors.emerald["600"]),
+          "--color-theme-1": toRGB("#034785"),
+          "--color-theme-2": toRGB("#356D9D"),
+          "--color-primary": toRGB("#034785"),
+          "--color-secondary": toRGB("#356D9D"),
+          "--color-success": toRGB(colors.green["600"]),
           "--color-info": toRGB(colors.cyan["500"]),
-          "--color-warning": toRGB(colors.yellow["400"]),
-          "--color-pending": toRGB(colors.amber["500"]),
-          "--color-danger": toRGB(colors.rose["600"]),
+          "--color-warning": toRGB(colors.amber["500"]),
+          "--color-pending": toRGB("#B4D22D"),
+          "--color-danger": toRGB("#FC2621"),
           "--color-light": toRGB(colors.slate["100"]),
           "--color-dark": toRGB(colors.slate["800"]),
           "&.dark": {
-            "--color-primary": toRGB(colors.emerald["800"]),
+            "--color-primary": toRGB("#356D9D"),
           },
         },
         // Theme 2 colors

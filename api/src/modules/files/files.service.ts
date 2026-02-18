@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { AttachFileDto } from './dto/attach-file.dto';
+import { Prisma } from '@prisma/client';
+import { toBigInt } from '../../common/utils/ids';
 
 @Injectable()
 export class FilesService {
@@ -10,26 +12,29 @@ export class FilesService {
     const page = Math.max(1, Number(query.page ?? 1));
     const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
 
-    const where: any = {
-      valueFileUrl: { not: null }
-    };
+    const where: Prisma.FileAssetWhereInput = {};
 
-    if (query.form_id) {
-      where.submission = { formId: String(query.form_id) };
+    if (query.organization_id) {
+      where.organizationId = toBigInt(String(query.organization_id));
+    }
+    if (query.uploaded_by) {
+      where.uploadedBy = toBigInt(String(query.uploaded_by));
+    }
+    if (query.request_item_id) {
+      where.requestItems = {
+        some: { id: String(query.request_item_id) }
+      };
     }
 
     const [data, total] = await this.prisma.$transaction([
-      this.prisma.formSubmissionData.findMany({
+      this.prisma.fileAsset.findMany({
         where,
         include: {
-          field: true,
-          submission: {
+          uploader: {
             select: {
               id: true,
-              formId: true,
-              submissionNumber: true,
-              status: true,
-              createdAt: true
+              username: true,
+              email: true
             }
           }
         },
@@ -37,7 +42,7 @@ export class FilesService {
         skip: (page - 1) * perPage,
         take: perPage
       }),
-      this.prisma.formSubmissionData.count({ where })
+      this.prisma.fileAsset.count({ where })
     ]);
 
     return {
@@ -51,37 +56,31 @@ export class FilesService {
     };
   }
 
-  async attach(dto: AttachFileDto) {
-    const [submission, field] = await this.prisma.$transaction([
-      this.prisma.formSubmission.findUnique({ where: { id: dto.submission_id } }),
-      this.prisma.formField.findUnique({ where: { id: dto.field_id } })
-    ]);
-
-    if (!submission) throw new NotFoundException('Submission not found');
-    if (!field) throw new NotFoundException('Field not found');
-    if (submission.formId !== field.formId) {
-      throw new BadRequestException('Field does not belong to the submission form');
+  async attach(userId: string, dto: AttachFileDto) {
+    if (!dto.storage_path && !dto.file_url) {
+      throw new BadRequestException('storage_path or file_url is required');
     }
 
-    const row = await this.prisma.formSubmissionData.upsert({
-      where: {
-        unique_submission_field: {
-          submissionId: dto.submission_id,
-          fieldId: dto.field_id
-        }
-      },
-      update: {
-        valueFileUrl: dto.file_url,
-        fieldKey: field.fieldKey
-      },
-      create: {
-        submissionId: dto.submission_id,
-        fieldId: dto.field_id,
-        fieldKey: field.fieldKey,
-        valueFileUrl: dto.file_url
+    if (dto.organization_id) {
+      const org = await this.prisma.organization.findUnique({
+        where: { id: toBigInt(dto.organization_id) },
+        select: { id: true }
+      });
+      if (!org) throw new NotFoundException('Organization not found');
+    }
+
+    return this.prisma.fileAsset.create({
+      data: {
+        storageDisk: dto.storage_disk ?? 'local',
+        storagePath: dto.storage_path || dto.file_url!,
+        fileName: dto.file_name,
+        mimeType: dto.mime_type ?? null,
+        fileSize: dto.file_size !== undefined ? BigInt(dto.file_size) : null,
+        publicUrl: dto.file_url ?? null,
+        organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
+        uploadedBy: userId ? toBigInt(userId) : null,
+        metadata: (dto.metadata ?? null) as Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput
       }
     });
-
-    return row;
   }
 }

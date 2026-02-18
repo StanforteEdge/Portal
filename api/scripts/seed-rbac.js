@@ -28,20 +28,29 @@ const roles = [
   { name: 'Finance Officer', slug: 'finance_officer', description: 'Finance Department Staff' },
   { name: 'Finance Auditor', slug: 'finance_auditor', description: 'External/Internal Auditor' },
   { name: 'Accountant', slug: 'accountant', description: 'Accountant' },
-  { name: 'Staff', slug: 'staff', description: 'General Staff Member' }
+  { name: 'Staff', slug: 'staff', description: 'General Staff Member' },
+  { name: 'Team Lead', slug: 'team_lead', description: 'Team approval role' },
+  { name: 'COO', slug: 'coo', description: 'Chief Operating Officer' },
+  { name: 'ED', slug: 'ed', description: 'Executive Director' }
 ];
 
 const permissions = [
   { name: 'Create Requests', slug: 'requests.create', module: 'requests', description: 'Can create new requests' },
   { name: 'View Requests', slug: 'requests.view', module: 'requests', description: 'Can view requests' },
+  { name: 'Manage Requests', slug: 'requests.manage', module: 'requests', description: 'Can manage requests and request types' },
   { name: 'Approve Requests', slug: 'requests.approve', module: 'requests', description: 'Can approve requests' },
   { name: 'Retire Requests', slug: 'requests.retire', module: 'requests', description: 'Can submit retirement proofs' },
+  { name: 'Workflow Manage', slug: 'workflow_manage', module: 'workflow', description: 'Can configure and execute workflows' },
+  { name: 'Workflow View', slug: 'workflow_view', module: 'workflow', description: 'Can view workflow states and history' },
+  { name: 'Send Notifications', slug: 'send_notifications', module: 'notifications', description: 'Can trigger notifications' },
   { name: 'Manage Finance', slug: 'finance.manage', module: 'finance', description: 'Full access to finance module' },
   { name: 'View Finance', slug: 'finance.view', module: 'finance', description: 'Read-only access to finance module' },
   { name: 'Generate Vouchers', slug: 'finance.vouchers', module: 'finance', description: 'Can generate payment vouchers' },
   { name: 'Manage Settings', slug: 'settings.manage', module: 'admin', description: 'Manage system settings' },
   { name: 'Manage Users', slug: 'users.manage', module: 'admin', description: 'Manage users and profiles' },
   { name: 'Manage Roles', slug: 'roles.manage', module: 'admin', description: 'Manage roles and permissions' },
+  { name: 'View Audit', slug: 'audit.view', module: 'audit', description: 'Can view audit and email logs' },
+  { name: 'Manage Audit', slug: 'audit.manage', module: 'audit', description: 'Can create audit events' },
   { name: 'Manage HR', slug: 'hr.manage', module: 'hr', description: 'Manage HR module' },
   { name: 'Grade Applications', slug: 'grading.grade', module: 'grading', description: 'Can grade applications' }
 ];
@@ -49,9 +58,13 @@ const permissions = [
 const rolePermissionMap = {
   administrator: ['*'],
   admin: ['*'],
-  finance_manager: ['requests.view', 'requests.approve', 'finance.manage', 'finance.view', 'finance.vouchers'],
-  finance_officer: ['requests.view', 'finance.view', 'finance.vouchers'],
-  staff: ['requests.create', 'requests.view', 'requests.retire']
+  finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.vouchers', 'workflow_view'],
+  accountant: ['requests.view', 'requests.approve', 'finance.manage', 'finance.view', 'finance.vouchers', 'workflow_view'],
+  finance_officer: ['requests.view', 'finance.view', 'finance.vouchers', 'workflow_view'],
+  staff: ['requests.create', 'requests.view', 'requests.retire'],
+  team_lead: ['requests.view', 'requests.approve', 'workflow_view'],
+  coo: ['requests.view', 'requests.approve', 'workflow_view'],
+  ed: ['requests.view', 'requests.approve', 'workflow_view']
 };
 
 async function main() {

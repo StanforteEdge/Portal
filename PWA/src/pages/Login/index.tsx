@@ -1,6 +1,6 @@
 import ThemeSwitcher from "@/components/ThemeSwitcher";
-import logoUrl from "@/assets/images/logo.svg";
 import illustrationUrl from "@/assets/images/illustration.svg";
+import { BRAND_LOGO_ICON_DARK } from "@/constants/branding";
 import { FormInput, FormCheck } from "@/components/Base/Form";
 import Button from "@/components/Base/Button";
 import clsx from "clsx";
@@ -13,18 +13,18 @@ import {
   selectAuthState,
   selectIsAuthenticated,
 } from "@/stores/authSlice";
-import { useEffect } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { showToast } from "@/utils/toast";
+import { useEffect, useState } from "react";
+import { useNavigate, Link, useLocation } from "react-router-dom";
 import { resolveRedirectPath } from "@/utils/resolveRedirectPath";
+import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 
 interface LoginFormValues {
   email: string;
   password: string;
-  remember: boolean;
+  remember?: boolean;
 }
 
-const loginSchema = yup.object({
+const loginSchema: yup.ObjectSchema<LoginFormValues> = yup.object({
   email: yup
     .string()
     .required("Email is required")
@@ -35,14 +35,19 @@ const loginSchema = yup.object({
       (value) => !!value && value.toLowerCase().endsWith("@stanforteedge.com")
     ),
   password: yup.string().required("Password is required"),
-  remember: yup.boolean(),
+  remember: yup.boolean().optional(),
 });
 
 function Main() {
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
+  const location = useLocation();
   const authState = useAppSelector(selectAuthState);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
+  const redirectFrom = (location.state as { from?: string } | null)?.from;
+  const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(
+    null
+  );
 
   const {
     register,
@@ -59,26 +64,26 @@ function Main() {
 
   useEffect(() => {
     if (isAuthenticated && authState.user) {
-      const redirectPath = resolveRedirectPath(authState.user.roles ?? []);
+      const redirectPath = redirectFrom || resolveRedirectPath(authState.user.roles ?? []);
       navigate(redirectPath, { replace: true });
     }
-  }, [isAuthenticated, authState.user, navigate]);
+  }, [isAuthenticated, authState.user, navigate, redirectFrom]);
 
   const onSubmit = async (values: LoginFormValues) => {
     try {
+      setNotice(null);
       const result = await dispatch(
         loginThunk({ email: values.email, password: values.password })
       ).unwrap();
 
-      showToast("Login successful", "success");
-      const redirectPath = resolveRedirectPath(result.user.roles ?? []);
+      const redirectPath = redirectFrom || resolveRedirectPath(result.user.roles ?? []);
       navigate(redirectPath, { replace: true });
     } catch (error: any) {
       const message =
         typeof error === "string" && error
           ? error
           : "Unable to login. Please verify your credentials.";
-      showToast(message, "error");
+      setNotice({ tone: "error", message });
     }
   };
 
@@ -97,8 +102,8 @@ function Main() {
             {/* BEGIN: Login Info */}
             <div className="flex-col hidden min-h-screen xl:flex">
               <Link to="/" className="flex items-center pt-5 -intro-x">
-                <img alt="Stanforte Edge" className="w-6" src={logoUrl} />
-                <span className="ml-3 text-lg text-white"> Stanforte Edge </span>
+                <img alt="Stanforte Edge" className="w-6" src={BRAND_LOGO_ICON_DARK} />
+                <span className="ml-3 text-lg text-white">Stanforte Edge</span>
               </Link>
               <div className="my-auto">
                 <img
@@ -111,7 +116,7 @@ function Main() {
                   sign in to your account.
                 </div>
                 <div className="mt-5 text-lg text-white -intro-x text-opacity-70 dark:text-slate-400">
-                  Access the Stanforte Edge staff portal securely.
+                  Creating shared prosperity.
                 </div>
               </div>
             </div>
@@ -123,6 +128,13 @@ function Main() {
                   <h2 className="text-2xl font-bold text-center intro-x xl:text-3xl xl:text-left">
                     Sign In
                   </h2>
+                  {notice ? (
+                    <AppNotice
+                      tone={notice.tone}
+                      message={notice.message}
+                      className="mt-4"
+                    />
+                  ) : null}
                   <div className="mt-2 text-center intro-x text-slate-400 xl:hidden">
                     Enter your corporate credentials to continue.
                   </div>

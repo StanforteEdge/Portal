@@ -1,8 +1,14 @@
 import axios from "axios";
+import { AxiosHeaders } from "axios";
 import { getStoredSession, updateSessionTokens, clearSession } from "./authStorage";
+import { normalizeTokens } from "./authTokens";
+
+const apiBaseUrl =
+  import.meta.env.VITE_API_BASE_URL ||
+  (import.meta.env.DEV ? "http://localhost:3000/v1" : "/v1");
 
 const apiClient = axios.create({
-  baseURL: "/wp-json/api/v1",
+  baseURL: apiBaseUrl,
   timeout: 15000,
 });
 
@@ -10,10 +16,13 @@ apiClient.interceptors.request.use((config) => {
   const { accessToken } = getStoredSession();
 
   if (accessToken) {
-    config.headers = {
-      ...config.headers,
-      Authorization: `Bearer ${accessToken}`,
-    };
+    if (config.headers instanceof AxiosHeaders) {
+      config.headers.set("Authorization", `Bearer ${accessToken}`);
+    } else {
+      const headers = (config.headers || {}) as Record<string, string>;
+      headers.Authorization = `Bearer ${accessToken}`;
+      config.headers = headers as any;
+    }
   }
 
   return config;
@@ -50,7 +59,14 @@ apiClient.interceptors.response.use(
                 return;
               }
 
-              originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+              if (originalRequest.headers instanceof AxiosHeaders) {
+                originalRequest.headers.set("Authorization", `Bearer ${accessToken}`);
+              } else {
+                originalRequest.headers = {
+                  ...(originalRequest.headers || {}),
+                  Authorization: `Bearer ${accessToken}`,
+                };
+              }
               resolve(apiClient(originalRequest));
             } catch (retryError) {
               reject(retryError);
@@ -71,17 +87,14 @@ apiClient.interceptors.response.use(
         }
 
         const refreshResponse = await axios.post(
-          "/wp-json/api/v1/auth/refresh",
+          `${apiBaseUrl}/auth/refresh`,
           {
             refresh_token: session.refreshToken,
           }
         );
 
-        const {
-          data: {
-            data: { tokens },
-          },
-        } = refreshResponse;
+        const payload = refreshResponse?.data?.data ?? {};
+        const tokens = normalizeTokens(payload);
 
         updateSessionTokens(
           tokens.access_token,
@@ -89,7 +102,14 @@ apiClient.interceptors.response.use(
           tokens.expires_in
         );
 
-        originalRequest.headers.Authorization = `Bearer ${tokens.access_token}`;
+        if (originalRequest.headers instanceof AxiosHeaders) {
+          originalRequest.headers.set("Authorization", `Bearer ${tokens.access_token}`);
+        } else {
+          originalRequest.headers = {
+            ...(originalRequest.headers || {}),
+            Authorization: `Bearer ${tokens.access_token}`,
+          };
+        }
         flushQueue();
         return apiClient(originalRequest);
       } catch (refreshError) {

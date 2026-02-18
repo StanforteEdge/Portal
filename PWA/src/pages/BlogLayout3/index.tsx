@@ -1,4 +1,4 @@
-import _ from "lodash";
+import * as _ from "lodash";
 import fakerData from "@/utils/faker";
 import { FormTextarea } from "@/components/Base/Form";
 import Lucide from "@/components/Base/Lucide";

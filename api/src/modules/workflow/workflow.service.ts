@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { GroupUserRole } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
 
@@ -21,15 +22,15 @@ export class WorkflowService {
   }) {
     const existing = await this.prisma.requestInstance.findUnique({
       where: { id: params.requestId },
-      select: { workflowInstanceId: true, requestType: { select: { name: true, approvalFlowJson: true } } }
+      select: { workflowInstanceId: true, teamId: true, requestType: { select: { name: true, approvalFlowJson: true } } }
     });
 
     if (!existing) throw new NotFoundException('Request not found');
-    if (existing.workflowInstanceId) return { instanceId: existing.workflowInstanceId };
+    if (existing.workflowInstanceId) return { instanceId: existing.workflowInstanceId, workflowStatus: 'pending' as const };
 
     const steps = this.extractApprovalSteps(existing.requestType.approvalFlowJson, params.amount ?? undefined);
     if (steps.length === 0) {
-      return { instanceId: null };
+      return { instanceId: null, workflowStatus: 'none' as const };
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -107,12 +108,56 @@ export class WorkflowService {
         }
       });
 
+      let currentStepId: string | null = workflowSteps[0].id;
+      let workflowStatus: 'pending' | 'approved' = 'pending';
+      let autoApprovedInitial = false;
+
+      if (steps[0]?.role === 'team_lead') {
+        const isLead = await this.isTeamLeadForRequestIdTx(tx, params.requestId, params.initiatedBy);
+        if (isLead) {
+          autoApprovedInitial = true;
+          const nextStep = workflowSteps[1];
+          await tx.workflowHistory.create({
+            data: {
+              instanceId: instance.id,
+              action: 'auto_approve',
+              performedBy: toBigInt(params.initiatedBy),
+              comment: 'Auto-approved: requester is team lead',
+              fromStepId: workflowSteps[0].id,
+              toStepId: nextStep?.id
+            }
+          });
+          if (nextStep) {
+            currentStepId = nextStep.id;
+          } else {
+            currentStepId = null;
+            workflowStatus = 'approved';
+          }
+        }
+      }
+
       await tx.workflowHistory.create({
         data: {
           instanceId: instance.id,
           action: 'start',
           performedBy: toBigInt(params.initiatedBy),
-          data: { currentStepId: workflowSteps[0].id }
+          data: {
+            currentStepId,
+            autoApprovedInitial
+          }
+        }
+      });
+
+      await tx.workflowInstance.update({
+        where: { id: instance.id },
+        data: {
+          currentStepId,
+          ...(workflowStatus === 'approved'
+            ? {
+                status: 'approved',
+                completedAt: new Date()
+              }
+            : {})
         }
       });
 
@@ -121,7 +166,7 @@ export class WorkflowService {
         data: { workflowInstanceId: instance.id }
       });
 
-      return { instanceId: instance.id };
+      return { instanceId: instance.id, workflowStatus, autoApprovedInitial };
     });
   }
 
@@ -133,10 +178,17 @@ export class WorkflowService {
   }) {
     const instance = await this.prisma.workflowInstance.findUnique({
       where: { id: params.instanceId },
-      include: { currentStep: true }
+      include: { currentStep: { include: { approvers: true } } }
     });
     if (!instance) throw new NotFoundException('Workflow instance not found');
     if (instance.status !== 'pending') throw new BadRequestException('Workflow instance is not active');
+    if (!instance.currentStep) throw new BadRequestException('Workflow has no active step');
+    const currentStep = instance.currentStep;
+
+    const canApproveCurrentStep = await this.canUserActOnCurrentStep(instance, params.performedBy);
+    if (!canApproveCurrentStep) {
+      throw new BadRequestException('User is not an allowed approver for the current step');
+    }
 
     return this.prisma.$transaction(async (tx) => {
       if (params.action === 'reject') {
@@ -162,14 +214,10 @@ export class WorkflowService {
         return { status: 'rejected', completed: true };
       }
 
-      if (!instance.currentStep) {
-        throw new BadRequestException('Workflow has no active step');
-      }
-
       const nextStep = await tx.workflowStep.findFirst({
         where: {
           workflowId: instance.workflowId,
-          order: { gt: instance.currentStep.order }
+          order: { gt: currentStep.order }
         },
         orderBy: { order: 'asc' }
       });
@@ -180,7 +228,7 @@ export class WorkflowService {
           action: 'approve',
           performedBy: toBigInt(params.performedBy),
           comment: params.comment,
-          fromStepId: instance.currentStep.id,
+          fromStepId: currentStep.id,
           toStepId: nextStep?.id
         }
       });
@@ -275,5 +323,111 @@ export class WorkflowService {
       if (step.approval_limit !== undefined && amount !== undefined && amount > step.approval_limit) return false;
       return true;
     });
+  }
+
+  private async canUserActOnCurrentStep(
+    instance: {
+      entityType: string;
+      entityId: string;
+      currentStep: { approvers: Array<{ approverType: string; approverId: string }> } | null;
+    },
+    userId: string
+  ) {
+    if (!instance.currentStep) return false;
+    for (const approver of instance.currentStep.approvers) {
+      if (approver.approverType !== 'role') continue;
+      const approverId = approver.approverId?.trim();
+      if (!approverId) continue;
+
+      if (approverId === 'team_lead') {
+        const isLead = await this.isTeamLeadForRequest(instance, userId);
+        if (isLead) return true;
+        continue;
+      }
+
+      const hasRole = await this.prisma.userRole.count({
+        where: {
+          profileId: toBigInt(userId),
+          role: { slug: approverId }
+        }
+      });
+      if (hasRole > 0) return true;
+
+      if (approverId.includes('.')) {
+        const hasPermission = await this.prisma.rolePermission.count({
+          where: {
+            role: {
+              users: {
+                some: { profileId: toBigInt(userId) }
+              }
+            },
+            permission: { slug: approverId }
+          }
+        });
+        if (hasPermission > 0) return true;
+      }
+    }
+
+    return false;
+  }
+
+  private async isTeamLeadForRequest(
+    instance: {
+      entityType: string;
+      entityId: string;
+    },
+    userId: string
+  ) {
+    if (instance.entityType !== 'request') return false;
+    const request = await this.prisma.requestInstance.findUnique({
+      where: { id: toBigInt(instance.entityId) },
+      select: { teamId: true }
+    });
+    if (!request?.teamId) return false;
+
+    const member = await this.prisma.groupUser.findFirst({
+      where: {
+        groupId: request.teamId,
+        userId: toBigInt(userId),
+        role: GroupUserRole.moderator
+      },
+      select: { id: true }
+    });
+    return Boolean(member);
+  }
+
+  private async isTeamLeadForRequestIdTx(
+    tx: {
+      requestInstance: {
+        findUnique: (args: {
+          where: { id: bigint };
+          select: { teamId: true };
+        }) => Promise<{ teamId: bigint | null } | null>;
+      };
+      groupUser: {
+        findFirst: (args: {
+          where: { groupId: bigint; userId: bigint; role: GroupUserRole };
+          select: { id: true };
+        }) => Promise<{ id: bigint } | null>;
+      };
+    },
+    requestId: bigint,
+    userId: string
+  ) {
+    const request = await tx.requestInstance.findUnique({
+      where: { id: requestId },
+      select: { teamId: true }
+    });
+    if (!request?.teamId) return false;
+
+    const member = await tx.groupUser.findFirst({
+      where: {
+        groupId: request.teamId,
+        userId: toBigInt(userId),
+        role: GroupUserRole.moderator
+      },
+      select: { id: true }
+    });
+    return Boolean(member);
   }
 }

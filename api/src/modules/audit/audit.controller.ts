@@ -25,6 +25,12 @@ export class AuditController {
     return this.auditService.getRequestAudit(requestId);
   }
 
+  @Get('email-logs')
+  @Permissions('audit.view')
+  emailLogs(@Query() query: Record<string, any>) {
+    return this.auditService.listEmailLogs(query);
+  }
+
   @Post()
   @Permissions('audit.manage')
   create(@Req() req: any, @Body() dto: CreateAuditEventDto) {

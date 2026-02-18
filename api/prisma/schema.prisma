@@ -11,6 +11,7 @@ enum TokenType {
   access
   refresh
   reset
+  invite
 }
 
 enum OrganizationType {
@@ -27,14 +28,19 @@ enum GroupUserRole {
 
 enum RequestStatus {
   draft
-  pending_approval
+  sent
+  approval
+  cleared
   approved
   rejected
+  cancelled
   payment_processing
   disbursed
+  confirmed
   partially_disbursed
   pending_retirement
   retired
+  completed
 }
 
 model Profile {
@@ -71,6 +77,8 @@ model Profile {
   tokens        Token[]
   groups        GroupUser[]
   requests      RequestInstance[] @relation("RequestCreatedBy")
+  uploadedFiles FileAsset[] @relation("FileUploadedBy")
+  emailLogs     EmailLog[] @relation("EmailLogUser")
 
   @@map("sta_profiles")
 }
@@ -95,6 +103,7 @@ model Organization {
   groups    Group[]
   requests  RequestInstance[]
   requestGroups RequestGroup[]
+  fileAssets FileAsset[]
 
   @@map("sta_organizations")
 }
@@ -219,6 +228,31 @@ model Notification {
   @@map("sta_notifications")
 }
 
+model EmailLog {
+  id             BigInt    @id @default(autoincrement())
+  userId         BigInt?   @map("user_id")
+  toEmail        String    @map("to_email") @db.VarChar(255)
+  subject        String    @db.VarChar(255)
+  bodyText       String?   @map("body_text")
+  bodyHtml       String?   @map("body_html")
+  threadKey      String?   @map("thread_key") @db.VarChar(191)
+  provider       String?   @db.VarChar(50)
+  status         String    @default("queued") @db.VarChar(20)
+  messageId      String?   @map("message_id") @db.VarChar(255)
+  errorMessage   String?   @map("error_message")
+  notifiableType String?   @map("notifiable_type") @db.VarChar(100)
+  notifiableId   BigInt?   @map("notifiable_id")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  user Profile? @relation("EmailLogUser", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([status])
+  @@index([notifiableType, notifiableId])
+  @@map("sta_email_logs")
+}
+
 model Group {
   id          BigInt   @id @default(autoincrement())
   name        String   @db.VarChar(255)
@@ -280,6 +314,7 @@ model RequestType {
   groupId          String   @map("group_id") @db.Uuid
   name             String   @db.VarChar(100)
   codePrefix       String   @map("code_prefix") @db.VarChar(10)
+  categoryKey      String?  @map("category_key") @db.VarChar(100)
   description      String?
   storageType      String?  @map("storage_type") @db.VarChar(20)
   formSchema       Json?    @map("form_schema")
@@ -320,6 +355,7 @@ model RequestInstance {
   organization Organization? @relation(fields: [organizationId], references: [id])
   creator     Profile @relation("RequestCreatedBy", fields: [createdBy], references: [id])
   items       RequestItem[]
+  paymentVouchers FinancePaymentVoucher[]
 
   @@index([requestTypeId])
   @@index([groupId])
@@ -333,6 +369,7 @@ model RequestInstance {
 model RequestItem {
   id            String   @id @default(uuid()) @db.Uuid
   requestId     BigInt   @map("request_id")
+  fileId        String?  @map("file_id") @db.Uuid
   categoryId    String?  @map("category_id") @db.Uuid
   subcategoryId String?  @map("subcategory_id") @db.Uuid
   description   String
@@ -344,11 +381,108 @@ model RequestItem {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   request RequestInstance @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  file    FileAsset?      @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
   @@index([requestId])
+  @@index([fileId])
   @@index([categoryId])
   @@index([subcategoryId])
   @@map("sta_request_items")
+}
+
+model FinanceSetting {
+  id        String   @id @default(uuid()) @db.Uuid
+  key       String   @unique @db.VarChar(100)
+  config    Json?
+  updatedBy BigInt?  @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("sta_finance_settings")
+}
+
+model FileAsset {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  uploadedBy     BigInt?  @map("uploaded_by")
+  storageDisk    String   @default("local") @map("storage_disk") @db.VarChar(30)
+  storagePath    String   @map("storage_path") @db.VarChar(500)
+  fileName       String   @map("file_name") @db.VarChar(255)
+  mimeType       String?  @map("mime_type") @db.VarChar(120)
+  fileSize       BigInt?  @map("file_size")
+  publicUrl      String?  @map("public_url") @db.VarChar(500)
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id])
+  uploader     Profile?      @relation("FileUploadedBy", fields: [uploadedBy], references: [id])
+  requestItems RequestItem[]
+  financePaymentVouchers FinancePaymentVoucher[]
+
+  @@index([organizationId])
+  @@index([uploadedBy])
+  @@map("sta_file_assets")
+}
+
+model FinancePaymentVoucher {
+  id               String   @id @default(uuid()) @db.Uuid
+  requestId        BigInt   @map("request_id")
+  voucherNumber    String   @map("voucher_number") @db.VarChar(60)
+  amount           Decimal  @db.Decimal(15,2)
+  retiredAmount    Decimal  @default(0) @map("retired_amount") @db.Decimal(15,2)
+  retirementStatus String   @default("not_retired") @map("retirement_status") @db.VarChar(20)
+  method           String?  @db.VarChar(40)
+  transactionRef   String?  @map("transaction_ref") @db.VarChar(120)
+  note             String?
+  evidenceFileId   String?  @map("evidence_file_id") @db.Uuid
+  disbursedAt      DateTime @map("disbursed_at")
+  retiredAt        DateTime? @map("retired_at")
+  verifiedAt       DateTime? @map("verified_at")
+  metadata         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  request      RequestInstance @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  evidenceFile FileAsset?      @relation(fields: [evidenceFileId], references: [id], onDelete: SetNull)
+
+  @@index([requestId])
+  @@index([voucherNumber])
+  @@index([retirementStatus])
+  @@map("sta_finance_payment_vouchers")
+}
+
+model Taxonomy {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique @db.VarChar(100)
+  name        String   @db.VarChar(120)
+  description String?
+  module      String?  @db.VarChar(50)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  terms TaxonomyTerm[]
+
+  @@map("sta_taxonomies")
+}
+
+model TaxonomyTerm {
+  id         String   @id @default(uuid()) @db.Uuid
+  taxonomyId String   @map("taxonomy_id") @db.Uuid
+  value      String   @db.VarChar(120)
+  label      String   @db.VarChar(120)
+  sortOrder  Int      @default(0) @map("sort_order")
+  isActive   Boolean  @default(true) @map("is_active")
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  taxonomy Taxonomy @relation(fields: [taxonomyId], references: [id], onDelete: Cascade)
+
+  @@unique([taxonomyId, value], name: "unique_taxonomy_term_value")
+  @@index([taxonomyId, isActive])
+  @@map("sta_taxonomy_terms")
 }
 
 model Workflow {

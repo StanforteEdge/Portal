@@ -14,15 +14,29 @@ export interface FormattedMenu extends Menu {
   subMenu?: FormattedMenu[];
 }
 
+const resolvePathnameForLocation = (pathname: string | undefined, location: Location) => {
+  if (!pathname) return { pathname: undefined, active: false, shouldRender: true };
+  if (!pathname.includes(":id")) {
+    const active =
+      (location.forceActiveMenu !== undefined && pathname === location.forceActiveMenu) ||
+      (location.forceActiveMenu === undefined && pathname === location.pathname);
+    return { pathname, active, shouldRender: true };
+  }
+
+  const basePath = pathname.split(":id")[0];
+  const active = location.pathname.startsWith(basePath) && location.pathname.length > basePath.length;
+  if (!active) return { pathname, active: false, shouldRender: false };
+  return { pathname: location.pathname, active: true, shouldRender: true };
+};
+
 // Setup side menu
 const findActiveMenu = (subMenu: Menu[], location: Location): boolean => {
   let match = false;
   subMenu.forEach((item) => {
+    const resolved = resolvePathnameForLocation(item.pathname, location);
     if (
-      ((location.forceActiveMenu !== undefined &&
-        item.pathname === location.forceActiveMenu) ||
-        (location.forceActiveMenu === undefined &&
-          item.pathname === location.pathname)) &&
+      ((location.forceActiveMenu !== undefined && resolved.pathname === location.forceActiveMenu) ||
+        (location.forceActiveMenu === undefined && resolved.active)) &&
       !item.ignore
     ) {
       match = true;
@@ -37,18 +51,19 @@ const nestedMenu = (menu: Array<Menu | "divider">, location: Location) => {
   const formattedMenu: Array<FormattedMenu | "divider"> = [];
   menu.forEach((item) => {
     if (typeof item !== "string") {
+      const resolved = resolvePathnameForLocation(item.pathname, location);
+      if (!resolved.shouldRender) return;
+
       const menuItem: FormattedMenu = {
         icon: item.icon,
         title: item.title,
-        pathname: item.pathname,
+        pathname: resolved.pathname,
         subMenu: item.subMenu,
         ignore: item.ignore,
       };
       menuItem.active =
-        ((location.forceActiveMenu !== undefined &&
-          menuItem.pathname === location.forceActiveMenu) ||
-          (location.forceActiveMenu === undefined &&
-            menuItem.pathname === location.pathname) ||
+        ((location.forceActiveMenu !== undefined && menuItem.pathname === location.forceActiveMenu) ||
+          (location.forceActiveMenu === undefined && resolved.active) ||
           (menuItem.subMenu && findActiveMenu(menuItem.subMenu, location))) &&
         !menuItem.ignore;
 

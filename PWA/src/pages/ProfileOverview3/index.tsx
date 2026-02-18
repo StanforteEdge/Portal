@@ -1,4 +1,4 @@
-import _ from "lodash";
+import * as _ from "lodash";
 import clsx from "clsx";
 import { useRef } from "react";
 import fakerData from "@/utils/faker";

@@ -9,15 +9,22 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { sha256, randomToken } from '../../common/utils/crypto';
 import { toBigInt } from '../../common/utils/ids';
+import { AuthStatusResponseDto, LoginResponseDto } from './dto/auth-response.dto';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
+import { MailService } from '../../common/mail/mail.service';
 
 const ACCESS_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
 const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService, private readonly jwt: JwtService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwt: JwtService,
+    private readonly mailService: MailService
+  ) {}
 
-  async login(dto: LoginDto) {
+  async login(dto: LoginDto): Promise<LoginResponseDto> {
     const email = dto.email.trim().toLowerCase();
     const profile = await this.prisma.profile.findUnique({ where: { email } });
     if (!profile || profile.status !== 'active') throw new UnauthorizedException('Invalid credentials');
@@ -46,7 +53,7 @@ export class AuthService {
     };
   }
 
-  async status(userId: string) {
+  async status(userId: string): Promise<AuthStatusResponseDto> {
     const profile = await this.prisma.profile.findUnique({ where: { id: toBigInt(userId) } });
     if (!profile) throw new NotFoundException('User not found');
     const authContext = await this.buildAuthContext(profile.id);
@@ -132,8 +139,16 @@ export class AuthService {
       })
     ]);
 
-    // TODO: send resetToken via email
-    void resetToken;
+    const appUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
+    const resetLink = `${appUrl}/reset-password?token=${encodeURIComponent(resetToken)}`;
+    await this.mailService.send({
+      to: profile.email,
+      subject: 'Reset your StanforteEdge password',
+      text: `Use this link to reset your password: ${resetLink}`,
+      html: `<p>Use this link to reset your password:</p><p><a href=\"${resetLink}\">${resetLink}</a></p>`,
+      threadKey: `auth-reset-${profile.id.toString()}`,
+      userId: profile.id
+    });
     return { success: true };
   }
 
@@ -157,6 +172,39 @@ export class AuthService {
         data: { passwordHash: newHash }
       }),
       this.prisma.token.deleteMany({ where: { profileId: tokenRow.profileId } })
+    ]);
+
+    return { success: true };
+  }
+
+  async acceptInvite(dto: AcceptInviteDto) {
+    if (dto.confirm_password && dto.new_password !== dto.confirm_password) {
+      throw new BadRequestException('Passwords do not match');
+    }
+
+    const tokenHash = sha256(dto.token);
+    const tokenRow = await this.prisma.token.findFirst({
+      where: { tokenHash, type: 'invite' }
+    });
+
+    if (!tokenRow) throw new UnauthorizedException('Invalid invite token');
+    if (tokenRow.expiresAt.getTime() < Date.now()) {
+      await this.prisma.token.delete({ where: { id: tokenRow.id } });
+      throw new UnauthorizedException('Invite token expired');
+    }
+
+    const passwordHash = await bcrypt.hash(dto.new_password, 12);
+    await this.prisma.$transaction([
+      this.prisma.profile.update({
+        where: { id: tokenRow.profileId },
+        data: { passwordHash, status: 'active' }
+      }),
+      this.prisma.token.deleteMany({
+        where: {
+          profileId: tokenRow.profileId,
+          type: { in: ['invite'] }
+        }
+      })
     ]);
 
     return { success: true };

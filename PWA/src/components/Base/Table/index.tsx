@@ -94,7 +94,7 @@ type TbodyProps = React.PropsWithChildren<
 >;
 
 Table.Tbody = ({ className, ...props }: TbodyProps) => {
-  return <thead className={className}>{props.children}</thead>;
+  return <tbody className={className}>{props.children}</tbody>;
 };
 
 type TrProps = React.PropsWithChildren & React.ComponentPropsWithoutRef<"tr">;

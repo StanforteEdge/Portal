@@ -1,12 +1,12 @@
 import { useState, Fragment } from "react";
 import Lucide from "@/components/Base/Lucide";
-import logoUrl from "@/assets/images/logo.svg";
+import { BRAND_LOGO_ICON_DARK } from "@/constants/branding";
 import { Link } from "react-router-dom";
 import Breadcrumb from "@/components/Base/Breadcrumb";
 import { FormInput } from "@/components/Base/Form";
 import { Menu, Popover } from "@/components/Base/Headless";
 import fakerData from "@/utils/faker";
-import _ from "lodash";
+import * as _ from "lodash";
 import clsx from "clsx";
 import { Transition } from "@headlessui/react";
 
@@ -29,7 +29,7 @@ function Main() {
             <img
               alt="Icewall Tailwind HTML Admin Template"
               className="w-6"
-              src={logoUrl}
+              src={BRAND_LOGO_ICON_DARK}
             />
             <span className="ml-3 text-lg text-white"> Icewall </span>
           </Link>
@@ -39,8 +39,8 @@ function Main() {
             light
             className="h-full md:ml-10 md:pl-10 md:border-l border-white/[0.08] mr-auto -intro-x"
           >
-            <Breadcrumb.Link to="/">Application</Breadcrumb.Link>
-            <Breadcrumb.Link to="/" active={true}>
+            <Breadcrumb.Link to="/app/dashboard">Dashboard</Breadcrumb.Link>
+            <Breadcrumb.Link to="/app/dashboard" active={true}>
               Dashboard
             </Breadcrumb.Link>
           </Breadcrumb>

@@ -1,9 +1,9 @@
 const roleRedirectMap: Array<{ roles: string[]; path: string }> = [
-  { roles: ["super-admin", "admin", "it-admin"], path: "/admin/dashboard" },
-  { roles: ["hr-admin", "hr-manager", "hr"], path: "/hr/dashboard" },
+  { roles: ["super-admin", "admin", "it-admin"], path: "/app/dashboard" },
+  { roles: ["hr-admin", "hr-manager", "hr"], path: "/app/dashboard" },
   {
-    roles: ["finance-officer", "finance-manager", "accountant"],
-    path: "/finance/dashboard",
+    roles: ["finance-officer", "finance-manager", "finance_manager", "accountant"],
+    path: "/app/dashboard",
   },
 ];
 
@@ -16,5 +16,5 @@ export function resolveRedirectPath(roles: string[] = []): string {
     }
   }
 
-  return "/dashboard";
+  return "/app/dashboard";
 }

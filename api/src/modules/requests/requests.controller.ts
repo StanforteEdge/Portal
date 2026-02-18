@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequestsService } from './requests.service';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
@@ -9,6 +9,8 @@ import { CreateRequestDto } from './dto/create-request.dto';
 import { UpdateRequestDto } from './dto/update-request.dto';
 import { SubmitRequestDto } from './dto/submit-request.dto';
 import { ActionRequestDto } from './dto/action-request.dto';
+import { RequestResponseDto } from './dto/request-response.dto';
+import { RetireRequestDto } from './dto/retire-request.dto';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -58,12 +60,46 @@ export class RequestsController {
 
   @Post('types')
   @Permissions('requests.manage')
+  @ApiBody({
+    type: CreateTypeDto,
+    examples: {
+      financeType: {
+        value: {
+          group_id: 'replace-group-id',
+          name: 'Operational Request',
+          code_prefix: 'OP',
+          storage_type: 'json',
+          approval_limit: 2000000,
+          approval_flow_json: {
+            steps: [
+              { role: 'team_lead' },
+              { role: 'accountant' },
+              { role: 'coo', min_amount: 500000 },
+              { role: 'ed', min_amount: 2000000 }
+            ]
+          }
+        }
+      }
+    }
+  })
   createType(@Body() dto: CreateTypeDto) {
     return this.requestsService.createType(dto);
   }
 
   @Post('types/:id')
   @Permissions('requests.manage')
+  @ApiBody({
+    type: UpdateTypeDto,
+    examples: {
+      updateWorkflow: {
+        value: {
+          approval_flow_json: {
+            steps: [{ role: 'team_lead' }, { role: 'accountant' }, { role: 'coo', min_amount: 300000 }]
+          }
+        }
+      }
+    }
+  })
   updateType(@Param('id') id: string, @Body() dto: UpdateTypeDto) {
     return this.requestsService.updateType(id, dto);
   }
@@ -76,42 +112,92 @@ export class RequestsController {
 
   @Post()
   @Permissions('requests.create')
+  @ApiOperation({ summary: 'Create request draft with items' })
+  @ApiOkResponse({ type: RequestResponseDto })
+  @ApiBody({
+    type: CreateRequestDto,
+    examples: {
+      pettyCashDraft: {
+        value: {
+          request_type_id: 'replace-with-pc-type-id',
+          data: { purpose: 'Site logistics for week 7', reimbursement: false },
+          currency: 'NGN',
+          items: [
+            {
+              description: 'Diesel purchase',
+              amount: 25000,
+              quantity: 1,
+              notes: 'Generator support',
+              file_id: 'replace-with-file-id'
+            }
+          ]
+        }
+      }
+    }
+  })
   createRequest(@Req() req: any, @Body() dto: CreateRequestDto) {
     return this.requestsService.createRequest(req.user?.id, dto);
   }
 
   @Post(':id/submit')
   @Permissions('requests.create')
+  @ApiOperation({ summary: 'Submit request for approval workflow' })
+  @ApiOkResponse({ type: RequestResponseDto })
+  @ApiBody({
+    type: SubmitRequestDto,
+    examples: {
+      default: { value: { comment: 'Please review and approve urgently.' } }
+    }
+  })
   submitRequest(@Req() req: any, @Param('id') id: string, @Body() dto: SubmitRequestDto) {
     return this.requestsService.submitRequest(id, req.user?.id, dto);
   }
 
   @Post(':id/approve')
   @Permissions('requests.approve')
+  @ApiOperation({ summary: 'Approve request at current workflow step' })
+  @ApiOkResponse({ type: RequestResponseDto })
+  @ApiBody({
+    type: ActionRequestDto,
+    examples: {
+      default: { value: { action: 'approve', comment: 'Approved from finance desk' } }
+    }
+  })
   approveRequest(@Req() req: any, @Param('id') id: string, @Body() dto: ActionRequestDto) {
     return this.requestsService.approveRequest(id, req.user?.id, dto);
   }
 
   @Post(':id/reject')
   @Permissions('requests.approve')
+  @ApiOperation({ summary: 'Reject request at current workflow step' })
+  @ApiOkResponse({ type: RequestResponseDto })
+  @ApiBody({
+    type: ActionRequestDto,
+    examples: {
+      default: { value: { action: 'reject', comment: 'Insufficient documentation attached' } }
+    }
+  })
   rejectRequest(@Req() req: any, @Param('id') id: string, @Body() dto: ActionRequestDto) {
     return this.requestsService.rejectRequest(id, req.user?.id, dto);
   }
 
   @Get()
   @Permissions('requests.view')
+  @ApiOkResponse({ type: RequestResponseDto, isArray: true })
   listRequests(@Req() req: any, @Query() query: Record<string, any>) {
     return this.requestsService.listRequests(query, req.user?.id);
   }
 
-  @Get('pending-approvals')
+  @Get('approvals')
   @Permissions('requests.approve')
-  getPendingApprovals(@Req() req: any, @Query() query: Record<string, any>) {
-    return this.requestsService.getPendingApprovals(req.user?.id, query);
+  @ApiOkResponse({ type: RequestResponseDto, isArray: true })
+  getApprovals(@Req() req: any, @Query() query: Record<string, any>) {
+    return this.requestsService.getApprovals(req.user?.id, query);
   }
 
   @Get(':id')
   @Permissions('requests.view')
+  @ApiOkResponse({ type: RequestResponseDto })
   getRequest(@Req() req: any, @Param('id') id: string) {
     return this.requestsService.getRequest(id, req.user?.id);
   }
@@ -159,8 +245,32 @@ export class RequestsController {
     return this.requestsService.generatePaymentVoucher(id, req.user?.id);
   }
 
+  @Post(':id/payment-vouchers/:voucherId/download')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'Generate/download a specific payment voucher PDF' })
+  generatePaymentVoucherById(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('voucherId') voucherId: string
+  ) {
+    return this.requestsService.generatePaymentVoucherForVoucher(id, voucherId, req.user?.id);
+  }
+
   @Post(':id')
   @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Update draft request' })
+  @ApiOkResponse({ type: RequestResponseDto })
+  @ApiBody({
+    type: UpdateRequestDto,
+    examples: {
+      default: {
+        value: {
+          data: { purpose: 'Updated logistics scope', reimbursement: false },
+          items: [{ description: 'Diesel purchase', amount: 30000, quantity: 1 }]
+        }
+      }
+    }
+  })
   updateRequest(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateRequestDto) {
     return this.requestsService.updateRequest(id, req.user?.id, dto);
   }
@@ -173,13 +283,57 @@ export class RequestsController {
 
   @Post(':id/retire')
   @Permissions('requests.retire')
-  retire(@Req() req: any, @Param('id') id: string) {
-    return this.requestsService.retire(id, req.user?.id);
+  @ApiOperation({ summary: 'Submit retirement by requester after disbursement usage' })
+  @ApiBody({
+    type: RetireRequestDto,
+    examples: {
+      default: {
+        value: {
+          voucher_id: '5e33f8b3-4b80-41de-ae11-cd3657f9300f',
+          notes: 'Retirement submitted with all invoice scans.',
+          retired_amount: 48000,
+          retirement_file_ids: ['f3e8b369-0eca-454f-a8f8-46b780bc6264']
+        }
+      }
+    }
+  })
+  retire(@Req() req: any, @Param('id') id: string, @Body() dto: RetireRequestDto) {
+    return this.requestsService.retire(id, req.user?.id, dto);
+  }
+
+  @Post(':id/confirm')
+  @Permissions('requests.create')
+  @ApiOperation({ summary: 'Requester confirms disbursement received' })
+  @ApiOkResponse({ type: RequestResponseDto })
+  confirmDisbursement(@Req() req: any, @Param('id') id: string) {
+    return this.requestsService.confirmDisbursement(id, req.user?.id);
+  }
+
+  @Post(':id/payment-vouchers/:voucherId/confirm')
+  @Permissions('requests.create')
+  @ApiOperation({ summary: 'Requester confirms a specific payment voucher disbursement' })
+  @ApiOkResponse({ type: RequestResponseDto })
+  confirmPaymentVoucher(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('voucherId') voucherId: string
+  ) {
+    return this.requestsService.confirmPaymentVoucher(id, voucherId, req.user?.id);
   }
 
   @Post(':id/verify-retirement')
   @Permissions('requests.approve')
+  @ApiOperation({ summary: 'Finance/accounting verifies retirement and closes request' })
+  @ApiOkResponse({ type: RequestResponseDto })
   verifyRetirement(@Req() req: any, @Param('id') id: string) {
+    return this.requestsService.verifyRetirement(id, req.user?.id);
+  }
+
+  @Post(':id/complete')
+  @Permissions('requests.approve')
+  @ApiOperation({ summary: 'Alias endpoint for verify-retirement' })
+  @ApiOkResponse({ type: RequestResponseDto })
+  complete(@Req() req: any, @Param('id') id: string) {
     return this.requestsService.verifyRetirement(id, req.user?.id);
   }
 }

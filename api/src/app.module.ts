@@ -18,6 +18,7 @@ import { FilesModule } from './modules/files/files.module';
 import { TaxonomyModule } from './modules/taxonomy/taxonomy.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { TeamsModule } from './modules/teams/teams.module';
 
 @Module({
   imports: [
@@ -39,7 +40,8 @@ import { ProjectsModule } from './modules/projects/projects.module';
     FilesModule,
     TaxonomyModule,
     AuditModule,
-    ProjectsModule
+    ProjectsModule,
+    TeamsModule
   ]
 })
 export class AppModule {}
