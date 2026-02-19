@@ -12,6 +12,11 @@ type SendMailInput = {
   userId?: string | bigint;
   notifiableType?: string;
   notifiableId?: string | number | bigint;
+  attachments?: Array<{
+    filename: string;
+    content: Buffer | string;
+    contentType?: string;
+  }>;
 };
 
 function escapeHtml(input: string): string {
@@ -160,6 +165,7 @@ export class MailService {
         subject: input.subject,
         text: input.text,
         html: renderedHtml,
+        attachments: input.attachments,
         messageId,
         inReplyTo: rootThreadMessageId,
         references: [rootThreadMessageId]

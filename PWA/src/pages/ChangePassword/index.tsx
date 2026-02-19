@@ -1,8 +1,10 @@
 import { useForm } from "react-hook-form";
 import { yupResolver } from "@hookform/resolvers/yup";
 import * as yup from "yup";
+import { useNavigate } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import { FormInput, FormLabel } from "@/components/Base/Form";
+import { Tab } from "@/components/Base/Headless";
 import { changePassword } from "@/services/auth";
 import { useState } from "react";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
@@ -26,6 +28,7 @@ const schema: yup.ObjectSchema<ChangePasswordFormValues> = yup.object({
 });
 
 function ChangePasswordPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(
     null
@@ -64,10 +67,24 @@ function ChangePasswordPage() {
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
-        <h2 className="mr-auto text-lg font-medium">Security</h2>
+        <h2 className="mr-auto text-lg font-medium">Settings</h2>
       </div>
 
       <div className="mt-5 intro-y box">
+        <div className="px-5 border-b border-slate-200/60 dark:border-darkmode-400">
+          <Tab.Group selectedIndex={1}>
+            <Tab.List variant="link-tabs" className="flex-col sm:flex-row">
+              <Tab>
+                <Tab.Button className="py-4" onClick={() => navigate("/app/profile")}>
+                  Profile
+                </Tab.Button>
+              </Tab>
+              <Tab>
+                <Tab.Button className="py-4">Security</Tab.Button>
+              </Tab>
+            </Tab.List>
+          </Tab.Group>
+        </div>
         <div className="flex items-center p-5 border-b border-slate-200/60 dark:border-darkmode-400">
           <h2 className="mr-auto text-base font-medium">Change Password</h2>
         </div>

@@ -118,7 +118,7 @@ function AdminSettingsPage() {
     setLoading(true);
     try {
       const [taxonomyResult, teamsResult, orgsResult, usersResult] = await Promise.allSettled([
-        listManagedTaxonomies({ include_inactive: true }),
+        listManagedTaxonomies({ include_inactive: true, module: "finance" }),
         listTeams({ active_only: false }),
         listOrganizations(),
         listUsers({ per_page: 200 }),
@@ -189,7 +189,7 @@ function AdminSettingsPage() {
         });
       }
 
-      const rows = await listManagedTaxonomies({ include_inactive: true });
+      const rows = await listManagedTaxonomies({ include_inactive: true, module: "finance" });
       setTaxonomies(rows);
       setShowTaxonomyEditor(false);
       setTaxonomyForm({ key: "", name: "", module: "finance", is_active: true });
@@ -215,7 +215,7 @@ function AdminSettingsPage() {
     try {
       setSaving(true);
       await syncManagedTaxonomyTerms(selectedTaxonomyId, terms);
-      const rows = await listManagedTaxonomies({ include_inactive: true });
+      const rows = await listManagedTaxonomies({ include_inactive: true, module: "finance" });
       setTaxonomies(rows);
       setNotice({ tone: "success", message: "Taxonomy terms updated." });
     } catch (error: any) {

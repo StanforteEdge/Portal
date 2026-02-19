@@ -33,8 +33,41 @@ const menu: Array<Menu | "divider"> = [
     ],
   },
   {
+    icon: "FolderOpen",
+    title: "My Media",
+    pathname: "/app/media",
+  },
+  {
+    icon: "BookOpen",
+    title: "Documents",
+    pathname: "/app/documents",
+  },
+  {
+    icon: "Trello",
+    title: "Profile",
+    subMenu: [
+      {
+        icon: "User",
+        title: "My Profile",
+        pathname: "/app/profile",
+      },
+      {
+        icon: "ListChecks",
+        title: "Onboarding",
+        pathname: "/app/onboarding",
+      },
+      {
+        icon: "Lock",
+        title: "Security",
+        pathname: "/app/settings/security",
+      },
+    ],
+  },
+  "divider",
+  {
     icon: "Wallet",
     title: "Finance",
+    roles: ["accountant", "finance_manager"],
     subMenu: [
       {
         icon: "LayoutDashboard",
@@ -46,7 +79,6 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/finance/requests",
         title: "Requests",
       },
-
       {
         icon: "FileText",
         pathname: "/app/finance/requests/request/:id",
@@ -57,21 +89,69 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/finance/settings",
         title: "Settings",
       },
+      {
+        icon: "Clipboard",
+        pathname: "/app/finance/manualentry",
+        title: "Manual Entry",
+      },
     ],
   },
   {
-    icon: "Trello",
-    title: "Profile",
-    pathname: "/app/profile",
+    icon: "UserCheck",
+    title: "HR",
+    roles: ["hr"],
+    subMenu: [
+      {
+        icon: "LayoutDashboard",
+        pathname: "/app/hr",
+        title: "Dashboard",
+      },
+      {
+        icon: "Users",
+        pathname: "/app/hr/employees",
+        title: "Employees",
+      },
+      {
+        icon: "ClipboardList",
+        pathname: "/app/hr/onboarding",
+        title: "Onboarding",
+      },
+    ],
   },
   {
     icon: "Users",
     title: "Admin",
+    roles: ["admin"],
     subMenu: [
       {
         icon: "UserCog",
         pathname: "/app/admin/users/list",
         title: "Users",
+      },
+      {
+        icon: "Folder",
+        pathname: "/app/admin/files",
+        title: "Media",
+      },
+      {
+        icon: "Kanban",
+        pathname: "/app/admin/projects",
+        title: "Projects",
+      },
+      {
+        icon: "BookOpen",
+        pathname: "/app/admin/documents",
+        title: "Documents",
+      },
+      {
+        icon: "ClipboardList",
+        pathname: "/app/admin/forms",
+        title: "Forms",
+      },
+      {
+        icon: "ShieldCheck",
+        pathname: "/app/admin/roles",
+        title: "Roles & Permissions",
       },
       {
         icon: "Settings2",

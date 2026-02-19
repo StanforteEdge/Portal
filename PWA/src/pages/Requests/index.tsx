@@ -75,6 +75,10 @@ function RequestsPage() {
     () => filteredRequests.filter((req) => req.status === "rejected").length,
     [filteredRequests]
   );
+  const pendingRetirementCount = useMemo(
+    () => filteredRequests.filter((req) => req.status === "disbursed" || req.status === "confirmed").length,
+    [filteredRequests]
+  );
 
   const pageData = useMemo(() => {
     const start = (currentPage - 1) * perPage;
@@ -128,10 +132,11 @@ function RequestsPage() {
         {[
           { label: "Total", value: filteredRequests.length, icon: "FileText", color: "text-primary" },
           { label: "Pending", value: pendingCount, icon: "Clock3", color: "text-warning" },
+          { label: "Pending Retirement", value: pendingRetirementCount, icon: "CircleDollarSign", color: "text-pending" },
           { label: "Completed", value: completedCount, icon: "CheckCircle2", color: "text-success" },
           { label: "Rejected", value: rejectedCount, icon: "XCircle", color: "text-danger" },
         ].map((card) => (
-          <div key={card.label} className="col-span-6 md:col-span-3 intro-y">
+          <div key={card.label} className="col-span-6 md:col-span-4 xl:col-span-2 intro-y">
             <div
               className={clsx([
                 "relative zoom-in",

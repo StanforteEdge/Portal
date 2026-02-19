@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import Lucide from "@/components/Base/Lucide";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import { formatMoney } from "@/utils/formatting";
 import { getFinanceSummary, type FinanceSummary } from "@/services/finance";
 
 function FinanceDashboardPage() {
@@ -33,16 +35,31 @@ function FinanceDashboardPage() {
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
       <div className="grid grid-cols-1 gap-4 mt-5 md:grid-cols-3">
         <div className="box p-5">
+          <Lucide icon="Wallet" className="w-7 h-7 text-primary" />
           <div className="text-slate-500 text-sm">Total Requests</div>
           <div className="text-2xl font-semibold mt-2">{loading ? "..." : summary?.total_requests ?? 0}</div>
         </div>
         <div className="box p-5">
+          <Lucide icon="CircleDollarSign" className="w-7 h-7 text-success" />
           <div className="text-slate-500 text-sm">Total Amount</div>
-          <div className="text-2xl font-semibold mt-2">{loading ? "..." : summary?.total_amount ?? 0}</div>
+          <div className="text-2xl font-semibold mt-2">{loading ? "..." : formatMoney(summary?.total_amount ?? 0, "-", "NGN")}</div>
         </div>
         <div className="box p-5">
+          <Lucide icon="TrendingUp" className="w-7 h-7 text-warning" />
           <div className="text-slate-500 text-sm">Average Amount</div>
-          <div className="text-2xl font-semibold mt-2">{loading ? "..." : summary?.average_amount ?? 0}</div>
+          <div className="text-2xl font-semibold mt-2">{loading ? "..." : formatMoney(summary?.average_amount ?? 0, "-", "NGN")}</div>
+        </div>
+      </div>
+      <div className="box mt-5 p-5">
+        <div className="font-medium mb-3">Status Breakdown</div>
+        <div className="grid grid-cols-12 gap-3">
+          {(summary?.by_status ?? []).map((row) => (
+            <div key={row.status} className="col-span-12 md:col-span-3 rounded border p-3">
+              <div className="text-xs text-slate-500 capitalize">{row.status.replaceAll("_", " ")}</div>
+              <div className="font-semibold">{row.count}</div>
+              <div className="text-xs text-slate-500">{formatMoney(row.total_amount ?? 0, "-", "NGN")}</div>
+            </div>
+          ))}
         </div>
       </div>
       <div className="box mt-5 p-5">
@@ -50,6 +67,9 @@ function FinanceDashboardPage() {
         <div className="flex flex-wrap gap-2">
           <Link className="btn btn-primary" to="/app/finance/requests">
             Open Finance Requests
+          </Link>
+          <Link className="btn btn-outline-secondary" to="/app/finance/manualentry">
+            Manual Entry
           </Link>
           <Link className="btn btn-outline-secondary" to="/app/finance/settings">
             Finance Settings

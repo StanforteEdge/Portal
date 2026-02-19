@@ -7,7 +7,7 @@ import ForgotPassword from "../pages/ForgotPassword";
 import ResetPassword from "../pages/ResetPassword";
 import AcceptInvite from "../pages/AcceptInvite";
 import ErrorPage from "../pages/ErrorPage";
-import DashboardOverview1 from "../pages/DashboardOverview1";
+import PortalDashboardPage from "../pages/PortalDashboard";
 import UpdateProfile from "../pages/UpdateProfile";
 import ChangePassword from "../pages/ChangePassword";
 import FinanceSettings from "../pages/FinanceSettings";
@@ -20,9 +20,25 @@ import FinanceDashboardPage from "../pages/FinanceDashboard";
 import FinanceRequestsPage from "../pages/FinanceRequests";
 import FinanceRequestDetailPage from "../pages/FinanceRequestDetail";
 import AdminSettingsPage from "../pages/AdminSettings";
+import FinanceManualEntryPage from "../pages/FinanceManualEntry";
+import AdminFilesPage from "../pages/AdminFiles";
+import AdminProjectsPage from "../pages/AdminProjects";
+import AdminDocumentsPage from "../pages/AdminDocuments";
+import AdminDocumentEditorPage from "../pages/AdminDocumentEditor";
+import AdminRolesPage from "../pages/AdminRoles";
+import MediaLibraryPage from "../pages/MediaLibrary";
+import DocumentsPage from "../pages/Documents";
+import OnboardingPage from "../pages/Onboarding";
+import HrEmployeesPage from "../pages/HrEmployees";
+import HrDashboardPage from "../pages/HrDashboard";
+import HrOnboardingPage from "../pages/HrOnboarding";
+import AdminFormsPage from "../pages/AdminForms";
+import AdminFormEditorPage from "../pages/AdminFormEditor";
+import HrEmployeeEditorPage from "../pages/HrEmployeeEditor";
 
 import ProtectedRoute from "@/components/Auth/ProtectedRoute";
 import PublicOnlyRoute from "@/components/Auth/PublicOnlyRoute";
+import RoleRoute from "@/components/Auth/RoleRoute";
 
 function Router() {
   const routes = [
@@ -44,11 +60,27 @@ function Router() {
         },
         {
           path: "dashboard",
-          element: <DashboardOverview1 />,
+          element: <PortalDashboardPage />,
         },
         {
           path: "profile",
           element: <UpdateProfile />,
+        },
+        {
+          path: "settings/security",
+          element: <ChangePassword />,
+        },
+        {
+          path: "onboarding",
+          element: <OnboardingPage />,
+        },
+        {
+          path: "media",
+          element: <MediaLibraryPage />,
+        },
+        {
+          path: "documents",
+          element: <DocumentsPage />,
         },
         {
           path: "requests",
@@ -72,19 +104,43 @@ function Router() {
         },
         {
           path: "finance",
-          element: <FinanceDashboardPage />,
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              <FinanceDashboardPage />
+            </RoleRoute>
+          ),
         },
         {
           path: "finance/requests",
-          element: <FinanceRequestsPage />,
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              <FinanceRequestsPage />
+            </RoleRoute>
+          ),
         },
         {
           path: "finance/requests/request/:id",
-          element: <FinanceRequestDetailPage />,
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              <FinanceRequestDetailPage />
+            </RoleRoute>
+          ),
         },
         {
           path: "finance/settings",
-          element: <FinanceSettings />,
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              <FinanceSettings />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "finance/manualentry",
+          element: (
+            <RoleRoute allowedRoles={["finance_manager"]}>
+              <FinanceManualEntryPage />
+            </RoleRoute>
+          ),
         },
         {
           path: "finance/settings/signatories",
@@ -92,11 +148,131 @@ function Router() {
         },
         {
           path: "admin/users/list",
-          element: <UserManagement />,
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <UserManagement />
+            </RoleRoute>
+          ),
         },
         {
           path: "admin/settings",
-          element: <AdminSettingsPage />,
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminSettingsPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/files",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminFilesPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/projects",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminProjectsPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/documents",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminDocumentsPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/documents/new",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminDocumentEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/documents/:id",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminDocumentEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/roles",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminRolesPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/forms",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminFormsPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/forms/new",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminFormEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/forms/:id",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminFormEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrDashboardPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/employees",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrEmployeesPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/employees/employee",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrEmployeeEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/employees/:id",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrEmployeeEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/onboarding",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrOnboardingPage />
+            </RoleRoute>
+          ),
         },
       ],
     },
@@ -167,11 +343,7 @@ function Router() {
     },
     {
       path: "/change-password",
-      element: (
-        <ProtectedRoute>
-          <ChangePassword />
-        </ProtectedRoute>
-      ),
+      element: <Navigate to="/app/settings/security" replace />,
     },
     {
       path: "/finance-settings",
@@ -191,7 +363,7 @@ function Router() {
     },
     {
       path: "/app/profile/password",
-      element: <Navigate to="/change-password" replace />,
+      element: <Navigate to="/app/settings/security" replace />,
     },
     {
       path: "/app/requests/list",

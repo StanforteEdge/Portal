@@ -8,6 +8,19 @@ export type RequestItemInput = {
   file_id?: string;
 };
 
+export type ManualDisbursementInput = {
+  voucher_number: string;
+  amount: number;
+  method?: string;
+  transaction_ref?: string;
+  note?: string;
+  disbursed_at?: string;
+  evidence_file_id?: string;
+  retired_amount?: number;
+  retirement_status?: string;
+  retirement_file_ids?: string[];
+};
+
 export type RequestRecord = {
   id: string;
   status: string;
@@ -205,16 +218,69 @@ export async function retireRequest(
 }
 
 export async function generateRequestPdf(id: string) {
-  const response = await apiClient.post("/requests/generate-pdf", { id });
+  const response = await apiClient.post(`/requests/${id}/download`, { action: "request_pdf" });
   return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
 }
 
 export async function generateRequestPv(id: string) {
-  const response = await apiClient.post("/requests/generate-pv", { id });
+  const response = await apiClient.post(`/requests/${id}/download`, { action: "pv_pdf" });
   return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
 }
 
 export async function generateRequestPvByVoucher(id: string, voucherId: string) {
-  const response = await apiClient.post(`/requests/${id}/payment-vouchers/${voucherId}/download`);
+  const response = await apiClient.post(`/requests/${id}/download`, {
+    action: "pv_pdf",
+    voucher_id: voucherId,
+  });
+  return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
+}
+
+export async function createManualRequestEntry(payload: {
+  request_type_id: string;
+  staff_id: string;
+  request_number?: string;
+  team_id?: string;
+  organization_id?: string;
+  status?: string;
+  created_at?: string;
+  currency?: string;
+  total_amount?: number;
+  data?: Record<string, unknown>;
+  approvals?: Array<{ role: string; name?: string; date?: string; done?: boolean }>;
+  items?: RequestItemInput[];
+  disbursements?: ManualDisbursementInput[];
+}) {
+  const response = await apiClient.post("/requests/manual-entry", payload);
+  return response.data?.data as RequestRecord;
+}
+
+export async function generateFullRequestPackage(
+  id: string,
+  payload?: { delivery?: "download" | "email"; email_to?: string }
+) {
+  const response = await apiClient.post(`/requests/${id}/download`, {
+    action: "full_package",
+    ...(payload ?? {}),
+  });
+  return response.data?.data as {
+    file_name: string;
+    mime_type?: string;
+    content_base64?: string;
+    delivery?: "email" | "download";
+  };
+}
+
+export async function generateRequestPackageWithAttachments(id: string) {
+  const response = await apiClient.post(`/requests/${id}/download`, {
+    action: "request_with_attachments",
+  });
+  return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
+}
+
+export async function generateVoucherPackageWithAttachments(id: string, voucherId: string) {
+  const response = await apiClient.post(`/requests/${id}/download`, {
+    action: "pv_with_attachments",
+    voucher_id: voucherId,
+  });
   return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
 }

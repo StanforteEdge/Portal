@@ -54,8 +54,15 @@ export async function listManagedTaxonomies(params?: { include_inactive?: boolea
       ...(params?.module ? { module: params.module } : {}),
     },
   });
-  const rows = (response.data?.data ?? []) as any[];
-  return rows.map((row) => ({
+  const payload = response.data?.data;
+  const rows = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.data)
+      ? payload.data
+      : Array.isArray(response.data)
+        ? response.data
+        : [];
+  return rows.map((row: any) => ({
     id: String(row.id),
     key: String(row.key),
     name: String(row.name),

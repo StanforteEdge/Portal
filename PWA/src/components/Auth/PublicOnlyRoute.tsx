@@ -32,7 +32,12 @@ function PublicOnlyRoute({ children }: PublicOnlyRouteProps) {
   }
 
   if (isAuthenticated) {
-    return <Navigate to={resolveRedirectPath(auth.roles)} replace />;
+    return (
+      <Navigate
+        to={resolveRedirectPath(auth.roles, (auth.user?.onboarding_status as string | undefined) ?? null)}
+        replace
+      />
+    );
   }
 
   return <>{children}</>;

@@ -22,7 +22,7 @@ import { listTeams, type TeamOption } from "@/services/teams";
 import { listOrganizations, type OrganizationRecord } from "@/services/organizations";
 import { listProjects, type ProjectOption } from "@/services/projects";
 import { listManagedTaxonomies } from "@/services/taxonomy";
-import { attachFileAsset } from "@/services/files";
+import type { FileAssetRecord } from "@/services/files";
 import {
   formatDisplayDate,
   formatMoney,
@@ -32,6 +32,7 @@ import {
   statusBadgeClass,
 } from "@/utils/formatting";
 import { buildRequestWorkflowSteps } from "@/utils/requestWorkflow";
+import MediaPickerModal from "@/components/Media/MediaPickerModal";
 
 function downloadBase64File(fileName: string, mimeType: string, contentBase64: string) {
   const bytes = atob(contentBase64);
@@ -100,7 +101,7 @@ function FinanceRequestDetailPage() {
   } | null>(null);
 
   const [showDisburseModal, setShowDisburseModal] = useState(false);
-  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [showEvidencePicker, setShowEvidencePicker] = useState(false);
   const [disburseForm, setDisburseForm] = useState({
     method: "bank_transfer",
     custom_method: "",
@@ -210,27 +211,14 @@ function FinanceRequestDetailPage() {
     setShowDisburseModal(true);
   };
 
-  const uploadEvidence = async (file: File | null) => {
-    if (!file) return;
-    try {
-      setUploadingEvidence(true);
-      const attached = await attachFileAsset({
-        storage_path: `uploads/disbursements/${Date.now()}-${file.name}`,
-        file_name: file.name,
-        mime_type: file.type || "application/octet-stream",
-        file_size: file.size,
-        metadata: { source: "disbursement_evidence", request_id: id },
-      });
-      setDisburseForm((prev) => ({
-        ...prev,
-        evidence_file_id: attached.id,
-        evidence_file_name: file.name,
-      }));
-    } catch (error: any) {
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to upload evidence metadata." });
-    } finally {
-      setUploadingEvidence(false);
-    }
+  const applyEvidenceFile = (files: FileAssetRecord[]) => {
+    const picked = files[0];
+    if (!picked) return;
+    setDisburseForm((prev) => ({
+      ...prev,
+      evidence_file_id: picked.id,
+      evidence_file_name: picked.file_name,
+    }));
   };
 
   const disburse = async () => {
@@ -501,7 +489,7 @@ function FinanceRequestDetailPage() {
                           <Button
                             size="sm"
                             variant="outline-secondary"
-                            onClick={(e) => {
+                            onClick={(e: any) => {
                               void downloadVoucher(pv.voucher_number, e);
                             }}
                             disabled={busyAction === "pv"}
@@ -594,20 +582,11 @@ function FinanceRequestDetailPage() {
               </div>
               <div className="col-span-12">
                 <FormLabel>Evidence (receipt / transfer receipt)</FormLabel>
-                <FormInput
-                  type="file"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    void uploadEvidence(file);
-                  }}
-                  disabled={uploadingEvidence}
-                />
+                <Button variant="outline-secondary" onClick={() => setShowEvidencePicker(true)}>
+                  {disburseForm.evidence_file_name ? "Change Evidence File" : "Pick Evidence File"}
+                </Button>
                 <div className="text-xs text-slate-500 mt-1">
-                  {uploadingEvidence
-                    ? "Attaching evidence..."
-                    : disburseForm.evidence_file_name
-                      ? `Attached: ${disburseForm.evidence_file_name}`
-                      : "Optional"}
+                  {disburseForm.evidence_file_name ? `Attached: ${disburseForm.evidence_file_name}` : "Optional"}
                 </div>
               </div>
               <div className="col-span-12">
@@ -624,12 +603,19 @@ function FinanceRequestDetailPage() {
             <Button variant="outline-secondary" onClick={() => setShowDisburseModal(false)}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={() => void disburse()} disabled={busyAction === "disburse" || uploadingEvidence}>
+            <Button variant="primary" onClick={() => void disburse()} disabled={busyAction === "disburse"}>
               {busyAction === "disburse" ? "Disbursing..." : "Disburse"}
             </Button>
           </div>
         </Dialog.Panel>
       </Dialog>
+      <MediaPickerModal
+        open={showEvidencePicker}
+        onClose={() => setShowEvidencePicker(false)}
+        title="Select Disbursement Evidence"
+        selectedIds={disburseForm.evidence_file_id ? [disburseForm.evidence_file_id] : []}
+        onSelect={applyEvidenceFile}
+      />
 
       <Dialog open={Boolean(selectedVoucher)} onClose={() => setSelectedVoucher(null)}>
         <Dialog.Panel>

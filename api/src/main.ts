@@ -2,13 +2,16 @@ import 'reflect-metadata';
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import rateLimit from 'express-rate-limit';
+import { resolve } from 'node:path';
+import { existsSync, mkdirSync } from 'node:fs';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/http/all-exceptions.filter';
 import { ResponseEnvelopeInterceptor } from './common/http/response-envelope.interceptor';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
 
   const corsOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
@@ -54,6 +57,12 @@ async function bootstrap() {
   );
   app.useGlobalInterceptors(new ResponseEnvelopeInterceptor());
   app.useGlobalFilters(new AllExceptionsFilter());
+
+  const uploadsRoot = resolve(process.cwd(), 'uploads');
+  if (!existsSync(uploadsRoot)) {
+    mkdirSync(uploadsRoot, { recursive: true });
+  }
+  app.useStaticAssets(uploadsRoot, { prefix: '/uploads/' });
 
   const authWindowMs = Number(process.env.AUTH_RATE_LIMIT_WINDOW_MS || 15 * 60 * 1000);
   const loginLimit = Number(process.env.AUTH_LOGIN_RATE_LIMIT_MAX || 10);

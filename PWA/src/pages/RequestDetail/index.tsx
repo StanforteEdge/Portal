@@ -8,7 +8,7 @@ import { Dialog } from "@/components/Base/Headless";
 import { FormInput, FormLabel, FormTextarea } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { listFinanceRequestPaymentVouchers } from "@/services/finance";
-import { attachFileAsset } from "@/services/files";
+import type { FileAssetRecord } from "@/services/files";
 import {
   approveRequest,
   completeRequest,
@@ -28,6 +28,7 @@ import { listProjects, type ProjectOption } from "@/services/projects";
 import { listManagedTaxonomies } from "@/services/taxonomy";
 import { formatDisplayDate, formatMoney, formatPaymentMethod, formatPersonName, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
 import { buildRequestWorkflowSteps } from "@/utils/requestWorkflow";
+import MediaPickerModal from "@/components/Media/MediaPickerModal";
 
 function downloadBase64File(fileName: string, mimeType: string, contentBase64: string) {
   const bytes = atob(contentBase64);
@@ -116,7 +117,7 @@ function RequestDetailPage() {
     retirement_file_ids: [] as string[],
     uploaded_files: [] as string[],
   });
-  const [uploadingRetirementFiles, setUploadingRetirementFiles] = useState(false);
+  const [showRetirementPicker, setShowRetirementPicker] = useState(false);
 
   const load = async () => {
     try {
@@ -239,33 +240,13 @@ function RequestDetailPage() {
     setShowRetireModal(true);
   };
 
-  const uploadRetirementFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    try {
-      setUploadingRetirementFiles(true);
-      const nextIds: string[] = [];
-      const nextNames: string[] = [];
-      for (const file of Array.from(files)) {
-        const attached = await attachFileAsset({
-          storage_path: `uploads/retirements/${Date.now()}-${file.name}`,
-          file_name: file.name,
-          mime_type: file.type || "application/octet-stream",
-          file_size: file.size,
-          metadata: { source: "retirement", request_id: id, voucher_id: retireTargetVoucher?.id || null },
-        });
-        nextIds.push(attached.id);
-        nextNames.push(file.name);
-      }
-      setRetireForm((prev) => ({
-        ...prev,
-        retirement_file_ids: [...prev.retirement_file_ids, ...nextIds],
-        uploaded_files: [...prev.uploaded_files, ...nextNames],
-      }));
-    } catch (error: any) {
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to attach retirement files." });
-    } finally {
-      setUploadingRetirementFiles(false);
-    }
+  const applyRetirementFiles = (files: FileAssetRecord[]) => {
+    if (!files.length) return;
+    setRetireForm((prev) => ({
+      ...prev,
+      retirement_file_ids: Array.from(new Set([...prev.retirement_file_ids, ...files.map((file) => file.id)])),
+      uploaded_files: Array.from(new Set([...prev.uploaded_files, ...files.map((file) => file.file_name)])),
+    }));
   };
 
   const submitRetirement = async () => {
@@ -446,7 +427,7 @@ function RequestDetailPage() {
                               {request.status === "disbursed" ? (
                                 <Button
                                   size="sm"
-                                  onClick={(e) => {
+                                  onClick={(e: any) => {
                                     e.stopPropagation();
                                     void (async () => {
                                       try {
@@ -473,7 +454,7 @@ function RequestDetailPage() {
                                 <Button
                                   size="sm"
                                   variant="outline-secondary"
-                                  onClick={(e) => {
+                                  onClick={(e: any) => {
                                     e.stopPropagation();
                                     openRetireModal(pv);
                                   }}
@@ -486,7 +467,7 @@ function RequestDetailPage() {
                                 <Button
                                   size="sm"
                                   variant="outline-secondary"
-                                  onClick={(e) => {
+                                  onClick={(e: any) => {
                                     e.stopPropagation();
                                     setSelectedVoucher(pv);
                                   }}
@@ -568,20 +549,13 @@ function RequestDetailPage() {
                 </div>
                 <div>
                   <FormLabel>Retirement Files</FormLabel>
-                  <FormInput
-                    type="file"
-                    multiple
-                    onChange={(e) => {
-                      void uploadRetirementFiles(e.target.files);
-                    }}
-                    disabled={uploadingRetirementFiles}
-                  />
+                  <Button variant="outline-secondary" onClick={() => setShowRetirementPicker(true)}>
+                    {retireForm.uploaded_files.length ? "Manage Retirement Files" : "Pick Retirement Files"}
+                  </Button>
                   <div className="text-xs text-slate-500 mt-1">
-                    {uploadingRetirementFiles
-                      ? "Uploading files..."
-                      : retireForm.uploaded_files.length
-                        ? `Attached: ${retireForm.uploaded_files.join(", ")}`
-                        : "Attach receipts/invoices/proofs"}
+                    {retireForm.uploaded_files.length
+                      ? `Attached: ${retireForm.uploaded_files.join(", ")}`
+                      : "Attach receipts/invoices/proofs"}
                   </div>
                 </div>
               </>
@@ -594,13 +568,21 @@ function RequestDetailPage() {
             <Button
               variant="primary"
               onClick={() => void submitRetirement()}
-              disabled={busyAction === "retire" || uploadingRetirementFiles}
+              disabled={busyAction === "retire"}
             >
               {busyAction === "retire" ? "Submitting..." : "Submit Retirement"}
             </Button>
           </div>
         </Dialog.Panel>
       </Dialog>
+      <MediaPickerModal
+        open={showRetirementPicker}
+        onClose={() => setShowRetirementPicker(false)}
+        title="Select Retirement Files"
+        multiple
+        selectedIds={retireForm.retirement_file_ids}
+        onSelect={applyRetirementFiles}
+      />
 
       <Dialog open={Boolean(selectedVoucher)} onClose={() => setSelectedVoucher(null)}>
         <Dialog.Panel>

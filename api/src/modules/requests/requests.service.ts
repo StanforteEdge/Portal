@@ -10,6 +10,8 @@ import { SubmitRequestDto } from './dto/submit-request.dto';
 import { ActionRequestDto } from './dto/action-request.dto';
 import { RequestResponseDto } from './dto/request-response.dto';
 import { RetireRequestDto } from './dto/retire-request.dto';
+import { CreateManualRequestDto } from './dto/create-manual-request.dto';
+import { DownloadRequestDto } from './dto/download-request.dto';
 import { toBigInt } from '../../common/utils/ids';
 import { WorkflowService } from '../workflow/workflow.service';
 import { FormsService } from '../forms/forms.service';
@@ -17,7 +19,10 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { GroupUserRole, Prisma } from '@prisma/client';
 import puppeteer from 'puppeteer-core';
 import { existsSync, readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
+import JSZip from 'jszip';
+import { MailService } from '../../common/mail/mail.service';
 
 @Injectable()
 export class RequestsService {
@@ -25,7 +30,8 @@ export class RequestsService {
     private readonly prisma: PrismaService,
     private readonly workflowService: WorkflowService,
     private readonly formsService: FormsService,
-    private readonly notificationsService: NotificationsService
+    private readonly notificationsService: NotificationsService,
+    private readonly mailService: MailService
   ) {}
 
   async listGroups() {
@@ -174,6 +180,125 @@ export class RequestsService {
             }
           });
 
+        }
+      }
+
+      return request;
+    });
+
+    return this.getRequest(created.id.toString(), userId);
+  }
+
+  async createManualEntry(userId: string, dto: CreateManualRequestDto) {
+    const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id } });
+    if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
+
+    const staff = await this.prisma.profile.findUnique({
+      where: { id: toBigInt(dto.staff_id) },
+      select: { id: true, email: true, username: true, firstName: true, lastName: true }
+    });
+    if (!staff) throw new BadRequestException('Invalid staff_id');
+
+    if (dto.team_id) {
+      const team = await this.prisma.group.findUnique({ where: { id: toBigInt(dto.team_id) }, select: { id: true } });
+      if (!team) throw new BadRequestException('Invalid team_id');
+    }
+    if (dto.organization_id) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: toBigInt(dto.organization_id) },
+        select: { id: true }
+      });
+      if (!organization) throw new BadRequestException('Invalid organization_id');
+    }
+
+    const itemFileIds = (dto.items ?? []).map((i) => i.file_id).filter((x): x is string => Boolean(x));
+    const voucherEvidenceIds = (dto.disbursements ?? []).map((x) => x.evidence_file_id).filter((x): x is string => Boolean(x));
+    const retirementIds = (dto.disbursements ?? [])
+      .flatMap((x) => x.retirement_file_ids ?? [])
+      .filter((x): x is string => Boolean(x));
+    const allFileIds = Array.from(new Set([...itemFileIds, ...voucherEvidenceIds, ...retirementIds]));
+    if (allFileIds.length) await this.ensureFileAssetsExist(this.prisma, allFileIds);
+
+    const itemsTotal = (dto.items ?? []).reduce(
+      (sum, item) => sum + Number(item.amount) * Number(item.quantity ?? 1),
+      0
+    );
+    const totalAmount = dto.total_amount ?? itemsTotal;
+    const createdAt = dto.created_at ? new Date(dto.created_at) : new Date();
+    if (Number.isNaN(createdAt.getTime())) throw new BadRequestException('Invalid created_at');
+
+    const baseData: Record<string, unknown> = {
+      ...(dto.data ?? {}),
+      manual_import: true,
+      ...(dto.request_number ? { manual_request_number: dto.request_number } : {}),
+      manual_approvals: (dto.approvals ?? []).map((row) => ({
+        role: row.role,
+        name: row.name ?? null,
+        date: row.date ?? null,
+        done: row.done ?? true
+      })),
+      imported_at: new Date().toISOString(),
+      imported_by: userId
+    };
+
+    const status = (dto.status ?? 'completed') as any;
+    const created = await this.prisma.$transaction(async (tx) => {
+      const request = await tx.requestInstance.create({
+        data: {
+          requestTypeId: requestType.id,
+          groupId: requestType.groupId,
+          createdBy: staff.id,
+          teamId: dto.team_id ? toBigInt(dto.team_id) : null,
+          organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
+          status,
+          data: baseData as Prisma.InputJsonValue,
+          totalAmount,
+          currency: dto.currency || 'NGN',
+          createdAt,
+          updatedAt: createdAt
+        }
+      });
+
+      if (dto.items?.length) {
+        for (const item of dto.items) {
+          await tx.requestItem.create({
+            data: {
+              requestId: request.id,
+              description: item.description,
+              amount: item.amount,
+              quantity: item.quantity ?? 1,
+              notes: item.notes ?? null,
+              fileId: item.file_id ?? null
+            }
+          });
+        }
+      }
+
+      if (dto.disbursements?.length) {
+        for (const row of dto.disbursements) {
+          const amount = Number(row.amount);
+          const retiredAmount = Number(row.retired_amount ?? 0);
+          const disbursedAt = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
+          if (Number.isNaN(disbursedAt.getTime())) throw new BadRequestException('Invalid disbursement date');
+          await tx.financePaymentVoucher.create({
+            data: {
+              requestId: request.id,
+              voucherNumber: row.voucher_number,
+              amount,
+              retiredAmount,
+              retirementStatus: row.retirement_status ?? (retiredAmount > 0 ? (retiredAmount >= amount ? 'retired' : 'partial') : 'not_retired'),
+              method: row.method ?? null,
+              transactionRef: row.transaction_ref ?? null,
+              note: row.note ?? null,
+              evidenceFileId: row.evidence_file_id ?? null,
+              disbursedAt,
+              retiredAt: retiredAmount > 0 ? disbursedAt : null,
+              verifiedAt: row.retirement_status === 'verified' ? disbursedAt : null,
+              metadata: {
+                retirement_file_ids: row.retirement_file_ids ?? []
+              } as Prisma.InputJsonValue
+            }
+          });
         }
       }
 
@@ -651,6 +776,279 @@ export class RequestsService {
     };
   }
 
+  async downloadByAction(id: string, userId: string, dto: DownloadRequestDto) {
+    const action = dto.action ?? 'request_pdf';
+    if (action === 'request_pdf') {
+      return this.generatePdf(id, userId);
+    }
+    if (action === 'pv_pdf') {
+      if (dto.voucher_id) return this.generatePaymentVoucherForVoucher(id, dto.voucher_id, userId);
+      return this.generatePaymentVoucher(id, userId);
+    }
+    if (action === 'request_with_attachments') {
+      return this.generateRequestWithAttachmentsPackage(id, userId);
+    }
+    if (action === 'pv_with_attachments') {
+      if (!dto.voucher_id) throw new BadRequestException('voucher_id is required for pv_with_attachments');
+      return this.generateVoucherWithAttachmentsPackage(id, dto.voucher_id, userId);
+    }
+    if (action === 'full_package') {
+      return this.generateFullRequestPackage(id, userId, {
+        delivery: dto.delivery ?? 'download',
+        email_to: dto.email_to
+      });
+    }
+    throw new BadRequestException('Invalid download action');
+  }
+
+  async generateFullRequestPackage(
+    id: string,
+    userId: string,
+    options?: { delivery?: 'download' | 'email'; email_to?: string }
+  ) {
+    const request = await this.getRequestForDocument(id);
+    const generatedAt = new Date();
+    const totalAmount = this.resolveTotalAmount(request);
+    const signatories = await this.getFinanceSignatories();
+    const approvals = request.workflowInstanceId
+      ? await this.getApprovalSummary(request.workflowInstanceId)
+      : { done: [], pending: [] };
+    const paymentVouchers = await this.prisma.financePaymentVoucher.findMany({
+      where: { requestId: request.id },
+      include: { evidenceFile: true },
+      orderBy: { disbursedAt: 'asc' }
+    });
+
+    const requestPdf = await this.buildRequestPdfDocument({
+      request,
+      totalAmount,
+      generatedAt,
+      signatories,
+      approvals,
+      paymentVouchers
+    });
+
+    const data =
+      request.data && typeof request.data === 'object' && !Array.isArray(request.data)
+        ? (request.data as Record<string, unknown>)
+        : {};
+    const zip = new JSZip();
+    const requestNumber = typeof data.manual_request_number === 'string' && data.manual_request_number.trim()
+      ? data.manual_request_number.trim()
+      : this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
+    zip.file(`request/${requestNumber}.pdf`, requestPdf);
+
+    const fileIdSet = new Set<string>();
+    const addFileByAsset = async (asset: any, targetPath: string) => {
+      if (!asset?.id || fileIdSet.has(asset.id)) return;
+      fileIdSet.add(asset.id);
+      const fileBuffer = await this.readAssetFileBuffer(asset);
+      if (fileBuffer) {
+        zip.file(targetPath, fileBuffer);
+      } else {
+        zip.file(`${targetPath}.missing.txt`, `File not found in local storage.\nAsset ID: ${asset.id}\nPath: ${asset.storagePath ?? '-'}`);
+      }
+    };
+
+    for (const item of request.items) {
+      if (!item.file) continue;
+      await addFileByAsset(item.file, `request/attachments/invoices/${item.file.fileName}`);
+    }
+
+    const retirementIds = new Set<string>();
+    for (const pv of paymentVouchers) {
+      if (pv.evidenceFile) {
+        await addFileByAsset(pv.evidenceFile, `vouchers/${pv.voucherNumber}/evidence/${pv.evidenceFile.fileName}`);
+      }
+      if (pv.metadata && typeof pv.metadata === 'object' && !Array.isArray(pv.metadata)) {
+        const ids = (pv.metadata as Record<string, unknown>).retirement_file_ids;
+        if (Array.isArray(ids)) {
+          ids.forEach((x) => {
+            if (typeof x === 'string') retirementIds.add(x);
+          });
+        }
+      }
+    }
+
+    if (retirementIds.size > 0) {
+      const retirementFiles = await this.prisma.fileAsset.findMany({
+        where: { id: { in: Array.from(retirementIds) } }
+      });
+      for (const file of retirementFiles) {
+        await addFileByAsset(file, `retirements/attachments/${file.fileName}`);
+      }
+    }
+
+    for (const pv of paymentVouchers) {
+      const pvPdf = await this.buildPaymentVoucherDocument({
+        request,
+        voucherNo: pv.voucherNumber,
+        totalAmount: Number(pv.amount),
+        generatedAt,
+        approvals,
+        voucher: {
+          method: pv.method,
+          transactionRef: pv.transactionRef,
+          notes: pv.note,
+          disbursedAt: pv.disbursedAt
+        },
+        signatories
+      });
+      zip.file(`vouchers/${pv.voucherNumber}.pdf`, pvPdf);
+    }
+
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    const fileName = `${requestNumber}-full-package-${this.compactDate(generatedAt)}.zip`;
+
+    if ((options?.delivery ?? 'download') === 'email') {
+      const recipient =
+        options?.email_to?.trim() ||
+        request.creator.email;
+      if (!recipient) {
+        throw new BadRequestException('No recipient email available for package delivery');
+      }
+      await this.mailService.send({
+        to: recipient,
+        subject: `Full Request Package - ${requestNumber}`,
+        text: `Attached is the full request package for ${requestNumber}.`,
+        threadKey: `request-${request.id.toString()}-full-package`,
+        userId,
+        notifiableType: 'request',
+        notifiableId: request.id,
+        attachments: [
+          {
+            filename: fileName,
+            content: zipBuffer,
+            contentType: 'application/zip'
+          }
+        ]
+      });
+
+      return {
+        success: true,
+        delivery: 'email',
+        email_to: recipient,
+        file_name: fileName,
+        request_id: request.id.toString()
+      };
+    }
+
+    return {
+      file_name: fileName,
+      mime_type: 'application/zip',
+      content_base64: zipBuffer.toString('base64'),
+      generated_at: generatedAt.toISOString(),
+      request_id: request.id.toString()
+    };
+  }
+
+  async generateRequestWithAttachmentsPackage(id: string, userId: string) {
+    const request = await this.getRequestForDocument(id);
+    const generatedAt = new Date();
+    const totalAmount = this.resolveTotalAmount(request);
+    const signatories = await this.getFinanceSignatories();
+    const approvals = request.workflowInstanceId
+      ? await this.getApprovalSummary(request.workflowInstanceId)
+      : { done: [], pending: [] };
+    const paymentVouchers = await this.prisma.financePaymentVoucher.findMany({
+      where: { requestId: request.id },
+      orderBy: { disbursedAt: 'asc' }
+    });
+
+    const requestPdf = await this.buildRequestPdfDocument({
+      request,
+      totalAmount,
+      generatedAt,
+      signatories,
+      approvals,
+      paymentVouchers
+    });
+
+    const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
+    const zip = new JSZip();
+    zip.file(`request/${requestNumber}.pdf`, requestPdf);
+    for (const item of request.items) {
+      if (!item.file) continue;
+      const buffer = await this.readAssetFileBuffer(item.file);
+      if (buffer) {
+        zip.file(`request/attachments/invoices/${item.file.fileName}`, buffer);
+      }
+    }
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    return {
+      file_name: `${requestNumber}-attachments-${this.compactDate(generatedAt)}.zip`,
+      mime_type: 'application/zip',
+      content_base64: zipBuffer.toString('base64'),
+      generated_at: generatedAt.toISOString(),
+      request_id: request.id.toString()
+    };
+  }
+
+  async generateVoucherWithAttachmentsPackage(id: string, voucherId: string, userId: string) {
+    const request = await this.getRequestForDocument(id);
+    const voucher = await this.prisma.financePaymentVoucher.findFirst({
+      where: { requestId: request.id, id: voucherId },
+      include: { evidenceFile: true }
+    });
+    if (!voucher) throw new NotFoundException('Payment voucher not found');
+
+    const generatedAt = new Date();
+    const signatories = await this.getFinanceSignatories();
+    const approvals = request.workflowInstanceId
+      ? await this.getApprovalSummary(request.workflowInstanceId)
+      : { done: [], pending: [] };
+
+    const pvPdf = await this.buildPaymentVoucherDocument({
+      request,
+      voucherNo: voucher.voucherNumber,
+      totalAmount: Number(voucher.amount),
+      generatedAt,
+      approvals,
+      voucher: {
+        method: voucher.method,
+        transactionRef: voucher.transactionRef,
+        notes: voucher.note,
+        disbursedAt: voucher.disbursedAt
+      },
+      signatories
+    });
+
+    const zip = new JSZip();
+    zip.file(`voucher/${voucher.voucherNumber}.pdf`, pvPdf);
+
+    if (voucher.evidenceFile) {
+      const evidence = await this.readAssetFileBuffer(voucher.evidenceFile);
+      if (evidence) {
+        zip.file(`voucher/attachments/pv/${voucher.evidenceFile.fileName}`, evidence);
+      }
+    }
+
+    const retirementIds: string[] =
+      voucher.metadata && typeof voucher.metadata === 'object' && !Array.isArray(voucher.metadata)
+        ? (((voucher.metadata as Record<string, unknown>).retirement_file_ids as unknown[]) ?? [])
+            .filter((x): x is string => typeof x === 'string')
+        : [];
+    if (retirementIds.length) {
+      const files = await this.prisma.fileAsset.findMany({ where: { id: { in: retirementIds } } });
+      for (const file of files) {
+        const buffer = await this.readAssetFileBuffer(file);
+        if (buffer) {
+          zip.file(`voucher/attachments/retirement/${file.fileName}`, buffer);
+        }
+      }
+    }
+
+    const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+    return {
+      file_name: `${voucher.voucherNumber}-full-${this.compactDate(generatedAt)}.zip`,
+      mime_type: 'application/zip',
+      content_base64: zipBuffer.toString('base64'),
+      generated_at: generatedAt.toISOString(),
+      request_id: request.id.toString(),
+      voucher_id: voucher.id
+    };
+  }
+
   async confirmDisbursement(id: string, userId: string) {
     const request = await this.getRequestOrThrow(id);
     if (request.createdBy !== toBigInt(userId)) {
@@ -1000,6 +1398,46 @@ export class RequestsService {
     }
   }
 
+  private async readAssetFileBuffer(asset: {
+    storagePath?: string | null;
+    publicUrl?: string | null;
+    fileName?: string | null;
+  }): Promise<Buffer | null> {
+    const storagePath = asset.storagePath || asset.publicUrl || '';
+    if (!storagePath) return null;
+
+    const candidates = [
+      storagePath,
+      resolve(process.cwd(), storagePath),
+      resolve(process.cwd(), '..', storagePath),
+      resolve(process.cwd(), 'uploads', storagePath)
+    ];
+
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (existsSync(candidate)) {
+        try {
+          return await readFile(candidate);
+        } catch {
+          // ignore and continue
+        }
+      }
+    }
+
+    if (/^https?:\/\//i.test(storagePath)) {
+      try {
+        const res = await fetch(storagePath);
+        if (res.ok) {
+          const arrayBuffer = await res.arrayBuffer();
+          return Buffer.from(arrayBuffer);
+        }
+      } catch {
+        // ignore fetch failure
+      }
+    }
+    return null;
+  }
+
   private amountToWords(amount: number): string {
     const units = [
       'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
@@ -1109,7 +1547,7 @@ export class RequestsService {
     const { method } = input;
     return `<div class="${input.pageBreak ? 'page-break' : ''}">
       <div class="box">
-        ${input.logoDataUri ? `<img src="${input.logoDataUri}" alt="Logo" style="height:42px; margin-bottom:8px;" />` : ''}
+        ${input.logoDataUri ? `<div style="text-align:center; margin-bottom:8px;"><img src="${input.logoDataUri}" alt="Logo" style="height:42px;" /></div>` : ''}
         <div class="title">PAYMENT VOUCHER</div>
         <div class="row two">
           <div><strong>Voucher No:</strong> ${this.escapeHtml(input.voucherNo)}</div>
@@ -1273,45 +1711,63 @@ export class RequestsService {
     );
 
     const findStep = (matcher: RegExp) => approvals.done.find((row) => matcher.test(row.step));
+    const manualApprovals = Array.isArray(data.manual_approvals)
+      ? (data.manual_approvals as Array<Record<string, unknown>>)
+      : [];
+    const manualFor = (matcher: RegExp) =>
+      manualApprovals.find((row) => matcher.test(String(row.role ?? '')));
     const roleRows: string[] = [];
     const teamLead = findStep(/team[\s_-]*lead/i);
+    const manualTeamLead = manualFor(/team[\s_-]*lead/i);
     roleRows.push(
       this.renderApprovalRoleRow({
         roleLabel: 'Team Lead',
-        actorName: teamLead?.performed_by_name ?? null,
-        dateText: teamLead ? this.formatDate(teamLead.at) : 'Pending',
-        done: Boolean(teamLead)
+        actorName: teamLead?.performed_by_name ?? (typeof manualTeamLead?.name === 'string' ? manualTeamLead.name : null),
+        dateText: teamLead
+          ? this.formatDate(teamLead.at)
+          : (typeof manualTeamLead?.date === 'string' ? this.formatDate(manualTeamLead.date) : 'Pending'),
+        done: Boolean(teamLead) || Boolean(manualTeamLead?.done)
       })
     );
     const accountant = findStep(/accountant|account/i);
+    const manualAccountant = manualFor(/accountant|account/i);
     roleRows.push(
       this.renderApprovalRoleRow({
         roleLabel: 'Accountant',
-        actorName: accountant?.performed_by_name ?? null,
-        dateText: accountant ? this.formatDate(accountant.at) : 'Pending',
-        done: Boolean(accountant)
+        actorName: accountant?.performed_by_name ?? (typeof manualAccountant?.name === 'string' ? manualAccountant.name : null),
+        dateText: accountant
+          ? this.formatDate(accountant.at)
+          : (typeof manualAccountant?.date === 'string' ? this.formatDate(manualAccountant.date) : 'Pending'),
+        done: Boolean(accountant) || Boolean(manualAccountant?.done)
       })
     );
     const coo = findStep(/\bcoo\b/i);
+    const manualCoo = manualFor(/\bcoo\b/i);
     roleRows.push(
       this.renderApprovalRoleRow({
         roleLabel: 'COO',
-        actorName: coo?.performed_by_name ?? null,
-        dateText: coo ? this.formatDate(coo.at) : 'Pending',
-        done: Boolean(coo)
+        actorName: coo?.performed_by_name ?? (typeof manualCoo?.name === 'string' ? manualCoo.name : null),
+        dateText: coo
+          ? this.formatDate(coo.at)
+          : (typeof manualCoo?.date === 'string' ? this.formatDate(manualCoo.date) : 'Pending'),
+        done: Boolean(coo) || Boolean(manualCoo?.done)
       })
     );
     const edRequired =
       approvals.done.some((row) => /\bed\b|executive director/i.test(row.step)) ||
-      approvals.pending.some((row) => /\bed\b|executive director/i.test(row.step));
+      approvals.pending.some((row) => /\bed\b|executive director/i.test(row.step)) ||
+      manualApprovals.some((row) => /\bed\b|executive director/i.test(String(row.role ?? '')));
     if (edRequired) {
       const ed = findStep(/\bed\b|executive director/i);
+      const manualEd = manualFor(/\bed\b|executive director/i);
       roleRows.push(
         this.renderApprovalRoleRow({
           roleLabel: 'ED',
-          actorName: ed?.performed_by_name ?? null,
-          dateText: ed ? this.formatDate(ed.at) : 'Pending',
-          done: Boolean(ed)
+          actorName: ed?.performed_by_name ?? (typeof manualEd?.name === 'string' ? manualEd.name : null),
+          dateText: ed
+            ? this.formatDate(ed.at)
+            : (typeof manualEd?.date === 'string' ? this.formatDate(manualEd.date) : 'Pending'),
+          done: Boolean(ed) || Boolean(manualEd?.done)
         })
       );
     }

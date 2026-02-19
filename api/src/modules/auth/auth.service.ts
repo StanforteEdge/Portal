@@ -54,7 +54,10 @@ export class AuthService {
   }
 
   async status(userId: string): Promise<AuthStatusResponseDto> {
-    const profile = await this.prisma.profile.findUnique({ where: { id: toBigInt(userId) } });
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: toBigInt(userId) },
+      include: { onboardingProgress: true }
+    });
     if (!profile) throw new NotFoundException('User not found');
     const authContext = await this.buildAuthContext(profile.id);
     return {
@@ -63,7 +66,8 @@ export class AuthService {
       username: profile.username,
       status: profile.status,
       roles: authContext.roles,
-      permissions: authContext.permissions
+      permissions: authContext.permissions,
+      onboarding_status: profile.onboardingProgress?.status
     };
   }
 
@@ -198,6 +202,11 @@ export class AuthService {
       this.prisma.profile.update({
         where: { id: tokenRow.profileId },
         data: { passwordHash, status: 'active' }
+      }),
+      this.prisma.onboardingProgress.upsert({
+        where: { userId: tokenRow.profileId },
+        update: { status: 'accepted', currentStep: 'profile' },
+        create: { userId: tokenRow.profileId, status: 'accepted', currentStep: 'profile' }
       }),
       this.prisma.token.deleteMany({
         where: {

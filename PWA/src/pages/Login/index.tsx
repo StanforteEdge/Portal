@@ -64,7 +64,12 @@ function Main() {
 
   useEffect(() => {
     if (isAuthenticated && authState.user) {
-      const redirectPath = redirectFrom || resolveRedirectPath(authState.user.roles ?? []);
+      const redirectPath =
+        redirectFrom ||
+        resolveRedirectPath(
+          authState.user.roles ?? [],
+          (authState.user.onboarding_status as string | undefined) ?? null
+        );
       navigate(redirectPath, { replace: true });
     }
   }, [isAuthenticated, authState.user, navigate, redirectFrom]);
@@ -76,7 +81,12 @@ function Main() {
         loginThunk({ email: values.email, password: values.password })
       ).unwrap();
 
-      const redirectPath = redirectFrom || resolveRedirectPath(result.user.roles ?? []);
+      const redirectPath =
+        redirectFrom ||
+        resolveRedirectPath(
+          result.user.roles ?? [],
+          (result.user.onboarding_status as string | undefined) ?? null
+        );
       navigate(redirectPath, { replace: true });
     } catch (error: any) {
       const message =

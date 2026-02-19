@@ -11,6 +11,8 @@ import { SubmitRequestDto } from './dto/submit-request.dto';
 import { ActionRequestDto } from './dto/action-request.dto';
 import { RequestResponseDto } from './dto/request-response.dto';
 import { RetireRequestDto } from './dto/retire-request.dto';
+import { CreateManualRequestDto } from './dto/create-manual-request.dto';
+import { DownloadRequestDto } from './dto/download-request.dto';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -245,16 +247,25 @@ export class RequestsController {
     return this.requestsService.generatePaymentVoucher(id, req.user?.id);
   }
 
-  @Post(':id/payment-vouchers/:voucherId/download')
+  @Post(':id/download')
   @Permissions('requests.view')
-  @ApiOperation({ summary: 'Generate/download a specific payment voucher PDF' })
-  generatePaymentVoucherById(
-    @Req() req: any,
-    @Param('id') id: string,
-    @Param('voucherId') voucherId: string
-  ) {
-    return this.requestsService.generatePaymentVoucherForVoucher(id, voucherId, req.user?.id);
+  @ApiOperation({
+    summary:
+      'Unified download endpoint: request PDF, PV PDF, request+attachments, PV+attachments, full package (download/email)'
+  })
+  @ApiBody({ type: DownloadRequestDto })
+  downloadByAction(@Req() req: any, @Param('id') id: string, @Body() dto: DownloadRequestDto) {
+    return this.requestsService.downloadByAction(id, req.user?.id, dto);
   }
+
+  @Post('manual-entry')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Finance manager manual legacy request entry (historical import)' })
+  @ApiBody({ type: CreateManualRequestDto })
+  createManualEntry(@Req() req: any, @Body() dto: CreateManualRequestDto) {
+    return this.requestsService.createManualEntry(req.user?.id, dto);
+  }
+
 
   @Post(':id')
   @Permissions('requests.manage')

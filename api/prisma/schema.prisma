@@ -43,6 +43,35 @@ enum RequestStatus {
   completed
 }
 
+enum EmploymentType {
+  full_time
+  contract
+  intern
+  consultant
+}
+
+enum EmploymentStatus {
+  draft
+  active
+  suspended
+  exited
+}
+
+enum WorkMode {
+  onsite
+  hybrid
+  remote
+}
+
+enum OnboardingStatus {
+  invited
+  accepted
+  profile_pending
+  forms_pending
+  hr_review
+  completed
+}
+
 model Profile {
   id                     BigInt   @id @default(autoincrement())
   wpUserId               BigInt?   @map("wp_user_id")
@@ -79,8 +108,78 @@ model Profile {
   requests      RequestInstance[] @relation("RequestCreatedBy")
   uploadedFiles FileAsset[] @relation("FileUploadedBy")
   emailLogs     EmailLog[] @relation("EmailLogUser")
+  employeeProfile EmployeeProfile?
+  managedEmployees EmployeeProfile[] @relation("EmployeeManager")
+  onboardingProgress OnboardingProgress?
+  employeeMeta EmployeeMeta[]
+  acknowledgements Acknowledgement[]
+  documentAcknowledgements DocumentAcknowledgement[]
 
   @@map("sta_profiles")
+}
+
+model EmployeeProfile {
+  id                    String           @id @default(uuid()) @db.Uuid
+  userId                BigInt           @unique @map("user_id")
+  employeeCode          String?          @unique @map("employee_code") @db.VarChar(60)
+  jobTitle              String?          @map("job_title") @db.VarChar(120)
+  jobDescription        String?          @map("job_description")
+  managerUserId         BigInt?          @map("manager_user_id")
+  employmentType        EmploymentType?  @map("employment_type")
+  employmentStatus      EmploymentStatus @default(draft) @map("employment_status")
+  hireDate              DateTime?        @map("hire_date") @db.Date
+  confirmationDate      DateTime?        @map("confirmation_date") @db.Date
+  exitDate              DateTime?        @map("exit_date") @db.Date
+  workMode              WorkMode?        @map("work_mode")
+  primaryTeamId         BigInt?          @map("primary_team_id")
+  primaryOrganizationId BigInt?          @map("primary_organization_id")
+  createdBy             BigInt?          @map("created_by")
+  updatedBy             BigInt?          @map("updated_by")
+  createdAt             DateTime         @default(now()) @map("created_at")
+  updatedAt             DateTime         @updatedAt @map("updated_at")
+
+  user                Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manager             Profile?      @relation("EmployeeManager", fields: [managerUserId], references: [id], onDelete: SetNull)
+  primaryTeam         Group?        @relation(fields: [primaryTeamId], references: [id], onDelete: SetNull)
+  primaryOrganization Organization? @relation(fields: [primaryOrganizationId], references: [id], onDelete: SetNull)
+
+  @@index([managerUserId])
+  @@index([primaryTeamId])
+  @@index([primaryOrganizationId])
+  @@index([employmentStatus])
+  @@map("sta_employee_profiles")
+}
+
+model EmployeeMeta {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    BigInt   @map("user_id")
+  metaKey   String   @map("meta_key") @db.VarChar(120)
+  metaValue Json?    @map("meta_value")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user     Profile         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, metaKey], name: "employee_meta_unique")
+  @@index([metaKey])
+  @@map("sta_employee_meta")
+}
+
+model OnboardingProgress {
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      BigInt           @unique @map("user_id")
+  status      OnboardingStatus @default(invited)
+  currentStep String?          @map("current_step") @db.VarChar(80)
+  stepsJson   Json?            @map("steps_json")
+  dueDate     DateTime?        @map("due_date") @db.Date
+  completedAt DateTime?        @map("completed_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([status])
+  @@map("sta_onboarding_progress")
 }
 
 model Organization {
@@ -104,6 +203,8 @@ model Organization {
   requests  RequestInstance[]
   requestGroups RequestGroup[]
   fileAssets FileAsset[]
+  employeeProfiles EmployeeProfile[]
+  documents Document[]
 
   @@map("sta_organizations")
 }
@@ -273,6 +374,7 @@ model Group {
   organization Organization? @relation(fields: [organizationId], references: [id])
 
   members GroupUser[]
+  employeeProfiles EmployeeProfile[]
 
   @@map("sta_groups")
 }
@@ -419,10 +521,57 @@ model FileAsset {
   uploader     Profile?      @relation("FileUploadedBy", fields: [uploadedBy], references: [id])
   requestItems RequestItem[]
   financePaymentVouchers FinancePaymentVoucher[]
+  documents Document[]
 
   @@index([organizationId])
   @@index([uploadedBy])
   @@map("sta_file_assets")
+}
+
+model Document {
+  id                     String    @id @default(uuid()) @db.Uuid
+  organizationId         BigInt?   @map("organization_id")
+  title                  String    @db.VarChar(255)
+  slug                   String    @unique @db.VarChar(180)
+  category               String    @default("policy") @db.VarChar(50)
+  status                 String    @default("draft") @db.VarChar(30)
+  version                String    @default("1.0") @db.VarChar(40)
+  effectiveDate          DateTime? @map("effective_date") @db.Date
+  contentHtml            String?   @map("content_html")
+  fileId                 String?   @map("file_id") @db.Uuid
+  requireAcknowledgement Boolean   @default(false) @map("require_acknowledgement")
+  createdBy              BigInt?   @map("created_by")
+  updatedBy              BigInt?   @map("updated_by")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  organization      Organization?            @relation(fields: [organizationId], references: [id])
+  file              FileAsset?               @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  acknowledgements  DocumentAcknowledgement[]
+
+  @@index([organizationId])
+  @@index([status])
+  @@index([category])
+  @@map("sta_documents")
+}
+
+model DocumentAcknowledgement {
+  id             String   @id @default(uuid()) @db.Uuid
+  documentId     String   @map("document_id") @db.Uuid
+  userId         BigInt   @map("user_id")
+  version        String   @db.VarChar(40)
+  acknowledgedAt DateTime @default(now()) @map("acknowledged_at")
+  ipAddress      String?  @map("ip_address") @db.VarChar(64)
+  userAgent      String?  @map("user_agent") @db.VarChar(512)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  user     Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([documentId, userId, version], name: "unique_document_ack")
+  @@index([userId])
+  @@map("sta_document_acknowledgements")
 }
 
 model FinancePaymentVoucher {
@@ -693,9 +842,34 @@ model FormSubmission {
   form Form @relation(fields: [formId], references: [id])
   data FormSubmissionData[]
   history FormSubmissionHistory[]
+  acknowledgements Acknowledgement[]
 
   @@unique([submissionNumber])
   @@map("sta_form_submissions")
+}
+
+model Acknowledgement {
+  id                     String    @id @default(uuid()) @db.Uuid
+  userId                 BigInt    @map("user_id")
+  subjectType            String    @map("subject_type") @db.VarChar(60)
+  subjectId              String    @map("subject_id") @db.VarChar(191)
+  subjectLabel           String?   @map("subject_label") @db.VarChar(255)
+  version                String?   @db.VarChar(60)
+  status                 String    @default("acknowledged") @db.VarChar(20)
+  acknowledgedAt         DateTime  @default(now()) @map("acknowledged_at")
+  revokedAt              DateTime? @map("revoked_at")
+  sourceFormSubmissionId String?   @map("source_form_submission_id") @db.Uuid
+  metadata               Json?
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  user             Profile         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceSubmission FormSubmission? @relation(fields: [sourceFormSubmissionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, subjectType, subjectId, version], name: "unique_ack_subject_version")
+  @@index([subjectType, subjectId])
+  @@index([status])
+  @@map("sta_acknowledgements")
 }
 
 model FormSubmissionData {

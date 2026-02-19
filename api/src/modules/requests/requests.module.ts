@@ -4,9 +4,10 @@ import { RequestsService } from './requests.service';
 import { WorkflowModule } from '../workflow/workflow.module';
 import { FormsModule } from '../forms/forms.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { MailModule } from '../../common/mail/mail.module';
 
 @Module({
-  imports: [WorkflowModule, FormsModule, NotificationsModule],
+  imports: [WorkflowModule, FormsModule, NotificationsModule, MailModule],
   controllers: [RequestsController],
   providers: [RequestsService]
 })

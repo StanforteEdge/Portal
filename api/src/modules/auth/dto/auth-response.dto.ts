@@ -40,4 +40,6 @@ export class AuthStatusResponseDto {
   roles!: string[];
   @ApiProperty({ example: ['*'] })
   permissions!: string[];
+  @ApiProperty({ required: false, example: 'profile_pending' })
+  onboarding_status?: string;
 }

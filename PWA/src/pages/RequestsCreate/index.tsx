@@ -13,11 +13,12 @@ import {
 } from "@/services/requests";
 import { listProjects } from "@/services/projects";
 import { listMyOrganizations, listOrganizations } from "@/services/organizations";
-import { attachFileAsset } from "@/services/files";
+import type { FileAssetRecord } from "@/services/files";
 import { listTeams, type TeamOption } from "@/services/teams";
 import { listManagedTaxonomies } from "@/services/taxonomy";
 import { getMyProfile } from "@/services/profile";
 import { formatMoney } from "@/utils/formatting";
+import MediaPickerModal from "@/components/Media/MediaPickerModal";
 
 type CategoryTermOption = { id: string; value: string; label: string };
 
@@ -72,8 +73,8 @@ function RequestsCreatePage() {
 
   const [savingDraft, setSavingDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [form, setForm] = useState<CreateFormState>(defaultForm);
+  const [pickerIndex, setPickerIndex] = useState<number | null>(null);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const selectedRequestType = useMemo(
@@ -156,7 +157,13 @@ function RequestsCreatePage() {
 
   useEffect(() => {
     const taxonomyKey = selectedRequestType?.category_key || "";
-    const options = taxonomyKey ? taxonomyMap[taxonomyKey] || [] : [];
+    const resolvedTaxonomyKey =
+      taxonomyKey && taxonomyMap[taxonomyKey]
+        ? taxonomyKey
+        : Object.keys(taxonomyMap).length === 1
+          ? Object.keys(taxonomyMap)[0]
+          : "";
+    const options = resolvedTaxonomyKey ? taxonomyMap[resolvedTaxonomyKey] || [] : [];
     setCategoryOptions(options);
     setForm((prev) => {
       if (!prev.category_id) return prev;
@@ -190,35 +197,18 @@ function RequestsCreatePage() {
   const removeItem = (index: number) =>
     setForm((prev) => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
 
-  const uploadFileForItem = async (index: number, file: File | null) => {
-    if (!file) return;
-    try {
-      setUploadingIndex(index);
-      const attached = await attachFileAsset({
-        storage_path: `uploads/requests/${Date.now()}-${file.name}`,
-        file_name: file.name,
-        mime_type: file.type || "application/octet-stream",
-        file_size: file.size,
-        metadata: { source: "request_item_invoice" },
-      });
-
-      setForm((prev) => {
-        const items = [...prev.items];
-        items[index] = {
-          ...items[index],
-          file_id: attached.id,
-          file_name: file.name,
-        };
-        return { ...prev, items };
-      });
-    } catch (error: any) {
-      setNotice({
-        tone: "error",
-        message: error?.response?.data?.error?.message || "Unable to attach file metadata.",
-      });
-    } finally {
-      setUploadingIndex(null);
-    }
+  const applyPickedFile = (index: number, files: FileAssetRecord[]) => {
+    const picked = files[0];
+    if (!picked) return;
+    setForm((prev) => {
+      const items = [...prev.items];
+      items[index] = {
+        ...items[index],
+        file_id: picked.id,
+        file_name: picked.file_name,
+      };
+      return { ...prev, items };
+    });
   };
 
   const validate = () => {
@@ -446,20 +436,11 @@ function RequestsCreatePage() {
                 </div>
                 <div className="col-span-12 md:col-span-4">
                   <FormLabel>Invoice File</FormLabel>
-                  <FormInput
-                    type="file"
-                    onChange={(e) => {
-                      const file = e.target.files?.[0] || null;
-                      void uploadFileForItem(index, file);
-                    }}
-                    disabled={uploadingIndex === index}
-                  />
+                  <Button variant="outline-secondary" onClick={() => setPickerIndex(index)}>
+                    {item.file_name ? "Change File" : "Pick File"}
+                  </Button>
                   <div className="text-xs text-slate-500 mt-1">
-                    {uploadingIndex === index
-                      ? "Attaching..."
-                      : item.file_name
-                        ? `Attached: ${item.file_name}`
-                        : "Attach invoice per item"}
+                    {item.file_name ? `Attached: ${item.file_name}` : "Attach invoice per item"}
                   </div>
                 </div>
               </div>
@@ -482,6 +463,16 @@ function RequestsCreatePage() {
           </div>
         </div>
       </div>
+      <MediaPickerModal
+        open={pickerIndex !== null}
+        onClose={() => setPickerIndex(null)}
+        title="Select Invoice File"
+        selectedIds={pickerIndex !== null ? (form.items[pickerIndex]?.file_id ? [String(form.items[pickerIndex].file_id)] : []) : []}
+        onSelect={(files) => {
+          if (pickerIndex === null) return;
+          applyPickedFile(pickerIndex, files);
+        }}
+      />
     </>
   );
 }

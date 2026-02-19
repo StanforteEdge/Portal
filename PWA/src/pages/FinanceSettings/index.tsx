@@ -102,7 +102,7 @@ function Main() {
     setRequestTypes(types);
 
     const options = (taxonomies || [])
-      .filter((taxonomy) => String(taxonomy.module || "").toLowerCase() === "finance")
+      .filter((taxonomy) => String(taxonomy.module || "").trim().toLowerCase() === "finance")
       .map((taxonomy) => ({ key: String(taxonomy.key), name: String(taxonomy.name) }))
       .sort((a, b) => a.name.localeCompare(b.name));
 

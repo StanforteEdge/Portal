@@ -23,7 +23,23 @@ export class UsersService {
       include: {
         organizations: {
           include: { organization: true }
-        }
+        },
+        groups: { include: { group: true } },
+        employeeProfile: {
+          include: {
+            manager: {
+              select: { id: true, firstName: true, lastName: true, email: true }
+            },
+            primaryTeam: {
+              select: { id: true, name: true, type: true }
+            },
+            primaryOrganization: {
+              select: { id: true, name: true, code: true }
+            }
+          }
+        },
+        employeeMeta: true,
+        onboardingProgress: true
       }
     });
 
@@ -52,13 +68,28 @@ export class UsersService {
         maritalStatus: dto.marital_status ?? existing.maritalStatus,
         avatar: dto.avatar ?? existing.avatar,
         bio: dto.bio ?? existing.bio,
-        occupation: dto.occupation ?? existing.occupation,
-        email: dto.email ? dto.email.trim().toLowerCase() : existing.email
+        occupation: dto.occupation ?? existing.occupation
       },
       include: {
         organizations: {
           include: { organization: true }
-        }
+        },
+        groups: { include: { group: true } },
+        employeeProfile: {
+          include: {
+            manager: {
+              select: { id: true, firstName: true, lastName: true, email: true }
+            },
+            primaryTeam: {
+              select: { id: true, name: true, type: true }
+            },
+            primaryOrganization: {
+              select: { id: true, name: true, code: true }
+            }
+          }
+        },
+        employeeMeta: true,
+        onboardingProgress: true
       }
     });
     return this.serializeProfile(updated);
@@ -263,6 +294,20 @@ export class UsersService {
       this.prisma.profile.update({
         where: { id: user.id },
         data: { status: 'invited' }
+      }),
+      this.prisma.onboardingProgress.upsert({
+        where: { userId: user.id },
+        update: {
+          status: 'invited',
+          currentStep: 'invite',
+          dueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7)
+        },
+        create: {
+          userId: user.id,
+          status: 'invited',
+          currentStep: 'invite',
+          dueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7)
+        }
       })
     ]);
 
@@ -287,6 +332,13 @@ export class UsersService {
   }
 
   private serializeProfile(user: any): ProfileResponseDto {
+    const groupMemberships = (user.groups ?? []).map((item: any) => ({
+      id: item.group.id.toString(),
+      name: item.group.name,
+      type: item.group.type,
+      role: item.role
+    }));
+
     return {
       id: user.id.toString(),
       username: user.username,
@@ -305,7 +357,53 @@ export class UsersService {
         name: item.organization.name,
         code: item.organization.code,
         is_primary: item.isPrimary
-      }))
+      })),
+      teams: groupMemberships.filter((item: any) => String(item.type).toLowerCase() === 'team'),
+      projects: groupMemberships.filter((item: any) => String(item.type).toLowerCase() === 'project'),
+      employee_profile: user.employeeProfile
+        ? {
+            id: user.employeeProfile.id,
+            employee_code: user.employeeProfile.employeeCode ?? null,
+            job_title: user.employeeProfile.jobTitle ?? null,
+            job_description: user.employeeProfile.jobDescription ?? null,
+            employment_type: user.employeeProfile.employmentType ?? null,
+            employment_status: user.employeeProfile.employmentStatus ?? null,
+            hire_date: user.employeeProfile.hireDate ?? null,
+            confirmation_date: user.employeeProfile.confirmationDate ?? null,
+            exit_date: user.employeeProfile.exitDate ?? null,
+            work_mode: user.employeeProfile.workMode ?? null,
+            manager:
+              user.employeeProfile.manager == null
+                ? null
+                : {
+                    id: user.employeeProfile.manager.id.toString(),
+                    first_name: user.employeeProfile.manager.firstName ?? null,
+                    last_name: user.employeeProfile.manager.lastName ?? null,
+                    email: user.employeeProfile.manager.email ?? null
+                  },
+            primary_team:
+              user.employeeProfile.primaryTeam == null
+                ? null
+                : {
+                    id: user.employeeProfile.primaryTeam.id.toString(),
+                    name: user.employeeProfile.primaryTeam.name,
+                    type: user.employeeProfile.primaryTeam.type
+                  },
+            primary_organization:
+              user.employeeProfile.primaryOrganization == null
+                ? null
+                : {
+                    id: user.employeeProfile.primaryOrganization.id.toString(),
+                    name: user.employeeProfile.primaryOrganization.name,
+                    code: user.employeeProfile.primaryOrganization.code
+                  },
+            meta: (user.employeeMeta ?? []).reduce((acc: Record<string, unknown>, row: any) => {
+              acc[row.metaKey] = row.metaValue;
+              return acc;
+            }, {})
+          }
+        : null,
+      onboarding_progress: user.onboardingProgress ?? null
     };
   }
 }
