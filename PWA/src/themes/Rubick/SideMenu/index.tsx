@@ -76,16 +76,15 @@ function Main() {
                 ) : (
                   <li key={menuKey}>
                     <Tippy
-                      as="button"
-                      type="button"
+                      as="a"
                       content={menu.title}
                       options={{
                         placement: "right",
                       }}
                       disable={windowWidth > 1260}
+                      href={menu.subMenu ? "#" : menu.pathname}
                       onClick={(event: React.MouseEvent) => {
                         event.preventDefault();
-                        event.stopPropagation();
                         linkTo(menu, navigate);
                         setFormattedMenu([...formattedMenu]);
                       }}
@@ -128,16 +127,15 @@ function Main() {
                           {menu.subMenu.map((subMenu, subMenuKey) => (
                             <li key={subMenuKey}>
                               <Tippy
-                                as="button"
-                                type="button"
+                                as="a"
                                 content={subMenu.title}
                                 options={{
                                   placement: "right",
                                 }}
                                 disable={windowWidth > 1260}
+                                href={subMenu.subMenu ? "#" : subMenu.pathname}
                                 onClick={(event: React.MouseEvent) => {
                                   event.preventDefault();
-                                  event.stopPropagation();
                                   linkTo(subMenu, navigate);
                                   setFormattedMenu([...formattedMenu]);
                                 }}
@@ -185,18 +183,21 @@ function Main() {
                                       (lastSubMenu, lastSubMenuKey) => (
                                         <li key={lastSubMenuKey}>
                                           <Tippy
-                                            as="button"
-                                            type="button"
+                                            as="a"
                                             content={lastSubMenu.title}
                                             options={{
                                               placement: "right",
                                             }}
                                             disable={windowWidth > 1260}
+                                            href={
+                                              lastSubMenu.subMenu
+                                                ? "#"
+                                                : lastSubMenu.pathname
+                                            }
                                             onClick={(
                                               event: React.MouseEvent
                                             ) => {
                                               event.preventDefault();
-                                              event.stopPropagation();
                                               linkTo(lastSubMenu, navigate);
                                               setFormattedMenu([
                                                 ...formattedMenu,
