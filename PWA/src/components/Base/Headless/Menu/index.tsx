@@ -19,7 +19,7 @@ function Menu({
   );
 }
 
-Menu.Button = <C extends React.ElementType = "div">({
+Menu.Button = <C extends React.ElementType = "button">({
   as,
   children,
   className,
@@ -27,9 +27,11 @@ Menu.Button = <C extends React.ElementType = "div">({
 }: ExtractProps<typeof HeadlessMenu.Button> & {
   as?: C;
 } & React.ComponentPropsWithRef<C>) => {
+  const isNativeButton = !as || as === "button";
   return (
     <HeadlessMenu.Button
       as={as}
+      type={isNativeButton ? "button" : undefined}
       className={twMerge(["cursor-pointer", className])}
       {...props}
     >
@@ -107,7 +109,7 @@ Menu.Item = ({
 }: ExtractProps<typeof HeadlessMenu.Item>) => {
   return (
     <HeadlessMenu.Item
-      as="a"
+      as="button"
       className={twMerge([
         "cursor-pointer flex items-center p-2 transition duration-300 ease-in-out rounded-md hover:bg-slate-200/60 dark:bg-darkmode-600 dark:hover:bg-darkmode-400",
         className,

@@ -1,78 +1,54 @@
 import { createSlice, PayloadAction } from "@reduxjs/toolkit";
 import { RootState } from "./store";
-import RubickSideMenu from "@/themes/Rubick/SideMenu";
-import RubickSimpleMenu from "@/themes/Rubick/SimpleMenu";
-import RubickTopMenu from "@/themes/Rubick/TopMenu";
-import IcewallSideMenu from "@/themes/Icewall/SideMenu";
-import IcewallSimpleMenu from "@/themes/Icewall/SimpleMenu";
-import IcewallTopMenu from "@/themes/Icewall/TopMenu";
-import TinkerSideMenu from "@/themes/Tinker/SideMenu";
-import TinkerSimpleMenu from "@/themes/Tinker/SimpleMenu";
-import TinkerTopMenu from "@/themes/Tinker/TopMenu";
-import EnigmaSideMenu from "@/themes/Enigma/SideMenu";
-import EnigmaSimpleMenu from "@/themes/Enigma/SimpleMenu";
-import EnigmaTopMenu from "@/themes/Enigma/TopMenu";
 
 export const themes = [
   {
     name: "rubick",
     layout: "side-menu",
-    component: RubickSideMenu,
   },
   {
     name: "rubick",
     layout: "simple-menu",
-    component: RubickSimpleMenu,
   },
   {
     name: "rubick",
     layout: "top-menu",
-    component: RubickTopMenu,
   },
   {
     name: "icewall",
     layout: "side-menu",
-    component: IcewallSideMenu,
   },
   {
     name: "icewall",
     layout: "simple-menu",
-    component: IcewallSimpleMenu,
   },
   {
     name: "icewall",
     layout: "top-menu",
-    component: IcewallTopMenu,
   },
   {
     name: "tinker",
     layout: "side-menu",
-    component: TinkerSideMenu,
   },
   {
     name: "tinker",
     layout: "simple-menu",
-    component: TinkerSimpleMenu,
   },
   {
     name: "tinker",
     layout: "top-menu",
-    component: TinkerTopMenu,
   },
   {
     name: "enigma",
     layout: "side-menu",
-    component: EnigmaSideMenu,
   },
   {
     name: "enigma",
     layout: "simple-menu",
-    component: EnigmaSimpleMenu,
   },
   {
     name: "enigma",
     layout: "top-menu",
-    component: EnigmaTopMenu,
   },
 ] as const;
 

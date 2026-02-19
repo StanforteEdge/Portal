@@ -31,10 +31,13 @@ function Main() {
 
   useEffect(() => {
     setFormattedMenu(menu());
-
-    window.addEventListener("resize", () => {
+    const onResize = () => {
       setWindowWidth(window.innerWidth);
-    });
+    };
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("resize", onResize);
+    };
   }, [menuStore, location.pathname]);
 
   return (

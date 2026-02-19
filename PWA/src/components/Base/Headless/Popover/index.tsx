@@ -19,7 +19,7 @@ function Popover({
   );
 }
 
-Popover.Button = <C extends React.ElementType = "div">({
+Popover.Button = <C extends React.ElementType = "button">({
   as,
   children,
   className,
@@ -27,9 +27,11 @@ Popover.Button = <C extends React.ElementType = "div">({
 }: ExtractProps<typeof HeadlessPopover.Button> & {
   as?: C;
 } & React.ComponentPropsWithRef<C>) => {
+  const isNativeButton = !as || as === "button";
   return (
     <HeadlessPopover.Button
       as={as}
+      type={isNativeButton ? "button" : undefined}
       className={twMerge(["cursor-pointer", className])}
       {...props}
     >
