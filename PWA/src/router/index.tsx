@@ -1,44 +1,54 @@
+import { lazy, Suspense } from "react";
 import { Navigate, useRoutes } from "react-router-dom";
 
 import Layout from "../themes";
-import Login from "../pages/Login";
-import Register from "../pages/Register";
-import ForgotPassword from "../pages/ForgotPassword";
-import ResetPassword from "../pages/ResetPassword";
-import AcceptInvite from "../pages/AcceptInvite";
-import ErrorPage from "../pages/ErrorPage";
-import PortalDashboardPage from "../pages/PortalDashboard";
-import UpdateProfile from "../pages/UpdateProfile";
-import ChangePassword from "../pages/ChangePassword";
-import FinanceSettings from "../pages/FinanceSettings";
-import UserManagement from "../pages/UserManagement";
-import RequestsPage from "../pages/Requests";
-import RequestsCreatePage from "../pages/RequestsCreate";
-import RequestDetailPage from "../pages/RequestDetail";
-import RequestApprovalsPage from "../pages/RequestApprovals";
-import FinanceDashboardPage from "../pages/FinanceDashboard";
-import FinanceRequestsPage from "../pages/FinanceRequests";
-import FinanceRequestDetailPage from "../pages/FinanceRequestDetail";
-import AdminSettingsPage from "../pages/AdminSettings";
-import FinanceManualEntryPage from "../pages/FinanceManualEntry";
-import AdminFilesPage from "../pages/AdminFiles";
-import AdminProjectsPage from "../pages/AdminProjects";
-import AdminDocumentsPage from "../pages/AdminDocuments";
-import AdminDocumentEditorPage from "../pages/AdminDocumentEditor";
-import AdminRolesPage from "../pages/AdminRoles";
-import MediaLibraryPage from "../pages/MediaLibrary";
-import DocumentsPage from "../pages/Documents";
-import OnboardingPage from "../pages/Onboarding";
-import HrEmployeesPage from "../pages/HrEmployees";
-import HrDashboardPage from "../pages/HrDashboard";
-import HrOnboardingPage from "../pages/HrOnboarding";
-import AdminFormsPage from "../pages/AdminForms";
-import AdminFormEditorPage from "../pages/AdminFormEditor";
-import HrEmployeeEditorPage from "../pages/HrEmployeeEditor";
 
 import ProtectedRoute from "@/components/Auth/ProtectedRoute";
 import PublicOnlyRoute from "@/components/Auth/PublicOnlyRoute";
 import RoleRoute from "@/components/Auth/RoleRoute";
+
+const Login = lazy(() => import("../pages/Login"));
+const Register = lazy(() => import("../pages/Register"));
+const ForgotPassword = lazy(() => import("../pages/ForgotPassword"));
+const ResetPassword = lazy(() => import("../pages/ResetPassword"));
+const AcceptInvite = lazy(() => import("../pages/AcceptInvite"));
+const ErrorPage = lazy(() => import("../pages/ErrorPage"));
+const PortalDashboardPage = lazy(() => import("../pages/PortalDashboard"));
+const UpdateProfile = lazy(() => import("../pages/UpdateProfile"));
+const ChangePassword = lazy(() => import("../pages/ChangePassword"));
+const FinanceSettings = lazy(() => import("../pages/FinanceSettings"));
+const UserManagement = lazy(() => import("../pages/UserManagement"));
+const RequestsPage = lazy(() => import("../pages/Requests"));
+const RequestsCreatePage = lazy(() => import("../pages/RequestsCreate"));
+const RequestDetailPage = lazy(() => import("../pages/RequestDetail"));
+const RequestApprovalsPage = lazy(() => import("../pages/RequestApprovals"));
+const FinanceDashboardPage = lazy(() => import("../pages/FinanceDashboard"));
+const FinanceRequestsPage = lazy(() => import("../pages/FinanceRequests"));
+const FinanceRequestDetailPage = lazy(() => import("../pages/FinanceRequestDetail"));
+const AdminSettingsPage = lazy(() => import("../pages/AdminSettings"));
+const FinanceManualEntryPage = lazy(() => import("../pages/FinanceManualEntry"));
+const AdminFilesPage = lazy(() => import("../pages/AdminFiles"));
+const AdminProjectsPage = lazy(() => import("../pages/AdminProjects"));
+const AdminDocumentsPage = lazy(() => import("../pages/AdminDocuments"));
+const AdminDocumentEditorPage = lazy(() => import("../pages/AdminDocumentEditor"));
+const AdminRolesPage = lazy(() => import("../pages/AdminRoles"));
+const MediaLibraryPage = lazy(() => import("../pages/MediaLibrary"));
+const DocumentsPage = lazy(() => import("../pages/Documents"));
+const OnboardingPage = lazy(() => import("../pages/Onboarding"));
+const HrEmployeesPage = lazy(() => import("../pages/HrEmployees"));
+const HrDashboardPage = lazy(() => import("../pages/HrDashboard"));
+const HrOnboardingPage = lazy(() => import("../pages/HrOnboarding"));
+const AdminFormsPage = lazy(() => import("../pages/AdminForms"));
+const AdminFormEditorPage = lazy(() => import("../pages/AdminFormEditor"));
+const HrEmployeeEditorPage = lazy(() => import("../pages/HrEmployeeEditor"));
+
+function page(element: JSX.Element) {
+  return (
+    <Suspense fallback={<div className="p-6 text-slate-500">Loading...</div>}>
+      {element}
+    </Suspense>
+  );
+}
 
 function Router() {
   const routes = [
@@ -60,53 +70,53 @@ function Router() {
         },
         {
           path: "dashboard",
-          element: <PortalDashboardPage />,
+          element: page(<PortalDashboardPage />),
         },
         {
           path: "profile",
-          element: <UpdateProfile />,
+          element: page(<UpdateProfile />),
         },
         {
           path: "settings/security",
-          element: <ChangePassword />,
+          element: page(<ChangePassword />),
         },
         {
           path: "onboarding",
-          element: <OnboardingPage />,
+          element: page(<OnboardingPage />),
         },
         {
           path: "media",
-          element: <MediaLibraryPage />,
+          element: page(<MediaLibraryPage />),
         },
         {
           path: "documents",
-          element: <DocumentsPage />,
+          element: page(<DocumentsPage />),
         },
         {
           path: "requests",
-          element: <RequestsPage />,
+          element: page(<RequestsPage />),
         },
         {
           path: "requests/create",
-          element: <RequestsCreatePage />,
+          element: page(<RequestsCreatePage />),
         },
         {
           path: "requests/request/:id",
-          element: <RequestDetailPage />,
+          element: page(<RequestDetailPage />),
         },
         {
           path: "requests/approvals",
-          element: <RequestApprovalsPage />,
+          element: page(<RequestApprovalsPage />),
         },
         {
           path: "requests/approvals/:id",
-          element: <RequestDetailPage />,
+          element: page(<RequestDetailPage />),
         },
         {
           path: "finance",
           element: (
             <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
-              <FinanceDashboardPage />
+              {page(<FinanceDashboardPage />)}
             </RoleRoute>
           ),
         },
@@ -114,7 +124,7 @@ function Router() {
           path: "finance/requests",
           element: (
             <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
-              <FinanceRequestsPage />
+              {page(<FinanceRequestsPage />)}
             </RoleRoute>
           ),
         },
@@ -122,7 +132,7 @@ function Router() {
           path: "finance/requests/request/:id",
           element: (
             <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
-              <FinanceRequestDetailPage />
+              {page(<FinanceRequestDetailPage />)}
             </RoleRoute>
           ),
         },
@@ -130,7 +140,7 @@ function Router() {
           path: "finance/settings",
           element: (
             <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
-              <FinanceSettings />
+              {page(<FinanceSettings />)}
             </RoleRoute>
           ),
         },
@@ -138,7 +148,7 @@ function Router() {
           path: "finance/manualentry",
           element: (
             <RoleRoute allowedRoles={["finance_manager"]}>
-              <FinanceManualEntryPage />
+              {page(<FinanceManualEntryPage />)}
             </RoleRoute>
           ),
         },
@@ -150,7 +160,7 @@ function Router() {
           path: "admin/users/list",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <UserManagement />
+              {page(<UserManagement />)}
             </RoleRoute>
           ),
         },
@@ -158,7 +168,7 @@ function Router() {
           path: "admin/settings",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminSettingsPage />
+              {page(<AdminSettingsPage />)}
             </RoleRoute>
           ),
         },
@@ -166,7 +176,7 @@ function Router() {
           path: "admin/files",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminFilesPage />
+              {page(<AdminFilesPage />)}
             </RoleRoute>
           ),
         },
@@ -174,7 +184,7 @@ function Router() {
           path: "admin/projects",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminProjectsPage />
+              {page(<AdminProjectsPage />)}
             </RoleRoute>
           ),
         },
@@ -182,7 +192,7 @@ function Router() {
           path: "admin/documents",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminDocumentsPage />
+              {page(<AdminDocumentsPage />)}
             </RoleRoute>
           ),
         },
@@ -190,7 +200,7 @@ function Router() {
           path: "admin/documents/new",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminDocumentEditorPage />
+              {page(<AdminDocumentEditorPage />)}
             </RoleRoute>
           ),
         },
@@ -198,7 +208,7 @@ function Router() {
           path: "admin/documents/:id",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminDocumentEditorPage />
+              {page(<AdminDocumentEditorPage />)}
             </RoleRoute>
           ),
         },
@@ -206,7 +216,7 @@ function Router() {
           path: "admin/roles",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminRolesPage />
+              {page(<AdminRolesPage />)}
             </RoleRoute>
           ),
         },
@@ -214,7 +224,7 @@ function Router() {
           path: "admin/forms",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminFormsPage />
+              {page(<AdminFormsPage />)}
             </RoleRoute>
           ),
         },
@@ -222,7 +232,7 @@ function Router() {
           path: "admin/forms/new",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminFormEditorPage />
+              {page(<AdminFormEditorPage />)}
             </RoleRoute>
           ),
         },
@@ -230,7 +240,7 @@ function Router() {
           path: "admin/forms/:id",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
-              <AdminFormEditorPage />
+              {page(<AdminFormEditorPage />)}
             </RoleRoute>
           ),
         },
@@ -238,7 +248,7 @@ function Router() {
           path: "hr",
           element: (
             <RoleRoute allowedRoles={["hr"]}>
-              <HrDashboardPage />
+              {page(<HrDashboardPage />)}
             </RoleRoute>
           ),
         },
@@ -246,7 +256,7 @@ function Router() {
           path: "hr/employees",
           element: (
             <RoleRoute allowedRoles={["hr"]}>
-              <HrEmployeesPage />
+              {page(<HrEmployeesPage />)}
             </RoleRoute>
           ),
         },
@@ -254,7 +264,7 @@ function Router() {
           path: "hr/employees/employee",
           element: (
             <RoleRoute allowedRoles={["hr"]}>
-              <HrEmployeeEditorPage />
+              {page(<HrEmployeeEditorPage />)}
             </RoleRoute>
           ),
         },
@@ -262,7 +272,7 @@ function Router() {
           path: "hr/employees/:id",
           element: (
             <RoleRoute allowedRoles={["hr"]}>
-              <HrEmployeeEditorPage />
+              {page(<HrEmployeeEditorPage />)}
             </RoleRoute>
           ),
         },
@@ -270,18 +280,17 @@ function Router() {
           path: "hr/onboarding",
           element: (
             <RoleRoute allowedRoles={["hr"]}>
-              <HrOnboardingPage />
+              {page(<HrOnboardingPage />)}
             </RoleRoute>
           ),
         },
       ],
     },
-
     {
       path: "/login",
       element: (
         <PublicOnlyRoute>
-          <Login />
+          {page(<Login />)}
         </PublicOnlyRoute>
       ),
     },
@@ -289,7 +298,7 @@ function Router() {
       path: "/register",
       element: (
         <PublicOnlyRoute>
-          <Register />
+          {page(<Register />)}
         </PublicOnlyRoute>
       ),
     },
@@ -297,7 +306,7 @@ function Router() {
       path: "/forgot-password",
       element: (
         <PublicOnlyRoute>
-          <ForgotPassword />
+          {page(<ForgotPassword />)}
         </PublicOnlyRoute>
       ),
     },
@@ -305,7 +314,7 @@ function Router() {
       path: "/reset-password",
       element: (
         <PublicOnlyRoute>
-          <ResetPassword />
+          {page(<ResetPassword />)}
         </PublicOnlyRoute>
       ),
     },
@@ -313,7 +322,7 @@ function Router() {
       path: "/accept-invite",
       element: (
         <PublicOnlyRoute>
-          <AcceptInvite />
+          {page(<AcceptInvite />)}
         </PublicOnlyRoute>
       ),
     },
@@ -369,14 +378,13 @@ function Router() {
       path: "/app/requests/list",
       element: <Navigate to="/app/requests" replace />,
     },
-
     {
       path: "/error-page",
-      element: <ErrorPage />,
+      element: page(<ErrorPage />),
     },
     {
       path: "*",
-      element: <ErrorPage />,
+      element: page(<ErrorPage />),
     },
   ];
 

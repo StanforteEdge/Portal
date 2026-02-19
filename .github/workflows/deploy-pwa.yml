@@ -21,6 +21,13 @@ jobs:
           cache: "npm"
           cache-dependency-path: package-lock.json
 
+      - name: Compute build metadata
+        id: build_meta
+        run: |
+          APP_VERSION=$(node -p "require('./PWA/package.json').version")
+          echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit_sha=${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+
       - name: Install dependencies
         run: npm install --include=optional --no-audit --no-fund
         working-directory: PWA
@@ -34,6 +41,18 @@ jobs:
         working-directory: PWA
         env:
           VITE_API_BASE_URL: ${{ secrets.PWA_API_BASE_URL }}
+          VITE_APP_VERSION: ${{ steps.build_meta.outputs.app_version }}
+          VITE_APP_COMMIT_SHA: ${{ steps.build_meta.outputs.commit_sha }}
+
+      - name: Write version manifest
+        run: |
+          cat > PWA/dist/version.json <<EOF
+          {
+            "version": "${{ steps.build_meta.outputs.app_version }}",
+            "commit": "${{ steps.build_meta.outputs.commit_sha }}",
+            "built_at": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+          }
+          EOF
 
       - name: Ensure PWA web directory exists
         uses: appleboy/ssh-action@v1.0.3

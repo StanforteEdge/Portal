@@ -2,8 +2,14 @@ import { useEffect, useState } from "react";
 import Button from "@/components/Base/Button";
 import Table from "@/components/Base/Table";
 import { FormInput, FormSelect } from "@/components/Base/Form";
+import { Dialog } from "@/components/Base/Headless";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
-import { acknowledgeDocument, listDocuments, type PortalDocument } from "@/services/documents";
+import {
+  acknowledgeDocument,
+  getDocument,
+  listDocuments,
+  type PortalDocument,
+} from "@/services/documents";
 
 function humanize(value?: string | null) {
   if (!value) return "-";
@@ -19,6 +25,10 @@ function DocumentsPage() {
   const [category, setCategory] = useState("policy");
   const [status, setStatus] = useState("published");
   const [search, setSearch] = useState("");
+  const [activeDocument, setActiveDocument] = useState<PortalDocument | null>(null);
+  const [openDialog, setOpenDialog] = useState(false);
+  const [reviewChecked, setReviewChecked] = useState(false);
+  const [acknowledging, setAcknowledging] = useState(false);
 
   const load = async () => {
     try {
@@ -43,11 +53,32 @@ function DocumentsPage() {
 
   const onAcknowledge = async (doc: PortalDocument) => {
     try {
+      setAcknowledging(true);
       await acknowledgeDocument(doc.id, { version: doc.version });
       setNotice({ tone: "success", message: `Acknowledged: ${doc.title}` });
       await load();
+      if (activeDocument?.id === doc.id) {
+        const fresh = await getDocument(doc.id);
+        setActiveDocument(fresh);
+      }
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to acknowledge document." });
+    } finally {
+      setAcknowledging(false);
+    }
+  };
+
+  const openDocument = async (doc: PortalDocument) => {
+    try {
+      const fresh = await getDocument(doc.id);
+      setActiveDocument(fresh);
+      setReviewChecked(Boolean(fresh.my_acknowledgement));
+      setOpenDialog(true);
+    } catch (error: any) {
+      setNotice({
+        tone: "error",
+        message: error?.response?.data?.error?.message || "Unable to open document.",
+      });
     }
   };
 
@@ -121,13 +152,21 @@ function DocumentsPage() {
                           View File
                         </a>
                       ) : null}
-                      {doc.require_acknowledgement ? (
+                      <Button
+                        size="sm"
+                        variant="outline-secondary"
+                        onClick={() => void openDocument(doc)}
+                      >
+                        Open
+                      </Button>
+                      {doc.require_acknowledgement && doc.my_acknowledgement ? (
                         <Button
                           size="sm"
-                          variant={doc.my_acknowledgement ? "outline-secondary" : "outline-primary"}
+                          variant="outline-secondary"
                           onClick={() => void onAcknowledge(doc)}
+                          disabled={acknowledging}
                         >
-                          {doc.my_acknowledgement ? "Re-acknowledge" : "Acknowledge"}
+                          Re-acknowledge
                         </Button>
                       ) : null}
                     </div>
@@ -145,6 +184,88 @@ function DocumentsPage() {
           </Table>
         </div>
       </div>
+
+      <Dialog
+        open={openDialog}
+        onClose={() => {
+          setOpenDialog(false);
+          setActiveDocument(null);
+          setReviewChecked(false);
+        }}
+        size="xl"
+      >
+        <Dialog.Panel>
+          <Dialog.Title className="text-base font-medium">
+            {activeDocument?.title || "Document"}
+          </Dialog.Title>
+          <Dialog.Description className="mt-3 space-y-4 max-h-[65vh] overflow-auto">
+            {activeDocument?.content_html ? (
+              <div
+                className="prose max-w-none text-sm"
+                dangerouslySetInnerHTML={{ __html: activeDocument.content_html }}
+              />
+            ) : null}
+            {activeDocument?.file?.public_url ? (
+              <div>
+                <div className="mb-2 text-xs text-slate-500">
+                  Attached file: {activeDocument.file.file_name}
+                </div>
+                <iframe
+                  src={activeDocument.file.public_url}
+                  title={activeDocument.file.file_name}
+                  className="w-full h-[420px] rounded border border-slate-200"
+                />
+                <a
+                  className="inline-block mt-2 text-primary text-sm hover:underline"
+                  href={activeDocument.file.public_url}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Open file in new tab
+                </a>
+              </div>
+            ) : null}
+            {!activeDocument?.content_html && !activeDocument?.file?.public_url ? (
+              <div className="text-sm text-slate-500">No document body or attachment found.</div>
+            ) : null}
+          </Dialog.Description>
+          <Dialog.Footer className="flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={reviewChecked}
+                onChange={(e) => setReviewChecked(e.target.checked)}
+              />
+              I have reviewed this document
+            </label>
+            <div className="flex gap-2">
+              <Button
+                variant="outline-secondary"
+                onClick={() => {
+                  setOpenDialog(false);
+                  setActiveDocument(null);
+                  setReviewChecked(false);
+                }}
+              >
+                Close
+              </Button>
+              {activeDocument?.require_acknowledgement ? (
+                <Button
+                  variant={activeDocument.my_acknowledgement ? "outline-secondary" : "primary"}
+                  disabled={!reviewChecked || acknowledging}
+                  onClick={() => activeDocument && void onAcknowledge(activeDocument)}
+                >
+                  {acknowledging
+                    ? "Saving..."
+                    : activeDocument.my_acknowledgement
+                    ? "Re-acknowledge"
+                    : "Acknowledge"}
+                </Button>
+              ) : null}
+            </div>
+          </Dialog.Footer>
+        </Dialog.Panel>
+      </Dialog>
     </>
   );
 }

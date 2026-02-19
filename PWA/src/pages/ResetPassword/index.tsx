@@ -9,6 +9,7 @@ import Button from "@/components/Base/Button";
 import { FormInput, FormLabel } from "@/components/Base/Form";
 import { resetPassword } from "@/services/auth";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import PasswordInput from "@/components/Auth/PasswordInput";
 
 type ResetPasswordForm = {
   new_password: string;
@@ -83,9 +84,8 @@ function ResetPasswordPage() {
             <form className="mt-6 space-y-4" onSubmit={handleSubmit(onSubmit)}>
               <div>
                 <FormLabel htmlFor="reset-password">New Password</FormLabel>
-                <FormInput
+                <PasswordInput
                   id="reset-password"
-                  type="password"
                   autoComplete="new-password"
                   {...register("new_password")}
                 />
@@ -95,9 +95,8 @@ function ResetPasswordPage() {
               </div>
               <div>
                 <FormLabel htmlFor="confirm-password">Confirm Password</FormLabel>
-                <FormInput
+                <PasswordInput
                   id="confirm-password"
-                  type="password"
                   autoComplete="new-password"
                   {...register("confirm_password")}
                 />
