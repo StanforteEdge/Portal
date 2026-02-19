@@ -112,7 +112,13 @@ function Main() {
             {/* BEGIN: Login Info */}
             <div className="flex-col hidden min-h-screen xl:flex">
               <Link to="/" className="flex items-center pt-5 -intro-x">
-                <img alt="Stanforte Edge" className="w-6" src={BRAND_LOGO_ICON_DARK} />
+                <img
+                  alt="Stanforte Edge"
+                  className="w-6"
+                  src={BRAND_LOGO_ICON_DARK}
+                  width={24}
+                  height={24}
+                />
                 <span className="ml-3 text-lg text-white">Stanforte Edge</span>
               </Link>
               <div className="my-auto">
@@ -120,6 +126,9 @@ function Main() {
                   alt="Stanforte Edge Portal"
                   className="w-1/2 -mt-16 -intro-x"
                   src={illustrationUrl}
+                  width={640}
+                  height={480}
+                  fetchPriority="high"
                 />
                 <div className="mt-10 text-4xl font-medium leading-tight text-white -intro-x">
                   A few more clicks to <br />
