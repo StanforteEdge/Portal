@@ -1,7 +1,117 @@
-import * as lucideIcons from "lucide-react";
+import {
+  BadgeCheck,
+  BarChart2,
+  Bell,
+  BookOpen,
+  CheckCheck,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  CircleDollarSign,
+  Clipboard,
+  ClipboardList,
+  Clock3,
+  CreditCard,
+  Eye,
+  EyeOff,
+  File,
+  FilePenLine,
+  FileText,
+  Folder,
+  FolderOpen,
+  HelpCircle,
+  Home,
+  Inbox,
+  Kanban,
+  LayoutDashboard,
+  List,
+  ListChecks,
+  Lock,
+  Minus,
+  MoreHorizontal,
+  MoreVertical,
+  Plus,
+  Search,
+  Send,
+  Settings,
+  Settings2,
+  ShieldCheck,
+  ToggleRight,
+  Trash,
+  Trash2,
+  Trello,
+  TrendingUp,
+  Undo2,
+  User,
+  UserCheck,
+  UserCog,
+  UserX,
+  Users,
+  UsersRound,
+  Wallet,
+  XCircle,
+} from "lucide-react";
 import { twMerge } from "tailwind-merge";
 
-export const { icons } = lucideIcons;
+export const icons = {
+  BadgeCheck,
+  BarChart2,
+  Bell,
+  BookOpen,
+  CheckCheck,
+  CheckCircle2,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  ChevronsLeft,
+  ChevronsRight,
+  CircleDollarSign,
+  Clipboard,
+  ClipboardList,
+  Clock3,
+  CreditCard,
+  Eye,
+  EyeOff,
+  File,
+  FilePenLine,
+  FileText,
+  Folder,
+  FolderOpen,
+  HelpCircle,
+  Home,
+  Inbox,
+  Kanban,
+  LayoutDashboard,
+  List,
+  ListChecks,
+  Lock,
+  Minus,
+  MoreHorizontal,
+  MoreVertical,
+  Plus,
+  Search,
+  Send,
+  Settings,
+  Settings2,
+  ShieldCheck,
+  ToggleRight,
+  Trash,
+  Trash2,
+  Trello,
+  TrendingUp,
+  Undo2,
+  User,
+  UserCheck,
+  UserCog,
+  UserX,
+  Users,
+  UsersRound,
+  Wallet,
+  XCircle,
+} as const;
 
 interface LucideProps extends React.ComponentPropsWithoutRef<"svg"> {
   icon: keyof typeof icons;
@@ -10,11 +120,11 @@ interface LucideProps extends React.ComponentPropsWithoutRef<"svg"> {
 
 function Lucide(props: LucideProps) {
   const { icon, className, ...computedProps } = props;
-  const Component = icons[props.icon];
+  const Component = icons[icon] ?? HelpCircle;
   return (
     <Component
       {...computedProps}
-      className={twMerge(["stroke-1.5 w-5 h-5", props.className])}
+      className={twMerge(["stroke-1.5 w-5 h-5", className])}
     />
   );
 }
