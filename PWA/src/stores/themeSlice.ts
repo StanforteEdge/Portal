@@ -83,12 +83,8 @@ export const getTheme = (search?: {
 
 const initialState: ThemeState = {
   value: {
-    name:
-      localStorage.getItem("theme") === null ? themes[0].name : getTheme().name,
-    layout:
-      localStorage.getItem("layout") === null
-        ? themes[0].layout
-        : getTheme().layout,
+    name: "rubick",
+    layout: "side-menu",
   },
 };
 
@@ -96,21 +92,21 @@ export const themeSlice = createSlice({
   name: "theme",
   initialState,
   reducers: {
-    setTheme: (state, action: PayloadAction<Themes["name"]>) => {
+    setTheme: (state, _action: PayloadAction<Themes["name"]>) => {
       state.value = {
-        name: action.payload,
-        layout: state.value.layout,
+        name: "rubick",
+        layout: "side-menu",
       };
-
-      localStorage.setItem("theme", action.payload);
+      localStorage.setItem("theme", "rubick");
+      localStorage.setItem("layout", "side-menu");
     },
-    setLayout: (state, action: PayloadAction<Themes["layout"]>) => {
+    setLayout: (state, _action: PayloadAction<Themes["layout"]>) => {
       state.value = {
-        name: state.value.name,
-        layout: action.payload,
+        name: "rubick",
+        layout: "side-menu",
       };
-
-      localStorage.setItem("layout", action.payload);
+      localStorage.setItem("theme", "rubick");
+      localStorage.setItem("layout", "side-menu");
     },
   },
 });
@@ -118,15 +114,15 @@ export const themeSlice = createSlice({
 export const { setTheme, setLayout } = themeSlice.actions;
 
 export const selectTheme = (state: RootState) => {
-  if (localStorage.getItem("theme") === null) {
-    localStorage.setItem("theme", "rubick");
-  }
+  // Portal is locked to Rubick + side-menu.
+  localStorage.setItem("theme", "rubick");
+  localStorage.setItem("layout", "side-menu");
 
-  if (localStorage.getItem("layout") === null) {
-    localStorage.setItem("layout", "side-menu");
-  }
-
-  return state.theme.value;
+  return {
+    ...state.theme.value,
+    name: "rubick" as const,
+    layout: "side-menu" as const,
+  };
 };
 
 export default themeSlice.reducer;

@@ -6,6 +6,7 @@ import {
   selectAuthState,
   selectIsAuthenticated,
 } from "@/stores/authSlice";
+import { getStoredSession } from "@/utils/authStorage";
 
 type ProtectedRouteProps = {
   children: ReactNode;
@@ -16,19 +17,31 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
   const location = useLocation();
   const auth = useAppSelector(selectAuthState);
   const isAuthenticated = useAppSelector(selectIsAuthenticated);
+  const { accessToken, refreshToken } = getStoredSession();
+  const hasStoredSession = Boolean(accessToken && refreshToken);
 
   useEffect(() => {
-    if (!auth.initialized && auth.status === "idle") {
+    if (hasStoredSession && !auth.initialized && auth.status === "idle") {
       dispatch(initializeAuth());
     }
-  }, [auth.initialized, auth.status, dispatch]);
+  }, [auth.initialized, auth.status, dispatch, hasStoredSession]);
 
-  if (!auth.initialized || auth.status === "checking") {
+  if (!hasStoredSession && !isAuthenticated) {
     return (
-      <div className="flex items-center justify-center min-h-screen text-slate-600">
-        Loading...
-      </div>
+      <Navigate
+        to="/login"
+        replace
+        state={{ from: `${location.pathname}${location.search}` }}
+      />
     );
+  }
+
+  if (hasStoredSession && !auth.initialized && auth.status === "idle") {
+    return <>{children}</>;
+  }
+
+  if (hasStoredSession && auth.status === "checking") {
+    return <>{children}</>;
   }
 
   if (!isAuthenticated) {

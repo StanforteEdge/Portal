@@ -24,7 +24,7 @@ const getColorScheme = () => {
 
 const initialState: ColorSchemeState = {
   value:
-    localStorage.getItem("colorScheme") === null ? "theme-1" : getColorScheme(),
+    localStorage.getItem("colorScheme") === null ? "theme-2" : getColorScheme(),
 };
 
 export const colorSchemeSlice = createSlice({
@@ -41,9 +41,8 @@ export const colorSchemeSlice = createSlice({
 export const { setColorScheme } = colorSchemeSlice.actions;
 
 export const selectColorScheme = (state: RootState) => {
-  if (localStorage.getItem("colorScheme") === null) {
-    localStorage.setItem("colorScheme", "theme-1");
-  }
+  // Portal is locked to theme-2.
+  localStorage.setItem("colorScheme", "theme-2");
 
   return state.colorScheme.value;
 };

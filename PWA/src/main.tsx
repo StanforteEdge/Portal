@@ -7,6 +7,12 @@ import Router from "./router";
 import "./assets/css/app.css";
 import AppVersion from "@/components/AppVersion";
 
+document.documentElement.setAttribute("class", "theme-2");
+document.documentElement.classList.remove("dark");
+localStorage.setItem("colorScheme", "theme-2");
+localStorage.setItem("theme", "rubick");
+localStorage.setItem("layout", "side-menu");
+
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <BrowserRouter>
     <Provider store={store}>
