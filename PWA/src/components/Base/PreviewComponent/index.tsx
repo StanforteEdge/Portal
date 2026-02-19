@@ -12,7 +12,7 @@ import Button from "../Button";
 import Lucide from "../Lucide";
 import jsBeautify from "js-beautify";
 import hljs from "highlight.js";
-import * as _ from "lodash";
+import * as _ from "lodash-es";
 import { twMerge } from "tailwind-merge";
 import clsx from "clsx";
 

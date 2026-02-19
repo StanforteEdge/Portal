@@ -5,7 +5,7 @@ import {
   Highlight,
 } from "@/components/Base/PreviewComponent";
 import { FormInput, FormSwitch } from "@/components/Base/Form";
-import * as _ from "lodash";
+import * as _ from "lodash-es";
 import { useState } from "react";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";

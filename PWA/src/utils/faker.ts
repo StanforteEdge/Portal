@@ -1,5 +1,32 @@
-import * as _ from "lodash";
 import dayjs from "dayjs";
+
+function random(min: number, max: number): number {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function shuffle<T>(items: T[]): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
+}
+
+function sampleSize<T>(items: T[], count: number): T[] {
+  if (count >= items.length) return shuffle(items);
+  return shuffle(items).slice(0, count);
+}
+
+function truncate(
+  text: string,
+  options: { length?: number; omission?: string } = {}
+): string {
+  const length = options.length ?? 30;
+  const omission = options.omission ?? "...";
+  if (text.length <= length) return text;
+  return text.slice(0, Math.max(0, length - omission.length)) + omission;
+}
 
 interface Users {
   name: string;
@@ -75,11 +102,11 @@ const fakers = {
       { name: "Catherine Zeta-Jones", gender: "female" },
     ];
 
-    return _.sampleSize(users, 3).map((user) => {
+    return sampleSize(users, 3).map((user) => {
       return {
         name: user.name,
         gender: user.gender,
-        email: _.toLower(_.replace(user.name, / /g, "") + "@left4code.com"),
+        email: user.name.replace(/ /g, "").toLowerCase() + "@left4code.com",
       };
     });
   },
@@ -88,29 +115,29 @@ const fakers = {
     for (let i = 0; i < 15; i++) {
       photos[photos.length] =
         imageAssets[
-          "/src/assets/images/fakers/profile-" + _.random(1, 15) + ".jpg"
+          "/src/assets/images/fakers/profile-" + random(1, 15) + ".jpg"
         ].default;
     }
-    return _.sampleSize(photos, 10);
+    return sampleSize(photos, 10);
   },
   fakeImages() {
     const images = [];
     for (let i = 0; i < 15; i++) {
       images[images.length] =
         imageAssets[
-          "/src/assets/images/fakers/preview-" + _.random(1, 15) + ".jpg"
+          "/src/assets/images/fakers/preview-" + random(1, 15) + ".jpg"
         ].default;
     }
-    return _.sampleSize(images, 10);
+    return sampleSize(images, 10);
   },
   fakeDates() {
     const dates = [];
     for (let i = 0; i < 5; i++) {
       dates[dates.length] = dayjs
-        .unix(_.random(1586584776897, 1672333200000) / 1000)
+        .unix(random(1586584776897, 1672333200000) / 1000)
         .format("DD MMMM YYYY");
     }
-    return _.sampleSize(dates, 3);
+    return sampleSize(dates, 3);
   },
   fakeTimes() {
     const times = [
@@ -121,26 +148,26 @@ const fakers = {
       "04:50 AM",
       "07:00 PM",
     ];
-    return _.sampleSize(times, 3);
+    return sampleSize(times, 3);
   },
   fakeFormattedTimes() {
     const times = [
-      _.random(10, 60) + " seconds ago",
-      _.random(10, 60) + " minutes ago",
-      _.random(10, 24) + " hours ago",
-      _.random(10, 20) + " days ago",
-      _.random(10, 12) + " months ago",
+      random(10, 60) + " seconds ago",
+      random(10, 60) + " minutes ago",
+      random(10, 24) + " hours ago",
+      random(10, 20) + " days ago",
+      random(10, 12) + " months ago",
     ];
-    return _.sampleSize(times, 3);
+    return sampleSize(times, 3);
   },
   fakeTotals() {
-    return _.shuffle([_.random(20, 220), _.random(20, 120), _.random(20, 50)]);
+    return shuffle([random(20, 220), random(20, 120), random(20, 50)]);
   },
   fakeTrueFalse() {
-    return _.sampleSize([false, true, true], 1);
+    return sampleSize([false, true, true], 1);
   },
   fakeStocks() {
-    return _.shuffle([_.random(50, 220), _.random(50, 120), _.random(50, 50)]);
+    return shuffle([random(50, 220), random(50, 120), random(50, 50)]);
   },
   fakeProducts() {
     const products = [
@@ -155,7 +182,7 @@ const fakers = {
       { name: "Nikon Z6", category: "Photography" },
       { name: "Sony A7 III", category: "Photography" },
     ];
-    return _.shuffle(products);
+    return shuffle(products);
   },
   fakeCategories() {
     const categories = [
@@ -182,15 +209,11 @@ const fakers = {
       },
     ];
 
-    return _.sampleSize(categories, 3).map((category) => {
+    return sampleSize(categories, 3).map((category) => {
       return {
         name: category.name,
         tags: category.tags,
-        slug: _.replace(
-          _.replace(_.toLower(category.name), / /g, "-"),
-          "&",
-          "and"
-        ),
+        slug: category.name.toLowerCase().replace(/ /g, "-").replace("&", "and"),
       };
     });
   },
@@ -198,14 +221,14 @@ const fakers = {
     const news = [
       {
         title: "Desktop publishing software like Aldus PageMaker",
-        superShortContent: _.truncate(
+        superShortContent: truncate(
           "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.",
           {
             length: 30,
             omission: "",
           }
         ),
-        shortContent: _.truncate(
+        shortContent: truncate(
           "Lorem Ipsum is simply dummy text of the printing and typesetting industry. Lorem Ipsum has been the industry's standard dummy text ever since the 1500s, when an unknown printer took a galley of type and scrambled it to make a type specimen book. It has survived not only five centuries, but also the leap into electronic typesetting, remaining essentially unchanged. It was popularised in the 1960s with the release of Letraset sheets containing Lorem Ipsum passages, and more recently with desktop publishing software like Aldus PageMaker including versions of Lorem Ipsum.",
           {
             length: 150,
@@ -217,14 +240,14 @@ const fakers = {
       },
       {
         title: "Dummy text of the printing and typesetting industry",
-        superShortContent: _.truncate(
+        superShortContent: truncate(
           "It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using 'Content here, content here', making it look like readable English. Many desktop publishing packages and web page editors now use Lorem Ipsum as their default model text, and a search for 'lorem ipsum' will uncover many web sites still in their infancy. Various versions have evolved over the years, sometimes by accident, sometimes on purpose (injected humour and the like).",
           {
             length: 30,
             omission: "",
           }
         ),
-        shortContent: _.truncate(
+        shortContent: truncate(
           "It is a long established fact that a reader will be distracted by the readable content of a page when looking at its layout. The point of using Lorem Ipsum is that it has a more-or-less normal distribution of letters, as opposed to using 'Content here, content here', making it look like readable English. Many desktop publishing packages and web page editors now use Lorem Ipsum as their default model text, and a search for 'lorem ipsum' will uncover many web sites still in their infancy. Various versions have evolved over the years, sometimes by accident, sometimes on purpose (injected humour and the like).",
           {
             length: 150,
@@ -236,14 +259,14 @@ const fakers = {
       },
       {
         title: "Popularised in the 1960s with the release of Letraset",
-        superShortContent: _.truncate(
+        superShortContent: truncate(
           'Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old. Richard McClintock, a Latin professor at Hampden-Sydney College in Virginia, looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, and going through the cites of the word in classical literature, discovered the undoubtable source. Lorem Ipsum comes from sections 1.10.32 and 1.10.33 of "de Finibus Bonorum et Malorum" (The Extremes of Good and Evil) by Cicero, written in 45 BC. This book is a treatise on the theory of ethics, very popular during the Renaissance. The first line of Lorem Ipsum, "Lorem ipsum dolor sit amet..", comes from a line in section 1.10.32. The standard chunk of Lorem Ipsum used since the 1500s is reproduced below for those interested. Sections 1.10.32 and 1.10.33 from "de Finibus Bonorum et Malorum" by Cicero are also reproduced in their exact original form, accompanied by English versions from the 1914 translation by H. Rackham.',
           {
             length: 30,
             omission: "",
           }
         ),
-        shortContent: _.truncate(
+        shortContent: truncate(
           'Contrary to popular belief, Lorem Ipsum is not simply random text. It has roots in a piece of classical Latin literature from 45 BC, making it over 2000 years old. Richard McClintock, a Latin professor at Hampden-Sydney College in Virginia, looked up one of the more obscure Latin words, consectetur, from a Lorem Ipsum passage, and going through the cites of the word in classical literature, discovered the undoubtable source. Lorem Ipsum comes from sections 1.10.32 and 1.10.33 of "de Finibus Bonorum et Malorum" (The Extremes of Good and Evil) by Cicero, written in 45 BC. This book is a treatise on the theory of ethics, very popular during the Renaissance. The first line of Lorem Ipsum, "Lorem ipsum dolor sit amet..", comes from a line in section 1.10.32. The standard chunk of Lorem Ipsum used since the 1500s is reproduced below for those interested. Sections 1.10.32 and 1.10.33 from "de Finibus Bonorum et Malorum" by Cicero are also reproduced in their exact original form, accompanied by English versions from the 1914 translation by H. Rackham.',
           {
             length: 150,
@@ -255,14 +278,14 @@ const fakers = {
       },
       {
         title: "200 Latin words, combined with a handful of model sentences",
-        superShortContent: _.truncate(
+        superShortContent: truncate(
           "There are many variations of passages of Lorem Ipsum available, but the majority have suffered alteration in some form, by injected humour, or randomised words which don't look even slightly believable. If you are going to use a passage of Lorem Ipsum, you need to be sure there isn't anything embarrassing hidden in the middle of text. All the Lorem Ipsum generators on the Internet tend to repeat predefined chunks as necessary, making this the first true generator on the Internet. It uses a dictionary of over 200 Latin words, combined with a handful of model sentence structures, to generate Lorem Ipsum which looks reasonable. The generated Lorem Ipsum is therefore always free from repetition, injected humour, or non-characteristic words etc.",
           {
             length: 50,
             omission: "",
           }
         ),
-        shortContent: _.truncate(
+        shortContent: truncate(
           "There are many variations of passages of Lorem Ipsum available, but the majority have suffered alteration in some form, by injected humour, or randomised words which don't look even slightly believable. If you are going to use a passage of Lorem Ipsum, you need to be sure there isn't anything embarrassing hidden in the middle of text. All the Lorem Ipsum generators on the Internet tend to repeat predefined chunks as necessary, making this the first true generator on the Internet. It uses a dictionary of over 200 Latin words, combined with a handful of model sentence structures, to generate Lorem Ipsum which looks reasonable. The generated Lorem Ipsum is therefore always free from repetition, injected humour, or non-characteristic words etc.",
           {
             length: 150,
@@ -273,7 +296,7 @@ const fakers = {
           "There are many variations of passages of Lorem Ipsum available, but the majority have suffered alteration in some form, by injected humour, or randomised words which don't look even slightly believable. If you are going to use a passage of Lorem Ipsum, you need to be sure there isn't anything embarrassing hidden in the middle of text. All the Lorem Ipsum generators on the Internet tend to repeat predefined chunks as necessary, making this the first true generator on the Internet. It uses a dictionary of over 200 Latin words, combined with a handful of model sentence structures, to generate Lorem Ipsum which looks reasonable. The generated Lorem Ipsum is therefore always free from repetition, injected humour, or non-characteristic words etc.",
       },
     ];
-    return _.shuffle(news);
+    return shuffle(news);
   },
   fakeFiles() {
     const files = [
@@ -288,7 +311,7 @@ const fakers = {
       { fileName: fakers.fakeImages()[0], type: "Image", size: "1.4 MB" },
       { fileName: fakers.fakeImages()[0], type: "Image", size: "1 MB" },
     ];
-    return _.shuffle(files);
+    return shuffle(files);
   },
   fakeJobs() {
     const jobs = [
@@ -297,10 +320,10 @@ const fakers = {
       "Backend Engineer",
       "DevOps Engineer",
     ];
-    return _.shuffle(jobs);
+    return shuffle(jobs);
   },
   fakeNotificationCount() {
-    return _.random(1, 7);
+    return random(1, 7);
   },
   fakeFoods() {
     const foods = [
@@ -400,7 +423,7 @@ const fakers = {
           imageAssets["/src/assets/images/fakers/food-beverage-19.jpg"].default,
       },
     ];
-    return _.shuffle(foods);
+    return shuffle(foods);
   },
 };
 

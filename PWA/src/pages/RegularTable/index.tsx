@@ -1,4 +1,4 @@
-import * as _ from "lodash";
+import * as _ from "lodash-es";
 import Table from "@/components/Base/Table";
 import {
   PreviewComponent,

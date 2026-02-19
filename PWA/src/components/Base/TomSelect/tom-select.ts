@@ -1,6 +1,6 @@
 import { TomSelectProps, TomSelectElement } from "./index";
 import TomSelect from "tom-select";
-import * as _ from "lodash";
+import * as _ from "lodash-es";
 
 type RecursivePartial<T> = {
   [P in keyof T]?: T[P] extends object ? RecursivePartial<T[P]> : T[P];
