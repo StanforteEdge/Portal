@@ -54,7 +54,7 @@ const menu: Array<Menu | "divider"> = [
     subMenu: [
       {
         icon: "UserCog",
-        pathname: "/app/admin/users/list",
+        pathname: "/app/admin/users",
         title: "Users",
       },
       {

@@ -39,7 +39,7 @@ function HrEmployeesPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">HR Employees</h2>
-        <Button variant="primary" onClick={() => navigate("/app/hr/employees/employee")}>Create Employee</Button>
+        <Button variant="primary" onClick={() => navigate("/app/hr/employees/new")}>Create Employee</Button>
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
