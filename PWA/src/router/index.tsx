@@ -21,6 +21,9 @@ const ChangePassword = lazy(() => import("../pages/staff/security/ChangePassword
 const FinanceSettings = lazy(
   () => import("../pages/finance/settings/FinanceSettings")
 );
+const FinanceRequestTypeEditor = lazy(
+  () => import("../pages/finance/settings/RequestTypeEditor")
+);
 const UserManagement = lazy(() => import("../pages/admin/users/UserManagement"));
 const RequestsPage = lazy(() => import("../pages/staff/requests/RequestsList"));
 const RequestsCreatePage = lazy(
@@ -200,6 +203,22 @@ function Router() {
           element: (
             <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
               {page(<FinanceSettings />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "finance/settings/request-types/new",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              {page(<FinanceRequestTypeEditor />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "finance/settings/request-types/:id",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              {page(<FinanceRequestTypeEditor />)}
             </RoleRoute>
           ),
         },

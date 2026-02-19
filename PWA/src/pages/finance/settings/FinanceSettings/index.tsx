@@ -1,19 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Button from "@/components/Base/Button";
-import Lucide from "@/components/Base/Lucide";
-import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
+import { FormInput, FormLabel } from "@/components/Base/Form";
 import { Tab } from "@/components/Base/Headless";
 import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { getFinanceSettings, updateFinanceSettings, type FinanceSettings } from "@/services/financeSettings";
-import {
-  createRequestType,
-  listRequestGroups,
-  listRequestTypes,
-  updateRequestType,
-  type RequestGroupOption,
-  type RequestTypeOption,
-} from "@/services/requests";
+import { listRequestGroups, listRequestTypes, type RequestGroupOption, type RequestTypeOption } from "@/services/requests";
 import { listManagedTaxonomies } from "@/services/taxonomy";
 
 const emptySettings: FinanceSettings = {
@@ -23,64 +16,21 @@ const emptySettings: FinanceSettings = {
   meta: {},
 };
 
-type RequestTypeFormState = {
-  id?: string;
-  name: string;
-  code_prefix: string;
-  category_key: string;
-  project_required: boolean;
-  description: string;
-  approval_limit: string;
-  is_active: boolean;
-};
-
-type ApprovalStepForm = {
-  role: string;
-  min_amount: string;
-};
-
 type FinanceCategoryOption = {
   key: string;
   name: string;
 };
 
-const emptyTypeForm: RequestTypeFormState = {
-  name: "",
-  code_prefix: "",
-  category_key: "",
-  project_required: false,
-  description: "",
-  approval_limit: "",
-  is_active: true,
-};
-
-const defaultApprovalSteps: ApprovalStepForm[] = [
-  { role: "team_lead", min_amount: "" },
-  { role: "accountant", min_amount: "" },
-];
-
-const roleOptions = [
-  { value: "team_lead", label: "Team Lead" },
-  { value: "accountant", label: "Accountant" },
-  { value: "finance_manager", label: "Finance Manager" },
-  { value: "coo", label: "COO" },
-  { value: "ed", label: "ED" },
-];
-
 function Main() {
   const [settings, setSettings] = useState<FinanceSettings>(emptySettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [savingType, setSavingType] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const [requestGroups, setRequestGroups] = useState<RequestGroupOption[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState("");
   const [requestTypes, setRequestTypes] = useState<RequestTypeOption[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<FinanceCategoryOption[]>([]);
-  const [typeForm, setTypeForm] = useState<RequestTypeFormState>(emptyTypeForm);
-  const [approvalSteps, setApprovalSteps] = useState<ApprovalStepForm[]>(defaultApprovalSteps);
-  const [showTypeEditor, setShowTypeEditor] = useState(false);
 
   const selectedGroup = useMemo(
     () => requestGroups.find((group) => group.id === selectedGroupId),
@@ -135,11 +85,6 @@ function Main() {
     void run();
   }, []);
 
-  useEffect(() => {
-    if (!selectedGroupId || loading) return;
-    void loadTypeData(selectedGroupId);
-  }, [selectedGroupId, loading]);
-
   const updateField = (key: "prepared_by" | "reviewed_by" | "approved_by", prop: "name" | "title", value: string) => {
     setSettings((prev) => ({
       ...prev,
@@ -161,86 +106,6 @@ function Main() {
       setNotice({ tone: "error", message: "Unable to save finance settings." });
     } finally {
       setSaving(false);
-    }
-  };
-
-  const loadTypeIntoForm = (type: RequestTypeOption) => {
-    const stepsRaw = (type.approval_flow_json as { steps?: Array<{ role?: string; min_amount?: number }> } | null)?.steps;
-    const normalizedSteps =
-      Array.isArray(stepsRaw) && stepsRaw.length > 0
-        ? stepsRaw.map((step) => ({
-            role: String(step.role || ""),
-            min_amount: step.min_amount !== undefined && step.min_amount !== null ? String(Number(step.min_amount)) : "",
-          }))
-        : defaultApprovalSteps;
-
-    setTypeForm({
-      id: type.id,
-      name: type.name,
-      code_prefix: type.code_prefix,
-      category_key: type.category_key || "",
-      project_required: Boolean((type.form_schema as any)?.project_required),
-      description: type.description || "",
-      approval_limit: type.approval_limit !== null && type.approval_limit !== undefined ? String(type.approval_limit) : "",
-      is_active: type.is_active,
-    });
-    setApprovalSteps(normalizedSteps);
-    setShowTypeEditor(true);
-  };
-
-  const saveRequestType = async () => {
-    if (!selectedGroupId) {
-      setNotice({ tone: "warning", message: "Select a request group first." });
-      return;
-    }
-    if (!typeForm.name.trim() || !typeForm.code_prefix.trim()) {
-      setNotice({ tone: "warning", message: "Name and code prefix are required." });
-      return;
-    }
-
-    const stepsPayload = approvalSteps
-      .map((step) => ({
-        role: step.role.trim(),
-        ...(step.min_amount ? { min_amount: Number(step.min_amount) } : {}),
-      }))
-      .filter((step) => step.role.length > 0);
-
-    if (stepsPayload.length === 0) {
-      setNotice({ tone: "warning", message: "Add at least one approval step with a role." });
-      return;
-    }
-
-    try {
-      setSavingType(true);
-      setNotice(null);
-      const payload = {
-        name: typeForm.name.trim(),
-        code_prefix: typeForm.code_prefix.trim().toUpperCase(),
-        category_key: typeForm.category_key || undefined,
-        form_schema: {
-          project_required: typeForm.project_required,
-        },
-        description: typeForm.description || undefined,
-        approval_limit: typeForm.approval_limit ? Number(typeForm.approval_limit) : undefined,
-        approval_flow_json: { steps: stepsPayload },
-        is_active: typeForm.is_active,
-      };
-
-      if (typeForm.id) {
-        await updateRequestType(typeForm.id, payload);
-      } else {
-        await createRequestType({ group_id: selectedGroupId, ...payload });
-      }
-
-      await loadTypeData(selectedGroupId);
-      setTypeForm(emptyTypeForm);
-      setApprovalSteps(defaultApprovalSteps);
-      setShowTypeEditor(false);
-      setNotice({ tone: "success", message: "Request type saved." });
-    } catch (error: any) {
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save request type." });
-    } finally {
-      setSavingType(false);
     }
   };
 
@@ -272,7 +137,10 @@ function Main() {
               <Tab.Panels className="border-b border-l border-r">
                 <Tab.Panel className="p-5">
                   {loading ? (
-                    <div className="text-slate-500">Loading settings...</div>
+                    <div className="animate-pulse space-y-2">
+                      <div className="h-4 rounded bg-slate-200"></div>
+                      <div className="h-4 rounded bg-slate-100"></div>
+                    </div>
                   ) : (
                     <div className="space-y-4">
                       <div className="grid grid-cols-12 gap-4">
@@ -335,232 +203,68 @@ function Main() {
 
                 <Tab.Panel className="p-5">
                   {loading ? (
-                    <div className="text-slate-500">Loading request types...</div>
+                    <div className="animate-pulse space-y-2">
+                      <div className="h-4 rounded bg-slate-200"></div>
+                      <div className="h-4 rounded bg-slate-100"></div>
+                    </div>
                   ) : (
                     <div className="space-y-4">
-                      <div className="grid grid-cols-12 gap-4">
-                        <div className="col-span-12 text-slate-500 text-sm">
+                      <div className="grid grid-cols-12 gap-4 items-center">
+                        <div className="col-span-12 md:col-span-8 text-slate-500 text-sm">
                           Module: <strong>{selectedGroup?.name || "Finance"}</strong>
                         </div>
+                        <div className="col-span-12 md:col-span-4 text-right">
+                          <Link to="/app/finance/settings/request-types/new">
+                            <Button variant="primary">Create Request Type</Button>
+                          </Link>
+                        </div>
                       </div>
 
-                      <div className="flex justify-end">
-                        <Button
-                          variant="primary"
-                          onClick={() => {
-                            setTypeForm(emptyTypeForm);
-                            setApprovalSteps(defaultApprovalSteps);
-                            setShowTypeEditor(true);
-                          }}
-                        >
-                          Create Request Type
-                        </Button>
-                      </div>
-
-                      <div className="grid grid-cols-12 gap-5">
-                        <div className={showTypeEditor ? "col-span-12 sm:col-span-5 border rounded-md p-4" : "col-span-12 border rounded-md p-4"}>
-                          <div className="mb-3 text-base font-medium">Request Types</div>
-                          <div className="overflow-x-auto">
-                            <Table className="table-report w-full" striped hover>
-                              <Table.Thead>
-                                <Table.Tr>
-                                  <Table.Th>Name</Table.Th>
-                                  <Table.Th>Code</Table.Th>
-                                  {showTypeEditor ? null : <Table.Th>Category</Table.Th>}
-                                  {showTypeEditor ? null : <Table.Th>Flow</Table.Th>}
-                                  {showTypeEditor ? null : <Table.Th>Status</Table.Th>}
-                                  <Table.Th>Action</Table.Th>
-                                </Table.Tr>
-                              </Table.Thead>
-                              <Table.Tbody>
-                                {requestTypes.map((type) => {
-                                  const steps =
-                                    (type.approval_flow_json as { steps?: Array<unknown> } | null)?.steps?.length || 0;
-                                  return (
-                                    <Table.Tr key={type.id}>
-                                      <Table.Td>{type.name}</Table.Td>
-                                      <Table.Td>{type.code_prefix}</Table.Td>
-                                      {showTypeEditor ? null : (
-                                        <Table.Td>{type.category_key ? categoryLabelMap.get(type.category_key) || type.category_key : "-"}</Table.Td>
-                                      )}
-                                      {showTypeEditor ? null : <Table.Td>{steps} step(s)</Table.Td>}
-                                      {showTypeEditor ? null : (
-                                        <Table.Td className={type.is_active ? "text-success" : "text-slate-500"}>
-                                          {type.is_active ? "Active" : "Inactive"}
-                                        </Table.Td>
-                                      )}
-                                      <Table.Td>
-                                        <Button variant="outline-primary" onClick={() => loadTypeIntoForm(type)}>
-                                          Edit
-                                        </Button>
-                                      </Table.Td>
-                                    </Table.Tr>
-                                  );
-                                })}
-                                {requestTypes.length === 0 ? (
-                                  <Table.Tr>
-                                    <Table.Td colSpan={showTypeEditor ? 3 : 6} className="text-slate-500">
-                                      No request types found.
+                      <div className="border rounded-md p-4">
+                        <div className="mb-3 text-base font-medium">Request Types</div>
+                        <div className="overflow-x-auto">
+                          <Table className="table-report w-full" striped hover>
+                            <Table.Thead>
+                              <Table.Tr>
+                                <Table.Th>Name</Table.Th>
+                                <Table.Th>Code</Table.Th>
+                                <Table.Th>Category</Table.Th>
+                                <Table.Th>Flow</Table.Th>
+                                <Table.Th>Status</Table.Th>
+                                <Table.Th>Action</Table.Th>
+                              </Table.Tr>
+                            </Table.Thead>
+                            <Table.Tbody>
+                              {requestTypes.map((type) => {
+                                const steps =
+                                  (type.approval_flow_json as { steps?: Array<unknown> } | null)?.steps?.length || 0;
+                                return (
+                                  <Table.Tr key={type.id}>
+                                    <Table.Td>{type.name}</Table.Td>
+                                    <Table.Td>{type.code_prefix}</Table.Td>
+                                    <Table.Td>{type.category_key ? categoryLabelMap.get(type.category_key) || type.category_key : "-"}</Table.Td>
+                                    <Table.Td>{steps} step(s)</Table.Td>
+                                    <Table.Td className={type.is_active ? "text-success" : "text-slate-500"}>
+                                      {type.is_active ? "Active" : "Inactive"}
+                                    </Table.Td>
+                                    <Table.Td>
+                                      <Link to={`/app/finance/settings/request-types/${type.id}`}>
+                                        <Button variant="outline-primary">Edit</Button>
+                                      </Link>
                                     </Table.Td>
                                   </Table.Tr>
-                                ) : null}
-                              </Table.Tbody>
-                            </Table>
-                          </div>
+                                );
+                              })}
+                              {requestTypes.length === 0 ? (
+                                <Table.Tr>
+                                  <Table.Td colSpan={6} className="text-slate-500">
+                                    No request types found.
+                                  </Table.Td>
+                                </Table.Tr>
+                              ) : null}
+                            </Table.Tbody>
+                          </Table>
                         </div>
-
-                        {showTypeEditor ? (
-                          <div className="col-span-12 sm:col-span-7 border rounded-md p-4">
-                            <div className="mb-3 text-base font-medium">{typeForm.id ? "Edit Request Type" : "Create Request Type"}</div>
-                            <div className="grid grid-cols-12 gap-4">
-                              <div className="col-span-12 md:col-span-6">
-                                <FormLabel>Name</FormLabel>
-                                <FormInput value={typeForm.name} onChange={(e) => setTypeForm((prev) => ({ ...prev, name: e.target.value }))} />
-                              </div>
-                              <div className="col-span-12 md:col-span-3">
-                                <FormLabel>Code Prefix</FormLabel>
-                                <FormInput
-                                  value={typeForm.code_prefix}
-                                  onChange={(e) => setTypeForm((prev) => ({ ...prev, code_prefix: e.target.value.toUpperCase() }))}
-                                />
-                              </div>
-                              <div className="col-span-12 md:col-span-3">
-                                <FormLabel>Active</FormLabel>
-                                <FormSelect
-                                  value={typeForm.is_active ? "true" : "false"}
-                                  onChange={(e) => setTypeForm((prev) => ({ ...prev, is_active: e.target.value === "true" }))}
-                                >
-                                  <option value="true">Yes</option>
-                                  <option value="false">No</option>
-                                </FormSelect>
-                              </div>
-
-                              <div className="col-span-12 md:col-span-6">
-                                <FormLabel>Category Taxonomy</FormLabel>
-                                <FormSelect
-                                  value={typeForm.category_key}
-                                  onChange={(e) => setTypeForm((prev) => ({ ...prev, category_key: e.target.value }))}
-                                >
-                                  <option value="">Select taxonomy</option>
-                                  {categoryOptions.map((category) => (
-                                    <option key={category.key} value={category.key}>
-                                      {category.name}
-                                    </option>
-                                  ))}
-                                </FormSelect>
-                              </div>
-                              <div className="col-span-12 md:col-span-3">
-                                <FormLabel>Project Required</FormLabel>
-                                <FormSelect
-                                  value={typeForm.project_required ? "true" : "false"}
-                                  onChange={(e) => setTypeForm((prev) => ({ ...prev, project_required: e.target.value === "true" }))}
-                                >
-                                  <option value="false">No</option>
-                                  <option value="true">Yes</option>
-                                </FormSelect>
-                              </div>
-                              <div className="col-span-12 md:col-span-6">
-                                <FormLabel>Approval Limit</FormLabel>
-                                <FormInput
-                                  type="number"
-                                  value={typeForm.approval_limit}
-                                  onChange={(e) => setTypeForm((prev) => ({ ...prev, approval_limit: e.target.value }))}
-                                />
-                              </div>
-
-                              <div className="col-span-12">
-                                <FormLabel>Description</FormLabel>
-                                <FormInput
-                                  value={typeForm.description}
-                                  onChange={(e) => setTypeForm((prev) => ({ ...prev, description: e.target.value }))}
-                                />
-                              </div>
-
-                              <div className="col-span-12">
-                                <div className="flex items-center justify-between mb-2">
-                                  <FormLabel>Approval Flow</FormLabel>
-                                  <Button
-                                    variant="outline-primary"
-                                    type="button"
-                                    onClick={() => setApprovalSteps((prev) => [...prev, { role: "", min_amount: "" }])}
-                                  >
-                                    Add Step
-                                  </Button>
-                                </div>
-
-                                <div className="space-y-2">
-                                  {approvalSteps.map((step, index) => (
-                                    <div key={`${index}-${step.role}`} className="grid grid-cols-12 gap-3 rounded-md border p-3">
-                                      <div className="col-span-12 md:col-span-5">
-                                        <FormLabel>Role</FormLabel>
-                                        <FormSelect
-                                          value={step.role}
-                                          onChange={(e) =>
-                                            setApprovalSteps((prev) =>
-                                              prev.map((current, currentIndex) =>
-                                                currentIndex === index ? { ...current, role: e.target.value } : current
-                                              )
-                                            )
-                                          }
-                                        >
-                                          <option value="">Select role</option>
-                                          {roleOptions.map((option) => (
-                                            <option key={option.value} value={option.value}>
-                                              {option.label}
-                                            </option>
-                                          ))}
-                                        </FormSelect>
-                                      </div>
-                                      <div className="col-span-12 md:col-span-5">
-                                        <FormLabel>Min Amount (optional)</FormLabel>
-                                        <FormInput
-                                          type="number"
-                                          value={step.min_amount}
-                                          onChange={(e) =>
-                                            setApprovalSteps((prev) =>
-                                              prev.map((current, currentIndex) =>
-                                                currentIndex === index ? { ...current, min_amount: e.target.value } : current
-                                              )
-                                            )
-                                          }
-                                          placeholder="e.g 500000"
-                                        />
-                                      </div>
-                                      <div className="col-span-12 md:col-span-2 flex items-end">
-                                        <Button
-                                          variant="outline-danger"
-                                          type="button"
-                                          className="w-full"
-                                          onClick={() => setApprovalSteps((prev) => prev.filter((_, currentIndex) => currentIndex !== index))}
-                                          disabled={approvalSteps.length === 1}
-                                        >
-                                          <Lucide icon="Trash2" className="w-4 h-4 mr-1" />
-                                          Remove
-                                        </Button>
-                                      </div>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
-                              <div className="col-span-12 flex flex-wrap gap-2">
-                                <Button onClick={saveRequestType} disabled={savingType}>
-                                  {savingType ? "Saving..." : typeForm.id ? "Update Type" : "Create Type"}
-                                </Button>
-                                <Button
-                                  variant="outline-secondary"
-                                  onClick={() => {
-                                    setTypeForm(emptyTypeForm);
-                                    setApprovalSteps(defaultApprovalSteps);
-                                    setShowTypeEditor(false);
-                                  }}
-                                >
-                                  Cancel
-                                </Button>
-                              </div>
-                            </div>
-                          </div>
-                        ) : null}
                       </div>
                     </div>
                   )}
