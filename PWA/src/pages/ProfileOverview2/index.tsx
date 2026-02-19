@@ -1,4 +1,4 @@
-import * as _ from "lodash";
+import * as _ from "lodash-es";
 import { useRef } from "react";
 import fakerData from "@/utils/faker";
 import Button from "@/components/Base/Button";

@@ -6,7 +6,7 @@ import Breadcrumb from "@/components/Base/Breadcrumb";
 import { FormInput } from "@/components/Base/Form";
 import { Menu, Popover } from "@/components/Base/Headless";
 import fakerData from "@/utils/faker";
-import * as _ from "lodash";
+import * as _ from "lodash-es";
 import clsx from "clsx";
 import { Transition } from "@headlessui/react";
 

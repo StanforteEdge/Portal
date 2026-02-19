@@ -1,4 +1,4 @@
-import * as _ from "lodash";
+import * as _ from "lodash-es";
 import Lucide from "@/components/Base/Lucide";
 import { Disclosure } from "@/components/Base/Headless";
 
