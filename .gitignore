@@ -9,3 +9,5 @@ npm-debug.log*
 .DS_Store
 .vscode/
 **/.vscode/
+docs/
+**/docs/
