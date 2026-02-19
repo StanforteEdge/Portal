@@ -32,6 +32,8 @@ jobs:
       - name: Build
         run: npm run build
         working-directory: PWA
+        env:
+          VITE_API_BASE_URL: ${{ secrets.PWA_API_BASE_URL }}
 
       - name: Ensure PWA web directory exists
         uses: appleboy/ssh-action@v1.0.3
