@@ -7,40 +7,68 @@ import ProtectedRoute from "@/components/Auth/ProtectedRoute";
 import PublicOnlyRoute from "@/components/Auth/PublicOnlyRoute";
 import RoleRoute from "@/components/Auth/RoleRoute";
 
-const Login = lazy(() => import("../pages/Login"));
-const Register = lazy(() => import("../pages/Register"));
-const ForgotPassword = lazy(() => import("../pages/ForgotPassword"));
-const ResetPassword = lazy(() => import("../pages/ResetPassword"));
-const AcceptInvite = lazy(() => import("../pages/AcceptInvite"));
-const ErrorPage = lazy(() => import("../pages/ErrorPage"));
-const PortalDashboardPage = lazy(() => import("../pages/PortalDashboard"));
-const UpdateProfile = lazy(() => import("../pages/UpdateProfile"));
-const ChangePassword = lazy(() => import("../pages/ChangePassword"));
-const FinanceSettings = lazy(() => import("../pages/FinanceSettings"));
-const UserManagement = lazy(() => import("../pages/UserManagement"));
-const RequestsPage = lazy(() => import("../pages/Requests"));
-const RequestsCreatePage = lazy(() => import("../pages/RequestsCreate"));
-const RequestDetailPage = lazy(() => import("../pages/RequestDetail"));
-const RequestApprovalsPage = lazy(() => import("../pages/RequestApprovals"));
-const FinanceDashboardPage = lazy(() => import("../pages/FinanceDashboard"));
-const FinanceRequestsPage = lazy(() => import("../pages/FinanceRequests"));
-const FinanceRequestDetailPage = lazy(() => import("../pages/FinanceRequestDetail"));
-const AdminSettingsPage = lazy(() => import("../pages/AdminSettings"));
-const FinanceManualEntryPage = lazy(() => import("../pages/FinanceManualEntry"));
-const AdminFilesPage = lazy(() => import("../pages/AdminFiles"));
-const AdminProjectsPage = lazy(() => import("../pages/AdminProjects"));
-const AdminDocumentsPage = lazy(() => import("../pages/AdminDocuments"));
-const AdminDocumentEditorPage = lazy(() => import("../pages/AdminDocumentEditor"));
-const AdminRolesPage = lazy(() => import("../pages/AdminRoles"));
-const MediaLibraryPage = lazy(() => import("../pages/MediaLibrary"));
-const DocumentsPage = lazy(() => import("../pages/Documents"));
-const OnboardingPage = lazy(() => import("../pages/Onboarding"));
-const HrEmployeesPage = lazy(() => import("../pages/HrEmployees"));
-const HrDashboardPage = lazy(() => import("../pages/HrDashboard"));
-const HrOnboardingPage = lazy(() => import("../pages/HrOnboarding"));
-const AdminFormsPage = lazy(() => import("../pages/AdminForms"));
-const AdminFormEditorPage = lazy(() => import("../pages/AdminFormEditor"));
-const HrEmployeeEditorPage = lazy(() => import("../pages/HrEmployeeEditor"));
+const Login = lazy(() => import("../pages/auth/Login"));
+const Register = lazy(() => import("../pages/auth/Register"));
+const ForgotPassword = lazy(() => import("../pages/auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("../pages/auth/ResetPassword"));
+const AcceptInvite = lazy(() => import("../pages/auth/AcceptInvite"));
+const ErrorPage = lazy(() => import("../pages/shared/ErrorPage"));
+const PortalDashboardPage = lazy(
+  () => import("../pages/staff/dashboard/PortalDashboard")
+);
+const UpdateProfile = lazy(() => import("../pages/staff/profile/UpdateProfile"));
+const ChangePassword = lazy(() => import("../pages/staff/security/ChangePassword"));
+const FinanceSettings = lazy(
+  () => import("../pages/finance/settings/FinanceSettings")
+);
+const UserManagement = lazy(() => import("../pages/admin/users/UserManagement"));
+const RequestsPage = lazy(() => import("../pages/staff/requests/RequestsList"));
+const RequestsCreatePage = lazy(
+  () => import("../pages/staff/requests/RequestsCreate")
+);
+const RequestDetailPage = lazy(() => import("../pages/staff/requests/RequestDetail"));
+const RequestApprovalsPage = lazy(
+  () => import("../pages/staff/requests/RequestApprovals")
+);
+const FinanceDashboardPage = lazy(
+  () => import("../pages/finance/dashboard/FinanceDashboard")
+);
+const FinanceRequestsPage = lazy(
+  () => import("../pages/finance/requests/FinanceRequestsList")
+);
+const FinanceRequestDetailPage = lazy(
+  () => import("../pages/finance/requests/FinanceRequestDetail")
+);
+const AdminSettingsPage = lazy(
+  () => import("../pages/admin/settings/AdminSettings")
+);
+const FinanceManualEntryPage = lazy(
+  () => import("../pages/finance/manual-entry/FinanceManualEntry")
+);
+const AdminFilesPage = lazy(() => import("../pages/admin/files/AdminFiles"));
+const AdminProjectsPage = lazy(
+  () => import("../pages/admin/projects/AdminProjects")
+);
+const AdminDocumentsPage = lazy(
+  () => import("../pages/admin/documents/AdminDocuments")
+);
+const AdminDocumentEditorPage = lazy(
+  () => import("../pages/admin/documents/AdminDocumentEditor")
+);
+const AdminRolesPage = lazy(() => import("../pages/admin/roles/AdminRoles"));
+const MediaLibraryPage = lazy(() => import("../pages/staff/media/MediaLibrary"));
+const DocumentsPage = lazy(() => import("../pages/staff/documents/Documents"));
+const OnboardingPage = lazy(() => import("../pages/staff/onboarding/Onboarding"));
+const HrEmployeesPage = lazy(() => import("../pages/hr/employees/HrEmployees"));
+const HrDashboardPage = lazy(() => import("../pages/hr/dashboard/HrDashboard"));
+const HrOnboardingPage = lazy(() => import("../pages/hr/onboarding/HrOnboarding"));
+const AdminFormsPage = lazy(() => import("../pages/admin/forms/AdminForms"));
+const AdminFormEditorPage = lazy(
+  () => import("../pages/admin/forms/AdminFormEditor")
+);
+const HrEmployeeEditorPage = lazy(
+  () => import("../pages/hr/employees/HrEmployeeEditor")
+);
 
 function page(element: JSX.Element) {
   return (
@@ -104,11 +132,19 @@ function Router() {
           element: page(<RequestsPage />),
         },
         {
-          path: "requests/create",
+          path: "requests/new",
           element: page(<RequestsCreatePage />),
         },
         {
+          path: "requests/create",
+          element: <Navigate to="/app/requests/new" replace />,
+        },
+        {
           path: "requests/request/:id",
+          element: page(<RequestDetailPage />),
+        },
+        {
+          path: "requests/:id",
           element: page(<RequestDetailPage />),
         },
         {
@@ -136,7 +172,23 @@ function Router() {
           ),
         },
         {
+          path: "finance/requests/new",
+          element: (
+            <RoleRoute allowedRoles={["finance_manager"]}>
+              {page(<FinanceManualEntryPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
           path: "finance/requests/request/:id",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              {page(<FinanceRequestDetailPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "finance/requests/:id",
           element: (
             <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
               {page(<FinanceRequestDetailPage />)}
@@ -152,7 +204,7 @@ function Router() {
           ),
         },
         {
-          path: "finance/manualentry",
+          path: "finance/manual-entry",
           element: (
             <RoleRoute allowedRoles={["finance_manager"]}>
               {page(<FinanceManualEntryPage />)}
@@ -160,16 +212,24 @@ function Router() {
           ),
         },
         {
+          path: "finance/manualentry",
+          element: <Navigate to="/app/finance/manual-entry" replace />,
+        },
+        {
           path: "finance/settings/signatories",
           element: <Navigate to="/app/finance/settings" replace />,
         },
         {
-          path: "admin/users/list",
+          path: "admin/users",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
               {page(<UserManagement />)}
             </RoleRoute>
           ),
+        },
+        {
+          path: "admin/users/list",
+          element: <Navigate to="/app/admin/users" replace />,
         },
         {
           path: "admin/settings",
@@ -268,12 +328,16 @@ function Router() {
           ),
         },
         {
-          path: "hr/employees/employee",
+          path: "hr/employees/new",
           element: (
             <RoleRoute allowedRoles={["hr"]}>
               {page(<HrEmployeeEditorPage />)}
             </RoleRoute>
           ),
+        },
+        {
+          path: "hr/employees/employee",
+          element: <Navigate to="/app/hr/employees/new" replace />,
         },
         {
           path: "hr/employees/:id",
@@ -367,7 +431,7 @@ function Router() {
     },
     {
       path: "/user-management",
-      element: <Navigate to="/app/admin/users/list" replace />,
+      element: <Navigate to="/app/admin/users" replace />,
     },
     {
       path: "/app/profile/view",

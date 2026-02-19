@@ -12,7 +12,7 @@ const menu: Array<Menu | "divider"> = [
     subMenu: [
       {
         icon: "Plus",
-        pathname: "/app/requests/create",
+        pathname: "/app/requests/new",
         title: "Create Request",
       },
       {
@@ -91,7 +91,7 @@ const menu: Array<Menu | "divider"> = [
       },
       {
         icon: "Clipboard",
-        pathname: "/app/finance/manualentry",
+        pathname: "/app/finance/manual-entry",
         title: "Manual Entry",
       },
     ],
@@ -125,7 +125,7 @@ const menu: Array<Menu | "divider"> = [
     subMenu: [
       {
         icon: "UserCog",
-        pathname: "/app/admin/users/list",
+        pathname: "/app/admin/users",
         title: "Users",
       },
       {

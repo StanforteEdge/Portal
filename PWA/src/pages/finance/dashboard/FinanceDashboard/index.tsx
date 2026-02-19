@@ -68,7 +68,7 @@ function FinanceDashboardPage() {
           <Link className="btn btn-primary" to="/app/finance/requests">
             Open Finance Requests
           </Link>
-          <Link className="btn btn-outline-secondary" to="/app/finance/manualentry">
+          <Link className="btn btn-outline-secondary" to="/app/finance/manual-entry">
             Manual Entry
           </Link>
           <Link className="btn btn-outline-secondary" to="/app/finance/settings">

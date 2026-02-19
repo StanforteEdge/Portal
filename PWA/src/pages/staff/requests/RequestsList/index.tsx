@@ -120,7 +120,7 @@ function RequestsPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Requests</h2>
-        <Link to="/app/requests/create">
+        <Link to="/app/requests/new">
           <Button variant="primary">
             <Lucide icon="Plus" className="w-4 h-4 mr-2" />
             Create Request
