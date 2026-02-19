@@ -9,6 +9,23 @@ export default defineConfig({
     commonjsOptions: {
       include: ["tailwind.config.js", "node_modules/**"],
     },
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("react") || id.includes("react-dom") || id.includes("react-router")) {
+            return "vendor-react";
+          }
+          if (id.includes("@reduxjs") || id.includes("redux") || id.includes("react-redux")) {
+            return "vendor-state";
+          }
+          if (id.includes("chart.js") || id.includes("xlsx") || id.includes("tabulator")) {
+            return "vendor-heavy";
+          }
+          return "vendor";
+        },
+      },
+    },
   },
   optimizeDeps: {
     include: ["tailwind-config"],
