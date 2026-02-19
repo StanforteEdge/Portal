@@ -25,6 +25,8 @@ const FinanceRequestTypeEditor = lazy(
   () => import("../pages/finance/settings/RequestTypeEditor")
 );
 const UserManagement = lazy(() => import("../pages/admin/users/UserManagement"));
+const UserCreatePage = lazy(() => import("../pages/admin/users/UserCreate"));
+const UserRolesPage = lazy(() => import("../pages/admin/users/UserRoles"));
 const RequestsPage = lazy(() => import("../pages/staff/requests/RequestsList"));
 const RequestsCreatePage = lazy(
   () => import("../pages/staff/requests/RequestsCreate")
@@ -65,6 +67,9 @@ const OnboardingPage = lazy(() => import("../pages/staff/onboarding/Onboarding")
 const HrEmployeesPage = lazy(() => import("../pages/hr/employees/HrEmployees"));
 const HrDashboardPage = lazy(() => import("../pages/hr/dashboard/HrDashboard"));
 const HrOnboardingPage = lazy(() => import("../pages/hr/onboarding/HrOnboarding"));
+const HrOnboardingEditorPage = lazy(
+  () => import("../pages/hr/onboarding/HrOnboardingEditor")
+);
 const AdminFormsPage = lazy(() => import("../pages/admin/forms/AdminForms"));
 const AdminFormEditorPage = lazy(
   () => import("../pages/admin/forms/AdminFormEditor")
@@ -247,6 +252,22 @@ function Router() {
           ),
         },
         {
+          path: "admin/users/new",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              {page(<UserCreatePage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/users/:id/roles",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              {page(<UserRolesPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
           path: "admin/users/list",
           element: <Navigate to="/app/admin/users" replace />,
         },
@@ -371,6 +392,22 @@ function Router() {
           element: (
             <RoleRoute allowedRoles={["hr"]}>
               {page(<HrOnboardingPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/onboarding/new",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrOnboardingEditorPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/onboarding/:id",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrOnboardingEditorPage />)}
             </RoleRoute>
           ),
         },
