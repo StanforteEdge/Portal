@@ -4,7 +4,7 @@ import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { selectMenu } from "@/stores/menuSlice";
 import { useAppSelector } from "@/stores/hooks";
 import fakerData from "@/utils/faker";
-import _ from "lodash";
+import * as _ from "lodash";
 import {
   FormattedMenu,
   linkTo,
@@ -17,7 +17,7 @@ import Breadcrumb from "@/components/Base/Breadcrumb";
 import { FormInput } from "@/components/Base/Form";
 import { Menu, Popover } from "@/components/Base/Headless";
 import { Transition } from "@headlessui/react";
-import logoUrl from "@/assets/images/logo.svg";
+import { BRAND_LOGO_ICON_DARK } from "@/constants/branding";
 import clsx from "clsx";
 import MobileMenu from "@/components/MobileMenu";
 
@@ -65,9 +65,9 @@ function Main() {
               <img
                 alt="Midone Tailwind HTML Admin Template"
                 className="w-6"
-                src={logoUrl}
+                src={BRAND_LOGO_ICON_DARK}
               />
-              <span className="ml-3 text-lg text-white"> Tinker </span>
+              <span className="ml-3 text-lg text-white"> Stanforte Edge </span>
             </Link>
             {/* END: Logo */}
             {/* BEGIN: Breadcrumb */}

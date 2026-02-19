@@ -28,26 +28,44 @@ export class ProjectsController {
   }
 
   @Post()
-  @Permissions('requests.manage')
+  @Permissions('settings.manage')
   create(@Req() req: any, @Body() dto: CreateProjectDto) {
     return this.projectsService.create(req.user?.id, dto);
   }
 
   @Post(':id')
-  @Permissions('requests.manage')
+  @Permissions('settings.manage')
   update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateProjectDto) {
     return this.projectsService.update(id, req.user?.id, dto);
   }
 
   @Post(':id/members')
-  @Permissions('requests.manage')
+  @Permissions('settings.manage')
   addMember(@Req() req: any, @Param('id') id: string, @Body() dto: AddProjectMemberDto) {
     return this.projectsService.addMember(id, req.user?.id, dto);
   }
 
   @Delete(':id/members/:userId')
-  @Permissions('requests.manage')
+  @Permissions('settings.manage')
   removeMember(@Req() req: any, @Param('id') id: string, @Param('userId') userId: string) {
     return this.projectsService.removeMember(id, req.user?.id, userId);
+  }
+
+  @Post(':id/archive')
+  @Permissions('settings.manage')
+  archive(@Req() req: any, @Param('id') id: string) {
+    return this.projectsService.archive(id, req.user?.id);
+  }
+
+  @Post(':id/unarchive')
+  @Permissions('settings.manage')
+  unarchive(@Req() req: any, @Param('id') id: string) {
+    return this.projectsService.unarchive(id, req.user?.id);
+  }
+
+  @Get(':id/governance')
+  @Permissions('requests.view')
+  governance(@Param('id') id: string) {
+    return this.projectsService.governance(id);
   }
 }

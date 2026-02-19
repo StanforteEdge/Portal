@@ -1,5 +1,6 @@
 import apiClient from "@/utils/httpClient";
 import { persistSession, clearSession } from "@/utils/authStorage";
+import { normalizeTokens } from "@/utils/authTokens";
 
 export interface AuthTokens {
   access_token: string;
@@ -29,15 +30,11 @@ export interface StatusResponse {
 
 export async function login(email: string, password: string) {
   const response = await apiClient.post("/auth/login", { email, password });
-
-  const {
-    data: {
-      data: { tokens, user },
-    },
-  }: { data: { data: LoginResponse } } = response;
+  const payload = response?.data?.data ?? {};
+  const tokens = normalizeTokens(payload);
+  const user = payload?.user;
 
   persistSession(tokens.access_token, tokens.refresh_token, tokens.expires_in);
-
   return { tokens, user };
 }
 
@@ -59,13 +56,20 @@ export async function changePassword(payload: {
 
 export async function fetchStatus() {
   const response = await apiClient.get("/auth/status");
-  const {
-    data: {
-      data: status,
-    },
-  }: { data: { data: StatusResponse } } = response;
+  const payload = response?.data?.data ?? {};
 
-  return status;
+  if (typeof payload?.authenticated === "boolean") {
+    return payload as StatusResponse;
+  }
+
+  if (payload?.id && payload?.email) {
+    return {
+      authenticated: true,
+      user: payload,
+    } as StatusResponse;
+  }
+
+  return { authenticated: false, user: null } as StatusResponse;
 }
 
 export async function requestPasswordReset(email: string) {
@@ -74,4 +78,12 @@ export async function requestPasswordReset(email: string) {
 
 export async function resetPassword(payload: { token: string; new_password: string }) {
   return apiClient.post("/auth/reset-password", payload);
+}
+
+export async function acceptInvite(payload: {
+  token: string;
+  new_password: string;
+  confirm_password: string;
+}) {
+  return apiClient.post("/auth/accept-invite", payload);
 }

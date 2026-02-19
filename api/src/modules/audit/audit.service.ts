@@ -150,6 +150,73 @@ export class AuditService {
     };
   }
 
+  async listEmailLogs(query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 25)));
+
+    const where: Prisma.EmailLogWhereInput = {};
+    if (query.status) where.status = String(query.status);
+    if (query.to_email) where.toEmail = { contains: String(query.to_email), mode: 'insensitive' };
+    if (query.user_id) where.userId = this.parseId(String(query.user_id), 'user id');
+    if (query.notifiable_type) where.notifiableType = String(query.notifiable_type);
+    if (query.notifiable_id) where.notifiableId = this.parseId(String(query.notifiable_id), 'notifiable id');
+
+    if (query.from || query.to) {
+      where.createdAt = {};
+      if (query.from) {
+        const from = new Date(String(query.from));
+        if (Number.isNaN(from.getTime())) throw new BadRequestException('Invalid from date');
+        where.createdAt.gte = from;
+      }
+      if (query.to) {
+        const to = new Date(String(query.to));
+        if (Number.isNaN(to.getTime())) throw new BadRequestException('Invalid to date');
+        where.createdAt.lte = to;
+      }
+    }
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.emailLog.findMany({
+        where,
+        include: {
+          user: {
+            select: { id: true, email: true, username: true }
+          }
+        },
+        orderBy: { createdAt: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage
+      }),
+      this.prisma.emailLog.count({ where })
+    ]);
+
+    return {
+      data: data.map((item) => ({
+        id: item.id.toString(),
+        user_id: item.userId ? item.userId.toString() : null,
+        user: item.user
+          ? { id: item.user.id.toString(), email: item.user.email, username: item.user.username }
+          : null,
+        to_email: item.toEmail,
+        subject: item.subject,
+        status: item.status,
+        provider: item.provider,
+        message_id: item.messageId,
+        error_message: item.errorMessage,
+        thread_key: item.threadKey,
+        notifiable_type: item.notifiableType,
+        notifiable_id: item.notifiableId ? item.notifiableId.toString() : null,
+        created_at: item.createdAt
+      })),
+      meta: {
+        page,
+        per_page: perPage,
+        total,
+        last_page: Math.max(1, Math.ceil(total / perPage))
+      }
+    };
+  }
+
   private parseId(value: string, label: string): bigint {
     try {
       return toBigInt(value);

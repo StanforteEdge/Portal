@@ -1,356 +1,375 @@
-import { useRoutes } from "react-router-dom";
-import DashboardOverview1 from "../pages/DashboardOverview1";
-import DashboardOverview2 from "../pages/DashboardOverview2";
-import DashboardOverview3 from "../pages/DashboardOverview3";
-import DashboardOverview4 from "../pages/DashboardOverview4";
-import Categories from "../pages/Categories";
-import AddProduct from "../pages/AddProduct";
-import ProductList from "../pages/ProductList";
-import ProductGrid from "../pages/ProductGrid";
-import TransactionList from "../pages/TransactionList";
-import TransactionDetail from "../pages/TransactionDetail";
-import SellerList from "../pages/SellerList";
-import SellerDetail from "../pages/SellerDetail";
-import Reviews from "../pages/Reviews";
-import Inbox from "../pages/Inbox";
-import FileManager from "../pages/FileManager";
-import PointOfSale from "../pages/PointOfSale";
-import Chat from "../pages/Chat";
-import Post from "../pages/Post";
-import Calendar from "../pages/Calendar";
-import CrudDataList from "../pages/CrudDataList";
-import CrudForm from "../pages/CrudForm";
-import UsersLayout1 from "../pages/UsersLayout1";
-import UsersLayout2 from "../pages/UsersLayout2";
-import UsersLayout3 from "../pages/UsersLayout3";
-import ProfileOverview1 from "../pages/ProfileOverview1";
-import ProfileOverview2 from "../pages/ProfileOverview2";
-import ProfileOverview3 from "../pages/ProfileOverview3";
-import WizardLayout1 from "../pages/WizardLayout1";
-import WizardLayout2 from "../pages/WizardLayout2";
-import WizardLayout3 from "../pages/WizardLayout3";
-import BlogLayout1 from "../pages/BlogLayout1";
-import BlogLayout2 from "../pages/BlogLayout2";
-import BlogLayout3 from "../pages/BlogLayout3";
-import PricingLayout1 from "../pages/PricingLayout1";
-import PricingLayout2 from "../pages/PricingLayout2";
-import InvoiceLayout1 from "../pages/InvoiceLayout1";
-import InvoiceLayout2 from "../pages/InvoiceLayout2";
-import FaqLayout1 from "../pages/FaqLayout1";
-import FaqLayout2 from "../pages/FaqLayout2";
-import FaqLayout3 from "../pages/FaqLayout3";
-import Login from "../pages/Login";
-import Register from "../pages/Register";
-import ErrorPage from "../pages/ErrorPage";
-import UpdateProfile from "../pages/UpdateProfile";
-import ChangePassword from "../pages/ChangePassword";
-import RegularTable from "../pages/RegularTable";
-import Tabulator from "../pages/Tabulator";
-import Modal from "../pages/Modal";
-import Slideover from "../pages/Slideover";
-import Notification from "../pages/Notification";
-import Tab from "../pages/Tab";
-import Accordion from "../pages/Accordion";
-import Button from "../pages/Button";
-import Alert from "../pages/Alert";
-import ProgressBar from "../pages/ProgressBar";
-import Tooltip from "../pages/Tooltip";
-import Dropdown from "../pages/Dropdown";
-import Typography from "../pages/Typography";
-import Icon from "../pages/Icon";
-import LoadingIcon from "../pages/LoadingIcon";
-import RegularForm from "../pages/RegularForm";
-import Datepicker from "../pages/Datepicker";
-import TomSelect from "../pages/TomSelect";
-import FileUpload from "../pages/FileUpload";
-import WysiwygEditor from "../pages/WysiwygEditor";
-import Validation from "../pages/Validation";
-import Chart from "../pages/Chart";
-import Slider from "../pages/Slider";
-import ImageZoom from "../pages/ImageZoom";
+import { Navigate, useRoutes } from "react-router-dom";
 
 import Layout from "../themes";
+import Login from "../pages/Login";
+import Register from "../pages/Register";
+import ForgotPassword from "../pages/ForgotPassword";
+import ResetPassword from "../pages/ResetPassword";
+import AcceptInvite from "../pages/AcceptInvite";
+import ErrorPage from "../pages/ErrorPage";
+import PortalDashboardPage from "../pages/PortalDashboard";
+import UpdateProfile from "../pages/UpdateProfile";
+import ChangePassword from "../pages/ChangePassword";
+import FinanceSettings from "../pages/FinanceSettings";
+import UserManagement from "../pages/UserManagement";
+import RequestsPage from "../pages/Requests";
+import RequestsCreatePage from "../pages/RequestsCreate";
+import RequestDetailPage from "../pages/RequestDetail";
+import RequestApprovalsPage from "../pages/RequestApprovals";
+import FinanceDashboardPage from "../pages/FinanceDashboard";
+import FinanceRequestsPage from "../pages/FinanceRequests";
+import FinanceRequestDetailPage from "../pages/FinanceRequestDetail";
+import AdminSettingsPage from "../pages/AdminSettings";
+import FinanceManualEntryPage from "../pages/FinanceManualEntry";
+import AdminFilesPage from "../pages/AdminFiles";
+import AdminProjectsPage from "../pages/AdminProjects";
+import AdminDocumentsPage from "../pages/AdminDocuments";
+import AdminDocumentEditorPage from "../pages/AdminDocumentEditor";
+import AdminRolesPage from "../pages/AdminRoles";
+import MediaLibraryPage from "../pages/MediaLibrary";
+import DocumentsPage from "../pages/Documents";
+import OnboardingPage from "../pages/Onboarding";
+import HrEmployeesPage from "../pages/HrEmployees";
+import HrDashboardPage from "../pages/HrDashboard";
+import HrOnboardingPage from "../pages/HrOnboarding";
+import AdminFormsPage from "../pages/AdminForms";
+import AdminFormEditorPage from "../pages/AdminFormEditor";
+import HrEmployeeEditorPage from "../pages/HrEmployeeEditor";
+
+import ProtectedRoute from "@/components/Auth/ProtectedRoute";
+import PublicOnlyRoute from "@/components/Auth/PublicOnlyRoute";
+import RoleRoute from "@/components/Auth/RoleRoute";
 
 function Router() {
   const routes = [
     {
       path: "/",
-      element: <Layout />,
+      element: <Navigate to="/app/dashboard" replace />,
+    },
+    {
+      path: "/app",
+      element: (
+        <ProtectedRoute>
+          <Layout />
+        </ProtectedRoute>
+      ),
       children: [
         {
-          path: "/",
-          element: <DashboardOverview1 />,
+          path: "",
+          element: <Navigate to="dashboard" replace />,
         },
         {
-          path: "dashboard-overview-2",
-          element: <DashboardOverview2 />,
+          path: "dashboard",
+          element: <PortalDashboardPage />,
         },
         {
-          path: "dashboard-overview-3",
-          element: <DashboardOverview3 />,
-        },
-        {
-          path: "dashboard-overview-4",
-          element: <DashboardOverview4 />,
-        },
-        {
-          path: "categories",
-          element: <Categories />,
-        },
-        {
-          path: "add-product",
-          element: <AddProduct />,
-        },
-        {
-          path: "product-list",
-          element: <ProductList />,
-        },
-        {
-          path: "product-grid",
-          element: <ProductGrid />,
-        },
-        {
-          path: "transaction-list",
-          element: <TransactionList />,
-        },
-        {
-          path: "transaction-detail",
-          element: <TransactionDetail />,
-        },
-        {
-          path: "seller-list",
-          element: <SellerList />,
-        },
-        {
-          path: "seller-detail",
-          element: <SellerDetail />,
-        },
-        {
-          path: "reviews",
-          element: <Reviews />,
-        },
-        {
-          path: "inbox",
-          element: <Inbox />,
-        },
-        {
-          path: "file-manager",
-          element: <FileManager />,
-        },
-        {
-          path: "point-of-sale",
-          element: <PointOfSale />,
-        },
-        {
-          path: "chat",
-          element: <Chat />,
-        },
-        {
-          path: "post",
-          element: <Post />,
-        },
-        {
-          path: "calendar",
-          element: <Calendar />,
-        },
-        {
-          path: "crud-data-list",
-          element: <CrudDataList />,
-        },
-        {
-          path: "crud-form",
-          element: <CrudForm />,
-        },
-        {
-          path: "users-layout-1",
-          element: <UsersLayout1 />,
-        },
-        {
-          path: "users-layout-2",
-          element: <UsersLayout2 />,
-        },
-        {
-          path: "users-layout-3",
-          element: <UsersLayout3 />,
-        },
-        {
-          path: "profile-overview-1",
-          element: <ProfileOverview1 />,
-        },
-        {
-          path: "profile-overview-2",
-          element: <ProfileOverview2 />,
-        },
-        {
-          path: "profile-overview-3",
-          element: <ProfileOverview3 />,
-        },
-        {
-          path: "wizard-layout-1",
-          element: <WizardLayout1 />,
-        },
-        {
-          path: "wizard-layout-2",
-          element: <WizardLayout2 />,
-        },
-        {
-          path: "wizard-layout-3",
-          element: <WizardLayout3 />,
-        },
-        {
-          path: "blog-layout-1",
-          element: <BlogLayout1 />,
-        },
-        {
-          path: "blog-layout-2",
-          element: <BlogLayout2 />,
-        },
-        {
-          path: "blog-layout-3",
-          element: <BlogLayout3 />,
-        },
-        {
-          path: "pricing-layout-1",
-          element: <PricingLayout1 />,
-        },
-        {
-          path: "pricing-layout-2",
-          element: <PricingLayout2 />,
-        },
-        {
-          path: "invoice-layout-1",
-          element: <InvoiceLayout1 />,
-        },
-        {
-          path: "invoice-layout-2",
-          element: <InvoiceLayout2 />,
-        },
-        {
-          path: "faq-layout-1",
-          element: <FaqLayout1 />,
-        },
-        {
-          path: "faq-layout-2",
-          element: <FaqLayout2 />,
-        },
-        {
-          path: "faq-layout-3",
-          element: <FaqLayout3 />,
-        },
-        {
-          path: "update-profile",
+          path: "profile",
           element: <UpdateProfile />,
         },
         {
-          path: "change-password",
+          path: "settings/security",
           element: <ChangePassword />,
         },
         {
-          path: "regular-table",
-          element: <RegularTable />,
+          path: "onboarding",
+          element: <OnboardingPage />,
         },
         {
-          path: "tabulator",
-          element: <Tabulator />,
+          path: "media",
+          element: <MediaLibraryPage />,
         },
         {
-          path: "modal",
-          element: <Modal />,
+          path: "documents",
+          element: <DocumentsPage />,
         },
         {
-          path: "slideover",
-          element: <Slideover />,
+          path: "requests",
+          element: <RequestsPage />,
         },
         {
-          path: "notification",
-          element: <Notification />,
+          path: "requests/create",
+          element: <RequestsCreatePage />,
         },
         {
-          path: "tab",
-          element: <Tab />,
+          path: "requests/request/:id",
+          element: <RequestDetailPage />,
         },
         {
-          path: "accordion",
-          element: <Accordion />,
+          path: "requests/approvals",
+          element: <RequestApprovalsPage />,
         },
         {
-          path: "button",
-          element: <Button />,
+          path: "requests/approvals/:id",
+          element: <RequestDetailPage />,
         },
         {
-          path: "alert",
-          element: <Alert />,
+          path: "finance",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              <FinanceDashboardPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "progress-bar",
-          element: <ProgressBar />,
+          path: "finance/requests",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              <FinanceRequestsPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "tooltip",
-          element: <Tooltip />,
+          path: "finance/requests/request/:id",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              <FinanceRequestDetailPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "dropdown",
-          element: <Dropdown />,
+          path: "finance/settings",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              <FinanceSettings />
+            </RoleRoute>
+          ),
         },
         {
-          path: "typography",
-          element: <Typography />,
+          path: "finance/manualentry",
+          element: (
+            <RoleRoute allowedRoles={["finance_manager"]}>
+              <FinanceManualEntryPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "icon",
-          element: <Icon />,
+          path: "finance/settings/signatories",
+          element: <Navigate to="/app/finance/settings" replace />,
         },
         {
-          path: "loading-icon",
-          element: <LoadingIcon />,
+          path: "admin/users/list",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <UserManagement />
+            </RoleRoute>
+          ),
         },
         {
-          path: "regular-form",
-          element: <RegularForm />,
+          path: "admin/settings",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminSettingsPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "datepicker",
-          element: <Datepicker />,
+          path: "admin/files",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminFilesPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "tom-select",
-          element: <TomSelect />,
+          path: "admin/projects",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminProjectsPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "file-upload",
-          element: <FileUpload />,
+          path: "admin/documents",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminDocumentsPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "wysiwyg-editor",
-          element: <WysiwygEditor />,
+          path: "admin/documents/new",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminDocumentEditorPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "validation",
-          element: <Validation />,
+          path: "admin/documents/:id",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminDocumentEditorPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "chart",
-          element: <Chart />,
+          path: "admin/roles",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminRolesPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "slider",
-          element: <Slider />,
+          path: "admin/forms",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminFormsPage />
+            </RoleRoute>
+          ),
         },
         {
-          path: "image-zoom",
-          element: <ImageZoom />,
+          path: "admin/forms/new",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminFormEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "admin/forms/:id",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              <AdminFormEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrDashboardPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/employees",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrEmployeesPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/employees/employee",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrEmployeeEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/employees/:id",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrEmployeeEditorPage />
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/onboarding",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              <HrOnboardingPage />
+            </RoleRoute>
+          ),
         },
       ],
     },
+
     {
       path: "/login",
-      element: <Login />,
+      element: (
+        <PublicOnlyRoute>
+          <Login />
+        </PublicOnlyRoute>
+      ),
     },
     {
       path: "/register",
-      element: <Register />,
+      element: (
+        <PublicOnlyRoute>
+          <Register />
+        </PublicOnlyRoute>
+      ),
     },
+    {
+      path: "/forgot-password",
+      element: (
+        <PublicOnlyRoute>
+          <ForgotPassword />
+        </PublicOnlyRoute>
+      ),
+    },
+    {
+      path: "/reset-password",
+      element: (
+        <PublicOnlyRoute>
+          <ResetPassword />
+        </PublicOnlyRoute>
+      ),
+    },
+    {
+      path: "/accept-invite",
+      element: (
+        <PublicOnlyRoute>
+          <AcceptInvite />
+        </PublicOnlyRoute>
+      ),
+    },
+    {
+      path: "/auth/login",
+      element: <Navigate to="/login" replace />,
+    },
+    {
+      path: "/auth/register",
+      element: <Navigate to="/register" replace />,
+    },
+    {
+      path: "/auth/forgot/password",
+      element: <Navigate to="/forgot-password" replace />,
+    },
+    {
+      path: "/auth/reset/password",
+      element: <Navigate to="/reset-password" replace />,
+    },
+    {
+      path: "/auth/invite/accept",
+      element: <Navigate to="/accept-invite" replace />,
+    },
+    {
+      path: "/update-profile",
+      element: <Navigate to="/app/profile" replace />,
+    },
+    {
+      path: "/change-password",
+      element: <Navigate to="/app/settings/security" replace />,
+    },
+    {
+      path: "/finance-settings",
+      element: <Navigate to="/app/finance/settings" replace />,
+    },
+    {
+      path: "/user-management",
+      element: <Navigate to="/app/admin/users/list" replace />,
+    },
+    {
+      path: "/app/profile/view",
+      element: <Navigate to="/app/profile" replace />,
+    },
+    {
+      path: "/app/profile/edit",
+      element: <Navigate to="/app/profile" replace />,
+    },
+    {
+      path: "/app/profile/password",
+      element: <Navigate to="/app/settings/security" replace />,
+    },
+    {
+      path: "/app/requests/list",
+      element: <Navigate to="/app/requests" replace />,
+    },
+
     {
       path: "/error-page",
       element: <ErrorPage />,

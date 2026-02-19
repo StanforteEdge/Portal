@@ -1,5 +1,5 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiBody, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -7,6 +7,8 @@ import { RefreshDto } from './dto/refresh.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { AuthStatusResponseDto, LoginResponseDto } from './dto/auth-response.dto';
+import { AcceptInviteDto } from './dto/accept-invite.dto';
 
 @Controller('auth')
 @ApiTags('Auth')
@@ -14,6 +16,7 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('login')
+  @ApiOkResponse({ type: LoginResponseDto })
   @ApiBody({
     type: LoginDto,
     examples: {
@@ -29,6 +32,7 @@ export class AuthController {
   @Get('status')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('bearer')
+  @ApiOkResponse({ type: AuthStatusResponseDto })
   status(@Req() req: any) {
     return this.authService.status(req.user?.id);
   }
@@ -96,5 +100,18 @@ export class AuthController {
   })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @Post('accept-invite')
+  @ApiBody({
+    type: AcceptInviteDto,
+    examples: {
+      default: {
+        value: { token: 'invite-token-from-email', new_password: 'ChangeMe123!', confirm_password: 'ChangeMe123!' }
+      }
+    }
+  })
+  acceptInvite(@Body() dto: AcceptInviteDto) {
+    return this.authService.acceptInvite(dto);
   }
 }

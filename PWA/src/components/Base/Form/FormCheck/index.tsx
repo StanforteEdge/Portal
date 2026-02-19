@@ -1,4 +1,5 @@
 import { twMerge } from "tailwind-merge";
+import { forwardRef } from "react";
 
 export type FormCheckProps = React.PropsWithChildren &
   React.ComponentPropsWithoutRef<"div">;
@@ -29,10 +30,13 @@ interface InputProps extends React.ComponentPropsWithoutRef<"input"> {
   type: "radio" | "checkbox";
 }
 
-FormCheck.Input = (props: InputProps) => {
+type FormCheckInputRef = React.ComponentPropsWithRef<"input">["ref"];
+
+FormCheck.Input = forwardRef((props: InputProps, ref: FormCheckInputRef) => {
   return (
     <input
       {...props}
+      ref={ref}
       className={twMerge([
         // Default
         "transition-all duration-100 ease-in-out",
@@ -58,6 +62,6 @@ FormCheck.Input = (props: InputProps) => {
       ])}
     />
   );
-};
+});
 
 export default FormCheck;

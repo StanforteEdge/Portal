@@ -2,38 +2,57 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
+import { AcknowledgeDocumentDto } from './dto/acknowledge-document.dto';
 import { CreateDocumentDto } from './dto/create-document.dto';
-import { UpdateDocumentStatusDto } from './dto/update-document-status.dto';
+import { UpdateDocumentDto } from './dto/update-document.dto';
 
 @Injectable()
 export class DocumentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async list(query: Record<string, any>) {
+  async list(profileId: string, query: Record<string, any>) {
     const page = Math.max(1, Number(query.page ?? 1));
     const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
 
-    const where: Prisma.FormSubmissionWhereInput = {};
-    if (query.form_id) where.formId = String(query.form_id);
-    if (query.status) where.status = String(query.status);
+    const where: Prisma.DocumentWhereInput = {};
+
+    if (query.search) {
+      const value = String(query.search).trim();
+      if (value) {
+        where.OR = [
+          { title: { contains: value, mode: 'insensitive' } },
+          { slug: { contains: value, mode: 'insensitive' } }
+        ];
+      }
+    }
+    if (query.status) where.status = String(query.status).toLowerCase();
+    if (query.category) where.category = String(query.category).toLowerCase();
+    if (query.organization_id) where.organizationId = toBigInt(String(query.organization_id));
+    if (query.require_acknowledgement === 'true' || query.require_acknowledgement === 'false') {
+      where.requireAcknowledgement = query.require_acknowledgement === 'true';
+    }
 
     const [data, total] = await this.prisma.$transaction([
-      this.prisma.formSubmission.findMany({
+      this.prisma.document.findMany({
         where,
         include: {
-          form: true,
-          data: true,
-          history: true
+          file: true,
+          organization: true,
+          acknowledgements: {
+            where: { userId: toBigInt(profileId) },
+            orderBy: { acknowledgedAt: 'desc' },
+            take: 1
+          }
         },
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ effectiveDate: 'desc' }, { createdAt: 'desc' }],
         skip: (page - 1) * perPage,
         take: perPage
       }),
-      this.prisma.formSubmission.count({ where })
+      this.prisma.document.count({ where })
     ]);
 
     return {
-      data,
+      data: data.map((row) => this.serialize(row)),
       meta: {
         page,
         per_page: perPage,
@@ -43,138 +62,237 @@ export class DocumentsService {
     };
   }
 
-  async get(id: string) {
-    const doc = await this.prisma.formSubmission.findUnique({
+  async get(profileId: string, id: string) {
+    const document = await this.prisma.document.findUnique({
       where: { id },
       include: {
-        form: true,
-        data: { include: { field: true } },
-        history: { orderBy: { createdAt: 'desc' } }
+        file: true,
+        organization: true,
+        acknowledgements: {
+          where: { userId: toBigInt(profileId) },
+          orderBy: { acknowledgedAt: 'desc' },
+          take: 1
+        }
       }
     });
 
-    if (!doc) throw new NotFoundException('Document not found');
-    return doc;
+    if (!document) throw new NotFoundException('Document not found');
+    return this.serialize(document);
   }
 
   async create(dto: CreateDocumentDto, actorId?: string) {
-    const submittedBy = this.parseId(dto.submitted_by_profile_id, 'submitted_by_profile_id');
-
-    const [form, profile, fields] = await this.prisma.$transaction([
-      this.prisma.form.findUnique({ where: { id: dto.form_id } }),
-      this.prisma.profile.findUnique({ where: { id: submittedBy } }),
-      this.prisma.formField.findMany({ where: { formId: dto.form_id } })
-    ]);
-
-    if (!form) throw new NotFoundException('Form not found');
-    if (!profile) throw new NotFoundException('Submitter profile not found');
-
-    const values = dto.values ?? {};
-    const requiredFieldKeys = fields.filter((field) => field.isRequired).map((field) => field.fieldKey);
-    for (const key of requiredFieldKeys) {
-      if (values[key] === undefined || values[key] === null || values[key] === '') {
-        throw new BadRequestException(`Missing required field: ${key}`);
-      }
+    if (!dto.content_html && !dto.file_id) {
+      throw new BadRequestException('Either content_html or file_id is required');
     }
 
-    const submissionNumber = `DOC-${Date.now()}`;
+    const slug = dto.slug?.trim() || this.slugify(dto.title);
+    const existing = await this.prisma.document.findUnique({ where: { slug } });
+    if (existing) throw new BadRequestException('Slug already exists');
 
-    const created = await this.prisma.formSubmission.create({
-      data: {
-        formId: form.id,
-        submissionNumber,
-        submittedByProfileId: submittedBy,
-        status: 'submitted'
-      }
-    });
-
-    for (const field of fields) {
-      const rawValue = values[field.fieldKey];
-      if (rawValue === undefined || rawValue === null) continue;
-
-      const payload = this.mapFieldValue(field.fieldType, rawValue);
-      await this.prisma.formSubmissionData.create({
-        data: {
-          submissionId: created.id,
-          fieldId: field.id,
-          fieldKey: field.fieldKey,
-          ...payload
-        }
-      });
+    if (dto.file_id) {
+      const file = await this.prisma.fileAsset.findUnique({ where: { id: dto.file_id }, select: { id: true } });
+      if (!file) throw new NotFoundException('File not found');
     }
 
-    await this.prisma.formSubmissionHistory.create({
+    const row = await this.prisma.document.create({
       data: {
-        submissionId: created.id,
-        actionType: 'created',
-        performedByProfileId: actorId ? this.parseId(actorId, 'actor_id') : null,
-        notes: 'Document created'
-      }
+        title: dto.title.trim(),
+        slug,
+        category: (dto.category ?? 'policy').toLowerCase(),
+        status: (dto.status ?? 'draft').toLowerCase(),
+        version: dto.version ?? '1.0',
+        effectiveDate: dto.effective_date ? new Date(dto.effective_date) : null,
+        contentHtml: dto.content_html ?? null,
+        fileId: dto.file_id ?? null,
+        requireAcknowledgement: Boolean(dto.require_acknowledgement),
+        organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
+        createdBy: actorId ? toBigInt(actorId) : null,
+        updatedBy: actorId ? toBigInt(actorId) : null
+      },
+      include: { file: true, organization: true }
     });
 
-    return this.get(created.id);
+    return this.serialize(row);
   }
 
-  async updateStatus(id: string, dto: UpdateDocumentStatusDto, actorId?: string) {
-    const existing = await this.prisma.formSubmission.findUnique({ where: { id } });
+  async update(id: string, dto: UpdateDocumentDto, actorId?: string) {
+    const existing = await this.prisma.document.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Document not found');
 
-    const updated = await this.prisma.formSubmission.update({
+    if (dto.slug && dto.slug !== existing.slug) {
+      const slugCheck = await this.prisma.document.findUnique({ where: { slug: dto.slug } });
+      if (slugCheck && slugCheck.id !== id) throw new BadRequestException('Slug already exists');
+    }
+
+    if (dto.file_id) {
+      const file = await this.prisma.fileAsset.findUnique({ where: { id: dto.file_id }, select: { id: true } });
+      if (!file) throw new NotFoundException('File not found');
+    }
+
+    const row = await this.prisma.document.update({
       where: { id },
       data: {
-        status: dto.status,
-        resolutionNotes: dto.resolution_notes,
-        resolvedAt: ['resolved', 'approved', 'completed'].includes(dto.status) ? new Date() : null
+        title: dto.title?.trim(),
+        slug: dto.slug,
+        category: dto.category?.toLowerCase(),
+        status: dto.status?.toLowerCase(),
+        version: dto.version,
+        effectiveDate: dto.effective_date ? new Date(dto.effective_date) : undefined,
+        contentHtml: dto.content_html,
+        fileId: dto.file_id,
+        requireAcknowledgement: dto.require_acknowledgement,
+        organizationId: dto.organization_id ? toBigInt(dto.organization_id) : undefined,
+        updatedBy: actorId ? toBigInt(actorId) : undefined
+      },
+      include: { file: true, organization: true }
+    });
+
+    return this.serialize(row);
+  }
+
+  async acknowledge(id: string, profileId: string, req: any, dto: AcknowledgeDocumentDto) {
+    const userId = toBigInt(profileId);
+    const document = await this.prisma.document.findUnique({ where: { id } });
+    if (!document) throw new NotFoundException('Document not found');
+
+    const version = dto.version ?? document.version;
+    const ip = (req?.headers?.['x-forwarded-for'] as string)?.split(',')[0]?.trim() ?? req?.ip ?? null;
+    const ua = (req?.headers?.['user-agent'] as string) ?? null;
+
+    const row = await this.prisma.documentAcknowledgement.upsert({
+      where: {
+        unique_document_ack: {
+          documentId: id,
+          userId,
+          version
+        }
+      },
+      update: {
+        acknowledgedAt: new Date(),
+        ipAddress: ip,
+        userAgent: ua
+      },
+      create: {
+        documentId: id,
+        userId,
+        version,
+        acknowledgedAt: new Date(),
+        ipAddress: ip,
+        userAgent: ua
       }
     });
 
-    await this.prisma.formSubmissionHistory.create({
-      data: {
-        submissionId: id,
-        actionType: 'status_change',
-        performedByProfileId: actorId ? this.parseId(actorId, 'actor_id') : null,
-        oldValue: existing.status,
-        newValue: dto.status,
-        notes: dto.resolution_notes
+    return {
+      id: row.id,
+      document_id: row.documentId,
+      user_id: row.userId.toString(),
+      version: row.version,
+      acknowledged_at: row.acknowledgedAt,
+      ip_address: row.ipAddress,
+      user_agent: row.userAgent
+    };
+  }
+
+  async listAcknowledgements(id: string, query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
+
+    const where: Prisma.DocumentAcknowledgementWhereInput = { documentId: id };
+    if (query.version) where.version = String(query.version);
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.documentAcknowledgement.findMany({
+        where,
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              username: true,
+              firstName: true,
+              lastName: true
+            }
+          }
+        },
+        orderBy: { acknowledgedAt: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage
+      }),
+      this.prisma.documentAcknowledgement.count({ where })
+    ]);
+
+    return {
+      data: rows.map((row) => ({
+        id: row.id,
+        user_id: row.userId.toString(),
+        user: {
+          id: row.user.id.toString(),
+          email: row.user.email,
+          username: row.user.username,
+          first_name: row.user.firstName,
+          last_name: row.user.lastName
+        },
+        version: row.version,
+        acknowledged_at: row.acknowledgedAt,
+        ip_address: row.ipAddress,
+        user_agent: row.userAgent
+      })),
+      meta: {
+        page,
+        per_page: perPage,
+        total,
+        last_page: Math.max(1, Math.ceil(total / perPage))
       }
-    });
-
-    return updated;
+    };
   }
 
-  private mapFieldValue(fieldType: string, value: unknown) {
-    const normalizedType = fieldType.toLowerCase();
-
-    if (normalizedType === 'number' || normalizedType === 'currency') {
-      const numeric = Number(value);
-      if (Number.isNaN(numeric)) throw new BadRequestException(`Expected number for field type ${fieldType}`);
-      return { valueNumber: numeric };
-    }
-
-    if (normalizedType === 'date') {
-      const dt = new Date(String(value));
-      if (Number.isNaN(dt.getTime())) throw new BadRequestException('Invalid date value');
-      return { valueDate: dt };
-    }
-
-    if (normalizedType === 'datetime') {
-      const dt = new Date(String(value));
-      if (Number.isNaN(dt.getTime())) throw new BadRequestException('Invalid datetime value');
-      return { valueDatetime: dt };
-    }
-
-    if (normalizedType === 'file' || normalizedType === 'attachment') {
-      return { valueFileUrl: String(value) };
-    }
-
-    return { valueText: String(value) };
+  private serialize(row: any) {
+    const myAck = row.acknowledgements?.[0] ?? null;
+    return {
+      id: row.id,
+      title: row.title,
+      slug: row.slug,
+      category: row.category,
+      status: row.status,
+      version: row.version,
+      effective_date: row.effectiveDate,
+      content_html: row.contentHtml,
+      file: row.file
+        ? {
+            id: row.file.id,
+            file_name: row.file.fileName,
+            public_url: row.file.publicUrl,
+            storage_path: row.file.storagePath,
+            mime_type: row.file.mimeType
+          }
+        : null,
+      require_acknowledgement: row.requireAcknowledgement,
+      organization: row.organization
+        ? {
+            id: row.organization.id.toString(),
+            name: row.organization.name,
+            code: row.organization.code
+          }
+        : null,
+      my_acknowledgement: myAck
+        ? {
+            id: myAck.id,
+            version: myAck.version,
+            acknowledged_at: myAck.acknowledgedAt
+          }
+        : null,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt
+    };
   }
 
-  private parseId(value: string, label: string): bigint {
-    try {
-      return toBigInt(value);
-    } catch {
-      throw new BadRequestException(`Invalid ${label}`);
-    }
+  private slugify(value: string) {
+    return value
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .slice(0, 180);
   }
 }

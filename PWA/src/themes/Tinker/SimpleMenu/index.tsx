@@ -15,7 +15,7 @@ import {
 } from "./simple-menu";
 import Lucide from "@/components/Base/Lucide";
 import Tippy from "@/components/Base/Tippy";
-import logoUrl from "@/assets/images/logo.svg";
+import { BRAND_LOGO_ICON_DARK } from "@/constants/branding";
 import clsx from "clsx";
 import TopBar from "@/components/Themes/Tinker/TopBar";
 import MobileMenu from "@/components/MobileMenu";
@@ -56,7 +56,7 @@ function Main() {
               <img
                 alt="Tinker Tailwind HTML Admin Template"
                 className="w-6"
-                src={logoUrl}
+                src={BRAND_LOGO_ICON_DARK}
               />
             </Link>
             <div className="my-6 side-nav__divider"></div>

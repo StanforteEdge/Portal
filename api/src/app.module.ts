@@ -18,6 +18,9 @@ import { FilesModule } from './modules/files/files.module';
 import { TaxonomyModule } from './modules/taxonomy/taxonomy.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ProjectsModule } from './modules/projects/projects.module';
+import { TeamsModule } from './modules/teams/teams.module';
+import { OnboardingModule } from './modules/onboarding/onboarding.module';
+import { AcknowledgementsModule } from './modules/acknowledgements/acknowledgements.module';
 
 @Module({
   imports: [
@@ -39,7 +42,10 @@ import { ProjectsModule } from './modules/projects/projects.module';
     FilesModule,
     TaxonomyModule,
     AuditModule,
-    ProjectsModule
+    ProjectsModule,
+    TeamsModule,
+    OnboardingModule,
+    AcknowledgementsModule
   ]
 })
 export class AppModule {}

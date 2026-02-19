@@ -1,12 +1,12 @@
 import { useState, Fragment } from "react";
 import { Link } from "react-router-dom";
 import Lucide from "@/components/Base/Lucide";
-import logoUrl from "@/assets/images/logo.svg";
+import { BRAND_LOGO_ICON_DARK } from "@/constants/branding";
 import Breadcrumb from "@/components/Base/Breadcrumb";
 import { FormInput } from "@/components/Base/Form";
 import { Menu, Popover } from "@/components/Base/Headless";
 import fakerData from "@/utils/faker";
-import _ from "lodash";
+import * as _ from "lodash";
 import clsx from "clsx";
 import { Transition } from "@headlessui/react";
 
@@ -43,7 +43,7 @@ function Main(props: { layout?: "side-menu" | "simple-menu" | "top-menu" }) {
             <img
               alt="Enigma Tailwind HTML Admin Template"
               className="w-6"
-              src={logoUrl}
+              src={BRAND_LOGO_ICON_DARK}
             />
             <span
               className={clsx([
@@ -53,7 +53,7 @@ function Main(props: { layout?: "side-menu" | "simple-menu" | "top-menu" }) {
               ])}
             >
               {" "}
-              Enigma{" "}
+              Stanforte Edge{" "}
             </span>
           </Link>
           {/* END: Logo */}
@@ -66,8 +66,8 @@ function Main(props: { layout?: "side-menu" | "simple-menu" | "top-menu" }) {
               props.layout == "top-menu" && "md:pl-10",
             ])}
           >
-            <Breadcrumb.Link to="/">Application</Breadcrumb.Link>
-            <Breadcrumb.Link to="/" active={true}>
+            <Breadcrumb.Link to="/app/dashboard">Dashboard</Breadcrumb.Link>
+            <Breadcrumb.Link to="/app/dashboard" active={true}>
               Dashboard
             </Breadcrumb.Link>
           </Breadcrumb>
