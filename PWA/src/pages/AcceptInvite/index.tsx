@@ -9,6 +9,7 @@ import Button from "@/components/Base/Button";
 import { FormInput, FormLabel } from "@/components/Base/Form";
 import { acceptInvite } from "@/services/auth";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import PasswordInput from "@/components/Auth/PasswordInput";
 
 type AcceptInviteForm = {
   new_password: string;
@@ -87,9 +88,8 @@ function AcceptInvitePage() {
             <form className="mt-6 space-y-4" onSubmit={handleSubmit(onSubmit)}>
               <div>
                 <FormLabel htmlFor="invite-password">Password</FormLabel>
-                <FormInput
+                <PasswordInput
                   id="invite-password"
-                  type="password"
                   autoComplete="new-password"
                   {...register("new_password")}
                 />
@@ -99,9 +99,8 @@ function AcceptInvitePage() {
               </div>
               <div>
                 <FormLabel htmlFor="invite-password-confirm">Confirm Password</FormLabel>
-                <FormInput
+                <PasswordInput
                   id="invite-password-confirm"
-                  type="password"
                   autoComplete="new-password"
                   {...register("confirm_password")}
                 />

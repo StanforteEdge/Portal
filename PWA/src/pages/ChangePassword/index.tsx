@@ -8,6 +8,7 @@ import { Tab } from "@/components/Base/Headless";
 import { changePassword } from "@/services/auth";
 import { useState } from "react";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import PasswordInput from "@/components/Auth/PasswordInput";
 
 type ChangePasswordFormValues = {
   current_password: string;
@@ -94,9 +95,8 @@ function ChangePasswordPage() {
           <form className="space-y-4 max-w-xl" onSubmit={handleSubmit(onSubmit)}>
             <div>
               <FormLabel htmlFor="current_password">Current Password</FormLabel>
-              <FormInput
+              <PasswordInput
                 id="current_password"
-                type="password"
                 autoComplete="current-password"
                 {...register("current_password")}
               />
@@ -107,9 +107,8 @@ function ChangePasswordPage() {
 
             <div>
               <FormLabel htmlFor="new_password">New Password</FormLabel>
-              <FormInput
+              <PasswordInput
                 id="new_password"
-                type="password"
                 autoComplete="new-password"
                 {...register("new_password")}
               />
@@ -120,9 +119,8 @@ function ChangePasswordPage() {
 
             <div>
               <FormLabel htmlFor="confirm_password">Confirm New Password</FormLabel>
-              <FormInput
+              <PasswordInput
                 id="confirm_password"
-                type="password"
                 autoComplete="new-password"
                 {...register("confirm_password")}
               />

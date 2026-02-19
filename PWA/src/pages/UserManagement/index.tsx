@@ -13,6 +13,7 @@ import {
   type UserListItem,
 } from "@/services/users";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import PasswordInput from "@/components/Auth/PasswordInput";
 
 type CreateUserForm = {
   username: string;
@@ -382,8 +383,7 @@ function UserManagementPage() {
                     </div>
                     <div>
                       <FormLabel>Temporary Password (optional)</FormLabel>
-                      <FormInput
-                        type="password"
+                      <PasswordInput
                         value={form.password}
                         onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))}
                       />

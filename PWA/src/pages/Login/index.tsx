@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 import { useNavigate, Link, useLocation } from "react-router-dom";
 import { resolveRedirectPath } from "@/utils/resolveRedirectPath";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import PasswordInput from "@/components/Auth/PasswordInput";
 
 interface LoginFormValues {
   email: string;
@@ -144,6 +145,18 @@ function Main() {
             <div className="flex h-screen py-5 my-10 xl:h-auto xl:py-0 xl:my-0">
               <div className="w-full px-5 py-8 mx-auto my-auto bg-white rounded-md shadow-md xl:ml-20 dark:bg-darkmode-600 xl:bg-transparent sm:px-8 xl:p-0 xl:shadow-none sm:w-3/4 lg:w-2/4 xl:w-auto">
                 <form onSubmit={handleSubmit(onSubmit)}>
+                  <div className="flex items-center justify-center mb-4 xl:hidden">
+                    <img
+                      alt="Stanforte Edge"
+                      className="w-8 h-8"
+                      src={BRAND_LOGO_ICON_DARK}
+                      width={32}
+                      height={32}
+                    />
+                    <span className="ml-2 text-base font-medium text-slate-700 dark:text-slate-200">
+                      Stanforte Edge
+                    </span>
+                  </div>
                   <h2 className="text-2xl font-bold text-center intro-x xl:text-3xl xl:text-left">
                     Sign In
                   </h2>
@@ -173,8 +186,7 @@ function Main() {
                       )}
                     </div>
                     <div>
-                      <FormInput
-                        type="password"
+                      <PasswordInput
                         className="block px-4 py-3 intro-x min-w-full xl:min-w-[350px]"
                         placeholder="Password"
                         autoComplete="current-password"
