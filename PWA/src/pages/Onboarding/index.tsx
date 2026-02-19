@@ -258,7 +258,12 @@ function OnboardingPage() {
   };
 
   if (loading) {
-    return <div className="mt-8 text-slate-500">Loading onboarding...</div>;
+    return (
+      <div className="mt-8 animate-pulse space-y-3">
+        <div className="h-6 w-48 rounded bg-slate-200"></div>
+        <div className="h-24 rounded bg-slate-100"></div>
+      </div>
+    );
   }
 
   return (

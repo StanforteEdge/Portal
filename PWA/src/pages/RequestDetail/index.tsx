@@ -287,7 +287,10 @@ function RequestDetailPage() {
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
       <div className="box mt-5 p-5">
         {loading || !request ? (
-          <div className="text-slate-500">Loading request...</div>
+          <div className="animate-pulse space-y-3">
+            <div className="h-6 w-56 rounded bg-slate-200"></div>
+            <div className="h-24 rounded bg-slate-100"></div>
+          </div>
         ) : (
           <div className="space-y-6">
             <div className="grid grid-cols-1 gap-4 rounded-md border p-4 md:grid-cols-3">
