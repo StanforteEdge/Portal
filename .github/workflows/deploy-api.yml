@@ -36,11 +36,7 @@ jobs:
           host: ${{ secrets.API_SSH_HOST }}
           username: ${{ secrets.API_SSH_USER }}
           key: ${{ secrets.API_SSH_PRIVATE_KEY }}
-          source: |
-            api/**
-            package.json
-            package-lock.json
-            PWA/package.json
+          source: "api,package.json,package-lock.json,PWA/package.json"
           target: ${{ secrets.API_APP_DIR }}
           overwrite: true
 
