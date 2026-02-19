@@ -140,7 +140,11 @@ function RequestApprovalsPage() {
 
         <div className="p-5 overflow-x-auto">
           {loading ? (
-            <div className="text-slate-500">Loading approvals...</div>
+            <div className="animate-pulse space-y-2">
+              <div className="h-4 rounded bg-slate-200"></div>
+              <div className="h-4 rounded bg-slate-100"></div>
+              <div className="h-4 rounded bg-slate-100"></div>
+            </div>
           ) : (
             <Table className="table-report" striped hover>
               <Table.Thead>

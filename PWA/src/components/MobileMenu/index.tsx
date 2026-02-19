@@ -95,7 +95,7 @@ function Main() {
               ) : (
                 <li key={menuKey}>
                   <a
-                    href={menu.subMenu ? "#" : menu.pathname}
+                    href={menu.subMenu ? undefined : menu.pathname}
                     className={clsx([
                       menu.active ? "menu menu--active" : "menu",
                     ])}
@@ -137,8 +137,8 @@ function Main() {
                       >
                         {menu.subMenu.map((subMenu, subMenuKey) => (
                           <li key={subMenuKey}>
-                            <a
-                              href={subMenu.subMenu ? "#" : subMenu.pathname}
+                          <a
+                              href={subMenu.subMenu ? undefined : subMenu.pathname}
                               className={clsx([
                                 subMenu.active ? "menu menu--active" : "menu",
                               ])}
@@ -183,11 +183,7 @@ function Main() {
                                     (lastSubMenu, lastSubMenuKey) => (
                                       <li key={lastSubMenuKey}>
                                         <a
-                                          href={
-                                            lastSubMenu.subMenu
-                                              ? "#"
-                                              : lastSubMenu.pathname
-                                          }
+                                          href={lastSubMenu.subMenu ? undefined : lastSubMenu.pathname}
                                           className={clsx([
                                             lastSubMenu.active
                                               ? "menu menu--active"

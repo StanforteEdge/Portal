@@ -44,7 +44,14 @@ const HrEmployeeEditorPage = lazy(() => import("../pages/HrEmployeeEditor"));
 
 function page(element: JSX.Element) {
   return (
-    <Suspense fallback={<div className="p-6 text-slate-500">Loading...</div>}>
+    <Suspense
+      fallback={
+        <div className="p-6 animate-pulse">
+          <div className="h-6 w-40 rounded bg-slate-200 mb-4"></div>
+          <div className="h-24 rounded bg-slate-100"></div>
+        </div>
+      }
+    >
       {element}
     </Suspense>
   );

@@ -226,7 +226,10 @@ function UpdateProfilePage() {
           <Tab.Panel>
             <div className="p-5 box">
               {loading ? (
-                <div className="text-slate-500">Loading profile...</div>
+                <div className="animate-pulse space-y-3">
+                  <div className="h-4 w-48 rounded bg-slate-200"></div>
+                  <div className="h-24 rounded bg-slate-100"></div>
+                </div>
               ) : (
                 <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
                   <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
