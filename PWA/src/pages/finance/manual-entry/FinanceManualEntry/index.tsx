@@ -181,7 +181,7 @@ function FinanceManualEntryPage() {
       } finally {
         setCheckingNumber(false);
       }
-    }, 250);
+    }, 1200);
 
     return () => window.clearTimeout(timer);
   }, [form.request_id, form.request_type_id, editingId]);
