@@ -9,6 +9,7 @@ import { AssignUserRolesDto } from './dto/assign-user-roles.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
 import { randomToken, sha256 } from '../../common/utils/crypto';
 import { MailService } from '../../common/mail/mail.service';
+import { generateUniqueUsername, makeUsernameSeed } from '../../common/utils/username';
 
 @Injectable()
 export class UsersService {
@@ -137,11 +138,20 @@ export class UsersService {
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.profile.findUnique({ where: { email } });
     if (existing) throw new BadRequestException('Email already exists');
-
-    const usernameExists = await this.prisma.profile.findUnique({
-      where: { username: dto.username }
-    });
-    if (usernameExists) throw new BadRequestException('Username already exists');
+    const requestedUsername = dto.username?.trim();
+    const username = requestedUsername
+      ? requestedUsername
+      : await generateUniqueUsername(
+          makeUsernameSeed(dto.first_name, dto.last_name, email.split('@')[0]),
+          async (candidate) =>
+            Boolean(await this.prisma.profile.findFirst({ where: { username: candidate } }))
+        );
+    if (requestedUsername) {
+      const usernameExists = await this.prisma.profile.findFirst({
+        where: { username }
+      });
+      if (usernameExists) throw new BadRequestException('Username already exists');
+    }
 
     const passwordHash = dto.password ? await bcrypt.hash(dto.password, 12) : null;
     const roleSlugs = Array.from(new Set(dto.roles?.map((r) => r.trim()).filter(Boolean) ?? []));
@@ -149,7 +159,7 @@ export class UsersService {
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.profile.create({
         data: {
-          username: dto.username,
+          username,
           email,
           passwordHash,
           type: dto.type ?? 'staff',

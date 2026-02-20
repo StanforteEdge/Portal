@@ -1,6 +1,6 @@
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import illustrationUrl from "@/assets/images/illustration.svg";
-import { BRAND_LOGO_ICON_DARK } from "@/constants/branding";
+import { BRAND_LOGO_ICON_WHITE, BRAND_LOGO_FULL_WHITE } from "@/constants/branding";
 import { FormInput, FormCheck } from "@/components/Base/Form";
 import Button from "@/components/Base/Button";
 import clsx from "clsx";
@@ -29,17 +29,13 @@ const loginSchema: yup.ObjectSchema<LoginFormValues> = yup.object({
   email: yup
     .string()
     .required("Email is required")
-    .email("Enter a valid email address")
-    .test(
-      "corporate-domain",
-      "Use your stanforteedge.com email",
-      (value) => !!value && value.toLowerCase().endsWith("@stanforteedge.com")
-    ),
+    .email("Enter a valid email address"),
   password: yup.string().required("Password is required"),
   remember: yup.boolean().optional(),
 });
 
 function Main() {
+  const RECENT_EMAILS_KEY = "portal_recent_login_emails";
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const location = useLocation();
@@ -49,6 +45,7 @@ function Main() {
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(
     null
   );
+  const [recentEmails, setRecentEmails] = useState<string[]>([]);
 
   const {
     register,
@@ -75,12 +72,39 @@ function Main() {
     }
   }, [isAuthenticated, authState.user, navigate, redirectFrom]);
 
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(RECENT_EMAILS_KEY);
+      if (!stored) return;
+      const parsed = JSON.parse(stored);
+      if (Array.isArray(parsed)) {
+        setRecentEmails(parsed.filter((item): item is string => typeof item === "string"));
+      }
+    } catch {
+      // ignore localStorage parsing errors
+    }
+  }, []);
+
   const onSubmit = async (values: LoginFormValues) => {
     try {
       setNotice(null);
       const result = await dispatch(
-        loginThunk({ email: values.email, password: values.password })
+        loginThunk({
+          email: values.email,
+          password: values.password,
+        })
       ).unwrap();
+
+      const normalizedEmail = values.email.trim().toLowerCase();
+      if (normalizedEmail) {
+        const nextEmails = [normalizedEmail, ...recentEmails.filter((item) => item !== normalizedEmail)].slice(0, 5);
+        setRecentEmails(nextEmails);
+        try {
+          window.localStorage.setItem(RECENT_EMAILS_KEY, JSON.stringify(nextEmails));
+        } catch {
+          // ignore localStorage write errors
+        }
+      }
 
       const redirectPath =
         redirectFrom ||
@@ -102,7 +126,7 @@ function Main() {
     <>
       <div
         className={clsx([
-          "p-3 sm:px-8 relative h-screen lg:overflow-hidden bg-primary xl:bg-white dark:bg-darkmode-800 xl:dark:bg-darkmode-600",
+          "p-8 sm:px-8 relative h-screen lg:overflow-hidden bg-primary xl:bg-white dark:bg-darkmode-800 xl:dark:bg-darkmode-600",
           "before:hidden before:xl:block before:content-[''] before:w-[57%] before:-mt-[28%] before:-mb-[16%] before:-ml-[13%] before:absolute before:inset-y-0 before:left-0 before:transform before:rotate-[-4.5deg] before:bg-primary/20 before:rounded-[100%] before:dark:bg-darkmode-400",
           "after:hidden after:xl:block after:content-[''] after:w-[57%] after:-mt-[20%] after:-mb-[13%] after:-ml-[13%] after:absolute after:inset-y-0 after:left-0 after:transform after:rotate-[-4.5deg] after:bg-primary after:rounded-[100%] after:dark:bg-darkmode-700",
         ])}
@@ -116,7 +140,7 @@ function Main() {
                 <img
                   alt="Stanforte Edge"
                   className="w-6"
-                  src={BRAND_LOGO_ICON_DARK}
+                  src={BRAND_LOGO_ICON_WHITE}
                   width={24}
                   height={24}
                 />
@@ -142,21 +166,18 @@ function Main() {
             </div>
             {/* END: Login Info */}
             {/* BEGIN: Login Form */}
-            <div className="flex h-screen py-5 my-10 xl:h-auto xl:py-0 xl:my-0">
+            <div className="flex flex-col h-screen py-5 my-10 xl:h-auto xl:py-0 xl:my-0">
+              <div className="flex items-center justify-center mb-4 xl:hidden">
+                <img
+                  alt="Stanforte Edge"
+                  className="w-44 h-auto"
+                  src={BRAND_LOGO_FULL_WHITE}
+                  width={176}
+                  height={44}
+                />
+              </div>
               <div className="w-full px-5 py-8 mx-auto my-auto bg-white rounded-md shadow-md xl:ml-20 dark:bg-darkmode-600 xl:bg-transparent sm:px-8 xl:p-0 xl:shadow-none sm:w-3/4 lg:w-2/4 xl:w-auto">
                 <form onSubmit={handleSubmit(onSubmit)}>
-                  <div className="flex items-center justify-center mb-4 xl:hidden">
-                    <img
-                      alt="Stanforte Edge"
-                      className="w-8 h-8"
-                      src={BRAND_LOGO_ICON_DARK}
-                      width={32}
-                      height={32}
-                    />
-                    <span className="ml-2 text-base font-medium text-slate-700 dark:text-slate-200">
-                      Stanforte Edge
-                    </span>
-                  </div>
                   <h2 className="text-2xl font-bold text-center intro-x xl:text-3xl xl:text-left">
                     Sign In
                   </h2>
@@ -177,8 +198,14 @@ function Main() {
                         className="block px-4 py-3 intro-x min-w-full xl:min-w-[350px]"
                         placeholder="Email"
                         autoComplete="email"
+                        list="recent-login-emails"
                         {...register("email")}
                       />
+                      <datalist id="recent-login-emails">
+                        {recentEmails.map((item) => (
+                          <option key={item} value={item} />
+                        ))}
+                      </datalist>
                       {errors.email?.message && (
                         <p className="mt-2 text-sm text-danger">
                           {errors.email.message}

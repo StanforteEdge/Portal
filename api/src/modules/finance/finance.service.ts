@@ -276,6 +276,7 @@ export class FinanceService {
       },
       notifiableType: 'request',
       notifiableId: request.id,
+      emailSubject: `Request disbursed (${await this.getFormattedRequestNumber(request.id)})`,
       emailThreadKey: `request-${request.id.toString()}-pv-${voucherNumber}`
     });
 
@@ -384,6 +385,28 @@ export class FinanceService {
       where: { requestId }
     });
     return `PV/${year}/${requestId.toString()}/${String(count + 1).padStart(3, '0')}`;
+  }
+
+  private async getFormattedRequestNumber(requestId: bigint): Promise<string> {
+    const request = await this.prisma.requestInstance.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        createdAt: true,
+        data: true,
+        requestType: { select: { codePrefix: true } }
+      }
+    });
+    if (!request) return `REQ/${new Date().getFullYear()}/${requestId.toString()}`;
+
+    const data =
+      request.data && typeof request.data === 'object' && !Array.isArray(request.data)
+        ? (request.data as Record<string, unknown>)
+        : {};
+    const manual = typeof data.manual_request_number === 'string' ? data.manual_request_number.trim() : '';
+    if (manual) return manual;
+    const codePrefix = (request.requestType?.codePrefix || 'REQ').toUpperCase();
+    return `${codePrefix}/${request.createdAt.getFullYear()}/${request.id.toString()}`;
   }
 
   private normalizeSettings(data: unknown) {

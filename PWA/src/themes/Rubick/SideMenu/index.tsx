@@ -15,7 +15,7 @@ import {
 } from "./side-menu";
 import Tippy from "@/components/Base/Tippy";
 import Lucide from "@/components/Base/Lucide";
-import { BRAND_LOGO_ICON_DARK } from "@/constants/branding";
+import { BRAND_LOGO_ICON_WHITE } from "@/constants/branding";
 import clsx from "clsx";
 import TopBar from "@/components/Themes/Rubick/TopBar";
 import MobileMenu from "@/components/MobileMenu";
@@ -61,11 +61,11 @@ function Main() {
           {/* BEGIN: Side Menu */}
           <nav className="side-nav hidden w-[80px] overflow-x-hidden pb-16 pr-5 md:block xl:w-[230px]">
             <Link to="/" className="flex items-center pt-4 pl-5 intro-x">
-              <img
-                alt="Midone Tailwind HTML Admin Template"
-                className="w-6"
-                src={BRAND_LOGO_ICON_DARK}
-              />
+                <img
+                  alt="Midone Tailwind HTML Admin Template"
+                  className="w-6"
+                  src={BRAND_LOGO_ICON_WHITE}
+                />
               <span className="hidden ml-3 text-lg text-white xl:block">
                 Stanforte Edge
               </span>

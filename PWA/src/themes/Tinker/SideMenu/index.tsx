@@ -15,7 +15,7 @@ import {
 } from "./side-menu";
 import Tippy from "@/components/Base/Tippy";
 import Lucide from "@/components/Base/Lucide";
-import { BRAND_LOGO_ICON_DARK } from "@/constants/branding";
+import { BRAND_LOGO_ICON_WHITE } from "@/constants/branding";
 import clsx from "clsx";
 import TopBar from "@/components/Themes/Tinker/TopBar";
 import MobileMenu from "@/components/MobileMenu";
@@ -64,7 +64,7 @@ function Main() {
               <img
                 alt="Tinker Tailwind HTML Admin Template"
                 className="w-6"
-                src={BRAND_LOGO_ICON_DARK}
+                src={BRAND_LOGO_ICON_WHITE}
               />
               <span className="hidden ml-3 text-lg text-white xl:block">
                 Stanforte Edge

@@ -2,9 +2,10 @@ import { IsArray, IsEmail, IsOptional, IsString, MinLength } from 'class-validat
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateUserDto {
-  @ApiProperty({ example: 'jdoe' })
+  @ApiPropertyOptional({ example: 'jdoe' })
+  @IsOptional()
   @IsString()
-  username!: string;
+  username?: string;
 
   @ApiProperty({ example: 'jdoe@stanforteedge.com' })
   @IsEmail()

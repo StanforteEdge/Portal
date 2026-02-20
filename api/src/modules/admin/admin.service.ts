@@ -5,6 +5,7 @@ import { toBigInt } from '../../common/utils/ids';
 import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
+import { generateUniqueUsername, makeUsernameSeed } from '../../common/utils/username';
 
 @Injectable()
 export class AdminService {
@@ -88,11 +89,20 @@ export class AdminService {
 
   async createUser(dto: CreateAdminUserDto) {
     const email = dto.email.trim().toLowerCase();
+    const requestedUsername = dto.username?.trim();
+    const username = requestedUsername
+      ? requestedUsername
+      : await generateUniqueUsername(
+          makeUsernameSeed(dto.first_name, dto.last_name, email.split('@')[0]),
+          async (candidate) =>
+            Boolean(await this.prisma.profile.findFirst({ where: { username: candidate } }))
+        );
 
-    const [emailExists, usernameExists] = await this.prisma.$transaction([
-      this.prisma.profile.findUnique({ where: { email } }),
-      this.prisma.profile.findUnique({ where: { username: dto.username } })
-    ]);
+    const checks = [this.prisma.profile.findUnique({ where: { email } })] as const;
+    const emailExists = await checks[0];
+    const usernameExists = requestedUsername
+      ? await this.prisma.profile.findFirst({ where: { username } })
+      : null;
 
     if (emailExists) throw new BadRequestException('Email already exists');
     if (usernameExists) throw new BadRequestException('Username already exists');
@@ -101,7 +111,7 @@ export class AdminService {
 
     const user = await this.prisma.profile.create({
       data: {
-        username: dto.username,
+        username,
         email,
         passwordHash,
         firstName: dto.first_name,

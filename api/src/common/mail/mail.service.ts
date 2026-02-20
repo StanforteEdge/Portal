@@ -159,8 +159,12 @@ export class MailService {
     const messageId = `<thread-${normalizedThread}-${Date.now()}-${Math.random().toString(16).slice(2)}@${domain}>`;
 
     try {
+      const fromName = (process.env.MAIL_FROM_NAME || '').trim();
+      const fromAddress = process.env.MAIL_FROM;
+      const from = fromName ? `"${fromName.replace(/"/g, '\\"')}" <${fromAddress}>` : fromAddress;
+
       const info = await this.transporter.sendMail({
-        from: process.env.MAIL_FROM,
+        from,
         to: input.to,
         subject: input.subject,
         text: input.text,

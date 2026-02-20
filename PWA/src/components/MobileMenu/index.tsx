@@ -90,6 +90,12 @@ function Main() {
               }}
             />
           </a>
+          <div className="px-5 pt-6 pb-3">
+            <div className="text-white text-xl font-bold tracking-wide">
+              Menu
+            </div>
+            <div className="mt-2 h-px bg-white/15" />
+          </div>
           <ul className="py-2">
             {/* BEGIN: First Child */}
             {formattedMenu.map((menu, menuKey) =>
