@@ -74,7 +74,7 @@ function FinanceManualEntryPage() {
   const [form, setForm] = useState({
     request_type_id: "",
     staff_id: "",
-    request_number: "",
+    request_id: "",
     team_id: "",
     organization_id: "",
     project_id: "",
@@ -158,7 +158,7 @@ function FinanceManualEntryPage() {
   }, []);
 
   useEffect(() => {
-    const manualNumber = String(form.request_number || "").trim();
+    const manualNumber = String(form.request_id || "").trim();
     if (!manualNumber) {
       setNumberExists({ exists: false, requestId: null });
       return;
@@ -184,19 +184,19 @@ function FinanceManualEntryPage() {
     }, 250);
 
     return () => window.clearTimeout(timer);
-  }, [form.request_number, form.request_type_id, editingId]);
+  }, [form.request_id, form.request_type_id, editingId]);
 
   const saveManualRequest = async () => {
     if (!form.request_type_id || !form.staff_id) {
       setNotice({ tone: "warning", message: "Request type and staff are required." });
       return;
     }
-    if (form.request_number && !/^\d+$/.test(form.request_number)) {
-      setNotice({ tone: "warning", message: "Request number must be digits only (e.g. 25)." });
+    if (form.request_id && !/^\d+$/.test(form.request_id)) {
+      setNotice({ tone: "warning", message: "Request ID must be digits only (e.g. 25)." });
       return;
     }
     if (numberExists.exists && numberExists.requestId && numberExists.requestId !== editingId) {
-      setNotice({ tone: "warning", message: `Request number already exists (Request ID ${numberExists.requestId}).` });
+      setNotice({ tone: "warning", message: `Request ID already exists (Request ID ${numberExists.requestId}).` });
       return;
     }
     try {
@@ -216,7 +216,7 @@ function FinanceManualEntryPage() {
       const payload = {
         request_type_id: form.request_type_id,
         staff_id: form.staff_id,
-        request_number: form.request_number || undefined,
+        request_id: form.request_id || undefined,
         team_id: form.team_id || undefined,
         organization_id: form.organization_id || undefined,
         status: form.status,
@@ -291,7 +291,7 @@ function FinanceManualEntryPage() {
         ...prev,
         request_type_id: req.request_type?.id || "",
         staff_id: req.creator?.id || "",
-        request_number: String(data.manual_request_number || "").trim(),
+        request_id: String(req.id || "").trim(),
         team_id: String(data.team_id || ""),
         organization_id: String(data.organization_id || ""),
         project_id: String(data.project_id || ""),
@@ -459,11 +459,11 @@ function FinanceManualEntryPage() {
           <div className="col-span-12 md:col-span-4"><FormLabel>Request Type</FormLabel><FormSelect value={form.request_type_id} onChange={(e) => setForm((p) => ({ ...p, request_type_id: e.target.value }))}><option value="">Select</option>{typeOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</FormSelect></div>
           <div className="col-span-12 md:col-span-4"><FormLabel>Staff</FormLabel><FormSelect value={form.staff_id} onChange={(e) => setForm((p) => ({ ...p, staff_id: e.target.value }))}><option value="">Select</option>{staffOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</FormSelect></div>
           <div className="col-span-12 md:col-span-4">
-            <FormLabel>Manual Request Number (Digits)</FormLabel>
+            <FormLabel>Request ID (Digits)</FormLabel>
             <FormInput
               type="number"
-              value={form.request_number}
-              onChange={(e) => setForm((p) => ({ ...p, request_number: e.target.value.replace(/[^\d]/g, "") }))}
+              value={form.request_id}
+              onChange={(e) => setForm((p) => ({ ...p, request_id: e.target.value.replace(/[^\d]/g, "") }))}
               placeholder="25"
             />
             <div className="mt-1 text-xs text-slate-500">

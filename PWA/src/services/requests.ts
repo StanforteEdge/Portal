@@ -238,7 +238,7 @@ export async function generateRequestPvByVoucher(id: string, voucherId: string) 
 export async function createManualRequestEntry(payload: {
   request_type_id: string;
   staff_id: string;
-  request_number?: string;
+  request_id?: string;
   team_id?: string;
   organization_id?: string;
   status?: string;
@@ -259,7 +259,7 @@ export async function updateManualRequestEntry(
   payload: {
     request_type_id: string;
     staff_id: string;
-    request_number?: string;
+    request_id?: string;
     team_id?: string;
     organization_id?: string;
     status?: string;
@@ -282,12 +282,12 @@ export async function deleteManualRequestEntry(id: string) {
 }
 
 export async function checkManualRequestNumber(
-  requestNumber: string,
+  requestId: string,
   params?: { request_type_id?: string; exclude_id?: string }
 ) {
   const response = await apiClient.get("/requests/manual-entry/check-number", {
     params: {
-      request_number: requestNumber,
+      request_id: requestId,
       ...(params?.request_type_id ? { request_type_id: params.request_type_id } : {}),
       ...(params?.exclude_id ? { exclude_id: params.exclude_id } : {}),
     },

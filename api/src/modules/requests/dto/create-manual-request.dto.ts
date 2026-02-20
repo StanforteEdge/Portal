@@ -118,10 +118,11 @@ export class CreateManualRequestDto {
   @Matches(/^\d+$/, { message: 'staff_id must be numeric profile id' })
   staff_id!: string;
 
-  @ApiPropertyOptional({ example: 'PC/2025/025' })
+  @ApiPropertyOptional({ example: '25', description: 'Optional explicit request ID for legacy import' })
   @IsOptional()
   @IsString()
-  request_number?: string;
+  @Matches(/^\d+$/, { message: 'request_id must be numeric request id' })
+  request_id?: string;
 
   @ApiPropertyOptional({ example: '1' })
   @IsOptional()
@@ -181,4 +182,3 @@ export class CreateManualRequestDto {
   @Type(() => ManualVoucherDto)
   disbursements?: ManualVoucherDto[];
 }
-

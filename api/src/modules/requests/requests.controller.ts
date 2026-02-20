@@ -270,11 +270,11 @@ export class RequestsController {
   @Get('manual-entry/check-number')
   @Permissions('requests.manage')
   checkManualRequestNumber(
-    @Query('request_number') requestNumber?: string,
+    @Query('request_id') requestId?: string,
     @Query('request_type_id') requestTypeId?: string,
     @Query('exclude_id') excludeId?: string
   ) {
-    return this.requestsService.checkManualRequestNumber(requestNumber, requestTypeId, excludeId);
+    return this.requestsService.checkManualRequestNumber(requestId, requestTypeId, excludeId);
   }
 
   @Post(':id/manual-entry')

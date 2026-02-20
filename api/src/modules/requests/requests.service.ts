@@ -227,10 +227,15 @@ export class RequestsService {
     const createdAt = dto.created_at ? new Date(dto.created_at) : new Date();
     if (Number.isNaN(createdAt.getTime())) throw new BadRequestException('Invalid created_at');
 
+    const explicitRequestId = dto.request_id ? toBigInt(dto.request_id) : null;
+    if (explicitRequestId) {
+      const taken = await this.prisma.requestInstance.findUnique({ where: { id: explicitRequestId }, select: { id: true } });
+      if (taken) throw new BadRequestException(`request_id ${dto.request_id} already exists`);
+    }
+
     const baseData: Record<string, unknown> = {
       ...(dto.data ?? {}),
       manual_import: true,
-      ...(dto.request_number ? { manual_request_number: dto.request_number } : {}),
       manual_approvals: (dto.approvals ?? []).map((row) => ({
         role: row.role,
         name: row.name ?? null,
@@ -245,6 +250,7 @@ export class RequestsService {
     const created = await this.prisma.$transaction(async (tx) => {
       const request = await tx.requestInstance.create({
         data: {
+          ...(explicitRequestId ? { id: explicitRequestId } : {}),
           requestTypeId: requestType.id,
           groupId: requestType.groupId,
           createdBy: staff.id,
@@ -300,6 +306,12 @@ export class RequestsService {
             }
           });
         }
+      }
+
+      if (explicitRequestId) {
+        await tx.$executeRawUnsafe(
+          "SELECT setval(pg_get_serial_sequence('sta_request_instances','id'), (SELECT COALESCE(MAX(id), 1) FROM sta_request_instances), true)"
+        );
       }
 
       return request;
@@ -358,7 +370,6 @@ export class RequestsService {
     const baseData: Record<string, unknown> = {
       ...(dto.data ?? {}),
       manual_import: true,
-      ...(dto.request_number ? { manual_request_number: dto.request_number } : {}),
       manual_approvals: (dto.approvals ?? []).map((row) => ({
         role: row.role,
         name: row.name ?? null,
@@ -451,19 +462,19 @@ export class RequestsService {
     return { success: true };
   }
 
-  async checkManualRequestNumber(requestNumber?: string, requestTypeId?: string, excludeId?: string) {
-    const raw = String(requestNumber || '').trim();
+  async checkManualRequestNumber(requestId?: string, requestTypeId?: string, excludeId?: string) {
+    const raw = String(requestId || '').trim();
     if (!raw) {
+      return { exists: false };
+    }
+    if (!/^\d+$/.test(raw)) {
       return { exists: false };
     }
 
     const where: Prisma.RequestInstanceWhereInput = {
       ...(requestTypeId ? { requestTypeId } : {}),
       ...(excludeId ? { id: { not: toBigInt(excludeId) } } : {}),
-      data: {
-        path: ['manual_request_number'],
-        equals: raw
-      }
+      id: toBigInt(raw)
     };
 
     const found = await this.prisma.requestInstance.findFirst({
@@ -613,10 +624,8 @@ export class RequestsService {
     if (filters.status) where.status = filters.status;
     if (filters.created_by) where.createdBy = toBigInt(filters.created_by);
     if (filters.request_number) {
-      where.data = {
-        path: ['manual_request_number'],
-        equals: String(filters.request_number).trim()
-      };
+      const raw = String(filters.request_number).trim();
+      if (/^\d+$/.test(raw)) where.id = toBigInt(raw);
     }
 
     // If no view-all permission, restrict to current user (handled by PermissionsGuard upstream)
@@ -1007,7 +1016,7 @@ export class RequestsService {
     });
 
     const zip = new JSZip();
-    const requestNumber = this.resolveRequestNumberFromRecord(request);
+    const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
     zip.file(`request/${requestNumber}.pdf`, requestPdf);
 
     const fileIdSet = new Set<string>();
@@ -1136,7 +1145,7 @@ export class RequestsService {
       paymentVouchers
     });
 
-    const requestNumber = this.resolveRequestNumberFromRecord(request);
+    const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
     const zip = new JSZip();
     zip.file(`request/${requestNumber}.pdf`, requestPdf);
     for (const item of request.items) {
@@ -1862,7 +1871,7 @@ export class RequestsService {
       `${request.creator.firstName ?? ''} ${request.creator.lastName ?? ''}`.trim() ||
       request.creator.username ||
       request.creator.email;
-    const requestNumber = this.resolveRequestNumberFromRecord(request);
+    const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
 
     const disbursedTotal = paymentVouchers.reduce((sum, pv) => sum + Number(pv.amount), 0);
     const retiredTotal = paymentVouchers.reduce((sum, pv) => sum + Number(pv.retiredAmount), 0);
@@ -2284,7 +2293,7 @@ export class RequestsService {
 
   private serializeRequest(request: any): RequestResponseDto {
     const createdAt = new Date(request.createdAt);
-    const requestNumber = this.resolveRequestNumberFromRecord(request);
+    const requestNumber = this.getRequestNumber(request.requestType?.codePrefix, request.createdAt.getFullYear(), request.id);
     const voucherNumber = this.extractVoucherNumber(request.data);
 
     return {
@@ -2377,39 +2386,7 @@ export class RequestsService {
     });
     if (!request) return `REQ/${new Date().getFullYear()}/${requestId.toString()}`;
 
-    return this.resolveRequestNumberFromRecord(request);
-  }
-
-  private resolveRequestNumberFromRecord(request: {
-    id: bigint;
-    createdAt: Date;
-    data?: unknown;
-    requestType?: { codePrefix?: string | null } | null;
-  }): string {
-    const manual = this.extractManualRequestNumber(request.data);
-    if (manual) {
-      return this.formatManualRequestNumber(manual, request.requestType?.codePrefix ?? undefined, request.createdAt.getFullYear());
-    }
-    return this.getRequestNumber(request.requestType?.codePrefix ?? undefined, request.createdAt.getFullYear(), request.id);
-  }
-
-  private extractManualRequestNumber(data: unknown): string | null {
-    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-    const manual = (data as Record<string, unknown>).manual_request_number;
-    if (typeof manual !== 'string') return null;
-    const value = manual.trim();
-    return value.length ? value : null;
-  }
-
-  private formatManualRequestNumber(manual: string, codePrefix: string | undefined, year: number): string {
-    // If manual value is already fully formatted, keep it as source-of-truth.
-    if (manual.includes('/')) return manual;
-    if (/^\d+$/.test(manual)) {
-      return this.getRequestNumber(codePrefix, year, BigInt(manual));
-    }
-    const rawPrefix = (codePrefix || 'REQ').toUpperCase();
-    const prefix = rawPrefix.includes('PC') ? 'PC' : rawPrefix.includes('OP') ? 'OP' : rawPrefix;
-    return `${prefix}/${year}/${manual}`;
+    return this.getRequestNumber(request.requestType?.codePrefix, request.createdAt.getFullYear(), request.id);
   }
 
   private getRequestThreadKey(requestNumber: string): string {
