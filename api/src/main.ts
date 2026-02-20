@@ -12,6 +12,17 @@ import { ResponseEnvelopeInterceptor } from './common/http/response-envelope.int
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
+  const expressApp = app.getHttpAdapter().getInstance();
+
+  // Behind nginx/reverse proxy, trust X-Forwarded-* headers for correct client IP.
+  const trustProxyRaw = String(process.env.TRUST_PROXY ?? (process.env.NODE_ENV === 'production' ? '1' : '0'));
+  if (trustProxyRaw === 'true' || trustProxyRaw === '1') {
+    expressApp.set('trust proxy', 1);
+  } else if (trustProxyRaw === 'false' || trustProxyRaw === '0') {
+    expressApp.set('trust proxy', false);
+  } else {
+    expressApp.set('trust proxy', trustProxyRaw);
+  }
 
   const corsOrigins = (process.env.CORS_ORIGINS || '')
     .split(',')
@@ -81,7 +92,7 @@ async function bootstrap() {
   }
 
   // Permanent JSON-level BigInt handling for all API responses.
-  app.getHttpAdapter().getInstance().set('json replacer', (_key: string, value: unknown) =>
+  expressApp.set('json replacer', (_key: string, value: unknown) =>
     typeof value === 'bigint' ? value.toString() : value
   );
 
