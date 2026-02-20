@@ -11,6 +11,26 @@ export class UpsertFinanceAccountDto {
   @IsString()
   code?: string;
 
+  @ApiPropertyOptional({ example: 'First Bank' })
+  @IsOptional()
+  @IsString()
+  bank_name?: string;
+
+  @ApiPropertyOptional({ example: 'Stanforte Edge Ltd' })
+  @IsOptional()
+  @IsString()
+  account_name?: string;
+
+  @ApiPropertyOptional({ example: '0123456789' })
+  @IsOptional()
+  @IsString()
+  account_number?: string;
+
+  @ApiPropertyOptional({ example: 'Ikeja Branch' })
+  @IsOptional()
+  @IsString()
+  branch_name?: string;
+
   @ApiPropertyOptional({ example: 'bank', enum: ['bank', 'cash', 'wallet', 'other'] })
   @IsOptional()
   @IsIn(['bank', 'cash', 'wallet', 'other'])
@@ -36,4 +56,3 @@ export class UpsertFinanceAccountDto {
   @IsOptional()
   metadata?: Record<string, unknown>;
 }
-

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import Table from "@/components/Base/Table";
 import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
@@ -13,6 +14,7 @@ import {
 import { formatMoney } from "@/utils/formatting";
 
 function FinanceAccountsPage() {
+  const navigate = useNavigate();
   const [accounts, setAccounts] = useState<FinanceAccountRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -24,6 +26,10 @@ function FinanceAccountsPage() {
     name: "",
     code: "",
     account_type: "bank",
+    bank_name: "",
+    account_name: "",
+    account_number: "",
+    branch_name: "",
     currency: "NGN",
     opening_balance: "",
   });
@@ -51,7 +57,17 @@ function FinanceAccountsPage() {
 
   const openCreate = () => {
     setEditingAccountId("");
-    setForm({ name: "", code: "", account_type: "bank", currency: "NGN", opening_balance: "" });
+    setForm({
+      name: "",
+      code: "",
+      account_type: "bank",
+      bank_name: "",
+      account_name: "",
+      account_number: "",
+      branch_name: "",
+      currency: "NGN",
+      opening_balance: "",
+    });
     setShowAccountModal(true);
   };
 
@@ -61,6 +77,10 @@ function FinanceAccountsPage() {
       name: account.name,
       code: account.code || "",
       account_type: account.account_type,
+      bank_name: account.bank_name || "",
+      account_name: account.account_name || "",
+      account_number: account.account_number || "",
+      branch_name: account.branch_name || "",
       currency: account.currency || "NGN",
       opening_balance: String(account.opening_balance ?? 0),
     });
@@ -74,6 +94,10 @@ function FinanceAccountsPage() {
         name: account.name,
         code: account.code || undefined,
         account_type: account.account_type as "bank" | "cash" | "wallet" | "other",
+        bank_name: account.bank_name || undefined,
+        account_name: account.account_name || undefined,
+        account_number: account.account_number || undefined,
+        branch_name: account.branch_name || undefined,
         currency: account.currency,
         opening_balance: Number(account.opening_balance || 0),
         is_active: !account.is_active,
@@ -99,6 +123,10 @@ function FinanceAccountsPage() {
           name: form.name.trim(),
           code: form.code.trim() || undefined,
           account_type: form.account_type as "bank" | "cash" | "wallet" | "other",
+          bank_name: form.bank_name.trim() || undefined,
+          account_name: form.account_name.trim() || undefined,
+          account_number: form.account_number.trim() || undefined,
+          branch_name: form.branch_name.trim() || undefined,
           currency: form.currency.toUpperCase(),
           opening_balance: form.opening_balance.trim() ? Number(form.opening_balance) : 0,
           is_active: true,
@@ -108,6 +136,10 @@ function FinanceAccountsPage() {
           name: form.name.trim(),
           code: form.code.trim() || undefined,
           account_type: form.account_type as "bank" | "cash" | "wallet" | "other",
+          bank_name: form.bank_name.trim() || undefined,
+          account_name: form.account_name.trim() || undefined,
+          account_number: form.account_number.trim() || undefined,
+          branch_name: form.branch_name.trim() || undefined,
           currency: form.currency.toUpperCase(),
           opening_balance: form.opening_balance.trim() ? Number(form.opening_balance) : 0,
         });
@@ -143,6 +175,7 @@ function FinanceAccountsPage() {
             <Table.Tr>
               <Table.Th>Name</Table.Th>
               <Table.Th>Type</Table.Th>
+              <Table.Th>Bank Details</Table.Th>
               <Table.Th>Currency</Table.Th>
               <Table.Th>Opening</Table.Th>
               <Table.Th className="text-right">Action</Table.Th>
@@ -156,10 +189,19 @@ function FinanceAccountsPage() {
                   <div className="text-xs text-slate-500">{account.code || "-"}</div>
                 </Table.Td>
                 <Table.Td className="capitalize">{account.account_type}</Table.Td>
+                <Table.Td>
+                  <div className="text-xs">
+                    <div>{account.bank_name || "-"}</div>
+                    <div>{account.account_name || "-"}</div>
+                    <div>{account.account_number || "-"}</div>
+                    <div>{account.branch_name || "-"}</div>
+                  </div>
+                </Table.Td>
                 <Table.Td>{account.currency}</Table.Td>
                 <Table.Td>{formatMoney(account.opening_balance, "-", account.currency || "NGN")}</Table.Td>
                 <Table.Td className="text-right">
                   <div className="flex gap-2 justify-end">
+                    <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/finance/accounts/${account.id}`)}>View</Button>
                     <Button size="sm" variant="outline-secondary" onClick={() => openEdit(account)}>Edit</Button>
                     <Button size="sm" variant="outline-danger" onClick={() => void toggleStatus(account)} disabled={saving}>
                       {account.is_active ? "Deactivate" : "Activate"}
@@ -170,7 +212,7 @@ function FinanceAccountsPage() {
             ))}
             {!loading && accounts.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={5} className="text-center text-slate-500 py-6">No accounts yet.</Table.Td>
+                <Table.Td colSpan={6} className="text-center text-slate-500 py-6">No accounts yet.</Table.Td>
               </Table.Tr>
             ) : null}
           </Table.Tbody>
@@ -202,6 +244,26 @@ function FinanceAccountsPage() {
             </div>
             <div className="grid grid-cols-12 gap-3">
               <div className="col-span-6">
+                <FormLabel>Bank Name</FormLabel>
+                <FormInput value={form.bank_name} onChange={(e) => setForm((prev) => ({ ...prev, bank_name: e.target.value }))} />
+              </div>
+              <div className="col-span-6">
+                <FormLabel>Account Name</FormLabel>
+                <FormInput value={form.account_name} onChange={(e) => setForm((prev) => ({ ...prev, account_name: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-6">
+                <FormLabel>Account Number</FormLabel>
+                <FormInput value={form.account_number} onChange={(e) => setForm((prev) => ({ ...prev, account_number: e.target.value }))} />
+              </div>
+              <div className="col-span-6">
+                <FormLabel>Branch</FormLabel>
+                <FormInput value={form.branch_name} onChange={(e) => setForm((prev) => ({ ...prev, branch_name: e.target.value }))} />
+              </div>
+            </div>
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-6">
                 <FormLabel>Currency</FormLabel>
                 <FormInput value={form.currency} onChange={(e) => setForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} />
               </div>
@@ -224,4 +286,3 @@ function FinanceAccountsPage() {
 }
 
 export default FinanceAccountsPage;
-

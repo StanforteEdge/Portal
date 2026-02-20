@@ -437,6 +437,10 @@ export class FinanceService {
       name: row.name,
       code: row.code,
       account_type: row.accountType,
+      bank_name: row.bankName,
+      account_name: row.accountName,
+      account_number: row.accountNumber,
+      branch_name: row.branchName,
       currency: row.currency,
       opening_balance: Number(row.openingBalance),
       is_active: row.isActive,
@@ -445,12 +449,37 @@ export class FinanceService {
     }));
   }
 
+  async getAccount(id: string) {
+    const row = await this.prisma.financeAccount.findUnique({ where: { id } });
+    if (!row) throw new NotFoundException('Account not found');
+    return {
+      id: row.id,
+      organization_id: row.organizationId?.toString() ?? null,
+      name: row.name,
+      code: row.code,
+      account_type: row.accountType,
+      bank_name: row.bankName,
+      account_name: row.accountName,
+      account_number: row.accountNumber,
+      branch_name: row.branchName,
+      currency: row.currency,
+      opening_balance: Number(row.openingBalance),
+      is_active: row.isActive,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt
+    };
+  }
+
   async createAccount(dto: UpsertFinanceAccountDto, actorId?: string) {
     const row = await this.prisma.financeAccount.create({
       data: {
         name: dto.name.trim(),
         code: dto.code?.trim() || null,
         accountType: dto.account_type ?? 'bank',
+        bankName: dto.bank_name?.trim() || null,
+        accountName: dto.account_name?.trim() || null,
+        accountNumber: dto.account_number?.trim() || null,
+        branchName: dto.branch_name?.trim() || null,
         currency: (dto.currency ?? 'NGN').toUpperCase(),
         openingBalance: dto.opening_balance ?? 0,
         isActive: dto.is_active ?? true,
@@ -481,6 +510,10 @@ export class FinanceService {
       name: row.name,
       code: row.code,
       account_type: row.accountType,
+      bank_name: row.bankName,
+      account_name: row.accountName,
+      account_number: row.accountNumber,
+      branch_name: row.branchName,
       currency: row.currency,
       opening_balance: Number(row.openingBalance),
       is_active: row.isActive,
@@ -499,6 +532,10 @@ export class FinanceService {
         name: dto.name.trim(),
         code: dto.code?.trim() || null,
         accountType: dto.account_type ?? existing.accountType,
+        bankName: dto.bank_name?.trim() || existing.bankName,
+        accountName: dto.account_name?.trim() || existing.accountName,
+        accountNumber: dto.account_number?.trim() || existing.accountNumber,
+        branchName: dto.branch_name?.trim() || existing.branchName,
         currency: (dto.currency ?? existing.currency).toUpperCase(),
         openingBalance: dto.opening_balance ?? existing.openingBalance,
         isActive: dto.is_active ?? existing.isActive,
@@ -512,6 +549,10 @@ export class FinanceService {
       name: row.name,
       code: row.code,
       account_type: row.accountType,
+      bank_name: row.bankName,
+      account_name: row.accountName,
+      account_number: row.accountNumber,
+      branch_name: row.branchName,
       currency: row.currency,
       opening_balance: Number(row.openingBalance),
       is_active: row.isActive,
@@ -697,7 +738,15 @@ export class FinanceService {
     const where: Prisma.FinanceLedgerEntryWhereInput = {
       ...(query.account_id ? { accountId: String(query.account_id) } : {}),
       ...(query.direction ? { direction: String(query.direction) } : {}),
-      ...(query.source_type ? { sourceType: String(query.source_type) } : {})
+      ...(query.source_type ? { sourceType: String(query.source_type) } : {}),
+      ...(query.from || query.to
+        ? {
+            entryDate: {
+              ...(query.from ? { gte: new Date(String(query.from)) } : {}),
+              ...(query.to ? { lte: new Date(String(query.to)) } : {})
+            }
+          }
+        : {})
     };
     const rows = await this.prisma.financeLedgerEntry.findMany({
       where,

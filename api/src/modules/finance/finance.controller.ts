@@ -64,6 +64,13 @@ export class FinanceController {
     return this.financeService.listAccounts(query);
   }
 
+  @Get('accounts/:id')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'Get single finance account details' })
+  getAccount(@Param('id') id: string) {
+    return this.financeService.getAccount(id);
+  }
+
   @Post('accounts')
   @Permissions('requests.manage')
   @ApiOperation({ summary: 'Create finance account' })

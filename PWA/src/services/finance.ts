@@ -89,6 +89,10 @@ export type FinanceAccountRecord = {
   name: string;
   code: string | null;
   account_type: string;
+  bank_name: string | null;
+  account_name: string | null;
+  account_number: string | null;
+  branch_name: string | null;
   currency: string;
   opening_balance: number;
   is_active: boolean;
@@ -101,10 +105,19 @@ export async function listFinanceAccounts(params?: Record<string, unknown>) {
   return (response.data?.data ?? []) as FinanceAccountRecord[];
 }
 
+export async function getFinanceAccount(id: string) {
+  const response = await apiClient.get(`/finance/accounts/${id}`);
+  return response.data?.data as FinanceAccountRecord;
+}
+
 export async function createFinanceAccount(payload: {
   name: string;
   code?: string;
   account_type?: "bank" | "cash" | "wallet" | "other";
+  bank_name?: string;
+  account_name?: string;
+  account_number?: string;
+  branch_name?: string;
   currency?: string;
   opening_balance?: number;
   is_active?: boolean;
@@ -120,6 +133,10 @@ export async function updateFinanceAccount(
     name: string;
     code?: string;
     account_type?: "bank" | "cash" | "wallet" | "other";
+    bank_name?: string;
+    account_name?: string;
+    account_number?: string;
+    branch_name?: string;
     currency?: string;
     opening_balance?: number;
     is_active?: boolean;
