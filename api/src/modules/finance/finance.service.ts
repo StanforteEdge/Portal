@@ -7,6 +7,7 @@ import { UpdateFinanceSettingsDto } from './dto/update-finance-settings.dto';
 import { Prisma } from '@prisma/client';
 import { UpsertFinanceAccountDto } from './dto/upsert-finance-account.dto';
 import { CreateFinanceIncomeDto } from './dto/create-finance-income.dto';
+import { CreateTransferDto } from './dto/create-transfer.dto';
 
 @Injectable()
 export class FinanceService {
@@ -577,6 +578,118 @@ export class FinanceService {
       notes: income.notes,
       file_id: income.fileId,
       created_at: income.createdAt
+    };
+  }
+
+  async listIncome(query: Record<string, any>) {
+    const where: Prisma.FinanceIncomeEntryWhereInput = {
+      ...(query.account_id ? { accountId: String(query.account_id) } : {}),
+      ...(query.from || query.to
+        ? {
+            receivedAt: {
+              ...(query.from ? { gte: new Date(String(query.from)) } : {}),
+              ...(query.to ? { lte: new Date(String(query.to)) } : {})
+            }
+          }
+        : {})
+    };
+    const rows = await this.prisma.financeIncomeEntry.findMany({
+      where,
+      include: {
+        account: { select: { id: true, name: true, code: true } },
+        file: { select: { id: true, fileName: true, publicUrl: true } }
+      },
+      orderBy: { receivedAt: 'desc' },
+      take: Math.min(500, Math.max(1, Number(query.limit ?? 100)))
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      account_id: row.accountId,
+      account_name: row.account.name,
+      account_code: row.account.code,
+      amount: Number(row.amount),
+      currency: row.currency,
+      received_at: row.receivedAt,
+      reference: row.reference,
+      payer: row.payer,
+      notes: row.notes,
+      file: row.file
+        ? { id: row.file.id, file_name: row.file.fileName, public_url: row.file.publicUrl }
+        : null,
+      created_at: row.createdAt
+    }));
+  }
+
+  async createTransfer(dto: CreateTransferDto, actorId?: string) {
+    if (dto.from_account_id === dto.to_account_id) {
+      throw new BadRequestException('from_account_id and to_account_id must be different');
+    }
+    const [fromAccount, toAccount] = await this.prisma.$transaction([
+      this.prisma.financeAccount.findUnique({
+        where: { id: dto.from_account_id },
+        select: { id: true, name: true, isActive: true, currency: true }
+      }),
+      this.prisma.financeAccount.findUnique({
+        where: { id: dto.to_account_id },
+        select: { id: true, name: true, isActive: true, currency: true }
+      })
+    ]);
+    if (!fromAccount || !fromAccount.isActive) throw new BadRequestException('Invalid from_account_id');
+    if (!toAccount || !toAccount.isActive) throw new BadRequestException('Invalid to_account_id');
+    const amount = Number(dto.amount || 0);
+    if (amount <= 0) throw new BadRequestException('Transfer amount must be greater than zero');
+
+    const transferAt = dto.transfer_at ? new Date(dto.transfer_at) : new Date();
+    if (Number.isNaN(transferAt.getTime())) throw new BadRequestException('Invalid transfer_at');
+    const currency = (dto.currency ?? fromAccount.currency ?? toAccount.currency ?? 'NGN').toUpperCase();
+    const sourceId = `transfer:${Date.now()}:${Math.random().toString(36).slice(2, 8)}`;
+    const description = dto.note?.trim() || `Transfer ${currency} ${amount} from ${fromAccount.name} to ${toAccount.name}`;
+
+    await this.prisma.$transaction([
+      this.prisma.financeLedgerEntry.create({
+        data: {
+          accountId: fromAccount.id,
+          direction: 'out',
+          amount,
+          currency,
+          entryDate: transferAt,
+          description,
+          sourceType: 'finance_transfer',
+          sourceId,
+          createdBy: actorId ? toBigInt(actorId) : null,
+          metadata: {
+            reference: dto.reference ?? null,
+            counterpart_account_id: toAccount.id
+          } as Prisma.InputJsonValue
+        }
+      }),
+      this.prisma.financeLedgerEntry.create({
+        data: {
+          accountId: toAccount.id,
+          direction: 'in',
+          amount,
+          currency,
+          entryDate: transferAt,
+          description,
+          sourceType: 'finance_transfer',
+          sourceId,
+          createdBy: actorId ? toBigInt(actorId) : null,
+          metadata: {
+            reference: dto.reference ?? null,
+            counterpart_account_id: fromAccount.id
+          } as Prisma.InputJsonValue
+        }
+      })
+    ]);
+
+    return {
+      success: true,
+      source_id: sourceId,
+      from_account_id: fromAccount.id,
+      to_account_id: toAccount.id,
+      amount,
+      currency,
+      transferred_at: transferAt
     };
   }
 

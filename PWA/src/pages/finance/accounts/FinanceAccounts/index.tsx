@@ -5,11 +5,13 @@ import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Bas
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
   createFinanceAccount,
+  createFinanceTransfer,
   createFinanceIncome,
   listFinanceAccounts,
   listFinanceLedger,
   type FinanceAccountRecord,
   type FinanceLedgerRecord,
+  updateFinanceAccount,
 } from "@/services/finance";
 import { formatDisplayDate, formatMoney } from "@/utils/formatting";
 
@@ -19,7 +21,9 @@ function FinanceAccountsPage() {
   const [loading, setLoading] = useState(false);
   const [savingAccount, setSavingAccount] = useState(false);
   const [savingIncome, setSavingIncome] = useState(false);
+  const [savingTransfer, setSavingTransfer] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
+  const [editingAccountId, setEditingAccountId] = useState<string>("");
 
   const [accountForm, setAccountForm] = useState({
     name: "",
@@ -38,6 +42,15 @@ function FinanceAccountsPage() {
     notes: "",
     received_at: "",
   });
+  const [transferForm, setTransferForm] = useState({
+    from_account_id: "",
+    to_account_id: "",
+    amount: "",
+    currency: "NGN",
+    reference: "",
+    note: "",
+    transfer_at: "",
+  });
 
   const load = async () => {
     try {
@@ -50,6 +63,12 @@ function FinanceAccountsPage() {
       setRecentLedger(ledgerRows);
       if (!incomeForm.account_id && accountRows[0]?.id) {
         setIncomeForm((prev) => ({ ...prev, account_id: accountRows[0].id }));
+      }
+      if (!transferForm.from_account_id && accountRows[0]?.id) {
+        setTransferForm((prev) => ({ ...prev, from_account_id: accountRows[0].id }));
+      }
+      if (!transferForm.to_account_id && accountRows[1]?.id) {
+        setTransferForm((prev) => ({ ...prev, to_account_id: accountRows[1].id }));
       }
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load finance accounts." });
@@ -75,18 +94,61 @@ function FinanceAccountsPage() {
     }
     try {
       setSavingAccount(true);
-      await createFinanceAccount({
-        name: accountForm.name.trim(),
-        code: accountForm.code.trim() || undefined,
-        account_type: accountForm.account_type as "bank" | "cash" | "wallet" | "other",
-        currency: accountForm.currency.toUpperCase(),
-        opening_balance: accountForm.opening_balance.trim() ? Number(accountForm.opening_balance) : 0,
-      });
+      if (editingAccountId) {
+        await updateFinanceAccount(editingAccountId, {
+          name: accountForm.name.trim(),
+          code: accountForm.code.trim() || undefined,
+          account_type: accountForm.account_type as "bank" | "cash" | "wallet" | "other",
+          currency: accountForm.currency.toUpperCase(),
+          opening_balance: accountForm.opening_balance.trim() ? Number(accountForm.opening_balance) : 0,
+          is_active: true,
+        });
+      } else {
+        await createFinanceAccount({
+          name: accountForm.name.trim(),
+          code: accountForm.code.trim() || undefined,
+          account_type: accountForm.account_type as "bank" | "cash" | "wallet" | "other",
+          currency: accountForm.currency.toUpperCase(),
+          opening_balance: accountForm.opening_balance.trim() ? Number(accountForm.opening_balance) : 0,
+        });
+      }
       setAccountForm({ name: "", code: "", account_type: "bank", currency: "NGN", opening_balance: "" });
-      setNotice({ tone: "success", message: "Account created." });
+      setEditingAccountId("");
+      setNotice({ tone: "success", message: editingAccountId ? "Account updated." : "Account created." });
       await load();
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to create account." });
+    } finally {
+      setSavingAccount(false);
+    }
+  };
+
+  const editAccount = (account: FinanceAccountRecord) => {
+    setEditingAccountId(account.id);
+    setAccountForm({
+      name: account.name,
+      code: account.code || "",
+      account_type: account.account_type,
+      currency: account.currency || "NGN",
+      opening_balance: String(account.opening_balance ?? 0),
+    });
+  };
+
+  const toggleAccount = async (account: FinanceAccountRecord) => {
+    try {
+      setSavingAccount(true);
+      await updateFinanceAccount(account.id, {
+        name: account.name,
+        code: account.code || undefined,
+        account_type: account.account_type as "bank" | "cash" | "wallet" | "other",
+        currency: account.currency,
+        opening_balance: Number(account.opening_balance || 0),
+        is_active: !account.is_active,
+      });
+      setNotice({ tone: "success", message: account.is_active ? "Account deactivated." : "Account activated." });
+      await load();
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to update account status." });
     } finally {
       setSavingAccount(false);
     }
@@ -118,6 +180,32 @@ function FinanceAccountsPage() {
     }
   };
 
+  const submitTransfer = async () => {
+    if (!transferForm.from_account_id || !transferForm.to_account_id || !transferForm.amount.trim()) {
+      setNotice({ tone: "warning", message: "From account, To account, and amount are required." });
+      return;
+    }
+    try {
+      setSavingTransfer(true);
+      await createFinanceTransfer({
+        from_account_id: transferForm.from_account_id,
+        to_account_id: transferForm.to_account_id,
+        amount: Number(transferForm.amount),
+        currency: transferForm.currency.toUpperCase(),
+        reference: transferForm.reference.trim() || undefined,
+        note: transferForm.note.trim() || undefined,
+        transfer_at: transferForm.transfer_at || undefined,
+      });
+      setTransferForm((prev) => ({ ...prev, amount: "", reference: "", note: "", transfer_at: "" }));
+      setNotice({ tone: "success", message: "Transfer posted to ledger." });
+      await load();
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to post transfer." });
+    } finally {
+      setSavingTransfer(false);
+    }
+  };
+
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
@@ -144,12 +232,13 @@ function FinanceAccountsPage() {
                   <Table.Th>Name</Table.Th>
                   <Table.Th>Type</Table.Th>
                   <Table.Th>Currency</Table.Th>
-                  <Table.Th>Opening</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {accounts.map((account) => (
-                  <Table.Tr key={account.id}>
+                <Table.Th>Opening</Table.Th>
+                <Table.Th className="text-right">Action</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {accounts.map((account) => (
+                <Table.Tr key={account.id}>
                     <Table.Td>
                       <div className="font-medium">{account.name}</div>
                       <div className="text-xs text-slate-500">{account.code || "-"}</div>
@@ -157,11 +246,19 @@ function FinanceAccountsPage() {
                     <Table.Td className="capitalize">{account.account_type}</Table.Td>
                     <Table.Td>{account.currency}</Table.Td>
                     <Table.Td>{formatMoney(account.opening_balance, "-", account.currency || "NGN")}</Table.Td>
+                    <Table.Td className="text-right">
+                      <div className="flex gap-2 justify-end">
+                        <Button size="sm" variant="outline-secondary" onClick={() => editAccount(account)}>Edit</Button>
+                        <Button size="sm" variant="outline-danger" onClick={() => void toggleAccount(account)}>
+                          {account.is_active ? "Deactivate" : "Activate"}
+                        </Button>
+                      </div>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
                 {!loading && accounts.length === 0 ? (
                   <Table.Tr>
-                    <Table.Td colSpan={4} className="text-center text-slate-500 py-6">
+                    <Table.Td colSpan={5} className="text-center text-slate-500 py-6">
                       No accounts yet.
                     </Table.Td>
                   </Table.Tr>
@@ -204,7 +301,7 @@ function FinanceAccountsPage() {
 
         <div className="col-span-12 lg:col-span-5">
           <div className="box p-5">
-            <div className="font-medium mb-3">Create Account</div>
+            <div className="font-medium mb-3">{editingAccountId ? "Edit Account" : "Create Account"}</div>
             <div className="space-y-3">
               <div>
                 <FormLabel>Name</FormLabel>
@@ -235,8 +332,74 @@ function FinanceAccountsPage() {
                   <FormInput type="number" value={accountForm.opening_balance} onChange={(e) => setAccountForm((prev) => ({ ...prev, opening_balance: e.target.value }))} />
                 </div>
               </div>
-              <Button variant="primary" onClick={() => void submitAccount()} disabled={savingAccount}>
-                {savingAccount ? "Saving..." : "Create Account"}
+              <div className="flex gap-2">
+                <Button variant="primary" onClick={() => void submitAccount()} disabled={savingAccount}>
+                  {savingAccount ? "Saving..." : editingAccountId ? "Update Account" : "Create Account"}
+                </Button>
+                {editingAccountId ? (
+                  <Button
+                    variant="outline-secondary"
+                    onClick={() => {
+                      setEditingAccountId("");
+                      setAccountForm({ name: "", code: "", account_type: "bank", currency: "NGN", opening_balance: "" });
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+          </div>
+
+          <div className="box p-5 mt-5">
+            <div className="font-medium mb-3">Transfer Between Accounts</div>
+            <div className="space-y-3">
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-6">
+                  <FormLabel>From</FormLabel>
+                  <FormSelect value={transferForm.from_account_id} onChange={(e) => setTransferForm((prev) => ({ ...prev, from_account_id: e.target.value }))}>
+                    <option value="">Select account</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>{account.name}</option>
+                    ))}
+                  </FormSelect>
+                </div>
+                <div className="col-span-6">
+                  <FormLabel>To</FormLabel>
+                  <FormSelect value={transferForm.to_account_id} onChange={(e) => setTransferForm((prev) => ({ ...prev, to_account_id: e.target.value }))}>
+                    <option value="">Select account</option>
+                    {accounts.map((account) => (
+                      <option key={account.id} value={account.id}>{account.name}</option>
+                    ))}
+                  </FormSelect>
+                </div>
+              </div>
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-6">
+                  <FormLabel>Amount</FormLabel>
+                  <FormInput type="number" value={transferForm.amount} onChange={(e) => setTransferForm((prev) => ({ ...prev, amount: e.target.value }))} />
+                </div>
+                <div className="col-span-6">
+                  <FormLabel>Currency</FormLabel>
+                  <FormInput value={transferForm.currency} onChange={(e) => setTransferForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-6">
+                  <FormLabel>Reference</FormLabel>
+                  <FormInput value={transferForm.reference} onChange={(e) => setTransferForm((prev) => ({ ...prev, reference: e.target.value }))} />
+                </div>
+                <div className="col-span-6">
+                  <FormLabel>Transfer Date</FormLabel>
+                  <FormInput type="date" value={transferForm.transfer_at} onChange={(e) => setTransferForm((prev) => ({ ...prev, transfer_at: e.target.value }))} />
+                </div>
+              </div>
+              <div>
+                <FormLabel>Note</FormLabel>
+                <FormTextarea rows={2} value={transferForm.note} onChange={(e) => setTransferForm((prev) => ({ ...prev, note: e.target.value }))} />
+              </div>
+              <Button variant="primary" onClick={() => void submitTransfer()} disabled={savingTransfer}>
+                {savingTransfer ? "Posting..." : "Post Transfer"}
               </Button>
             </div>
           </div>
@@ -295,4 +458,3 @@ function FinanceAccountsPage() {
 }
 
 export default FinanceAccountsPage;
-

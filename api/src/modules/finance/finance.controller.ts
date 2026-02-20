@@ -8,6 +8,7 @@ import { FinanceService } from './finance.service';
 import { UpdateFinanceSettingsDto } from './dto/update-finance-settings.dto';
 import { UpsertFinanceAccountDto } from './dto/upsert-finance-account.dto';
 import { CreateFinanceIncomeDto } from './dto/create-finance-income.dto';
+import { CreateTransferDto } from './dto/create-transfer.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -92,6 +93,21 @@ export class FinanceController {
   @ApiBody({ type: CreateFinanceIncomeDto })
   createIncome(@Req() req: any, @Body() dto: CreateFinanceIncomeDto) {
     return this.financeService.createIncome(dto, req.user?.id);
+  }
+
+  @Get('income')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'List income entries' })
+  listIncome(@Query() query: Record<string, any>) {
+    return this.financeService.listIncome(query);
+  }
+
+  @Post('transfers')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Transfer funds between finance accounts (posts in/out ledger lines)' })
+  @ApiBody({ type: CreateTransferDto })
+  createTransfer(@Req() req: any, @Body() dto: CreateTransferDto) {
+    return this.financeService.createTransfer(dto, req.user?.id);
   }
 
   @Post('requests/:id/disburse')

@@ -178,6 +178,38 @@ export async function createFinanceIncome(payload: {
   return response.data?.data as FinanceIncomeRecord;
 }
 
+export async function listFinanceIncome(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/finance/income", { params });
+  return (response.data?.data ?? []) as Array<
+    FinanceIncomeRecord & {
+      account_name: string;
+      account_code: string | null;
+      file: { id: string; file_name: string; public_url: string | null } | null;
+    }
+  >;
+}
+
+export async function createFinanceTransfer(payload: {
+  from_account_id: string;
+  to_account_id: string;
+  amount: number;
+  currency?: string;
+  reference?: string;
+  note?: string;
+  transfer_at?: string;
+}) {
+  const response = await apiClient.post("/finance/transfers", payload);
+  return response.data?.data as {
+    success: boolean;
+    source_id: string;
+    from_account_id: string;
+    to_account_id: string;
+    amount: number;
+    currency: string;
+    transferred_at: string;
+  };
+}
+
 export async function listFinanceRequestPaymentVouchers(id: string) {
   const response = await apiClient.get(`/finance/requests/${id}/payment-vouchers`);
   return (response.data?.data ?? []) as Array<{

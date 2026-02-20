@@ -104,6 +104,11 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/finance/ledger",
         title: "Ledger",
       },
+      {
+        icon: "FileText",
+        pathname: "/app/finance/income",
+        title: "Income",
+      },
     ],
   },
   {
