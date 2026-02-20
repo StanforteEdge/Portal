@@ -6,11 +6,17 @@ export class AuthUserDto {
   @ApiProperty({ example: 'olalekan@stanforteedge.com' })
   email!: string;
   @ApiProperty({ example: 'olalekan' })
-  username!: string;
+  username!: string | null;
   @ApiProperty({ example: ['admin'] })
   roles!: string[];
   @ApiProperty({ example: ['*'] })
   permissions!: string[];
+  @ApiProperty({ required: false, example: { id: '1', name: 'Stanforte Edge', code: 'STE' } })
+  organization?: {
+    id: string;
+    name: string;
+    code: string;
+  };
 }
 
 export class AuthTokensDto {
@@ -33,7 +39,7 @@ export class AuthStatusResponseDto {
   @ApiProperty({ example: 'olalekan@stanforteedge.com' })
   email!: string;
   @ApiProperty({ example: 'olalekan' })
-  username!: string;
+  username!: string | null;
   @ApiProperty({ example: 'active' })
   status!: string;
   @ApiProperty({ example: ['admin'] })

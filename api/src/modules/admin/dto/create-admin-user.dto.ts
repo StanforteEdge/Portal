@@ -1,8 +1,9 @@
 import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class CreateAdminUserDto {
+  @IsOptional()
   @IsString()
-  username!: string;
+  username?: string;
 
   @IsEmail()
   email!: string;

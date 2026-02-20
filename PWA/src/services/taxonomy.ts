@@ -23,6 +23,13 @@ export type ManagedTaxonomy = {
   terms: Array<{ id: string; value: string; label: string; is_active: boolean }>;
 };
 
+export type TagTerm = {
+  id: string;
+  value: string;
+  label: string;
+  is_active?: boolean;
+};
+
 export async function listTaxonomy(params?: { group_id?: string; include_inactive?: boolean }) {
   const response = await apiClient.get("/taxonomy", {
     params: {
@@ -99,4 +106,40 @@ export async function updateManagedTaxonomy(
 export async function syncManagedTaxonomyTerms(id: string, terms: string[]) {
   const response = await apiClient.post(`/taxonomy/taxonomies/${id}/terms/sync`, { terms });
   return response.data?.data as ManagedTaxonomy;
+}
+
+export async function suggestTagTerms(taxonomyKey: string, query?: string) {
+  const response = await apiClient.get(`/taxonomy/tags/${taxonomyKey}/suggest`, {
+    params: query ? { q: query } : {},
+  });
+  const payload = response.data?.data;
+  const rows = Array.isArray(payload) ? payload : [];
+  return rows.map((row: any) => ({
+    id: String(row.id),
+    value: String(row.value),
+    label: String(row.label),
+    is_active: Boolean(row.is_active ?? row.isActive ?? true),
+  })) as TagTerm[];
+}
+
+export async function replaceEntityTags(
+  entityType: string,
+  entityId: string,
+  taxonomyKey: string,
+  payload: { term_ids?: string[]; labels?: string[]; module?: string }
+) {
+  const response = await apiClient.post(
+    `/taxonomy/tags/${entityType}/${entityId}/${taxonomyKey}`,
+    {
+      term_ids: payload.term_ids ?? [],
+      labels: payload.labels ?? [],
+    },
+    { params: payload.module ? { module: payload.module } : {} }
+  );
+  return response.data?.data as { taxonomy: any; tags: TagTerm[] };
+}
+
+export async function listEntityTags(entityType: string, entityId: string, taxonomyKey: string) {
+  const response = await apiClient.get(`/taxonomy/tags/${entityType}/${entityId}/${taxonomyKey}`);
+  return response.data?.data as { taxonomy: any; tags: TagTerm[] };
 }

@@ -26,9 +26,28 @@ export class AuthService {
 
   async login(dto: LoginDto): Promise<LoginResponseDto> {
     const email = dto.email.trim().toLowerCase();
+    const organizationCode = dto.organization?.trim();
     const profile = await this.prisma.profile.findUnique({ where: { email } });
     if (!profile || profile.status !== 'active') throw new UnauthorizedException('Invalid credentials');
     if (!profile.passwordHash) throw new UnauthorizedException('Password not set');
+
+    const organization = await this.resolveLoginOrganization(profile.id, profile.primaryOrganizationId, email, organizationCode);
+    if (!organization) throw new UnauthorizedException('Invalid organization for this account');
+
+    const primaryOrgId = profile.primaryOrganizationId;
+    if (primaryOrgId) {
+      const primaryOrg = await this.prisma.organization.findUnique({
+        where: { id: primaryOrgId },
+        select: { metadata: true }
+      });
+      const domains = this.extractAllowedLoginDomains(primaryOrg?.metadata);
+      if (domains.length > 0) {
+        const domain = email.split('@')[1]?.toLowerCase() ?? '';
+        if (!domains.includes(domain)) {
+          throw new UnauthorizedException('Primary login email must match organization domain policy');
+        }
+      }
+    }
 
     const ok = await bcrypt.compare(dto.password, profile.passwordHash);
     if (!ok) throw new UnauthorizedException('Invalid credentials');
@@ -46,11 +65,75 @@ export class AuthService {
         id: profile.id.toString(),
         email: profile.email,
         username: profile.username,
+        organization: {
+          id: organization.id.toString(),
+          name: organization.name,
+          code: organization.code
+        },
         roles: authContext.roles,
         permissions: authContext.permissions
       },
       ...tokens
     };
+  }
+
+  private extractAllowedLoginDomains(metadata: unknown): string[] {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return [];
+    const value = (metadata as Record<string, unknown>).login_email_domains;
+    if (!Array.isArray(value)) return [];
+    return value
+      .map((entry) => String(entry || '').trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  private async resolveLoginOrganization(
+    profileId: bigint,
+    primaryOrganizationId: bigint | null,
+    email: string,
+    organizationCode?: string
+  ): Promise<{ id: bigint; name: string; code: string; metadata: unknown } | null> {
+    if (organizationCode) {
+      const org = await this.prisma.organization.findFirst({
+        where: { code: { equals: organizationCode, mode: 'insensitive' } },
+        select: { id: true, name: true, code: true, metadata: true }
+      });
+      if (!org) return null;
+      const membership = await this.prisma.profileOrganization.findFirst({
+        where: { profileId, organizationId: org.id },
+        select: { id: true }
+      });
+      if (!membership && primaryOrganizationId !== org.id) return null;
+      return org;
+    }
+
+    const domain = email.split('@')[1]?.toLowerCase() ?? '';
+
+    if (primaryOrganizationId) {
+      const primary = await this.prisma.organization.findUnique({
+        where: { id: primaryOrganizationId },
+        select: { id: true, name: true, code: true, metadata: true }
+      });
+      if (primary) {
+        const domains = this.extractAllowedLoginDomains(primary.metadata);
+        if (domains.length === 0 || domains.includes(domain)) return primary;
+      }
+    }
+
+    const memberships = await this.prisma.profileOrganization.findMany({
+      where: { profileId },
+      select: {
+        organization: { select: { id: true, name: true, code: true, metadata: true } }
+      }
+    });
+    const candidates = memberships
+      .map((entry) => entry.organization)
+      .filter((org) => {
+        const domains = this.extractAllowedLoginDomains(org.metadata);
+        return domains.length === 0 || domains.includes(domain);
+      });
+
+    if (candidates.length === 1) return candidates[0];
+    return null;
   }
 
   async status(userId: string): Promise<AuthStatusResponseDto> {

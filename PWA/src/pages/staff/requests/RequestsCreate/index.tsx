@@ -15,10 +15,11 @@ import { listProjects } from "@/services/projects";
 import { listMyOrganizations, listOrganizations } from "@/services/organizations";
 import type { FileAssetRecord } from "@/services/files";
 import { listTeams, type TeamOption } from "@/services/teams";
-import { listManagedTaxonomies } from "@/services/taxonomy";
+import { listManagedTaxonomies, replaceEntityTags, type TagTerm } from "@/services/taxonomy";
 import { getMyProfile } from "@/services/profile";
 import { formatMoney } from "@/utils/formatting";
 import MediaPickerModal from "@/components/Media/MediaPickerModal";
+import TagPicker from "@/components/Tags/TagPicker";
 
 type CategoryTermOption = { id: string; value: string; label: string };
 
@@ -75,6 +76,7 @@ function RequestsCreatePage() {
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState<CreateFormState>(defaultForm);
   const [pickerIndex, setPickerIndex] = useState<number | null>(null);
+  const [tags, setTags] = useState<TagTerm[]>([]);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const selectedRequestType = useMemo(
@@ -236,7 +238,7 @@ function RequestsCreatePage() {
       file_id: item.file_id,
     }));
 
-    return createRequest({
+    const created = await createRequest({
       request_type_id: form.request_type_id,
       team_id: form.team_id || undefined,
       data: {
@@ -250,6 +252,23 @@ function RequestsCreatePage() {
       },
       items: payloadItems,
     });
+
+    if (created?.id && tags.length > 0) {
+      const existingTermIds = tags
+        .filter((tag) => !String(tag.id).startsWith("new:"))
+        .map((tag) => tag.id);
+      const newLabels = tags
+        .filter((tag) => String(tag.id).startsWith("new:"))
+        .map((tag) => tag.label);
+
+      await replaceEntityTags("request", String(created.id), "request_tags", {
+        term_ids: existingTermIds,
+        labels: newLabels,
+        module: "finance",
+      }).catch(() => undefined);
+    }
+
+    return created;
   };
 
   const onSaveDraft = async () => {
@@ -317,6 +336,16 @@ function RequestsCreatePage() {
               </label>
             ) : null}
           </div>
+        </div>
+
+        <div className="col-span-12">
+          <FormLabel className="w-full">Tags</FormLabel>
+          <TagPicker
+            taxonomyKey="request_tags"
+            value={tags}
+            onChange={setTags}
+            placeholder="Type a tag and press Enter"
+          />
         </div>
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-12 md:col-span-4">

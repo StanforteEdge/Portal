@@ -25,7 +25,7 @@ import {
 import { listTeams, type TeamOption } from "@/services/teams";
 import { listOrganizations, type OrganizationRecord } from "@/services/organizations";
 import { listProjects, type ProjectOption } from "@/services/projects";
-import { listManagedTaxonomies } from "@/services/taxonomy";
+import { listEntityTags, listManagedTaxonomies, type TagTerm } from "@/services/taxonomy";
 import { formatDisplayDate, formatMoney, formatPaymentMethod, formatPersonName, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
 import { buildRequestWorkflowSteps } from "@/utils/requestWorkflow";
 import MediaPickerModal from "@/components/Media/MediaPickerModal";
@@ -118,11 +118,12 @@ function RequestDetailPage() {
     uploaded_files: [] as string[],
   });
   const [showRetirementPicker, setShowRetirementPicker] = useState(false);
+  const [requestTags, setRequestTags] = useState<TagTerm[]>([]);
 
   const load = async () => {
     try {
       setLoading(true);
-      const [req, actionList, teamsData, orgData, projectData, taxonomies, pvs] = await Promise.all([
+      const [req, actionList, teamsData, orgData, projectData, taxonomies, pvs, tagPayload] = await Promise.all([
         getRequest(id),
         getRequestActions(id),
         listTeams({ active_only: false }).catch(() => []),
@@ -130,6 +131,7 @@ function RequestDetailPage() {
         listProjects({ active_only: false }).catch(() => []),
         listManagedTaxonomies({ include_inactive: false }).catch(() => []),
         listFinanceRequestPaymentVouchers(id).catch(() => []),
+        listEntityTags("request", id, "request_tags").catch(() => ({ tags: [] as TagTerm[] })),
       ]);
       setRequest(req);
       setActions(actionList);
@@ -137,6 +139,7 @@ function RequestDetailPage() {
       setOrganizations(orgData);
       setProjects(projectData);
       setPaymentVouchers(pvs);
+      setRequestTags(tagPayload?.tags || []);
       const termMap: Record<string, string> = {};
       for (const taxonomy of taxonomies) {
         for (const term of taxonomy.terms || []) termMap[String(term.id)] = String(term.label);
@@ -337,6 +340,23 @@ function RequestDetailPage() {
                   <div>
                     <div className="text-xs text-slate-500">Project</div>
                     <div>{projectName}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-xs text-slate-500">Tags</div>
+                    <div className="mt-1 flex flex-wrap gap-2">
+                      {requestTags.length > 0 ? (
+                        requestTags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="inline-flex rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700"
+                          >
+                            {tag.label}
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-slate-400">-</span>
+                      )}
+                    </div>
                   </div>
                   <div>
                     <div className="text-xs text-slate-500">Category</div>

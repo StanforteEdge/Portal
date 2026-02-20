@@ -4,6 +4,7 @@ import { Prisma, EmploymentStatus, GroupUserRole } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { randomToken } from '../../common/utils/crypto';
 import { toBigInt } from '../../common/utils/ids';
+import { generateUniqueUsername, makeUsernameSeed } from '../../common/utils/username';
 import { SetPrimaryOrganizationDto } from './dto/set-primary-organization.dto';
 import { EmployeeActionDto, UpsertEmployeeDto } from './dto/upsert-employee.dto';
 import {
@@ -91,14 +92,21 @@ export class HrService {
         const existing = await tx.profile.findUnique({ where: { id: profileId } });
         if (!existing) throw new NotFoundException('User not found');
       } else {
-        if (!dto.email || !dto.username || !dto.first_name || !dto.last_name) {
-          throw new BadRequestException('email, username, first_name and last_name are required for new employee');
+        if (!dto.email || !dto.first_name || !dto.last_name) {
+          throw new BadRequestException('email, first_name and last_name are required for new employee');
         }
 
         const email = dto.email.trim().toLowerCase();
+        const requestedUsername = dto.username?.trim();
+        const username = requestedUsername
+          ? requestedUsername
+          : await generateUniqueUsername(
+              makeUsernameSeed(dto.first_name, dto.last_name, email.split('@')[0]),
+              async (candidate) => Boolean(await tx.profile.findFirst({ where: { username: candidate } }))
+            );
         const [emailExists, usernameExists] = await Promise.all([
           tx.profile.findUnique({ where: { email } }),
-          tx.profile.findUnique({ where: { username: dto.username } })
+          requestedUsername ? tx.profile.findFirst({ where: { username } }) : Promise.resolve(null)
         ]);
 
         if (emailExists) throw new BadRequestException('Email already exists');
@@ -108,7 +116,7 @@ export class HrService {
         const passwordHash = await bcrypt.hash(tempPassword, 12);
         const created = await tx.profile.create({
           data: {
-            username: dto.username,
+            username,
             email,
             passwordHash,
             type: 'staff',
@@ -154,7 +162,7 @@ export class HrService {
           lastName: dto.last_name ?? profile.lastName,
           phone: dto.phone ?? profile.phone,
           email: dto.email ? dto.email.trim().toLowerCase() : profile.email,
-          username: dto.username ?? profile.username
+          username: dto.username?.trim() ? dto.username.trim() : profile.username
         }
       });
 
@@ -535,8 +543,14 @@ export class HrService {
     });
 
     if (dto.metadata && Object.keys(dto.metadata).length > 0) {
+      const normalizedMetadata: Record<string, unknown> = { ...dto.metadata };
+      if (Array.isArray(normalizedMetadata.assigned_emails)) {
+        normalizedMetadata.assigned_emails = normalizedMetadata.assigned_emails
+          .map((item) => String(item || '').trim().toLowerCase())
+          .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email));
+      }
       await Promise.all(
-        Object.entries(dto.metadata).map(([key, value]) =>
+        Object.entries(normalizedMetadata).map(([key, value]) =>
           tx.employeeMeta.upsert({
             where: {
               employee_meta_unique: {

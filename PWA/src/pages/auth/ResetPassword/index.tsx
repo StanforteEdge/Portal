@@ -10,7 +10,7 @@ import { FormInput, FormLabel } from "@/components/Base/Form";
 import { resetPassword } from "@/services/auth";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import PasswordInput from "@/components/Auth/PasswordInput";
-import { BRAND_LOGO_ICON_DARK } from "@/constants/branding";
+import { BRAND_LOGO_FULL_WHITE } from "@/constants/branding";
 
 type ResetPasswordForm = {
   new_password: string;
@@ -80,19 +80,16 @@ function ResetPasswordPage() {
       <ThemeSwitcher />
       <div className="container relative z-10 sm:px-10">
         <div className="flex h-screen py-5">
+          <div className="absolute inset-x-0 top-8 flex items-center justify-center xl:hidden">
+            <img
+              alt="Stanforte Edge"
+              className="w-44 h-auto"
+              src={BRAND_LOGO_FULL_WHITE}
+              width={176}
+              height={44}
+            />
+          </div>
           <div className="w-full px-5 py-8 mx-auto my-auto bg-white rounded-md shadow-md sm:px-8 sm:w-3/4 lg:w-2/4 xl:w-1/3 dark:bg-darkmode-600">
-            <div className="flex items-center justify-center mb-4 xl:hidden">
-              <img
-                alt="Stanforte Edge"
-                className="w-8 h-8"
-                src={BRAND_LOGO_ICON_DARK}
-                width={32}
-                height={32}
-              />
-              <span className="ml-2 text-base font-medium text-slate-700 dark:text-slate-200">
-                Stanforte Edge
-              </span>
-            </div>
             <h2 className="text-2xl font-bold">Reset Password</h2>
             <p className="mt-2 text-slate-500">Set a new password for your account.</p>
             {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}

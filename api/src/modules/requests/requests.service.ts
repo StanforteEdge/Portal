@@ -353,7 +353,9 @@ export class RequestsService {
       message: `Request #${request.id.toString()} submitted for approval.`,
       data: { requestId: request.id.toString(), comment: dto.comment },
       notifiableType: 'request',
-      notifiableId: request.id
+      notifiableId: request.id,
+      emailSubject: `Request submitted (${await this.getFormattedRequestNumber(request.id)})`,
+      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
     });
 
     return this.getRequest(updated.id.toString(), userId);
@@ -394,7 +396,9 @@ export class RequestsService {
       message: `Request #${request.id.toString()} has been approved.`,
       data: { requestId: request.id.toString(), comment: dto.comment },
       notifiableType: 'request',
-      notifiableId: request.id
+      notifiableId: request.id,
+      emailSubject: `Request approved (${await this.getFormattedRequestNumber(request.id)})`,
+      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
     });
 
     return this.getRequest(updated.id.toString(), userId);
@@ -427,7 +431,9 @@ export class RequestsService {
       message: `Request #${request.id.toString()} has been rejected.`,
       data: { requestId: request.id.toString(), comment: dto.comment },
       notifiableType: 'request',
-      notifiableId: request.id
+      notifiableId: request.id,
+      emailSubject: `Request rejected (${await this.getFormattedRequestNumber(request.id)})`,
+      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
     });
 
     return this.getRequest(updated.id.toString(), userId);
@@ -828,14 +834,8 @@ export class RequestsService {
       paymentVouchers
     });
 
-    const data =
-      request.data && typeof request.data === 'object' && !Array.isArray(request.data)
-        ? (request.data as Record<string, unknown>)
-        : {};
     const zip = new JSZip();
-    const requestNumber = typeof data.manual_request_number === 'string' && data.manual_request_number.trim()
-      ? data.manual_request_number.trim()
-      : this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
+    const requestNumber = this.resolveRequestNumberFromRecord(request);
     zip.file(`request/${requestNumber}.pdf`, requestPdf);
 
     const fileIdSet = new Set<string>();
@@ -964,7 +964,7 @@ export class RequestsService {
       paymentVouchers
     });
 
-    const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
+    const requestNumber = this.resolveRequestNumberFromRecord(request);
     const zip = new JSZip();
     zip.file(`request/${requestNumber}.pdf`, requestPdf);
     for (const item of request.items) {
@@ -1069,7 +1069,9 @@ export class RequestsService {
       message: `Request #${request.id.toString()} was confirmed by requester.`,
       data: { requestId: request.id.toString() },
       notifiableType: 'request',
-      notifiableId: request.id
+      notifiableId: request.id,
+      emailSubject: `Disbursement confirmed (${await this.getFormattedRequestNumber(request.id)})`,
+      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
     });
 
     return this.getRequest(updated.id.toString(), userId);
@@ -1127,6 +1129,7 @@ export class RequestsService {
       data: { requestId: request.id.toString(), voucher_id: voucher.id },
       notifiableType: 'request',
       notifiableId: request.id,
+      emailSubject: `Disbursement confirmed (${await this.getFormattedRequestNumber(request.id)})`,
       emailThreadKey: `request-${request.id.toString()}-pv-${voucher.voucherNumber}`
     });
 
@@ -1190,6 +1193,7 @@ export class RequestsService {
       },
       notifiableType: 'request',
       notifiableId: request.id,
+      emailSubject: `Retirement submitted (${await this.getFormattedRequestNumber(request.id)})`,
       ...(threadVoucher ? { emailThreadKey: `request-${request.id.toString()}-pv-${threadVoucher}` } : {})
     });
 
@@ -1256,6 +1260,7 @@ export class RequestsService {
         data: { requestId: request.id.toString(), voucher_id: voucher.id, voucher_number: voucher.voucherNumber },
         notifiableType: 'request',
         notifiableId: request.id,
+        emailSubject: `Retirement verified (${await this.getFormattedRequestNumber(request.id)})`,
         emailThreadKey: `request-${request.id.toString()}-pv-${voucher.voucherNumber}`
       });
     }
@@ -1685,7 +1690,7 @@ export class RequestsService {
       `${request.creator.firstName ?? ''} ${request.creator.lastName ?? ''}`.trim() ||
       request.creator.username ||
       request.creator.email;
-    const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
+    const requestNumber = this.resolveRequestNumberFromRecord(request);
 
     const disbursedTotal = paymentVouchers.reduce((sum, pv) => sum + Number(pv.amount), 0);
     const retiredTotal = paymentVouchers.reduce((sum, pv) => sum + Number(pv.retiredAmount), 0);
@@ -2107,11 +2112,7 @@ export class RequestsService {
 
   private serializeRequest(request: any): RequestResponseDto {
     const createdAt = new Date(request.createdAt);
-    const requestNumber = this.getRequestNumber(
-      request.requestType?.codePrefix,
-      createdAt.getFullYear(),
-      request.id
-    );
+    const requestNumber = this.resolveRequestNumberFromRecord(request);
     const voucherNumber = this.extractVoucherNumber(request.data);
 
     return {
@@ -2190,6 +2191,57 @@ export class RequestsService {
     const rawPrefix = (codePrefix || 'REQ').toUpperCase();
     const prefix = rawPrefix.includes('PC') ? 'PC' : rawPrefix.includes('OP') ? 'OP' : rawPrefix;
     return `${prefix}/${year}/${requestId.toString()}`;
+  }
+
+  private async getFormattedRequestNumber(requestId: bigint): Promise<string> {
+    const request = await this.prisma.requestInstance.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        createdAt: true,
+        data: true,
+        requestType: { select: { codePrefix: true } }
+      }
+    });
+    if (!request) return `REQ/${new Date().getFullYear()}/${requestId.toString()}`;
+
+    return this.resolveRequestNumberFromRecord(request);
+  }
+
+  private resolveRequestNumberFromRecord(request: {
+    id: bigint;
+    createdAt: Date;
+    data?: unknown;
+    requestType?: { codePrefix?: string | null } | null;
+  }): string {
+    const manual = this.extractManualRequestNumber(request.data);
+    if (manual) {
+      return this.formatManualRequestNumber(manual, request.requestType?.codePrefix ?? undefined, request.createdAt.getFullYear());
+    }
+    return this.getRequestNumber(request.requestType?.codePrefix ?? undefined, request.createdAt.getFullYear(), request.id);
+  }
+
+  private extractManualRequestNumber(data: unknown): string | null {
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
+    const manual = (data as Record<string, unknown>).manual_request_number;
+    if (typeof manual !== 'string') return null;
+    const value = manual.trim();
+    return value.length ? value : null;
+  }
+
+  private formatManualRequestNumber(manual: string, codePrefix: string | undefined, year: number): string {
+    // If manual value is already fully formatted, keep it as source-of-truth.
+    if (manual.includes('/')) return manual;
+    if (/^\d+$/.test(manual)) {
+      return this.getRequestNumber(codePrefix, year, BigInt(manual));
+    }
+    const rawPrefix = (codePrefix || 'REQ').toUpperCase();
+    const prefix = rawPrefix.includes('PC') ? 'PC' : rawPrefix.includes('OP') ? 'OP' : rawPrefix;
+    return `${prefix}/${year}/${manual}`;
+  }
+
+  private getRequestThreadKey(requestNumber: string): string {
+    return `request-${requestNumber.replace(/[^a-zA-Z0-9_.-]/g, '-').toLowerCase()}`;
   }
 
   private extractVoucherNumber(data: unknown): string | null {

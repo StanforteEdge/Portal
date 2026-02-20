@@ -6,6 +6,8 @@ import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Bas
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { createDocument, getDocument, listDocumentAcknowledgements, updateDocument } from "@/services/documents";
 import { listFileAssets, type FileAssetRecord } from "@/services/files";
+import { listEntityTags, replaceEntityTags, type TagTerm } from "@/services/taxonomy";
+import TagPicker from "@/components/Tags/TagPicker";
 
 function AdminDocumentEditorPage() {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +19,7 @@ function AdminDocumentEditorPage() {
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [files, setFiles] = useState<FileAssetRecord[]>([]);
   const [acks, setAcks] = useState<any[]>([]);
+  const [tags, setTags] = useState<TagTerm[]>([]);
 
   const [form, setForm] = useState({
     title: "",
@@ -51,6 +54,8 @@ function AdminDocumentEditorPage() {
       });
       const ackRes = await listDocumentAcknowledgements(id, { per_page: 100 });
       setAcks(ackRes.data || []);
+      const tagPayload = await listEntityTags("document", id, "document_tags").catch(() => ({ tags: [] as TagTerm[] }));
+      setTags(tagPayload.tags || []);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load document." });
     } finally {
@@ -84,6 +89,12 @@ function AdminDocumentEditorPage() {
       };
 
       const saved = isCreate ? await createDocument(payload) : await updateDocument(id!, payload);
+      const existingTermIds = tags.filter((tag) => !String(tag.id).startsWith("new:")).map((tag) => tag.id);
+      const newLabels = tags.filter((tag) => String(tag.id).startsWith("new:")).map((tag) => tag.label);
+      await replaceEntityTags("document", saved.id, "document_tags", {
+        term_ids: existingTermIds,
+        labels: newLabels,
+      }).catch(() => undefined);
       setNotice({ tone: "success", message: "Document saved." });
       if (isCreate) navigate(`/app/admin/documents/${saved.id}`, { replace: true });
       else await load();
@@ -114,6 +125,10 @@ function AdminDocumentEditorPage() {
           <div className="md:col-span-2"><FormLabel>Attached File (optional)</FormLabel><FormSelect value={form.file_id} onChange={(e) => setForm((p) => ({ ...p, file_id: e.target.value }))}><option value="">None</option>{files.map((f) => <option key={f.id} value={f.id}>{f.file_name}</option>)}</FormSelect></div>
           <div className="md:col-span-2"><FormLabel>HTML Content (optional)</FormLabel><FormTextarea rows={8} value={form.content_html} onChange={(e) => setForm((p) => ({ ...p, content_html: e.target.value }))} /></div>
           <div><FormLabel>Acknowledgement Required</FormLabel><FormSelect value={form.require_acknowledgement ? "true" : "false"} onChange={(e) => setForm((p) => ({ ...p, require_acknowledgement: e.target.value === "true" }))}><option value="true">Yes</option><option value="false">No</option></FormSelect></div>
+          <div className="md:col-span-2">
+            <FormLabel>Tags</FormLabel>
+            <TagPicker taxonomyKey="document_tags" value={tags} onChange={setTags} placeholder="Type a tag and press Enter" />
+          </div>
         </div>
 
         <div className="mt-4">
