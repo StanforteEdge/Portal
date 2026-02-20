@@ -13,7 +13,7 @@ import { listProjects } from "@/services/projects";
 import { listManagedTaxonomies, type ManagedTaxonomy } from "@/services/taxonomy";
 import { formatMoney } from "@/utils/formatting";
 import { uploadFileAsset } from "@/services/files";
-import { listFinanceRequestPaymentVouchers } from "@/services/finance";
+import { listFinanceAccounts, listFinanceRequestPaymentVouchers, type FinanceAccountRecord } from "@/services/finance";
 
 type Option = { id: string; name: string };
 type RequestTypeOption = Option & { categoryKey?: string | null };
@@ -22,6 +22,7 @@ type ManualItem = RequestItemInput;
 type ManualDisbursement = {
   voucher_number: string;
   amount: number;
+  paid_from_account_id?: string;
   method: string;
   transaction_ref: string;
   note: string;
@@ -74,6 +75,7 @@ function FinanceManualEntryPage() {
   const [projectOptions, setProjectOptions] = useState<Option[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<Option[]>([]);
   const [taxonomyOptions, setTaxonomyOptions] = useState<ManagedTaxonomy[]>([]);
+  const [financeAccounts, setFinanceAccounts] = useState<FinanceAccountRecord[]>([]);
 
   const [form, setForm] = useState({
     request_type_id: "",
@@ -108,6 +110,7 @@ function FinanceManualEntryPage() {
     {
       voucher_number: "",
       amount: 0,
+      paid_from_account_id: "",
       method: "bank_transfer",
       transaction_ref: "",
       note: "",
@@ -155,6 +158,7 @@ function FinanceManualEntryPage() {
       {
         voucher_number: "",
         amount: 0,
+        paid_from_account_id: "",
         method: "bank_transfer",
         transaction_ref: "",
         note: "",
@@ -176,13 +180,14 @@ function FinanceManualEntryPage() {
     const load = async () => {
       try {
         setLoading(true);
-        const [users, groups, teams, orgs, projects, taxonomies] = await Promise.all([
+        const [users, groups, teams, orgs, projects, taxonomies, accounts] = await Promise.all([
           listUsers({ page: 1, per_page: 200 }),
           listRequestGroups(),
           listTeams({ active_only: false }),
           listOrganizations({ is_active: true }),
           listProjects({ active_only: false }),
           listManagedTaxonomies({ module: "finance", include_inactive: false }),
+          listFinanceAccounts({ is_active: true }).catch(() => []),
         ]);
         setStaffOptions(
           users.data.map((u) => ({
@@ -197,6 +202,7 @@ function FinanceManualEntryPage() {
         setOrganizationOptions(orgs.map((o) => ({ id: o.id, name: o.name })));
         setProjectOptions(projects.map((p) => ({ id: p.id, name: p.name })));
         setTaxonomyOptions(taxonomies);
+        setFinanceAccounts(accounts);
       } catch (error: any) {
         setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load manual entry options." });
       } finally {
@@ -327,6 +333,7 @@ function FinanceManualEntryPage() {
           .map((d) => ({
             voucher_number: d.voucher_number,
             amount: Number(d.amount),
+            paid_from_account_id: d.paid_from_account_id || undefined,
             method: d.method || undefined,
             transaction_ref: d.transaction_ref || undefined,
             note: d.note || undefined,
@@ -435,6 +442,7 @@ function FinanceManualEntryPage() {
         pvs.map((pv) => ({
           voucher_number: pv.voucher_number,
           amount: Number(pv.amount || 0),
+          paid_from_account_id: pv.paid_from_account?.id || "",
           method: pv.method || "bank_transfer",
           transaction_ref: pv.transaction_ref || "",
           note: pv.note || "",
@@ -616,7 +624,7 @@ function FinanceManualEntryPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="outline-secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "" }])}>Add PV</Button></div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="outline-secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "" }])}>Add PV</Button></div>
           {disbursements.map((row, idx) => (
             <div key={`pv-${idx}`} className="grid grid-cols-12 gap-3 mb-4 p-3 border rounded">
               <div className="col-span-12 md:col-span-3">
@@ -637,6 +645,7 @@ function FinanceManualEntryPage() {
                 </div>
               </div>
               <div className="col-span-6 md:col-span-2"><FormLabel>Amount</FormLabel><FormInput type="number" value={row.amount} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, amount: Number(e.target.value || 0) } : x))} /></div>
+              <div className="col-span-12 md:col-span-3"><FormLabel>Paid From Account</FormLabel><FormSelect value={row.paid_from_account_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, paid_from_account_id: e.target.value } : x))}><option value="">Select account</option>{financeAccounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.name}{acc.code ? ` (${acc.code})` : ""}</option>)}</FormSelect></div>
               <div className="col-span-6 md:col-span-2"><FormLabel>Method</FormLabel><FormSelect value={row.method} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, method: e.target.value } : x))}><option value="bank_transfer">Bank Transfer</option><option value="cash">Cash</option><option value="cheque">Cheque</option></FormSelect></div>
               <div className="col-span-12 md:col-span-3"><FormLabel>Transaction Ref</FormLabel><FormInput value={row.transaction_ref} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, transaction_ref: e.target.value } : x))} /></div>
               <div className="col-span-12 md:col-span-2"><FormLabel>Date</FormLabel><FormInput type="date" value={row.disbursed_at} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, disbursed_at: e.target.value } : x))} /></div>

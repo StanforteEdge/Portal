@@ -26,4 +26,9 @@ export class DisburseRequestDto {
   @IsOptional()
   @IsUUID()
   evidence_file_id?: string;
+
+  @ApiPropertyOptional({ example: '3fef7e86-cf6a-4df7-b0b3-e350adf55e33' })
+  @IsOptional()
+  @IsUUID()
+  paid_from_account_id?: string;
 }

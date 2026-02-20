@@ -5,6 +5,8 @@ import { DisburseRequestDto } from './dto/disburse-request.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UpdateFinanceSettingsDto } from './dto/update-finance-settings.dto';
 import { Prisma } from '@prisma/client';
+import { UpsertFinanceAccountDto } from './dto/upsert-finance-account.dto';
+import { CreateFinanceIncomeDto } from './dto/create-finance-income.dto';
 
 @Injectable()
 export class FinanceService {
@@ -190,6 +192,20 @@ export class FinanceService {
       const fileExists = await this.prisma.fileAsset.count({ where: { id: dto.evidence_file_id } });
       if (!fileExists) throw new BadRequestException('Invalid disbursement evidence file');
     }
+    const activeAccountCount = await this.prisma.financeAccount.count({ where: { isActive: true } });
+    if (activeAccountCount > 0 && !dto.paid_from_account_id) {
+      throw new BadRequestException('paid_from_account_id is required when finance accounts are configured');
+    }
+    let paidFromAccount: { id: string; currency: string; isActive: boolean } | null = null;
+    if (dto.paid_from_account_id) {
+      paidFromAccount = await this.prisma.financeAccount.findUnique({
+        where: { id: dto.paid_from_account_id },
+        select: { id: true, currency: true, isActive: true }
+      });
+      if (!paidFromAccount || !paidFromAccount.isActive) {
+        throw new BadRequestException('Invalid paid_from_account_id');
+      }
+    }
     const existingData =
       request.data && typeof request.data === 'object' && !Array.isArray(request.data)
         ? ({ ...(request.data as Record<string, unknown>) } as Record<string, unknown>)
@@ -213,6 +229,7 @@ export class FinanceService {
     await this.prisma.financePaymentVoucher.create({
       data: {
         requestId: id,
+        paidFromAccountId: dto.paid_from_account_id ?? null,
         voucherNumber,
         amount: disburseAmount,
         method: dto.method ?? null,
@@ -222,6 +239,25 @@ export class FinanceService {
         disbursedAt: now
       }
     });
+    if (paidFromAccount) {
+      await this.prisma.financeLedgerEntry.create({
+        data: {
+          accountId: paidFromAccount.id,
+          direction: 'out',
+          amount: disburseAmount,
+          currency: request.currency || paidFromAccount.currency || 'NGN',
+          entryDate: now,
+          description: `Disbursement ${voucherNumber} for request ${request.id.toString()}`,
+          sourceType: 'finance_payment_voucher',
+          sourceId: voucherNumber,
+          createdBy: actorId ? toBigInt(actorId) : null,
+          metadata: {
+            request_id: request.id.toString(),
+            voucher_number: voucherNumber
+          } as Prisma.InputJsonValue
+        }
+      });
+    }
     if (request.workflowInstanceId) {
       await this.prisma.workflowHistory.create({
         data: {
@@ -296,7 +332,10 @@ export class FinanceService {
       include: {
         evidenceFile: {
           select: { id: true, fileName: true, mimeType: true, publicUrl: true }
-        }
+        },
+        paidFromAccount: {
+          select: { id: true, name: true, code: true, accountType: true }
+        },
       },
       orderBy: { disbursedAt: 'asc' }
     });
@@ -352,6 +391,14 @@ export class FinanceService {
               public_url: voucher.evidenceFile.publicUrl
             }
           : null,
+        paid_from_account: voucher.paidFromAccount
+          ? {
+              id: voucher.paidFromAccount.id,
+              name: voucher.paidFromAccount.name,
+              code: voucher.paidFromAccount.code,
+              account_type: voucher.paidFromAccount.accountType
+            }
+          : null,
         retirement_files: (() => {
           const metadata =
             voucher.metadata && typeof voucher.metadata === 'object' && !Array.isArray(voucher.metadata)
@@ -370,6 +417,198 @@ export class FinanceService {
         })()
       };
     });
+  }
+
+  async listAccounts(query: Record<string, any>) {
+    const where: Prisma.FinanceAccountWhereInput = {
+      ...(query.is_active !== undefined ? { isActive: String(query.is_active) !== 'false' } : {}),
+      ...(query.organization_id ? { organizationId: toBigInt(String(query.organization_id)) } : {})
+    };
+
+    const rows = await this.prisma.financeAccount.findMany({
+      where,
+      orderBy: [{ isActive: 'desc' }, { name: 'asc' }]
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      organization_id: row.organizationId?.toString() ?? null,
+      name: row.name,
+      code: row.code,
+      account_type: row.accountType,
+      currency: row.currency,
+      opening_balance: Number(row.openingBalance),
+      is_active: row.isActive,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt
+    }));
+  }
+
+  async createAccount(dto: UpsertFinanceAccountDto, actorId?: string) {
+    const row = await this.prisma.financeAccount.create({
+      data: {
+        name: dto.name.trim(),
+        code: dto.code?.trim() || null,
+        accountType: dto.account_type ?? 'bank',
+        currency: (dto.currency ?? 'NGN').toUpperCase(),
+        openingBalance: dto.opening_balance ?? 0,
+        isActive: dto.is_active ?? true,
+        metadata: (dto.metadata ?? {}) as Prisma.InputJsonValue,
+        createdBy: actorId ? toBigInt(actorId) : null
+      }
+    });
+
+    if (Number(row.openingBalance) !== 0) {
+      await this.prisma.financeLedgerEntry.create({
+        data: {
+          accountId: row.id,
+          direction: Number(row.openingBalance) >= 0 ? 'in' : 'out',
+          amount: Math.abs(Number(row.openingBalance)),
+          currency: row.currency,
+          entryDate: new Date(),
+          description: 'Opening balance',
+          sourceType: 'opening_balance',
+          sourceId: row.id,
+          createdBy: actorId ? toBigInt(actorId) : null
+        }
+      });
+    }
+
+    return {
+      id: row.id,
+      organization_id: row.organizationId?.toString() ?? null,
+      name: row.name,
+      code: row.code,
+      account_type: row.accountType,
+      currency: row.currency,
+      opening_balance: Number(row.openingBalance),
+      is_active: row.isActive,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt
+    };
+  }
+
+  async updateAccount(id: string, dto: UpsertFinanceAccountDto) {
+    const existing = await this.prisma.financeAccount.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Account not found');
+
+    const row = await this.prisma.financeAccount.update({
+      where: { id },
+      data: {
+        name: dto.name.trim(),
+        code: dto.code?.trim() || null,
+        accountType: dto.account_type ?? existing.accountType,
+        currency: (dto.currency ?? existing.currency).toUpperCase(),
+        openingBalance: dto.opening_balance ?? existing.openingBalance,
+        isActive: dto.is_active ?? existing.isActive,
+        metadata: ((dto.metadata ?? existing.metadata ?? {}) as Prisma.InputJsonValue)
+      }
+    });
+
+    return {
+      id: row.id,
+      organization_id: row.organizationId?.toString() ?? null,
+      name: row.name,
+      code: row.code,
+      account_type: row.accountType,
+      currency: row.currency,
+      opening_balance: Number(row.openingBalance),
+      is_active: row.isActive,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt
+    };
+  }
+
+  async createIncome(dto: CreateFinanceIncomeDto, actorId?: string) {
+    const account = await this.prisma.financeAccount.findUnique({
+      where: { id: dto.account_id },
+      select: { id: true, currency: true, isActive: true }
+    });
+    if (!account || !account.isActive) throw new BadRequestException('Invalid account_id');
+    if (dto.file_id) {
+      const fileExists = await this.prisma.fileAsset.count({ where: { id: dto.file_id } });
+      if (!fileExists) throw new BadRequestException('Invalid file_id');
+    }
+
+    const now = dto.received_at ? new Date(dto.received_at) : new Date();
+    if (Number.isNaN(now.getTime())) throw new BadRequestException('Invalid received_at');
+    const currency = (dto.currency ?? account.currency ?? 'NGN').toUpperCase();
+
+    const income = await this.prisma.financeIncomeEntry.create({
+      data: {
+        accountId: account.id,
+        amount: dto.amount,
+        currency,
+        receivedAt: now,
+        reference: dto.reference?.trim() || null,
+        payer: dto.payer?.trim() || null,
+        notes: dto.notes?.trim() || null,
+        fileId: dto.file_id ?? null,
+        createdBy: actorId ? toBigInt(actorId) : null
+      }
+    });
+
+    await this.prisma.financeLedgerEntry.create({
+      data: {
+        accountId: account.id,
+        direction: 'in',
+        amount: dto.amount,
+        currency,
+        entryDate: now,
+        description: dto.notes?.trim() || 'Income entry',
+        sourceType: 'finance_income',
+        sourceId: income.id,
+        createdBy: actorId ? toBigInt(actorId) : null,
+        metadata: {
+          reference: dto.reference ?? null,
+          payer: dto.payer ?? null
+        } as Prisma.InputJsonValue
+      }
+    });
+
+    return {
+      id: income.id,
+      account_id: income.accountId,
+      amount: Number(income.amount),
+      currency: income.currency,
+      received_at: income.receivedAt,
+      reference: income.reference,
+      payer: income.payer,
+      notes: income.notes,
+      file_id: income.fileId,
+      created_at: income.createdAt
+    };
+  }
+
+  async listLedger(query: Record<string, any>) {
+    const where: Prisma.FinanceLedgerEntryWhereInput = {
+      ...(query.account_id ? { accountId: String(query.account_id) } : {}),
+      ...(query.direction ? { direction: String(query.direction) } : {}),
+      ...(query.source_type ? { sourceType: String(query.source_type) } : {})
+    };
+    const rows = await this.prisma.financeLedgerEntry.findMany({
+      where,
+      include: {
+        account: { select: { id: true, name: true, code: true, accountType: true } }
+      },
+      orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+      take: Math.min(500, Math.max(1, Number(query.limit ?? 100)))
+    });
+    return rows.map((row) => ({
+      id: row.id,
+      account_id: row.accountId,
+      account_name: row.account.name,
+      account_code: row.account.code,
+      account_type: row.account.accountType,
+      direction: row.direction,
+      amount: Number(row.amount),
+      currency: row.currency,
+      entry_date: row.entryDate,
+      description: row.description,
+      source_type: row.sourceType,
+      source_id: row.sourceId,
+      created_at: row.createdAt
+    }));
   }
 
   private parseId(value: string, label: string): bigint {

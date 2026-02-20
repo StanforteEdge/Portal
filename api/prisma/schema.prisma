@@ -203,6 +203,7 @@ model Organization {
   requests  RequestInstance[]
   requestGroups RequestGroup[]
   fileAssets FileAsset[]
+  financeAccounts FinanceAccount[]
   employeeProfiles EmployeeProfile[]
   documents Document[]
 
@@ -503,6 +504,81 @@ model FinanceSetting {
   @@map("sta_finance_settings")
 }
 
+model FinanceAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  name           String   @db.VarChar(150)
+  code           String?  @db.VarChar(60)
+  accountType    String   @default("bank") @map("account_type") @db.VarChar(30)
+  currency       String   @default("NGN") @db.VarChar(3)
+  openingBalance Decimal  @default(0) @map("opening_balance") @db.Decimal(15,2)
+  isActive       Boolean  @default(true) @map("is_active")
+  metadata       Json?
+  createdBy      BigInt?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization   Organization?          @relation(fields: [organizationId], references: [id])
+  paymentVouchers FinancePaymentVoucher[]
+  ledgerEntries  FinanceLedgerEntry[]
+  incomeEntries  FinanceIncomeEntry[]
+
+  @@unique([organizationId, name], name: "unique_finance_account_name_per_org")
+  @@index([organizationId])
+  @@index([accountType])
+  @@index([isActive])
+  @@map("sta_finance_accounts")
+}
+
+model FinanceLedgerEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  accountId   String   @map("account_id") @db.Uuid
+  direction   String   @db.VarChar(10)
+  amount      Decimal  @db.Decimal(15,2)
+  currency    String   @default("NGN") @db.VarChar(3)
+  entryDate   DateTime @map("entry_date")
+  description String?  @db.VarChar(255)
+  sourceType  String?  @map("source_type") @db.VarChar(60)
+  sourceId    String?  @map("source_id") @db.VarChar(120)
+  metadata    Json?
+  createdBy   BigInt?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  account FinanceAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId])
+  @@index([entryDate])
+  @@index([sourceType, sourceId])
+  @@index([direction])
+  @@map("sta_finance_ledger_entries")
+}
+
+model FinanceIncomeEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  accountId      String   @map("account_id") @db.Uuid
+  amount         Decimal  @db.Decimal(15,2)
+  currency       String   @default("NGN") @db.VarChar(3)
+  receivedAt     DateTime @map("received_at")
+  reference      String?  @db.VarChar(120)
+  payer          String?  @db.VarChar(150)
+  categoryId     String?  @map("category_id") @db.Uuid
+  notes          String?
+  fileId         String?  @map("file_id") @db.Uuid
+  metadata       Json?
+  createdBy      BigInt?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  account FinanceAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  file    FileAsset?     @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+  @@index([receivedAt])
+  @@index([categoryId])
+  @@map("sta_finance_income_entries")
+}
+
 model FileAsset {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId BigInt?  @map("organization_id")
@@ -521,6 +597,7 @@ model FileAsset {
   uploader     Profile?      @relation("FileUploadedBy", fields: [uploadedBy], references: [id])
   requestItems RequestItem[]
   financePaymentVouchers FinancePaymentVoucher[]
+  financeIncomeEntries FinanceIncomeEntry[]
   documents Document[]
 
   @@index([organizationId])
@@ -577,6 +654,7 @@ model DocumentAcknowledgement {
 model FinancePaymentVoucher {
   id               String   @id @default(uuid()) @db.Uuid
   requestId        BigInt   @map("request_id")
+  paidFromAccountId String? @map("paid_from_account_id") @db.Uuid
   voucherNumber    String   @map("voucher_number") @db.VarChar(60)
   amount           Decimal  @db.Decimal(15,2)
   retiredAmount    Decimal  @default(0) @map("retired_amount") @db.Decimal(15,2)
@@ -594,8 +672,10 @@ model FinancePaymentVoucher {
 
   request      RequestInstance @relation(fields: [requestId], references: [id], onDelete: Cascade)
   evidenceFile FileAsset?      @relation(fields: [evidenceFileId], references: [id], onDelete: SetNull)
+  paidFromAccount FinanceAccount? @relation(fields: [paidFromAccountId], references: [id], onDelete: SetNull)
 
   @@index([requestId])
+  @@index([paidFromAccountId])
   @@index([voucherNumber])
   @@index([retirementStatus])
   @@map("sta_finance_payment_vouchers")

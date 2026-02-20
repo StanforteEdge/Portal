@@ -7,7 +7,7 @@ import { Dialog } from "@/components/Base/Headless";
 import Table from "@/components/Base/Table";
 import clsx from "clsx";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
-import { disburseFinanceRequest, listFinanceRequestPaymentVouchers } from "@/services/finance";
+import { disburseFinanceRequest, listFinanceAccounts, listFinanceRequestPaymentVouchers, type FinanceAccountRecord } from "@/services/finance";
 import {
   approveRequest,
   completeRequest,
@@ -58,6 +58,7 @@ function FinanceRequestDetailPage() {
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [organizations, setOrganizations] = useState<OrganizationRecord[]>([]);
   const [projects, setProjects] = useState<ProjectOption[]>([]);
+  const [financeAccounts, setFinanceAccounts] = useState<FinanceAccountRecord[]>([]);
   const [categoryTermMap, setCategoryTermMap] = useState<Record<string, string>>({});
   const [requestTags, setRequestTags] = useState<TagTerm[]>([]);
   const [paymentVouchers, setPaymentVouchers] = useState<
@@ -72,6 +73,7 @@ function FinanceRequestDetailPage() {
       method: string | null;
       transaction_ref: string | null;
       note: string | null;
+      paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
       disbursed_at: string;
       retired_at: string | null;
       verified_at: string | null;
@@ -94,6 +96,7 @@ function FinanceRequestDetailPage() {
     method: string | null;
     transaction_ref: string | null;
     note: string | null;
+    paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
     disbursed_at: string;
     retired_at: string | null;
     verified_at: string | null;
@@ -111,6 +114,7 @@ function FinanceRequestDetailPage() {
     note: "",
     evidence_file_id: "",
     evidence_file_name: "",
+    paid_from_account_id: "",
   });
 
   const data = useMemo(() => ((request?.data || {}) as Record<string, unknown>), [request]);
@@ -167,7 +171,7 @@ function FinanceRequestDetailPage() {
   const load = async () => {
     try {
       setLoading(true);
-      const [req, actionList, teamsData, orgData, projectData, taxonomies, pvs, tagPayload] = await Promise.all([
+      const [req, actionList, teamsData, orgData, projectData, taxonomies, pvs, tagPayload, accounts] = await Promise.all([
         getRequest(id),
         getRequestActions(id),
         listTeams({ active_only: false }).catch(() => []),
@@ -176,6 +180,7 @@ function FinanceRequestDetailPage() {
         listManagedTaxonomies({ include_inactive: false }).catch(() => []),
         listFinanceRequestPaymentVouchers(id).catch(() => []),
         listEntityTags("request", id, "request_tags").catch(() => ({ tags: [] as TagTerm[] })),
+        listFinanceAccounts({ is_active: true }).catch(() => []),
       ]);
       setRequest(req);
       setActions(actionList);
@@ -183,6 +188,7 @@ function FinanceRequestDetailPage() {
       setOrganizations(orgData);
       setProjects(projectData);
       setPaymentVouchers(pvs);
+      setFinanceAccounts(accounts);
       setRequestTags(tagPayload?.tags || []);
 
       const termMap: Record<string, string> = {};
@@ -211,6 +217,7 @@ function FinanceRequestDetailPage() {
       note: "",
       evidence_file_id: "",
       evidence_file_name: "",
+      paid_from_account_id: financeAccounts[0]?.id || "",
     });
     setShowDisburseModal(true);
   };
@@ -226,6 +233,10 @@ function FinanceRequestDetailPage() {
   };
 
   const disburse = async () => {
+    if (financeAccounts.length > 0 && !disburseForm.paid_from_account_id) {
+      setNotice({ tone: "warning", message: "Please select a Paid From account." });
+      return;
+    }
     try {
       setBusyAction("disburse");
       const method = disburseForm.method === "other" ? disburseForm.custom_method.trim() : disburseForm.method;
@@ -235,6 +246,7 @@ function FinanceRequestDetailPage() {
         transaction_ref: disburseForm.transaction_ref.trim() || undefined,
         amount: disburseForm.amount.trim() ? Number(disburseForm.amount) : undefined,
         evidence_file_id: disburseForm.evidence_file_id || undefined,
+        paid_from_account_id: disburseForm.paid_from_account_id || undefined,
       });
       setShowDisburseModal(false);
       setNotice({ tone: "success", message: "Request disbursed." });
@@ -493,6 +505,7 @@ function FinanceRequestDetailPage() {
                       <Table.Th>Amount</Table.Th>
                       <Table.Th>Balance</Table.Th>
                       <Table.Th>Retirement Status</Table.Th>
+                      <Table.Th>Paid From</Table.Th>
                       <Table.Th>Staff Confirmed</Table.Th>
                       <Table.Th className="text-right">PV</Table.Th>
                     </Table.Tr>
@@ -508,6 +521,7 @@ function FinanceRequestDetailPage() {
                         <Table.Td>{formatMoney(pv.amount, "-", request.currency || "NGN")}</Table.Td>
                         <Table.Td>{formatMoney(pv.voucher_balance, "-", request.currency || "NGN")}</Table.Td>
                         <Table.Td>{retirementStatusLabel(pv.retirement_status)}</Table.Td>
+                        <Table.Td>{pv.paid_from_account?.name || "-"}</Table.Td>
                         <Table.Td>{staffConfirmationLabel}</Table.Td>
                         <Table.Td className="text-right">
                           <Button
@@ -589,6 +603,20 @@ function FinanceRequestDetailPage() {
                 </div>
               ) : null}
               <div className="col-span-12 md:col-span-6">
+                <FormLabel>Paid From Account</FormLabel>
+                <FormSelect
+                  value={disburseForm.paid_from_account_id}
+                  onChange={(e) => setDisburseForm((prev) => ({ ...prev, paid_from_account_id: e.target.value }))}
+                >
+                  <option value="">Select account</option>
+                  {financeAccounts.map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name} {account.code ? `(${account.code})` : ""}
+                    </option>
+                  ))}
+                </FormSelect>
+              </div>
+              <div className="col-span-12 md:col-span-6">
                 <FormLabel>Transaction Ref</FormLabel>
                 <FormInput
                   value={disburseForm.transaction_ref}
@@ -650,6 +678,7 @@ function FinanceRequestDetailPage() {
                 <div className="text-sm"><span className="text-slate-500">PV Number:</span> {selectedVoucher.voucher_number}</div>
                 <div className="text-sm"><span className="text-slate-500">Amount:</span> {formatMoney(selectedVoucher.amount, "-", request?.currency || "NGN")}</div>
                 <div className="text-sm"><span className="text-slate-500">Method:</span> {formatPaymentMethod(selectedVoucher.method)}</div>
+                <div className="text-sm"><span className="text-slate-500">Paid From:</span> {selectedVoucher.paid_from_account?.name || "-"}</div>
                 <div className="text-sm"><span className="text-slate-500">Transaction Ref:</span> {selectedVoucher.transaction_ref || "-"}</div>
                 <div className="text-sm"><span className="text-slate-500">Disbursed At:</span> {formatDisplayDate(selectedVoucher.disbursed_at)}</div>
                 <div className="pt-2 mt-2 border-t">

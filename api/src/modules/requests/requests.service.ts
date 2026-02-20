@@ -218,6 +218,19 @@ export class RequestsService {
       .filter((x): x is string => Boolean(x));
     const allFileIds = Array.from(new Set([...itemFileIds, ...voucherEvidenceIds, ...retirementIds]));
     if (allFileIds.length) await this.ensureFileAssetsExist(this.prisma, allFileIds);
+    const paidFromAccountIds = Array.from(
+      new Set(
+        (dto.disbursements ?? [])
+          .map((x) => x.paid_from_account_id)
+          .filter((x): x is string => Boolean(x))
+      )
+    );
+    if (paidFromAccountIds.length > 0) {
+      const count = await this.prisma.financeAccount.count({
+        where: { id: { in: paidFromAccountIds }, isActive: true }
+      });
+      if (count !== paidFromAccountIds.length) throw new BadRequestException('Invalid paid_from_account_id');
+    }
 
     const itemsTotal = (dto.items ?? []).reduce(
       (sum, item) => sum + Number(item.amount) * Number(item.quantity ?? 1),
@@ -296,6 +309,7 @@ export class RequestsService {
               method: row.method ?? null,
               transactionRef: row.transaction_ref ?? null,
               note: row.note ?? null,
+              paidFromAccountId: row.paid_from_account_id ?? null,
               evidenceFileId: row.evidence_file_id ?? null,
               disbursedAt,
               retiredAt: retiredAmount > 0 ? disbursedAt : null,
@@ -358,6 +372,19 @@ export class RequestsService {
       .filter((x): x is string => Boolean(x));
     const allFileIds = Array.from(new Set([...itemFileIds, ...voucherEvidenceIds, ...retirementIds]));
     if (allFileIds.length) await this.ensureFileAssetsExist(this.prisma, allFileIds);
+    const paidFromAccountIds = Array.from(
+      new Set(
+        (dto.disbursements ?? [])
+          .map((x) => x.paid_from_account_id)
+          .filter((x): x is string => Boolean(x))
+      )
+    );
+    if (paidFromAccountIds.length > 0) {
+      const count = await this.prisma.financeAccount.count({
+        where: { id: { in: paidFromAccountIds }, isActive: true }
+      });
+      if (count !== paidFromAccountIds.length) throw new BadRequestException('Invalid paid_from_account_id');
+    }
 
     const itemsTotal = (dto.items ?? []).reduce(
       (sum, item) => sum + Number(item.amount) * Number(item.quantity ?? 1),
@@ -461,6 +488,7 @@ export class RequestsService {
               method: row.method ?? null,
               transactionRef: row.transaction_ref ?? null,
               note: row.note ?? null,
+              paidFromAccountId: row.paid_from_account_id ?? null,
               evidenceFileId: row.evidence_file_id ?? null,
               disbursedAt,
               retiredAt: retiredAmount > 0 ? disbursedAt : null,

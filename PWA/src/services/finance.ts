@@ -70,10 +70,35 @@ export async function listFinanceRequests(params?: Record<string, unknown>) {
 
 export async function disburseFinanceRequest(
   id: string,
-  payload: { note?: string; method?: string; transaction_ref?: string; amount?: number; evidence_file_id?: string }
+  payload: {
+    note?: string;
+    method?: string;
+    transaction_ref?: string;
+    amount?: number;
+    evidence_file_id?: string;
+    paid_from_account_id?: string;
+  }
 ) {
   const response = await apiClient.post(`/finance/requests/${id}/disburse`, payload);
   return response.data?.data as RequestRecord;
+}
+
+export type FinanceAccountRecord = {
+  id: string;
+  organization_id: string | null;
+  name: string;
+  code: string | null;
+  account_type: string;
+  currency: string;
+  opening_balance: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listFinanceAccounts(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/finance/accounts", { params });
+  return (response.data?.data ?? []) as FinanceAccountRecord[];
 }
 
 export async function listFinanceRequestPaymentVouchers(id: string) {
@@ -89,6 +114,7 @@ export async function listFinanceRequestPaymentVouchers(id: string) {
     method: string | null;
     transaction_ref: string | null;
     note: string | null;
+    paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
     disbursed_at: string;
     retired_at: string | null;
     verified_at: string | null;

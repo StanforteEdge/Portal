@@ -11,6 +11,7 @@ export type RequestItemInput = {
 export type ManualDisbursementInput = {
   voucher_number: string;
   amount: number;
+  paid_from_account_id?: string;
   method?: string;
   transaction_ref?: string;
   note?: string;
