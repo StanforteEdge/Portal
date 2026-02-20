@@ -128,9 +128,10 @@ function FinanceRequestDetailPage() {
   }, [data, organizations]);
 
   const projectName = useMemo(() => {
-    const value = String(data.project || "").trim();
-    if (!value) return "-";
-    return projects.find((project) => project.id === value)?.name || value;
+    const projectId = String(data.project_id || "").trim();
+    if (projectId) return projects.find((project) => project.id === projectId)?.name || projectId;
+    const projectLabel = String(data.project_name || "").trim();
+    return projectLabel || "-";
   }, [data, projects]);
 
   const categoryName = useMemo(() => {

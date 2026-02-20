@@ -33,7 +33,7 @@ function FinanceRequestsPage() {
     return allRequests.filter((req) => {
       const data = (req.data || {}) as Record<string, unknown>;
       const requestDueDate = typeof data.due_date === "string" ? data.due_date.slice(0, 10) : "";
-      const requestProject = String(data.project || "");
+      const requestProject = String(data.project_id || "");
       const requestTeam = String(data.team || "");
       const requestOrganization = String(data.organization || "");
       const requestPurpose = String(data.purpose || "");
@@ -172,7 +172,7 @@ function FinanceRequestsPage() {
               <FormSelect value={project} onChange={(e) => setProject(e.target.value)}>
                 <option value="">All projects</option>
                 {projectOptions.map((option) => (
-                  <option key={option.id} value={option.name}>
+                  <option key={option.id} value={option.id}>
                     {option.name}
                   </option>
                 ))}

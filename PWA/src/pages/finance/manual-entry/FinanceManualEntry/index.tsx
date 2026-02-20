@@ -6,13 +6,14 @@ import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Bas
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { useAppSelector } from "@/stores/hooks";
 import { listUsers } from "@/services/users";
-import { listRequestGroups, listRequestTypes, createManualRequestEntry, generateRequestPdf, generateRequestPv, generateFullRequestPackage, generateRequestPackageWithAttachments, generateVoucherPackageWithAttachments, type RequestItemInput } from "@/services/requests";
+import { listRequestGroups, listRequestTypes, createManualRequestEntry, updateManualRequestEntry, deleteManualRequestEntry, checkManualRequestNumber, getRequest, generateRequestPdf, generateRequestPv, generateFullRequestPackage, generateRequestPackageWithAttachments, generateVoucherPackageWithAttachments, type RequestItemInput } from "@/services/requests";
 import { listTeams } from "@/services/teams";
 import { listOrganizations } from "@/services/organizations";
 import { listProjects } from "@/services/projects";
 import { listManagedTaxonomies } from "@/services/taxonomy";
 import { formatMoney } from "@/utils/formatting";
 import { uploadFileAsset } from "@/services/files";
+import { listFinanceRequestPaymentVouchers } from "@/services/finance";
 
 type Option = { id: string; name: string };
 
@@ -55,6 +56,13 @@ function FinanceManualEntryPage() {
   const [uploading, setUploading] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string>("");
   const [voucherId, setVoucherId] = useState<string>("");
+  const [lookupId, setLookupId] = useState<string>("");
+  const [editingId, setEditingId] = useState<string>("");
+  const [checkingNumber, setCheckingNumber] = useState(false);
+  const [numberExists, setNumberExists] = useState<{ exists: boolean; requestId: string | null }>({
+    exists: false,
+    requestId: null,
+  });
 
   const [staffOptions, setStaffOptions] = useState<Option[]>([]);
   const [typeOptions, setTypeOptions] = useState<Option[]>([]);
@@ -66,7 +74,7 @@ function FinanceManualEntryPage() {
   const [form, setForm] = useState({
     request_type_id: "",
     staff_id: "",
-    request_number: "",
+    request_id: "",
     team_id: "",
     organization_id: "",
     project_id: "",
@@ -149,9 +157,46 @@ function FinanceManualEntryPage() {
     void load();
   }, []);
 
+  useEffect(() => {
+    const manualNumber = String(form.request_id || "").trim();
+    if (!manualNumber) {
+      setNumberExists({ exists: false, requestId: null });
+      return;
+    }
+    if (!/^\d+$/.test(manualNumber)) {
+      setNumberExists({ exists: true, requestId: null });
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        setCheckingNumber(true);
+        const result = await checkManualRequestNumber(manualNumber, {
+          request_type_id: form.request_type_id || undefined,
+          exclude_id: editingId || undefined,
+        });
+        setNumberExists({ exists: Boolean(result.exists), requestId: result.request_id });
+      } catch {
+        setNumberExists({ exists: false, requestId: null });
+      } finally {
+        setCheckingNumber(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [form.request_id, form.request_type_id, editingId]);
+
   const saveManualRequest = async () => {
     if (!form.request_type_id || !form.staff_id) {
       setNotice({ tone: "warning", message: "Request type and staff are required." });
+      return;
+    }
+    if (form.request_id && !/^\d+$/.test(form.request_id)) {
+      setNotice({ tone: "warning", message: "Request ID must be digits only (e.g. 25)." });
+      return;
+    }
+    if (numberExists.exists && numberExists.requestId && numberExists.requestId !== editingId) {
+      setNotice({ tone: "warning", message: `Request ID already exists (Request ID ${numberExists.requestId}).` });
       return;
     }
     try {
@@ -165,11 +210,13 @@ function FinanceManualEntryPage() {
           ? [{ role: "ed", name: form.approvals.ed_name, date: form.approvals.ed_date, done: !!form.approvals.ed_name }]
           : []),
       ];
+      const selectedProjectName =
+        projectOptions.find((project) => project.id === form.project_id)?.name || undefined;
 
-      const created = await createManualRequestEntry({
+      const payload = {
         request_type_id: form.request_type_id,
         staff_id: form.staff_id,
-        request_number: form.request_number || undefined,
+        request_id: form.request_id || undefined,
         team_id: form.team_id || undefined,
         organization_id: form.organization_id || undefined,
         status: form.status,
@@ -180,6 +227,7 @@ function FinanceManualEntryPage() {
           purpose: form.purpose || undefined,
           due_date: form.due_date || undefined,
           category_id: form.category_id || undefined,
+          project_name: selectedProjectName,
           project_id: form.project_id || undefined,
           team_id: form.team_id || undefined,
           organization_id: form.organization_id || undefined,
@@ -209,14 +257,107 @@ function FinanceManualEntryPage() {
               .map((x) => x.trim())
               .filter(Boolean),
           })),
-      });
+      };
+      const created = editingId
+        ? await updateManualRequestEntry(editingId, payload)
+        : await createManualRequestEntry(payload);
 
       setRequestId(created.id);
+      setEditingId(created.id);
       const firstVoucher = (created as any)?.payment_vouchers?.[0]?.id || "";
       setVoucherId(firstVoucher);
-      setNotice({ tone: "success", message: "Manual request saved successfully." });
+      setNotice({ tone: "success", message: editingId ? "Manual request updated successfully." : "Manual request saved successfully." });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save manual request." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const loadForEdit = async () => {
+    if (!lookupId.trim()) return;
+    try {
+      setLoading(true);
+      const req = await getRequest(lookupId.trim());
+      const pvs = await listFinanceRequestPaymentVouchers(lookupId.trim()).catch(() => []);
+      const data = (req.data || {}) as Record<string, any>;
+      const manualApprovals = Array.isArray(data.manual_approvals) ? data.manual_approvals : [];
+      const findApproval = (role: string) =>
+        manualApprovals.find((row: any) => String(row.role || "").toLowerCase() === role);
+
+      setEditingId(req.id);
+      setRequestId(req.id);
+      setForm((prev) => ({
+        ...prev,
+        request_type_id: req.request_type?.id || "",
+        staff_id: req.creator?.id || "",
+        request_id: String(req.id || "").trim(),
+        team_id: String(data.team_id || ""),
+        organization_id: String(data.organization_id || ""),
+        project_id: String(data.project_id || ""),
+        category_id: String(data.category_id || ""),
+        status: req.status || "completed",
+        created_at: req.created_at ? String(req.created_at).slice(0, 10) : "",
+        due_date: data.due_date ? String(data.due_date).slice(0, 10) : "",
+        purpose: String(data.purpose || ""),
+        currency: req.currency || "NGN",
+        approvals: {
+          team_lead_name: findApproval("team_lead")?.name || "",
+          team_lead_date: findApproval("team_lead")?.date ? String(findApproval("team_lead").date).slice(0, 10) : "",
+          accountant_name: findApproval("accountant")?.name || "",
+          accountant_date: findApproval("accountant")?.date ? String(findApproval("accountant").date).slice(0, 10) : "",
+          coo_name: findApproval("coo")?.name || "",
+          coo_date: findApproval("coo")?.date ? String(findApproval("coo").date).slice(0, 10) : "",
+          ed_name: findApproval("ed")?.name || "",
+          ed_date: findApproval("ed")?.date ? String(findApproval("ed").date).slice(0, 10) : "",
+          include_ed: Boolean(findApproval("ed")),
+        },
+      }));
+
+      setItems(
+        (req.items || []).map((item) => ({
+          description: item.description,
+          amount: Number(item.amount || 0),
+          quantity: Number(item.quantity || 1),
+          notes: item.notes || "",
+          file_id: item.file_id || "",
+        }))
+      );
+      setDisbursements(
+        pvs.map((pv) => ({
+          voucher_number: pv.voucher_number,
+          amount: Number(pv.amount || 0),
+          method: pv.method || "bank_transfer",
+          transaction_ref: pv.transaction_ref || "",
+          note: pv.note || "",
+          disbursed_at: pv.disbursed_at ? String(pv.disbursed_at).slice(0, 10) : "",
+          evidence_file_id: pv.evidence_file?.id || "",
+          retired_amount: Number(pv.retired_amount || 0),
+          retirement_status: pv.retirement_status || "not_retired",
+          retirement_file_ids_text: (pv.retirement_files || []).map((f) => f.id).join(", "),
+        }))
+      );
+      setNotice({ tone: "success", message: `Loaded request ${req.id} for edit.` });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to find request by ID." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onDeleteManual = async () => {
+    if (!editingId) return;
+    const ok = window.confirm(`Delete manual request ${editingId}? This cannot be undone.`);
+    if (!ok) return;
+    try {
+      setSaving(true);
+      await deleteManualRequestEntry(editingId);
+      setNotice({ tone: "success", message: "Manual request deleted." });
+      setEditingId("");
+      setRequestId("");
+      setLookupId("");
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete request." });
     } finally {
       setSaving(false);
     }
@@ -293,10 +434,48 @@ function FinanceManualEntryPage() {
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
       <div className="box mt-5 p-5 space-y-6">
+        <div className="grid grid-cols-12 gap-3 rounded-md border p-3">
+          <div className="col-span-12 md:col-span-6">
+            <FormLabel>Search Existing Request by ID</FormLabel>
+            <FormInput
+              value={lookupId}
+              onChange={(e) => setLookupId(e.target.value.replace(/[^\d]/g, ""))}
+              placeholder="e.g. 3001"
+            />
+          </div>
+          <div className="col-span-12 md:col-span-6 flex items-end gap-2">
+            <Button variant="outline-primary" onClick={() => void loadForEdit()} disabled={!lookupId || loading}>
+              Search & Load
+            </Button>
+            {editingId ? (
+              <Button variant="danger" onClick={() => void onDeleteManual()} disabled={saving}>
+                Delete
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
         <div className="grid grid-cols-12 gap-4">
           <div className="col-span-12 md:col-span-4"><FormLabel>Request Type</FormLabel><FormSelect value={form.request_type_id} onChange={(e) => setForm((p) => ({ ...p, request_type_id: e.target.value }))}><option value="">Select</option>{typeOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</FormSelect></div>
           <div className="col-span-12 md:col-span-4"><FormLabel>Staff</FormLabel><FormSelect value={form.staff_id} onChange={(e) => setForm((p) => ({ ...p, staff_id: e.target.value }))}><option value="">Select</option>{staffOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</FormSelect></div>
-          <div className="col-span-12 md:col-span-4"><FormLabel>Manual Request Number</FormLabel><FormInput value={form.request_number} onChange={(e) => setForm((p) => ({ ...p, request_number: e.target.value }))} placeholder="PC/2025/025" /></div>
+          <div className="col-span-12 md:col-span-4">
+            <FormLabel>Request ID (Digits)</FormLabel>
+            <FormInput
+              type="number"
+              value={form.request_id}
+              onChange={(e) => setForm((p) => ({ ...p, request_id: e.target.value.replace(/[^\d]/g, "") }))}
+              placeholder="25"
+            />
+            <div className="mt-1 text-xs text-slate-500">
+              {checkingNumber
+                ? "Checking number..."
+                : numberExists.exists
+                  ? numberExists.requestId
+                    ? `Already exists (Request ID ${numberExists.requestId})`
+                    : "Invalid request number"
+                  : "Available"}
+            </div>
+          </div>
           <div className="col-span-12 md:col-span-3"><FormLabel>Status</FormLabel><FormSelect value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}><option value="completed">Completed</option><option value="retired">Retired</option><option value="confirmed">Confirmed</option><option value="disbursed">Disbursed</option><option value="cleared">Cleared</option><option value="approval">Approval</option></FormSelect></div>
           <div className="col-span-12 md:col-span-3"><FormLabel>Created At</FormLabel><FormInput type="date" value={form.created_at} onChange={(e) => setForm((p) => ({ ...p, created_at: e.target.value }))} /></div>
           <div className="col-span-12 md:col-span-3"><FormLabel>Due Date</FormLabel><FormInput type="date" value={form.due_date} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))} /></div>
@@ -377,7 +556,7 @@ function FinanceManualEntryPage() {
 
         <div className="flex flex-wrap gap-3">
           <Button disabled={loading || saving} onClick={saveManualRequest}>
-            {saving ? "Saving..." : "Save Manual Request"}
+            {saving ? "Saving..." : editingId ? "Update Manual Request" : "Save Manual Request"}
           </Button>
           <Button variant="outline-primary" disabled={!requestId} onClick={async () => {
             if (!requestId) return;

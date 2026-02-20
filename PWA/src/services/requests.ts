@@ -238,7 +238,7 @@ export async function generateRequestPvByVoucher(id: string, voucherId: string) 
 export async function createManualRequestEntry(payload: {
   request_type_id: string;
   staff_id: string;
-  request_number?: string;
+  request_id?: string;
   team_id?: string;
   organization_id?: string;
   status?: string;
@@ -252,6 +252,47 @@ export async function createManualRequestEntry(payload: {
 }) {
   const response = await apiClient.post("/requests/manual-entry", payload);
   return response.data?.data as RequestRecord;
+}
+
+export async function updateManualRequestEntry(
+  id: string,
+  payload: {
+    request_type_id: string;
+    staff_id: string;
+    request_id?: string;
+    team_id?: string;
+    organization_id?: string;
+    status?: string;
+    created_at?: string;
+    currency?: string;
+    total_amount?: number;
+    data?: Record<string, unknown>;
+    approvals?: Array<{ role: string; name?: string; date?: string; done?: boolean }>;
+    items?: RequestItemInput[];
+    disbursements?: ManualDisbursementInput[];
+  }
+) {
+  const response = await apiClient.post(`/requests/${id}/manual-entry`, payload);
+  return response.data?.data as RequestRecord;
+}
+
+export async function deleteManualRequestEntry(id: string) {
+  const response = await apiClient.delete(`/requests/${id}/manual-entry`);
+  return response.data?.data ?? { success: true };
+}
+
+export async function checkManualRequestNumber(
+  requestId: string,
+  params?: { request_type_id?: string; exclude_id?: string }
+) {
+  const response = await apiClient.get("/requests/manual-entry/check-number", {
+    params: {
+      request_id: requestId,
+      ...(params?.request_type_id ? { request_type_id: params.request_type_id } : {}),
+      ...(params?.exclude_id ? { exclude_id: params.exclude_id } : {}),
+    },
+  });
+  return (response.data?.data ?? { exists: false, request_id: null }) as { exists: boolean; request_id: string | null };
 }
 
 export async function generateFullRequestPackage(
