@@ -10,12 +10,13 @@ import { listRequestGroups, listRequestTypes, createManualRequestEntry, updateMa
 import { listTeams } from "@/services/teams";
 import { listOrganizations } from "@/services/organizations";
 import { listProjects } from "@/services/projects";
-import { listManagedTaxonomies } from "@/services/taxonomy";
+import { listManagedTaxonomies, type ManagedTaxonomy } from "@/services/taxonomy";
 import { formatMoney } from "@/utils/formatting";
 import { uploadFileAsset } from "@/services/files";
 import { listFinanceRequestPaymentVouchers } from "@/services/finance";
 
 type Option = { id: string; name: string };
+type RequestTypeOption = Option & { categoryKey?: string | null };
 
 type ManualItem = RequestItemInput;
 type ManualDisbursement = {
@@ -65,11 +66,12 @@ function FinanceManualEntryPage() {
   });
 
   const [staffOptions, setStaffOptions] = useState<Option[]>([]);
-  const [typeOptions, setTypeOptions] = useState<Option[]>([]);
+  const [typeOptions, setTypeOptions] = useState<RequestTypeOption[]>([]);
   const [teamOptions, setTeamOptions] = useState<Option[]>([]);
   const [organizationOptions, setOrganizationOptions] = useState<Option[]>([]);
   const [projectOptions, setProjectOptions] = useState<Option[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<Option[]>([]);
+  const [taxonomyOptions, setTaxonomyOptions] = useState<ManagedTaxonomy[]>([]);
 
   const [form, setForm] = useState({
     request_type_id: "",
@@ -140,14 +142,11 @@ function FinanceManualEntryPage() {
         );
         const financeGroup = groups.find((g) => g.code?.toLowerCase() === "fin" || g.name?.toLowerCase() === "finance");
         const requestTypes = await listRequestTypes(financeGroup ? { group_id: financeGroup.id } : undefined);
-        setTypeOptions(requestTypes.map((t) => ({ id: t.id, name: t.name })));
+        setTypeOptions(requestTypes.map((t) => ({ id: t.id, name: t.name, categoryKey: t.category_key })));
         setTeamOptions(teams.map((t) => ({ id: t.id, name: t.name })));
         setOrganizationOptions(orgs.map((o) => ({ id: o.id, name: o.name })));
         setProjectOptions(projects.map((p) => ({ id: p.id, name: p.name })));
-        const preferred = taxonomies.find((t) => t.key === "finance_request_category");
-        const fallback = taxonomies[0];
-        const activeTaxonomy = preferred ?? fallback;
-        setCategoryOptions((activeTaxonomy?.terms ?? []).map((x) => ({ id: x.id, name: x.label })));
+        setTaxonomyOptions(taxonomies);
       } catch (error: any) {
         setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load manual entry options." });
       } finally {
@@ -185,6 +184,19 @@ function FinanceManualEntryPage() {
 
     return () => window.clearTimeout(timer);
   }, [form.request_id, form.request_type_id, editingId]);
+
+  useEffect(() => {
+    const selectedType = typeOptions.find((item) => item.id === form.request_type_id);
+    const preferredTaxonomyKey = selectedType?.categoryKey || "finance_request_category";
+    const preferred = taxonomyOptions.find((item) => item.key === preferredTaxonomyKey);
+    const fallback = taxonomyOptions.find((item) => item.key === "finance_request_category") ?? taxonomyOptions[0];
+    const activeTaxonomy = preferred ?? fallback;
+    const options = (activeTaxonomy?.terms ?? []).map((term) => ({ id: term.id, name: term.label }));
+    setCategoryOptions(options);
+    if (form.category_id && !options.some((option) => option.id === form.category_id)) {
+      setForm((prev) => ({ ...prev, category_id: "" }));
+    }
+  }, [form.request_type_id, form.category_id, typeOptions, taxonomyOptions]);
 
   const saveManualRequest = async () => {
     if (!form.request_type_id || !form.staff_id) {
