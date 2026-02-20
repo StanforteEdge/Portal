@@ -80,8 +80,8 @@ function Main() {
                   <li key={menuKey}>
                     {menu.subMenu ? (
                       <Tippy
-                        as="button"
-                        type="button"
+                        as="a"
+                        href="javascript:void(0)"
                         content={menu.title}
                         options={{
                           placement: "right",
@@ -92,9 +92,10 @@ function Main() {
                           linkTo(menu, navigate);
                           setFormattedMenu([...formattedMenu]);
                         }}
-                        className={clsx([
-                          menu.active ? "side-menu side-menu--active" : "side-menu",
-                        ])}
+                        className={clsx("side-menu", {
+                          "side-menu--active": menu.active,
+                          "side-menu--open": Boolean(menu.activeDropdown),
+                        })}
                       >
                         <div className="side-menu__icon">
                           <Lucide icon={menu.icon} />
@@ -152,8 +153,8 @@ function Main() {
                             <li key={subMenuKey}>
                               {subMenu.subMenu ? (
                                 <Tippy
-                                  as="button"
-                                  type="button"
+                                  as="a"
+                                  href="javascript:void(0)"
                                   content={subMenu.title}
                                   options={{
                                     placement: "right",
@@ -164,9 +165,10 @@ function Main() {
                                     linkTo(subMenu, navigate);
                                     setFormattedMenu([...formattedMenu]);
                                   }}
-                                  className={clsx([
-                                    subMenu.active ? "side-menu side-menu--active" : "side-menu",
-                                  ])}
+                                  className={clsx("side-menu", {
+                                    "side-menu--active": subMenu.active,
+                                    "side-menu--open": Boolean(subMenu.activeDropdown),
+                                  })}
                                 >
                                   <div className="side-menu__icon">
                                     <Lucide icon={subMenu.icon} />
