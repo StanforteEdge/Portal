@@ -1,11 +1,10 @@
 import "@/assets/css/vendors/simplebar.css";
 import "@/assets/css/components/mobile-menu.css";
 import { Transition } from "react-transition-group";
-import { useState, useEffect, createRef } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toRaw } from "@/utils/helper";
-import { selectMenu } from "@/stores/menuSlice";
-import { selectTheme } from "@/stores/themeSlice";
+import { selectSideMenu } from "@/stores/menuSlice";
 import { useAppSelector } from "@/stores/hooks";
 import { FormattedMenu, linkTo, nestedMenu, enter, leave } from "./mobile-menu";
 import Lucide from "@/components/Base/Lucide";
@@ -19,18 +18,22 @@ function Main() {
   const [formattedMenu, setFormattedMenu] = useState<
     Array<FormattedMenu | "divider">
   >([]);
-  const themeStore = useAppSelector(selectTheme);
-  const menuStore = useAppSelector(selectMenu(themeStore.layout));
+  const menuStore = useAppSelector(selectSideMenu);
   const menu = () => nestedMenu(toRaw(menuStore), location);
   const [activeMobileMenu, setActiveMobileMenu] = useState(false);
-  const scrollableRef = createRef<HTMLDivElement>();
+  const scrollableRef = useRef<HTMLDivElement | null>(null);
+  const simpleBarRef = useRef<SimpleBar | null>(null);
 
   useEffect(() => {
-    if (scrollableRef.current) {
-      new SimpleBar(scrollableRef.current);
+    if (scrollableRef.current && !simpleBarRef.current) {
+      simpleBarRef.current = new SimpleBar(scrollableRef.current);
     }
+    return () => simpleBarRef.current?.unMount();
+  }, []);
+
+  useEffect(() => {
     setFormattedMenu(menu());
-  }, [menuStore, location.pathname]);
+  }, [location.pathname]);
 
   return (
     <>

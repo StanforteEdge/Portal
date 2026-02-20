@@ -1,7 +1,7 @@
 import "@/assets/css/themes/tinker/top-nav.css";
 import { useState, useEffect, Fragment } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { selectMenu } from "@/stores/menuSlice";
+import { selectTopMenu } from "@/stores/menuSlice";
 import { useAppSelector } from "@/stores/hooks";
 import fakerData from "@/utils/faker";
 import * as _ from "lodash-es";
@@ -34,12 +34,12 @@ function Main() {
   const [formattedMenu, setFormattedMenu] = useState<
     Array<FormattedMenu | "divider">
   >([]);
-  const menuStore = useAppSelector(selectMenu("top-menu"));
+  const menuStore = useAppSelector(selectTopMenu);
   const menu = () => nestedMenu(menuStore, location);
 
   useEffect(() => {
     setFormattedMenu(menu());
-  }, [menuStore, location.pathname]);
+  }, [location.pathname]);
 
   return (
     <forceActiveMenuContext.Provider

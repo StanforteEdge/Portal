@@ -2,7 +2,7 @@ import "@/assets/css/themes/tinker/side-nav.css";
 import { Transition } from "react-transition-group";
 import { useState, useEffect } from "react";
 import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
-import { selectMenu } from "@/stores/menuSlice";
+import { selectSideMenu } from "@/stores/menuSlice";
 import { useAppSelector } from "@/stores/hooks";
 import {
   FormattedMenu,
@@ -26,7 +26,7 @@ function Main() {
   const [formattedMenu, setFormattedMenu] = useState<
     Array<FormattedMenu | "divider">
   >([]);
-  const menuStore = useAppSelector(selectMenu("side-menu"));
+  const menuStore = useAppSelector(selectSideMenu);
   const menu = () => nestedMenu(menuStore, location);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
@@ -39,7 +39,7 @@ function Main() {
     return () => {
       window.removeEventListener("resize", onResize);
     };
-  }, [menuStore, location.pathname]);
+  }, [location.pathname]);
 
   return (
     <forceActiveMenuContext.Provider
