@@ -366,6 +366,15 @@ export class RequestsService {
     const totalAmount = dto.total_amount ?? itemsTotal;
     const createdAt = dto.created_at ? new Date(dto.created_at) : existing.createdAt;
     if (Number.isNaN(createdAt.getTime())) throw new BadRequestException('Invalid created_at');
+    const desiredRequestId = dto.request_id ? toBigInt(dto.request_id) : existing.id;
+    const isRequestIdChanged = desiredRequestId !== existing.id;
+    if (isRequestIdChanged) {
+      const taken = await this.prisma.requestInstance.findUnique({
+        where: { id: desiredRequestId },
+        select: { id: true }
+      });
+      if (taken) throw new BadRequestException(`request_id ${dto.request_id} already exists`);
+    }
 
     const baseData: Record<string, unknown> = {
       ...(dto.data ?? {}),
@@ -382,29 +391,49 @@ export class RequestsService {
 
     const status = (dto.status ?? existing.status) as any;
     await this.prisma.$transaction(async (tx) => {
-      await tx.requestInstance.update({
-        where: { id: existing.id },
-        data: {
-          requestTypeId: requestType.id,
-          groupId: requestType.groupId,
-          createdBy: staff.id,
-          teamId: dto.team_id ? toBigInt(dto.team_id) : null,
-          organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
-          status,
-          data: baseData as Prisma.InputJsonValue,
-          totalAmount,
-          currency: dto.currency || existing.currency || 'NGN',
-          createdAt,
-          updatedAt: new Date()
-        }
-      });
+      if (isRequestIdChanged) {
+        await tx.requestInstance.create({
+          data: {
+            id: desiredRequestId,
+            requestTypeId: requestType.id,
+            groupId: requestType.groupId,
+            createdBy: staff.id,
+            teamId: dto.team_id ? toBigInt(dto.team_id) : null,
+            organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
+            workflowInstanceId: null,
+            status,
+            data: baseData as Prisma.InputJsonValue,
+            totalAmount,
+            currency: dto.currency || existing.currency || 'NGN',
+            createdAt,
+            updatedAt: new Date()
+          }
+        });
+      } else {
+        await tx.requestInstance.update({
+          where: { id: existing.id },
+          data: {
+            requestTypeId: requestType.id,
+            groupId: requestType.groupId,
+            createdBy: staff.id,
+            teamId: dto.team_id ? toBigInt(dto.team_id) : null,
+            organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
+            status,
+            data: baseData as Prisma.InputJsonValue,
+            totalAmount,
+            currency: dto.currency || existing.currency || 'NGN',
+            createdAt,
+            updatedAt: new Date()
+          }
+        });
+      }
 
       await tx.requestItem.deleteMany({ where: { requestId: existing.id } });
       if (dto.items?.length) {
         for (const item of dto.items) {
           await tx.requestItem.create({
             data: {
-              requestId: existing.id,
+              requestId: desiredRequestId,
               description: item.description,
               amount: item.amount,
               quantity: item.quantity ?? 1,
@@ -424,7 +453,7 @@ export class RequestsService {
           if (Number.isNaN(disbursedAt.getTime())) throw new BadRequestException('Invalid disbursement date');
           await tx.financePaymentVoucher.create({
             data: {
-              requestId: existing.id,
+              requestId: desiredRequestId,
               voucherNumber: row.voucher_number,
               amount,
               retiredAmount,
@@ -443,9 +472,16 @@ export class RequestsService {
           });
         }
       }
+
+      if (isRequestIdChanged) {
+        await tx.requestInstance.delete({ where: { id: existing.id } });
+        await tx.$executeRawUnsafe(
+          "SELECT setval(pg_get_serial_sequence('sta_request_instances','id'), (SELECT COALESCE(MAX(id), 1) FROM sta_request_instances), true)"
+        );
+      }
     });
 
-    return this.getRequest(existing.id.toString(), userId);
+    return this.getRequest(desiredRequestId.toString(), userId);
   }
 
   async deleteManualEntry(id: string, userId: string) {
