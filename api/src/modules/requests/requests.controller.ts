@@ -277,6 +277,15 @@ export class RequestsController {
     return this.requestsService.checkManualRequestNumber(requestId, requestTypeId, excludeId);
   }
 
+  @Get('manual-entry/check-voucher-number')
+  @Permissions('requests.manage')
+  checkManualVoucherNumber(
+    @Query('voucher_number') voucherNumber?: string,
+    @Query('exclude_request_id') excludeRequestId?: string
+  ) {
+    return this.requestsService.checkManualVoucherNumber(voucherNumber, excludeRequestId);
+  }
+
   @Post(':id/manual-entry')
   @Permissions('requests.manage')
   @ApiOperation({ summary: 'Update finance manual legacy request entry' })

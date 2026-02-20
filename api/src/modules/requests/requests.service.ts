@@ -520,6 +520,34 @@ export class RequestsService {
     return { exists: Boolean(found), request_id: found?.id?.toString() ?? null };
   }
 
+  async checkManualVoucherNumber(voucherNumber?: string, excludeRequestId?: string) {
+    const raw = String(voucherNumber || '').trim();
+    if (!raw) {
+      return { exists: false };
+    }
+    if (!/^\d+$/.test(raw)) {
+      return { exists: false };
+    }
+
+    const found = await this.prisma.financePaymentVoucher.findFirst({
+      where: {
+        voucherNumber: raw,
+        ...(excludeRequestId ? { requestId: { not: toBigInt(excludeRequestId) } } : {})
+      },
+      select: {
+        id: true,
+        requestId: true,
+        voucherNumber: true
+      }
+    });
+
+    return {
+      exists: Boolean(found),
+      voucher_number: found?.voucherNumber ?? null,
+      request_id: found?.requestId?.toString() ?? null
+    };
+  }
+
   async submitRequest(id: string, userId: string, dto: SubmitRequestDto) {
     const request = await this.getRequestOrThrow(id);
     if (request.createdBy !== toBigInt(userId)) {

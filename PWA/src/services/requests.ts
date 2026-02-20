@@ -295,6 +295,23 @@ export async function checkManualRequestNumber(
   return (response.data?.data ?? { exists: false, request_id: null }) as { exists: boolean; request_id: string | null };
 }
 
+export async function checkManualVoucherNumber(
+  voucherNumber: string,
+  params?: { exclude_request_id?: string }
+) {
+  const response = await apiClient.get("/requests/manual-entry/check-voucher-number", {
+    params: {
+      voucher_number: voucherNumber,
+      ...(params?.exclude_request_id ? { exclude_request_id: params.exclude_request_id } : {}),
+    },
+  });
+  return (response.data?.data ?? { exists: false, voucher_number: null, request_id: null }) as {
+    exists: boolean;
+    voucher_number: string | null;
+    request_id: string | null;
+  };
+}
+
 export async function generateFullRequestPackage(
   id: string,
   payload?: { delivery?: "download" | "email"; email_to?: string }
