@@ -12,6 +12,7 @@ import { ActionRequestDto } from './dto/action-request.dto';
 import { RequestResponseDto } from './dto/request-response.dto';
 import { RetireRequestDto } from './dto/retire-request.dto';
 import { CreateManualRequestDto } from './dto/create-manual-request.dto';
+import { UpdateManualRequestDto } from './dto/update-manual-request.dto';
 import { DownloadRequestDto } from './dto/download-request.dto';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
@@ -264,6 +265,31 @@ export class RequestsController {
   @ApiBody({ type: CreateManualRequestDto })
   createManualEntry(@Req() req: any, @Body() dto: CreateManualRequestDto) {
     return this.requestsService.createManualEntry(req.user?.id, dto);
+  }
+
+  @Get('manual-entry/check-number')
+  @Permissions('requests.manage')
+  checkManualRequestNumber(
+    @Query('request_number') requestNumber?: string,
+    @Query('request_type_id') requestTypeId?: string,
+    @Query('exclude_id') excludeId?: string
+  ) {
+    return this.requestsService.checkManualRequestNumber(requestNumber, requestTypeId, excludeId);
+  }
+
+  @Post(':id/manual-entry')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Update finance manual legacy request entry' })
+  @ApiBody({ type: UpdateManualRequestDto })
+  updateManualEntry(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateManualRequestDto) {
+    return this.requestsService.updateManualEntry(id, req.user?.id, dto);
+  }
+
+  @Delete(':id/manual-entry')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Delete finance manual legacy request entry' })
+  deleteManualEntry(@Req() req: any, @Param('id') id: string) {
+    return this.requestsService.deleteManualEntry(id, req.user?.id);
   }
 
 

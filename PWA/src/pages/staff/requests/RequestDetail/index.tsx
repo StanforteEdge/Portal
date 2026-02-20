@@ -215,9 +215,10 @@ function RequestDetailPage() {
     return organizations.find((org) => org.id === idValue)?.name || idValue;
   })();
   const projectName = (() => {
-    const value = String(requestData.project || "").trim();
-    if (!value) return "-";
-    return projects.find((project) => project.id === value)?.name || value;
+    const projectId = String(requestData.project_id || "").trim();
+    if (projectId) return projects.find((project) => project.id === projectId)?.name || projectId;
+    const projectLabel = String(requestData.project_name || "").trim();
+    return projectLabel || "-";
   })();
   const categoryName = (() => {
     const idValue = String(requestData.category_id || "").trim();

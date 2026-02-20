@@ -34,7 +34,7 @@ type CreateFormState = {
   reimbursement: boolean;
   purpose: string;
   category_id: string;
-  project: string;
+  project_id: string;
   team_id: string;
   organization_id: string;
   due_date: string;
@@ -56,7 +56,7 @@ const defaultForm: CreateFormState = {
   reimbursement: false,
   purpose: "",
   category_id: "",
-  project: "",
+  project_id: "",
   team_id: "",
   organization_id: "",
   due_date: "",
@@ -87,6 +87,10 @@ function RequestsCreatePage() {
   const projectRequired = useMemo(() => {
     return Boolean((selectedRequestType?.form_schema as any)?.project_required);
   }, [selectedRequestType]);
+  const selectedProjectName = useMemo(() => {
+    if (!form.project_id) return "";
+    return projectOptions.find((project) => project.id === form.project_id)?.name || "";
+  }, [form.project_id, projectOptions]);
 
   const shouldShowTeamSelect = useMemo(() => teamOptions.length > 1, [teamOptions]);
   const shouldShowOrganizationSelect = useMemo(() => organizationOptions.length > 1, [organizationOptions]);
@@ -216,7 +220,7 @@ function RequestsCreatePage() {
   const validate = () => {
     if (!form.request_type_id) return "Select a request type.";
     if (!form.purpose.trim()) return "Purpose is required.";
-    if (projectRequired && !form.project) return "Project is required for this request type.";
+    if (projectRequired && !form.project_id) return "Project is required for this request type.";
     if (form.items.some((item) => !item.description || Number(item.quantity || 0) <= 0 || Number(item.unit_price || 0) <= 0)) {
       return "Each item needs item name, unit price and quantity.";
     }
@@ -245,7 +249,8 @@ function RequestsCreatePage() {
         purpose: form.purpose,
         reimbursement: form.reimbursement,
         category_id: form.category_id || undefined,
-        project: form.project || undefined,
+        project_id: form.project_id || undefined,
+        project_name: selectedProjectName || undefined,
         team_id: form.team_id || undefined,
         organization_id: form.organization_id || undefined,
         due_date: form.due_date || undefined,
@@ -367,10 +372,10 @@ function RequestsCreatePage() {
           {projectRequired ? (
             <div className="col-span-12 md:col-span-4">
               <FormLabel>Project</FormLabel>
-              <FormSelect value={form.project} onChange={(e) => setForm((prev) => ({ ...prev, project: e.target.value }))}>
+              <FormSelect value={form.project_id} onChange={(e) => setForm((prev) => ({ ...prev, project_id: e.target.value }))}>
                 <option value="">Select project</option>
                 {projectOptions.map((project) => (
-                  <option key={project.id} value={project.name}>
+                  <option key={project.id} value={project.id}>
                     {project.name}
                   </option>
                 ))}

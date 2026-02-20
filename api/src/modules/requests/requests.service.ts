@@ -308,6 +308,171 @@ export class RequestsService {
     return this.getRequest(created.id.toString(), userId);
   }
 
+  async updateManualEntry(id: string, userId: string, dto: CreateManualRequestDto) {
+    const existing = await this.getRequestOrThrow(id);
+    const existingData =
+      existing.data && typeof existing.data === 'object' && !Array.isArray(existing.data)
+        ? (existing.data as Record<string, unknown>)
+        : {};
+    if (!existingData.manual_import) {
+      throw new BadRequestException('Only manual-import requests can be updated from manual entry');
+    }
+
+    const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id } });
+    if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
+
+    const staff = await this.prisma.profile.findUnique({
+      where: { id: toBigInt(dto.staff_id) },
+      select: { id: true }
+    });
+    if (!staff) throw new BadRequestException('Invalid staff_id');
+
+    if (dto.team_id) {
+      const team = await this.prisma.group.findUnique({ where: { id: toBigInt(dto.team_id) }, select: { id: true } });
+      if (!team) throw new BadRequestException('Invalid team_id');
+    }
+    if (dto.organization_id) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: toBigInt(dto.organization_id) },
+        select: { id: true }
+      });
+      if (!organization) throw new BadRequestException('Invalid organization_id');
+    }
+
+    const itemFileIds = (dto.items ?? []).map((i) => i.file_id).filter((x): x is string => Boolean(x));
+    const voucherEvidenceIds = (dto.disbursements ?? []).map((x) => x.evidence_file_id).filter((x): x is string => Boolean(x));
+    const retirementIds = (dto.disbursements ?? [])
+      .flatMap((x) => x.retirement_file_ids ?? [])
+      .filter((x): x is string => Boolean(x));
+    const allFileIds = Array.from(new Set([...itemFileIds, ...voucherEvidenceIds, ...retirementIds]));
+    if (allFileIds.length) await this.ensureFileAssetsExist(this.prisma, allFileIds);
+
+    const itemsTotal = (dto.items ?? []).reduce(
+      (sum, item) => sum + Number(item.amount) * Number(item.quantity ?? 1),
+      0
+    );
+    const totalAmount = dto.total_amount ?? itemsTotal;
+    const createdAt = dto.created_at ? new Date(dto.created_at) : existing.createdAt;
+    if (Number.isNaN(createdAt.getTime())) throw new BadRequestException('Invalid created_at');
+
+    const baseData: Record<string, unknown> = {
+      ...(dto.data ?? {}),
+      manual_import: true,
+      ...(dto.request_number ? { manual_request_number: dto.request_number } : {}),
+      manual_approvals: (dto.approvals ?? []).map((row) => ({
+        role: row.role,
+        name: row.name ?? null,
+        date: row.date ?? null,
+        done: row.done ?? true
+      })),
+      imported_at: new Date().toISOString(),
+      imported_by: userId
+    };
+
+    const status = (dto.status ?? existing.status) as any;
+    await this.prisma.$transaction(async (tx) => {
+      await tx.requestInstance.update({
+        where: { id: existing.id },
+        data: {
+          requestTypeId: requestType.id,
+          groupId: requestType.groupId,
+          createdBy: staff.id,
+          teamId: dto.team_id ? toBigInt(dto.team_id) : null,
+          organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
+          status,
+          data: baseData as Prisma.InputJsonValue,
+          totalAmount,
+          currency: dto.currency || existing.currency || 'NGN',
+          createdAt,
+          updatedAt: new Date()
+        }
+      });
+
+      await tx.requestItem.deleteMany({ where: { requestId: existing.id } });
+      if (dto.items?.length) {
+        for (const item of dto.items) {
+          await tx.requestItem.create({
+            data: {
+              requestId: existing.id,
+              description: item.description,
+              amount: item.amount,
+              quantity: item.quantity ?? 1,
+              notes: item.notes ?? null,
+              fileId: item.file_id ?? null
+            }
+          });
+        }
+      }
+
+      await tx.financePaymentVoucher.deleteMany({ where: { requestId: existing.id } });
+      if (dto.disbursements?.length) {
+        for (const row of dto.disbursements) {
+          const amount = Number(row.amount);
+          const retiredAmount = Number(row.retired_amount ?? 0);
+          const disbursedAt = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
+          if (Number.isNaN(disbursedAt.getTime())) throw new BadRequestException('Invalid disbursement date');
+          await tx.financePaymentVoucher.create({
+            data: {
+              requestId: existing.id,
+              voucherNumber: row.voucher_number,
+              amount,
+              retiredAmount,
+              retirementStatus: row.retirement_status ?? (retiredAmount > 0 ? (retiredAmount >= amount ? 'retired' : 'partial') : 'not_retired'),
+              method: row.method ?? null,
+              transactionRef: row.transaction_ref ?? null,
+              note: row.note ?? null,
+              evidenceFileId: row.evidence_file_id ?? null,
+              disbursedAt,
+              retiredAt: retiredAmount > 0 ? disbursedAt : null,
+              verifiedAt: row.retirement_status === 'verified' ? disbursedAt : null,
+              metadata: {
+                retirement_file_ids: row.retirement_file_ids ?? []
+              } as Prisma.InputJsonValue
+            }
+          });
+        }
+      }
+    });
+
+    return this.getRequest(existing.id.toString(), userId);
+  }
+
+  async deleteManualEntry(id: string, userId: string) {
+    const existing = await this.getRequestOrThrow(id);
+    const existingData =
+      existing.data && typeof existing.data === 'object' && !Array.isArray(existing.data)
+        ? (existing.data as Record<string, unknown>)
+        : {};
+    if (!existingData.manual_import) {
+      throw new BadRequestException('Only manual-import requests can be deleted from manual entry');
+    }
+
+    await this.prisma.requestInstance.delete({ where: { id: existing.id } });
+    return { success: true };
+  }
+
+  async checkManualRequestNumber(requestNumber?: string, requestTypeId?: string, excludeId?: string) {
+    const raw = String(requestNumber || '').trim();
+    if (!raw) {
+      return { exists: false };
+    }
+
+    const where: Prisma.RequestInstanceWhereInput = {
+      ...(requestTypeId ? { requestTypeId } : {}),
+      ...(excludeId ? { id: { not: toBigInt(excludeId) } } : {}),
+      data: {
+        path: ['manual_request_number'],
+        equals: raw
+      }
+    };
+
+    const found = await this.prisma.requestInstance.findFirst({
+      where,
+      select: { id: true }
+    });
+    return { exists: Boolean(found), request_id: found?.id?.toString() ?? null };
+  }
+
   async submitRequest(id: string, userId: string, dto: SubmitRequestDto) {
     const request = await this.getRequestOrThrow(id);
     if (request.createdBy !== toBigInt(userId)) {
@@ -442,10 +607,17 @@ export class RequestsService {
   async listRequests(filters: Record<string, any>, userId: string) {
     const where: any = {};
 
+    if (filters.id) where.id = toBigInt(filters.id);
     if (filters.group_id) where.groupId = filters.group_id;
     if (filters.type_id || filters.request_type_id) where.requestTypeId = filters.type_id || filters.request_type_id;
     if (filters.status) where.status = filters.status;
     if (filters.created_by) where.createdBy = toBigInt(filters.created_by);
+    if (filters.request_number) {
+      where.data = {
+        path: ['manual_request_number'],
+        equals: String(filters.request_number).trim()
+      };
+    }
 
     // If no view-all permission, restrict to current user (handled by PermissionsGuard upstream)
     if (filters.only_mine === 'true') {
@@ -1707,7 +1879,7 @@ export class RequestsService {
       'organization'
     );
     const projectName = await this.resolveNameFromReference(
-      data.project_name ?? data.project ?? data.project_id ?? '-',
+      data.project_name ?? data.project_id ?? '-',
       'taxonomy_term'
     );
     const categoryName = await this.resolveNameFromReference(

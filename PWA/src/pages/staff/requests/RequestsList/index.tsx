@@ -32,7 +32,7 @@ function RequestsPage() {
     return allRequests.filter((req) => {
       const data = (req.data || {}) as Record<string, unknown>;
       const requestDueDate = typeof data.due_date === "string" ? data.due_date.slice(0, 10) : "";
-      const requestProject = String(data.project || "");
+      const requestProject = String(data.project_id || "");
       const requestTeam = String(data.team || "");
       const requestOrganization = String(data.organization || "");
       const requestPurpose = String(data.purpose || "");
@@ -174,7 +174,7 @@ function RequestsPage() {
               <FormSelect className="w-auto" value={project} onChange={(e) => setProject(e.target.value)}>
                 <option value="">All projects</option>
                 {projectOptions.map((option) => (
-                  <option key={option.id} value={option.name}>
+                  <option key={option.id} value={option.id}>
                     {option.name}
                   </option>
                 ))}
@@ -262,7 +262,13 @@ function RequestsPage() {
                       </Table.Td>
                       <Table.Td>{req.request_type?.name || "-"}</Table.Td>
                       <Table.Td>{formatMoney(req.total_amount)}</Table.Td>
-                      <Table.Td>{String(data.project || "-")}</Table.Td>
+                      <Table.Td>
+                        {(() => {
+                          const projectId = String(data.project_id || "").trim();
+                          if (projectId) return projectOptions.find((option) => option.id === projectId)?.name || projectId;
+                          return String(data.project_name || "-");
+                        })()}
+                      </Table.Td>
                       {teamOptions.length > 1 ? <Table.Td>{String(data.team || "-")}</Table.Td> : null}
                       {organizationOptions.length > 1 ? (
                         <Table.Td>{String(data.organization || "-")}</Table.Td>
