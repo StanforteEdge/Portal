@@ -101,6 +101,83 @@ export async function listFinanceAccounts(params?: Record<string, unknown>) {
   return (response.data?.data ?? []) as FinanceAccountRecord[];
 }
 
+export async function createFinanceAccount(payload: {
+  name: string;
+  code?: string;
+  account_type?: "bank" | "cash" | "wallet" | "other";
+  currency?: string;
+  opening_balance?: number;
+  is_active?: boolean;
+  metadata?: Record<string, unknown>;
+}) {
+  const response = await apiClient.post("/finance/accounts", payload);
+  return response.data?.data as FinanceAccountRecord;
+}
+
+export async function updateFinanceAccount(
+  id: string,
+  payload: {
+    name: string;
+    code?: string;
+    account_type?: "bank" | "cash" | "wallet" | "other";
+    currency?: string;
+    opening_balance?: number;
+    is_active?: boolean;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  const response = await apiClient.post(`/finance/accounts/${id}`, payload);
+  return response.data?.data as FinanceAccountRecord;
+}
+
+export type FinanceLedgerRecord = {
+  id: string;
+  account_id: string;
+  account_name: string;
+  account_code: string | null;
+  account_type: string;
+  direction: "in" | "out" | "transfer";
+  amount: number;
+  currency: string;
+  entry_date: string;
+  description: string | null;
+  source_type: string | null;
+  source_id: string | null;
+  created_at: string;
+};
+
+export async function listFinanceLedger(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/finance/ledger", { params });
+  return (response.data?.data ?? []) as FinanceLedgerRecord[];
+}
+
+export type FinanceIncomeRecord = {
+  id: string;
+  account_id: string;
+  amount: number;
+  currency: string;
+  received_at: string;
+  reference: string | null;
+  payer: string | null;
+  notes: string | null;
+  file_id: string | null;
+  created_at: string;
+};
+
+export async function createFinanceIncome(payload: {
+  account_id: string;
+  amount: number;
+  currency?: string;
+  received_at?: string;
+  reference?: string;
+  payer?: string;
+  notes?: string;
+  file_id?: string;
+}) {
+  const response = await apiClient.post("/finance/income", payload);
+  return response.data?.data as FinanceIncomeRecord;
+}
+
 export async function listFinanceRequestPaymentVouchers(id: string) {
   const response = await apiClient.get(`/finance/requests/${id}/payment-vouchers`);
   return (response.data?.data ?? []) as Array<{

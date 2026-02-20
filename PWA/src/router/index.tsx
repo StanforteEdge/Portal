@@ -50,6 +50,12 @@ const AdminSettingsPage = lazy(
 const FinanceManualEntryPage = lazy(
   () => import("../pages/finance/manual-entry/FinanceManualEntry")
 );
+const FinanceAccountsPage = lazy(
+  () => import("../pages/finance/accounts/FinanceAccounts")
+);
+const FinanceLedgerPage = lazy(
+  () => import("../pages/finance/ledger/FinanceLedger")
+);
 const AdminFilesPage = lazy(() => import("../pages/admin/files/AdminFiles"));
 const AdminProjectsPage = lazy(
   () => import("../pages/admin/projects/AdminProjects")
@@ -232,6 +238,22 @@ function Router() {
           element: (
             <RoleRoute allowedRoles={["finance_manager"]}>
               {page(<FinanceManualEntryPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "finance/accounts",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              {page(<FinanceAccountsPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "finance/ledger",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              {page(<FinanceLedgerPage />)}
             </RoleRoute>
           ),
         },

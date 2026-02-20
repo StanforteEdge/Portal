@@ -94,6 +94,16 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/finance/manual-entry",
         title: "Manual Entry",
       },
+      {
+        icon: "CircleDollarSign",
+        pathname: "/app/finance/accounts",
+        title: "Accounts",
+      },
+      {
+        icon: "List",
+        pathname: "/app/finance/ledger",
+        title: "Ledger",
+      },
     ],
   },
   {
