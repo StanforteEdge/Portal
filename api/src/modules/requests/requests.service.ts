@@ -1826,7 +1826,7 @@ export class RequestsService {
       requestType: { name: string; codePrefix: string };
       group: { name: string };
       creator: {
-        username: string;
+        username: string | null;
         email: string;
         firstName: string | null;
         lastName: string | null;
@@ -2139,7 +2139,7 @@ export class RequestsService {
       data: Prisma.JsonValue | null;
       requestType: { name: string; codePrefix: string };
       creator: {
-        username: string;
+        username: string | null;
         email: string;
         firstName: string | null;
         lastName: string | null;
