@@ -7,6 +7,7 @@ import { toBigInt } from '../../common/utils/ids';
 import { generateUniqueUsername, makeUsernameSeed } from '../../common/utils/username';
 import { SetPrimaryOrganizationDto } from './dto/set-primary-organization.dto';
 import { EmployeeActionDto, UpsertEmployeeDto } from './dto/upsert-employee.dto';
+import { AdjustLeaveBalanceDto } from './dto/leave-balance.dto';
 import {
   AssignEmployeeOrganizationDto,
   AssignEmployeeTeamDto,
@@ -494,6 +495,92 @@ export class HrService {
     });
   }
 
+  async getLeaveBalance(query: Record<string, any>) {
+    const year = Number(query.year ?? new Date().getFullYear());
+    const userId = query.user_id ? this.parseId(String(query.user_id), 'user id') : undefined;
+
+    const where: Prisma.LeaveBalanceLedgerWhereInput = {
+      periodYear: year,
+      ...(userId ? { userId } : {})
+    };
+
+    const rows = await this.prisma.leaveBalanceLedger.findMany({
+      where,
+      orderBy: [{ userId: 'asc' }, { leaveTypeKey: 'asc' }, { createdAt: 'asc' }]
+    });
+
+    const defaultEntitlements = await this.resolveLeaveEntitlementPolicy();
+    const balanceMap = new Map<string, { user_id: string; leave_type_key: string; entitled: number; used: number; adjustments: number; available: number }>();
+
+    const touch = (uid: string, leaveType: string) => {
+      const key = `${uid}:${leaveType}`;
+      if (!balanceMap.has(key)) {
+        const entitled = Number(defaultEntitlements[leaveType] ?? 0);
+        balanceMap.set(key, {
+          user_id: uid,
+          leave_type_key: leaveType,
+          entitled,
+          used: 0,
+          adjustments: 0,
+          available: entitled
+        });
+      }
+      return balanceMap.get(key)!;
+    };
+
+    for (const row of rows) {
+      const uid = row.userId.toString();
+      const leaveType = row.leaveTypeKey;
+      const bucket = touch(uid, leaveType);
+      const delta = Number(row.deltaDays ?? 0);
+      if (delta < 0) bucket.used += Math.abs(delta);
+      else bucket.adjustments += delta;
+      bucket.available = bucket.entitled + bucket.adjustments - bucket.used;
+    }
+
+    return {
+      year,
+      data: Array.from(balanceMap.values()).sort((a, b) =>
+        a.user_id === b.user_id ? a.leave_type_key.localeCompare(b.leave_type_key) : a.user_id.localeCompare(b.user_id)
+      )
+    };
+  }
+
+  async adjustLeaveBalance(dto: AdjustLeaveBalanceDto, actorId?: string) {
+    const userId = this.parseId(dto.user_id, 'user id');
+    const leaveTypeKey = dto.leave_type_key.trim().toLowerCase();
+    const periodYear = Number(dto.period_year);
+    if (!Number.isFinite(periodYear) || periodYear < 2000 || periodYear > 2100) {
+      throw new BadRequestException('Invalid period_year');
+    }
+
+    const userExists = await this.prisma.profile.count({ where: { id: userId } });
+    if (!userExists) throw new NotFoundException('User not found');
+
+    const row = await this.prisma.leaveBalanceLedger.create({
+      data: {
+        userId,
+        leaveTypeKey,
+        periodYear,
+        deltaDays: dto.delta_days,
+        entryType: dto.entry_type?.trim() || 'adjustment',
+        notes: dto.notes ?? null,
+        createdBy: actorId ? toBigInt(actorId) : null
+      }
+    });
+
+    return {
+      id: row.id,
+      user_id: row.userId.toString(),
+      leave_type_key: row.leaveTypeKey,
+      period_year: row.periodYear,
+      delta_days: Number(row.deltaDays),
+      entry_type: row.entryType,
+      notes: row.notes,
+      created_at: row.createdAt
+    };
+  }
+
   private async upsertEmployeeProfileTx(
     tx: Prisma.TransactionClient,
     profileId: bigint,
@@ -622,6 +709,34 @@ export class HrService {
       employeeMeta: true,
       onboardingProgress: true
     } as const;
+  }
+
+  private async resolveLeaveEntitlementPolicy() {
+    const now = new Date();
+    const rows = await this.prisma.policy.findMany({
+      where: {
+        module: 'leave',
+        policyKey: 'entitlement',
+        isActive: true,
+        scopeType: 'global',
+        OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: now } }],
+        AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }]
+      },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }]
+    });
+
+    const merged: Record<string, number> = {};
+    for (const row of rows) {
+      const cfg =
+        row.configJson && typeof row.configJson === 'object' && !Array.isArray(row.configJson)
+          ? (row.configJson as Record<string, unknown>)
+          : {};
+      for (const [key, value] of Object.entries(cfg)) {
+        const parsed = Number(value);
+        if (Number.isFinite(parsed)) merged[String(key)] = parsed;
+      }
+    }
+    return merged;
   }
 
   private serializeEmployee(profile: any) {

@@ -430,6 +430,7 @@ export class FinanceService {
       where,
       orderBy: [{ isActive: 'desc' }, { name: 'asc' }]
     });
+    const movementByAccount = await this.getLedgerMovementByAccount(rows.map((row) => row.id));
 
     return rows.map((row) => ({
       id: row.id,
@@ -443,6 +444,7 @@ export class FinanceService {
       branch_name: row.branchName,
       currency: row.currency,
       opening_balance: Number(row.openingBalance),
+      current_balance: Number(row.openingBalance) + (movementByAccount.get(row.id) ?? 0),
       is_active: row.isActive,
       created_at: row.createdAt,
       updated_at: row.updatedAt
@@ -452,6 +454,7 @@ export class FinanceService {
   async getAccount(id: string) {
     const row = await this.prisma.financeAccount.findUnique({ where: { id } });
     if (!row) throw new NotFoundException('Account not found');
+    const movementByAccount = await this.getLedgerMovementByAccount([row.id]);
     return {
       id: row.id,
       organization_id: row.organizationId?.toString() ?? null,
@@ -464,10 +467,37 @@ export class FinanceService {
       branch_name: row.branchName,
       currency: row.currency,
       opening_balance: Number(row.openingBalance),
+      current_balance: Number(row.openingBalance) + (movementByAccount.get(row.id) ?? 0),
       is_active: row.isActive,
       created_at: row.createdAt,
       updated_at: row.updatedAt
     };
+  }
+
+  private async getLedgerMovementByAccount(accountIds: string[]) {
+    if (!accountIds.length) return new Map<string, number>();
+
+    const groups = await this.prisma.financeLedgerEntry.groupBy({
+      by: ['accountId', 'direction'],
+      where: { accountId: { in: accountIds } },
+      _sum: { amount: true }
+    });
+
+    const movementByAccount = new Map<string, number>();
+    for (const accountId of accountIds) {
+      movementByAccount.set(accountId, 0);
+    }
+
+    for (const group of groups) {
+      const amount = Number(group._sum.amount ?? 0);
+      if (group.direction === 'in') {
+        movementByAccount.set(group.accountId, (movementByAccount.get(group.accountId) ?? 0) + amount);
+      } else if (group.direction === 'out') {
+        movementByAccount.set(group.accountId, (movementByAccount.get(group.accountId) ?? 0) - amount);
+      }
+    }
+
+    return movementByAccount;
   }
 
   async createAccount(dto: UpsertFinanceAccountDto, actorId?: string) {

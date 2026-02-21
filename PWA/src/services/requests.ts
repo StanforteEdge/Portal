@@ -159,6 +159,30 @@ export async function listApprovals(params?: Record<string, unknown>) {
   return (response.data?.data ?? []) as RequestRecord[];
 }
 
+export async function getMyLeaveBalance(params?: { year?: number; leave_type_key?: string }) {
+  const response = await apiClient.get("/requests/leave/balance", { params });
+  return response.data?.data as {
+    user_id: string;
+    year: number;
+    summary: Array<{
+      leave_type_key: string;
+      entitled_days: number;
+      ledger_delta_days: number;
+      available_days: number;
+    }>;
+    entries: Array<{
+      id: string;
+      leave_type_key: string;
+      period_year: number;
+      delta_days: number;
+      entry_type: string;
+      notes: string | null;
+      source_request_id: string | null;
+      created_at: string;
+    }>;
+  };
+}
+
 export async function getRequest(id: string) {
   const response = await apiClient.get(`/requests/${id}`);
   return response.data?.data as RequestRecord;

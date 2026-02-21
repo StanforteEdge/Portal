@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
@@ -6,6 +6,7 @@ import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { SetPrimaryOrganizationDto } from './dto/set-primary-organization.dto';
 import { HrService } from './hr.service';
 import { EmployeeActionDto, UpsertEmployeeDto } from './dto/upsert-employee.dto';
+import { AdjustLeaveBalanceDto } from './dto/leave-balance.dto';
 import {
   AssignEmployeeOrganizationDto,
   AssignEmployeeTeamDto,
@@ -111,5 +112,17 @@ export class HrController {
     @Body() dto: UpdateOnboardingFormAssignmentDto
   ) {
     return this.hrService.updateOnboardingFormAssignment(id, dto);
+  }
+
+  @Get('leave/balance')
+  @Permissions('users.manage')
+  leaveBalance(@Query() query: Record<string, any>) {
+    return this.hrService.getLeaveBalance(query);
+  }
+
+  @Post('leave/balance/adjust')
+  @Permissions('users.manage')
+  adjustLeaveBalance(@Req() req: any, @Body() dto: AdjustLeaveBalanceDto) {
+    return this.hrService.adjustLeaveBalance(dto, req.user?.id);
   }
 }

@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import clsx from "clsx";
 import Button from "@/components/Base/Button";
 import Table from "@/components/Base/Table";
 import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import { Dialog } from "@/components/Base/Headless";
+import Tippy from "@/components/Base/Tippy";
+import Lucide from "@/components/Base/Lucide";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
   createFinanceAccount,
@@ -54,6 +57,16 @@ function FinanceAccountsPage() {
     () => accounts.reduce((sum, account) => sum + Number(account.opening_balance || 0), 0),
     [accounts]
   );
+  const totalCurrentBalance = useMemo(
+    () => accounts.reduce((sum, account) => sum + Number(account.current_balance || 0), 0),
+    [accounts]
+  );
+  const stats = useMemo(() => {
+    const total = accounts.length;
+    const active = accounts.filter((account) => account.is_active).length;
+    const inactive = total - active;
+    return { total, active, inactive };
+  }, [accounts]);
 
   const openCreate = () => {
     setEditingAccountId("");
@@ -159,16 +172,48 @@ function FinanceAccountsPage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Finance Accounts</h2>
         <div className="flex gap-2">
-          <Button variant="primary" onClick={openCreate}>New Account</Button>
-          <Button variant="outline-secondary" onClick={() => void load()} disabled={loading}>Refresh</Button>
+          <Button variant="primary" onClick={openCreate}>
+            <Lucide icon="Plus" className="w-4 h-4 mr-1" /> New Account
+          </Button>
+          <Button variant="outline-secondary" onClick={() => void load()} disabled={loading}>
+            <Lucide icon="Undo2" className="w-4 h-4 mr-1" /> Refresh
+          </Button>
         </div>
       </div>
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
+      <div className="grid grid-cols-12 gap-6 mt-5">
+        {[
+          { label: "Total Accounts", value: stats.total, icon: "Wallet", color: "text-primary" },
+          { label: "Active", value: stats.active, icon: "CheckCircle2", color: "text-success" },
+          { label: "Opening Balance", value: formatMoney(totalOpeningBalance, "-", "NGN"), icon: "TrendingUp", color: "text-warning" },
+          { label: "Current Balance", value: formatMoney(totalCurrentBalance, "-", "NGN"), icon: "CircleDollarSign", color: "text-pending" },
+        ].map((card) => (
+          <div key={card.label} className="col-span-12 xs:col-span-6 md:col-span-3 intro-y">
+            <div
+              className={clsx([
+                "relative zoom-in",
+                "before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']",
+              ])}
+            >
+              <div className="p-5 box">
+                <div className="flex">
+                  <Lucide icon={card.icon as any} className={clsx("w-[28px] h-[28px]", card.color)} />
+                </div>
+                <div className="mt-6 text-2xl font-medium leading-8">{card.value}</div>
+                <div className="mt-1 text-base text-slate-500">{card.label}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
       <div className="box p-5 mt-5">
         <div className="flex items-center justify-between mb-3">
           <div className="font-medium">Accounts</div>
-          <div className="text-sm text-slate-500">Total opening balance: {formatMoney(totalOpeningBalance, "-", "NGN")}</div>
+          <div className="text-sm text-slate-500">
+            Active: {stats.active} | Inactive: {stats.inactive}
+          </div>
         </div>
         <Table className="table-report" striped hover>
           <Table.Thead>
@@ -178,6 +223,7 @@ function FinanceAccountsPage() {
               <Table.Th>Bank Details</Table.Th>
               <Table.Th>Currency</Table.Th>
               <Table.Th>Opening</Table.Th>
+              <Table.Th>Current Balance</Table.Th>
               <Table.Th className="text-right">Action</Table.Th>
             </Table.Tr>
           </Table.Thead>
@@ -199,20 +245,31 @@ function FinanceAccountsPage() {
                 </Table.Td>
                 <Table.Td>{account.currency}</Table.Td>
                 <Table.Td>{formatMoney(account.opening_balance, "-", account.currency || "NGN")}</Table.Td>
+                <Table.Td>{formatMoney(account.current_balance, "-", account.currency || "NGN")}</Table.Td>
                 <Table.Td className="text-right">
                   <div className="flex gap-2 justify-end">
-                    <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/finance/accounts/${account.id}`)}>View</Button>
-                    <Button size="sm" variant="outline-secondary" onClick={() => openEdit(account)}>Edit</Button>
-                    <Button size="sm" variant="outline-danger" onClick={() => void toggleStatus(account)} disabled={saving}>
-                      {account.is_active ? "Deactivate" : "Activate"}
-                    </Button>
+                    <Tippy content="View" as="div">
+                      <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/finance/accounts/${account.id}`)}>
+                        <Lucide icon="Eye" className="w-4 h-4" />
+                      </Button>
+                    </Tippy>
+                    <Tippy content="Edit" as="div">
+                      <Button size="sm" variant="outline-secondary" onClick={() => openEdit(account)}>
+                        <Lucide icon="FilePenLine" className="w-4 h-4" />
+                      </Button>
+                    </Tippy>
+                    <Tippy content={account.is_active ? "Deactivate" : "Activate"} as="div">
+                      <Button size="sm" variant="outline-danger" onClick={() => void toggleStatus(account)} disabled={saving}>
+                        <Lucide icon={account.is_active ? "UserX" : "UserCheck"} className="w-4 h-4" />
+                      </Button>
+                    </Tippy>
                   </div>
                 </Table.Td>
               </Table.Tr>
             ))}
             {!loading && accounts.length === 0 ? (
               <Table.Tr>
-                <Table.Td colSpan={6} className="text-center text-slate-500 py-6">No accounts yet.</Table.Td>
+                <Table.Td colSpan={7} className="text-center text-slate-500 py-6">No accounts yet.</Table.Td>
               </Table.Tr>
             ) : null}
           </Table.Tbody>

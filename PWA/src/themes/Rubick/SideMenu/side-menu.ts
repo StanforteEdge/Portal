@@ -29,6 +29,14 @@ const resolvePathnameForLocation = (pathname: string | undefined, location: Loca
   return { pathname: location.pathname, active: true, shouldRender: true };
 };
 
+const isPathActive = (pathname: string | undefined, location: Location, matchSubPaths?: boolean) => {
+  if (!pathname) return false;
+  if (location.forceActiveMenu !== undefined) return pathname === location.forceActiveMenu;
+  if (pathname === location.pathname) return true;
+  if (matchSubPaths && location.pathname.startsWith(`${pathname}/`)) return true;
+  return false;
+};
+
 const forceActiveMenu = (location: Location, pathname: string) => {
   location.forceActiveMenu = pathname;
 };
@@ -45,8 +53,7 @@ const findActiveMenu = (subMenu: Menu[], location: Location): boolean => {
   subMenu.forEach((item) => {
     const resolved = resolvePathnameForLocation(item.pathname, location);
     if (
-      ((location.forceActiveMenu !== undefined && resolved.pathname === location.forceActiveMenu) ||
-        (location.forceActiveMenu === undefined && resolved.active)) &&
+      isPathActive(resolved.pathname, location, item.matchSubPaths) &&
       !item.ignore
     ) {
       match = true;
@@ -68,12 +75,12 @@ const nestedMenu = (menu: Array<Menu | "divider">, location: Location) => {
         icon: item.icon,
         title: item.title,
         pathname: resolved.pathname,
+        matchSubPaths: item.matchSubPaths,
         subMenu: item.subMenu,
         ignore: item.ignore,
       };
       menuItem.active =
-        ((location.forceActiveMenu !== undefined && menuItem.pathname === location.forceActiveMenu) ||
-          (location.forceActiveMenu === undefined && resolved.active) ||
+        (isPathActive(menuItem.pathname, location, menuItem.matchSubPaths) ||
           (menuItem.subMenu && findActiveMenu(menuItem.subMenu, location))) &&
         !menuItem.ignore;
 

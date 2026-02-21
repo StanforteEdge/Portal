@@ -23,11 +23,14 @@ const LABELS: Record<string, string> = {
   admin: "Admin",
   hr: "HR",
   employees: "Employees",
+  attendance: "Attendance",
+  leave: "Leave Tracker",
   employee: "Employee",
   users: "Users",
   forms: "Forms",
   form: "Form",
   roles: "Roles & Permissions",
+  policies: "Policies",
   list: "List",
 };
 
@@ -58,5 +61,7 @@ export function buildAppBreadcrumbs(pathname: string): BreadcrumbItem[] {
     crumbs.push({ label: formatLabel(part), path: acc });
   }
 
-  return crumbs.length ? crumbs : [{ label: "Dashboard", path: "/app/dashboard" }];
+  const normalized = crumbs.length ? crumbs : [{ label: "Dashboard", path: "/app/dashboard" }];
+  if (normalized.length <= 3) return normalized;
+  return [normalized[0], ...normalized.slice(-2)];
 }

@@ -21,6 +21,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { TeamsModule } from './modules/teams/teams.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { AcknowledgementsModule } from './modules/acknowledgements/acknowledgements.module';
+import { PoliciesModule } from './modules/policies/policies.module';
 
 @Module({
   imports: [
@@ -45,7 +46,8 @@ import { AcknowledgementsModule } from './modules/acknowledgements/acknowledgeme
     ProjectsModule,
     TeamsModule,
     OnboardingModule,
-    AcknowledgementsModule
+    AcknowledgementsModule,
+    PoliciesModule
   ]
 })
 export class AppModule {}

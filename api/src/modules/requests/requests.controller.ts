@@ -198,6 +198,12 @@ export class RequestsController {
     return this.requestsService.getApprovals(req.user?.id, query);
   }
 
+  @Get('leave/balance')
+  @Permissions('requests.view')
+  getMyLeaveBalance(@Req() req: any, @Query() query: Record<string, any>) {
+    return this.requestsService.getMyLeaveBalance(req.user?.id, query);
+  }
+
   @Get(':id')
   @Permissions('requests.view')
   @ApiOkResponse({ type: RequestResponseDto })

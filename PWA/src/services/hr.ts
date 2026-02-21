@@ -157,3 +157,102 @@ export async function updateHrOnboardingFormAssignment(
   const response = await apiClient.patch(`/hr/onboarding/forms/assignments/${id}`, payload);
   return response.data.data as Record<string, unknown>;
 }
+
+export type AttendanceEntry = {
+  id: string;
+  user_id: string;
+  entry_type: "clock_in" | "clock_out" | string;
+  entry_at: string;
+  work_date: string;
+  source: string;
+  metadata?: Record<string, unknown> | null;
+  created_at: string;
+};
+
+export type AttendanceDaily = {
+  id: string;
+  user_id: string;
+  work_date: string;
+  status: string;
+  scheduled_minutes: number;
+  worked_minutes: number;
+  late_minutes: number;
+  overtime_minutes: number;
+  first_in_at: string | null;
+  last_out_at: string | null;
+  computed_at: string;
+};
+
+export async function clockIn(payload?: { source?: string; at?: string }) {
+  const response = await apiClient.post("/hr/attendance/clock-in", payload ?? {});
+  return response.data.data as { success: boolean; daily: AttendanceDaily };
+}
+
+export async function clockOut(payload?: { source?: string; at?: string }) {
+  const response = await apiClient.post("/hr/attendance/clock-out", payload ?? {});
+  return response.data.data as { success: boolean; daily: AttendanceDaily };
+}
+
+export async function getMyAttendance(params?: { from?: string; to?: string }) {
+  const response = await apiClient.get("/hr/attendance/me", { params });
+  return response.data.data as {
+    entries: AttendanceEntry[];
+    daily: AttendanceDaily[];
+    current_state: {
+      is_clocked_in: boolean;
+      last_clock_in_at: string | null;
+      can_clock_in?: boolean;
+      can_clock_out?: boolean;
+      reason?: string | null;
+    };
+    today?: AttendanceDaily | null;
+    policy?: { start_time: string; end_time: string; grace_minutes: number };
+  };
+}
+
+export async function getAttendanceSummary(params?: { from?: string; to?: string }) {
+  const response = await apiClient.get("/hr/attendance/summary", { params });
+  return response.data.data as {
+    from: string;
+    to: string;
+    by_status: Record<string, number>;
+  };
+}
+
+export type LeaveBalanceRow = {
+  user_id: string;
+  leave_type_key: string;
+  entitled: number;
+  used: number;
+  adjustments: number;
+  available: number;
+};
+
+export async function getLeaveBalances(params?: { user_id?: string; year?: number }) {
+  const response = await apiClient.get("/hr/leave/balance", { params });
+  return response.data.data as {
+    year: number;
+    data: LeaveBalanceRow[];
+  };
+}
+
+export async function adjustLeaveBalance(payload: {
+  user_id: string;
+  leave_type_key: string;
+  period_year: number;
+  delta_days: number;
+  entry_type?: string;
+  notes?: string;
+}) {
+  const response = await apiClient.post("/hr/leave/balance/adjust", payload);
+  return response.data.data as {
+    id: string;
+    user_id: string;
+    leave_type_key: string;
+    period_year: number;
+    delta_days: number;
+    entry_type: string;
+    notes: string | null;
+    created_at: string;
+  };
+}

@@ -112,6 +112,9 @@ model Profile {
   managedEmployees EmployeeProfile[] @relation("EmployeeManager")
   onboardingProgress OnboardingProgress?
   employeeMeta EmployeeMeta[]
+  attendanceEntries AttendanceEntry[]
+  attendanceDaily AttendanceDaily[]
+  leaveBalanceLedger LeaveBalanceLedger[]
   acknowledgements Acknowledgement[]
   documentAcknowledgements DocumentAcknowledgement[]
 
@@ -163,6 +166,71 @@ model EmployeeMeta {
   @@unique([userId, metaKey], name: "employee_meta_unique")
   @@index([metaKey])
   @@map("sta_employee_meta")
+}
+
+model AttendanceEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    BigInt   @map("user_id")
+  entryType String   @map("entry_type") @db.VarChar(30)
+  entryAt   DateTime @map("entry_at")
+  workDate  DateTime @map("work_date") @db.Date
+  source    String   @default("web") @db.VarChar(30)
+  metadata  Json?
+  createdBy BigInt?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, workDate])
+  @@index([entryType, entryAt])
+  @@map("sta_attendance_entries")
+}
+
+model AttendanceDaily {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           BigInt   @map("user_id")
+  workDate         DateTime @map("work_date") @db.Date
+  status           String   @default("absent") @db.VarChar(20)
+  scheduledMinutes Int      @default(0) @map("scheduled_minutes")
+  workedMinutes    Int      @default(0) @map("worked_minutes")
+  lateMinutes      Int      @default(0) @map("late_minutes")
+  overtimeMinutes  Int      @default(0) @map("overtime_minutes")
+  firstInAt        DateTime? @map("first_in_at")
+  lastOutAt        DateTime? @map("last_out_at")
+  policySnapshot   Json?    @map("policy_snapshot")
+  computedAt       DateTime @default(now()) @map("computed_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workDate], name: "unique_attendance_daily")
+  @@index([status])
+  @@map("sta_attendance_daily")
+}
+
+model LeaveBalanceLedger {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          BigInt   @map("user_id")
+  leaveTypeKey    String   @map("leave_type_key") @db.VarChar(100)
+  periodYear      Int      @map("period_year")
+  deltaDays       Decimal  @map("delta_days") @db.Decimal(7,2)
+  entryType       String   @map("entry_type") @db.VarChar(30)
+  sourceRequestId BigInt?  @map("source_request_id")
+  notes           String?
+  metadata        Json?
+  createdBy       BigInt?  @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user          Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceRequest RequestInstance? @relation(fields: [sourceRequestId], references: [id], onDelete: SetNull)
+
+  @@index([userId, leaveTypeKey, periodYear])
+  @@index([entryType])
+  @@index([sourceRequestId])
+  @@map("sta_leave_balance_ledger")
 }
 
 model OnboardingProgress {
@@ -459,6 +527,7 @@ model RequestInstance {
   creator     Profile @relation("RequestCreatedBy", fields: [createdBy], references: [id])
   items       RequestItem[]
   paymentVouchers FinancePaymentVoucher[]
+  leaveBalanceLedger LeaveBalanceLedger[]
 
   @@index([requestTypeId])
   @@index([groupId])
@@ -629,6 +698,7 @@ model Document {
   organization      Organization?            @relation(fields: [organizationId], references: [id])
   file              FileAsset?               @relation(fields: [fileId], references: [id], onDelete: SetNull)
   acknowledgements  DocumentAcknowledgement[]
+  policies          Policy[]
 
   @@index([organizationId])
   @@index([status])
@@ -653,6 +723,33 @@ model DocumentAcknowledgement {
   @@unique([documentId, userId, version], name: "unique_document_ack")
   @@index([userId])
   @@map("sta_document_acknowledgements")
+}
+
+model Policy {
+  id                     String    @id @default(uuid()) @db.Uuid
+  module                 String    @db.VarChar(60)
+  policyKey              String    @map("policy_key") @db.VarChar(120)
+  scopeType              String    @default("global") @map("scope_type") @db.VarChar(40)
+  scopeId                String?   @map("scope_id") @db.VarChar(191)
+  priority               Int       @default(100)
+  configJson             Json      @map("config_json")
+  effectiveFrom          DateTime? @map("effective_from")
+  effectiveTo            DateTime? @map("effective_to")
+  isActive               Boolean   @default(true) @map("is_active")
+  documentId             String?   @map("document_id") @db.Uuid
+  documentVersion        String?   @map("document_version") @db.VarChar(40)
+  requireAcknowledgement Boolean   @default(false) @map("require_acknowledgement")
+  createdBy              BigInt?   @map("created_by")
+  updatedBy              BigInt?   @map("updated_by")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([module, policyKey, isActive])
+  @@index([scopeType, scopeId])
+  @@index([effectiveFrom, effectiveTo])
+  @@map("sta_policies")
 }
 
 model FinancePaymentVoucher {

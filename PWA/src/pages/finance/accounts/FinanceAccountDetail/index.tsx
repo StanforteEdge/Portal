@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import Table from "@/components/Base/Table";
 import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
+import Lucide from "@/components/Base/Lucide";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { getFinanceAccount, listFinanceLedger, type FinanceAccountRecord, type FinanceLedgerRecord } from "@/services/finance";
 import { formatDisplayDate, formatMoney } from "@/utils/formatting";
@@ -61,7 +62,9 @@ function FinanceAccountDetailPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Account Details</h2>
-        <Button variant="outline-secondary" onClick={() => navigate("/app/finance/accounts")}>Back</Button>
+        <Button variant="outline-secondary" onClick={() => navigate("/app/finance/accounts")}>
+          <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" /> Back
+        </Button>
       </div>
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
@@ -72,6 +75,7 @@ function FinanceAccountDetailPage() {
             <div className="col-span-12 md:col-span-2"><div className="text-xs text-slate-500">Type</div><div className="capitalize">{account.account_type}</div></div>
             <div className="col-span-12 md:col-span-2"><div className="text-xs text-slate-500">Currency</div><div>{account.currency}</div></div>
             <div className="col-span-12 md:col-span-2"><div className="text-xs text-slate-500">Opening</div><div>{formatMoney(account.opening_balance, "-", account.currency || "NGN")}</div></div>
+            <div className="col-span-12 md:col-span-2"><div className="text-xs text-slate-500">Current Balance</div><div>{formatMoney(account.current_balance, "-", account.currency || "NGN")}</div></div>
             <div className="col-span-12 md:col-span-3"><div className="text-xs text-slate-500">Code</div><div>{account.code || "-"}</div></div>
             <div className="col-span-12 md:col-span-3"><div className="text-xs text-slate-500">Bank Name</div><div>{account.bank_name || "-"}</div></div>
             <div className="col-span-12 md:col-span-3"><div className="text-xs text-slate-500">Account Name</div><div>{account.account_name || "-"}</div></div>
@@ -168,4 +172,3 @@ function FinanceAccountDetailPage() {
 }
 
 export default FinanceAccountDetailPage;
-

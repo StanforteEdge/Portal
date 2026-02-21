@@ -131,6 +131,7 @@ export class RequestsService {
     const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id } });
     if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
     await this.formsService.validateRequestTypePayload(requestType.id, dto.data);
+    this.validateLeaveRequestPayload(requestType.categoryKey, dto.data);
 
     const createdBy = toBigInt(userId);
 
@@ -652,10 +653,14 @@ export class RequestsService {
       }
     }
 
+    await this.ensureLeaveBalanceForApproval(request.id);
+
     const updated = await this.transitionRequestStatus(request, 'cleared', userId, {
       action: 'approve',
       comment: dto.comment
     });
+
+    await this.applyLeaveDebitIfNeeded(request.id, userId);
 
     await this.notificationsService.create({
       userId: request.createdBy,
@@ -691,6 +696,8 @@ export class RequestsService {
       action: 'reject',
       comment: dto.comment
     });
+
+    await this.revertLeaveDebitIfNeeded(request.id, userId, 'rejected');
 
     await this.notificationsService.create({
       userId: request.createdBy,
@@ -763,6 +770,11 @@ export class RequestsService {
 
     if (dto.data) {
       await this.formsService.validateRequestTypePayload(request.requestTypeId, dto.data);
+      const requestType = await this.prisma.requestType.findUnique({
+        where: { id: request.requestTypeId },
+        select: { categoryKey: true }
+      });
+      this.validateLeaveRequestPayload(requestType?.categoryKey ?? null, dto.data);
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -891,6 +903,70 @@ export class RequestsService {
     }
 
     return filtered;
+  }
+
+  async getMyLeaveBalance(userId: string, query: Record<string, any>) {
+    const actorId = toBigInt(userId);
+    const year = Number(query.year ?? new Date().getFullYear());
+    const leaveTypeKey = query.leave_type_key ? String(query.leave_type_key).trim().toLowerCase() : undefined;
+
+    const where: Prisma.LeaveBalanceLedgerWhereInput = {
+      userId: actorId,
+      periodYear: year,
+      ...(leaveTypeKey ? { leaveTypeKey } : {})
+    };
+
+    const [rows, aggregate] = await this.prisma.$transaction([
+      this.prisma.leaveBalanceLedger.findMany({
+        where,
+        orderBy: { createdAt: 'asc' }
+      }),
+      this.prisma.leaveBalanceLedger.groupBy({
+        by: ['leaveTypeKey'],
+        where,
+        orderBy: { leaveTypeKey: 'asc' },
+        _sum: { deltaDays: true }
+      })
+    ]);
+
+    const entitlements = await this.resolveLeaveEntitlements();
+    const summary = aggregate.map((entry) => {
+      const key = entry.leaveTypeKey;
+      const entitled = Number(entitlements[key] ?? 0);
+      const delta = Number(entry._sum?.deltaDays ?? 0);
+      return {
+        leave_type_key: key,
+        entitled_days: entitled,
+        ledger_delta_days: delta,
+        available_days: entitled + delta
+      };
+    });
+
+    if (leaveTypeKey && !summary.some((item) => item.leave_type_key === leaveTypeKey)) {
+      const entitled = Number(entitlements[leaveTypeKey] ?? 0);
+      summary.push({
+        leave_type_key: leaveTypeKey,
+        entitled_days: entitled,
+        ledger_delta_days: 0,
+        available_days: entitled
+      });
+    }
+
+    return {
+      user_id: actorId.toString(),
+      year,
+      summary,
+      entries: rows.map((row) => ({
+        id: row.id,
+        leave_type_key: row.leaveTypeKey,
+        period_year: row.periodYear,
+        delta_days: Number(row.deltaDays),
+        entry_type: row.entryType,
+        notes: row.notes,
+        source_request_id: row.sourceRequestId?.toString() ?? null,
+        created_at: row.createdAt
+      }))
+    };
   }
 
   async getApprovalHistory(id: string, _userId: string) {
@@ -1547,6 +1623,192 @@ export class RequestsService {
     });
     if (!request) throw new NotFoundException('Request not found');
     return request;
+  }
+
+  private validateLeaveRequestPayload(categoryKey: string | null, data: unknown) {
+    const key = String(categoryKey ?? '').toLowerCase();
+    if (!key.includes('leave')) return;
+    if (!data || typeof data !== 'object' || Array.isArray(data)) {
+      throw new BadRequestException('Leave request data is required');
+    }
+
+    const payload = data as Record<string, unknown>;
+    const reason = String(payload.leave_reason ?? payload.reason_for_leave ?? payload.purpose ?? '').trim();
+    const handoverUserId = String(payload.handover_user_id ?? '').trim();
+    const handoverNotes = String(payload.handover_notes ?? '').trim();
+
+    if (!reason) throw new BadRequestException('Leave reason is required');
+    if (!handoverUserId) throw new BadRequestException('Handover colleague is required');
+    if (!handoverNotes) throw new BadRequestException('Handover notes are required');
+  }
+
+  private async applyLeaveDebitIfNeeded(requestId: bigint, actorId: string) {
+    const leave = await this.getLeaveRequestMeta(requestId);
+    if (!leave) return;
+
+    const existingDebit = await this.prisma.leaveBalanceLedger.findFirst({
+      where: {
+        sourceRequestId: requestId,
+        entryType: 'request_debit'
+      }
+    });
+    if (existingDebit) return;
+
+    await this.ensureLeaveBalanceForApproval(requestId);
+
+    await this.prisma.leaveBalanceLedger.create({
+      data: {
+        userId: leave.user_id,
+        leaveTypeKey: leave.leave_type_key,
+        periodYear: leave.period_year,
+        deltaDays: -leave.days_requested,
+        entryType: 'request_debit',
+        sourceRequestId: requestId,
+        notes: `Leave approved for request ${requestId.toString()}`,
+        createdBy: toBigInt(actorId),
+        metadata: {
+          request_id: requestId.toString(),
+          leave_type_key: leave.leave_type_key
+        } as Prisma.InputJsonValue
+      }
+    });
+  }
+
+  private async ensureLeaveBalanceForApproval(requestId: bigint) {
+    const leave = await this.getLeaveRequestMeta(requestId);
+    if (!leave) return;
+
+    const existingDebit = await this.prisma.leaveBalanceLedger.findFirst({
+      where: {
+        sourceRequestId: requestId,
+        entryType: 'request_debit'
+      }
+    });
+    if (existingDebit) return;
+
+    const entitlements = await this.resolveLeaveEntitlements();
+    const entitledDays = Number(entitlements[leave.leave_type_key] ?? 0);
+
+    const aggregate = await this.prisma.leaveBalanceLedger.aggregate({
+      where: {
+        userId: leave.user_id,
+        leaveTypeKey: leave.leave_type_key,
+        periodYear: leave.period_year
+      },
+      _sum: { deltaDays: true }
+    });
+    const ledgerDelta = Number(aggregate._sum.deltaDays ?? 0);
+    const availableDays = entitledDays + ledgerDelta;
+    if (availableDays < leave.days_requested) {
+      throw new BadRequestException(
+        `Insufficient leave balance for ${leave.leave_type_key}. Available ${availableDays}, requested ${leave.days_requested}`
+      );
+    }
+  }
+
+  private async revertLeaveDebitIfNeeded(requestId: bigint, actorId: string, reason: string) {
+    const debit = await this.prisma.leaveBalanceLedger.findFirst({
+      where: {
+        sourceRequestId: requestId,
+        entryType: 'request_debit'
+      }
+    });
+    if (!debit) return;
+
+    const existingReversal = await this.prisma.leaveBalanceLedger.findFirst({
+      where: {
+        sourceRequestId: requestId,
+        entryType: 'reversal'
+      }
+    });
+    if (existingReversal) return;
+
+    await this.prisma.leaveBalanceLedger.create({
+      data: {
+        userId: debit.userId,
+        leaveTypeKey: debit.leaveTypeKey,
+        periodYear: debit.periodYear,
+        deltaDays: Math.abs(Number(debit.deltaDays)),
+        entryType: 'reversal',
+        sourceRequestId: requestId,
+        notes: `Leave debit reversed: ${reason}`,
+        createdBy: toBigInt(actorId),
+        metadata: {
+          request_id: requestId.toString(),
+          reason
+        } as Prisma.InputJsonValue
+      }
+    });
+  }
+
+  private async getLeaveRequestMeta(requestId: bigint): Promise<{
+    user_id: bigint;
+    leave_type_key: string;
+    days_requested: number;
+    period_year: number;
+  } | null> {
+    const request = await this.prisma.requestInstance.findUnique({
+      where: { id: requestId },
+      include: {
+        requestType: { select: { categoryKey: true } }
+      }
+    });
+    if (!request) return null;
+    const categoryKey = String(request.requestType?.categoryKey ?? '').toLowerCase();
+    if (!categoryKey.includes('leave')) return null;
+
+    const data =
+      request.data && typeof request.data === 'object' && !Array.isArray(request.data)
+        ? (request.data as Record<string, unknown>)
+        : {};
+    const leaveTypeRaw = String(data.leave_type_key ?? data.leave_type ?? 'annual_leave')
+      .trim()
+      .toLowerCase();
+
+    let daysRequested = Number(data.days_requested ?? data.days ?? 0);
+    if (!Number.isFinite(daysRequested) || daysRequested <= 0) {
+      const start = data.start_date ? new Date(String(data.start_date)) : null;
+      const end = data.end_date ? new Date(String(data.end_date)) : null;
+      if (start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end >= start) {
+        const diff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        daysRequested = diff + 1;
+      }
+    }
+    if (!Number.isFinite(daysRequested) || daysRequested <= 0) return null;
+
+    const startDate = data.start_date ? new Date(String(data.start_date)) : request.createdAt;
+    const year = startDate.getFullYear();
+
+    return {
+      user_id: request.createdBy,
+      leave_type_key: leaveTypeRaw,
+      days_requested: Number(daysRequested.toFixed(2)),
+      period_year: year
+    };
+  }
+
+  private async resolveLeaveEntitlements() {
+    const rows = await this.prisma.policy.findMany({
+      where: {
+        module: 'leave',
+        policyKey: 'entitlement',
+        isActive: true,
+        scopeType: 'global'
+      },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }]
+    });
+    const merged: Record<string, number> = {};
+    for (const row of rows) {
+      const cfg =
+        row.configJson && typeof row.configJson === 'object' && !Array.isArray(row.configJson)
+          ? (row.configJson as Record<string, unknown>)
+          : {};
+      for (const [key, value] of Object.entries(cfg)) {
+        const n = Number(value);
+        if (Number.isFinite(n)) merged[String(key).toLowerCase()] = n;
+      }
+    }
+    return merged;
   }
 
   private async getRequestForDocument(id: string) {

@@ -30,6 +30,16 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/requests/approvals",
         title: "Approvals",
       },
+      {
+        icon: "Clock3",
+        pathname: "/app/requests/attendance",
+        title: "My Attendance",
+      },
+      {
+        icon: "ClipboardList",
+        pathname: "/app/requests/leave",
+        title: "My Leave",
+      },
     ],
   },
   {
@@ -98,6 +108,7 @@ const menu: Array<Menu | "divider"> = [
         icon: "CircleDollarSign",
         pathname: "/app/finance/accounts",
         title: "Accounts",
+        matchSubPaths: true,
       },
       {
         icon: "List",
@@ -120,6 +131,16 @@ const menu: Array<Menu | "divider"> = [
         icon: "Users",
         pathname: "/app/hr/employees",
         title: "Employees",
+      },
+      {
+        icon: "Clock3",
+        pathname: "/app/hr/attendance",
+        title: "Attendance",
+      },
+      {
+        icon: "ClipboardList",
+        pathname: "/app/hr/leave",
+        title: "Leave Tracker",
       },
       {
         icon: "ClipboardList",
@@ -162,6 +183,11 @@ const menu: Array<Menu | "divider"> = [
         icon: "ShieldCheck",
         pathname: "/app/admin/roles",
         title: "Roles & Permissions",
+      },
+      {
+        icon: "Settings2",
+        pathname: "/app/admin/policies",
+        title: "Policies",
       },
       {
         icon: "Settings2",

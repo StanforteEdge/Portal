@@ -70,12 +70,17 @@ const AdminDocumentEditorPage = lazy(
   () => import("../pages/admin/documents/AdminDocumentEditor")
 );
 const AdminRolesPage = lazy(() => import("../pages/admin/roles/AdminRoles"));
+const AdminPoliciesPage = lazy(() => import("../pages/admin/policies/AdminPolicies"));
 const MediaLibraryPage = lazy(() => import("../pages/staff/media/MediaLibrary"));
 const DocumentsPage = lazy(() => import("../pages/staff/documents/Documents"));
 const OnboardingPage = lazy(() => import("../pages/staff/onboarding/Onboarding"));
+const StaffAttendancePage = lazy(() => import("../pages/staff/attendance/StaffAttendance"));
+const StaffLeaveTrackerPage = lazy(() => import("../pages/staff/leave/StaffLeaveTracker"));
 const HrEmployeesPage = lazy(() => import("../pages/hr/employees/HrEmployees"));
 const HrDashboardPage = lazy(() => import("../pages/hr/dashboard/HrDashboard"));
 const HrOnboardingPage = lazy(() => import("../pages/hr/onboarding/HrOnboarding"));
+const HrAttendancePage = lazy(() => import("../pages/hr/attendance/HrAttendance"));
+const HrLeaveTrackerPage = lazy(() => import("../pages/hr/leave/HrLeaveTracker"));
 const HrOnboardingEditorPage = lazy(
   () => import("../pages/hr/onboarding/HrOnboardingEditor")
 );
@@ -171,6 +176,14 @@ function Router() {
         {
           path: "requests/approvals/:id",
           element: page(<RequestDetailPage />),
+        },
+        {
+          path: "requests/attendance",
+          element: page(<StaffAttendancePage />),
+        },
+        {
+          path: "requests/leave",
+          element: page(<StaffLeaveTrackerPage />),
         },
         {
           path: "finance",
@@ -361,6 +374,14 @@ function Router() {
           ),
         },
         {
+          path: "admin/policies",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              {page(<AdminPoliciesPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
           path: "admin/forms",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
@@ -425,6 +446,22 @@ function Router() {
           element: (
             <RoleRoute allowedRoles={["hr"]}>
               {page(<HrOnboardingPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/attendance",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrAttendancePage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/leave",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrLeaveTrackerPage />)}
             </RoleRoute>
           ),
         },

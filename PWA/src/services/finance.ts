@@ -95,6 +95,7 @@ export type FinanceAccountRecord = {
   branch_name: string | null;
   currency: string;
   opening_balance: number;
+  current_balance: number;
   is_active: boolean;
   created_at: string;
   updated_at: string;

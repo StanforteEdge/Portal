@@ -12,6 +12,7 @@ export interface Menu {
   title: string;
   badge?: number;
   pathname?: string;
+  matchSubPaths?: boolean;
   subMenu?: Menu[];
   ignore?: boolean;
   roles?: string[];

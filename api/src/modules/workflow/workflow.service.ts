@@ -22,13 +22,18 @@ export class WorkflowService {
   }) {
     const existing = await this.prisma.requestInstance.findUnique({
       where: { id: params.requestId },
-      select: { workflowInstanceId: true, teamId: true, requestType: { select: { name: true, approvalFlowJson: true } } }
+      select: {
+        workflowInstanceId: true,
+        teamId: true,
+        requestType: { select: { name: true, categoryKey: true, approvalFlowJson: true } }
+      }
     });
 
     if (!existing) throw new NotFoundException('Request not found');
     if (existing.workflowInstanceId) return { instanceId: existing.workflowInstanceId, workflowStatus: 'pending' as const };
 
-    const steps = this.extractApprovalSteps(existing.requestType.approvalFlowJson, params.amount ?? undefined);
+    const baseSteps = this.extractApprovalSteps(existing.requestType.approvalFlowJson, params.amount ?? undefined);
+    const steps = this.normalizeStepsForLeave(existing.requestType.categoryKey, baseSteps);
     if (steps.length === 0) {
       return { instanceId: null, workflowStatus: 'none' as const };
     }
@@ -112,9 +117,9 @@ export class WorkflowService {
       let workflowStatus: 'pending' | 'approved' = 'pending';
       let autoApprovedInitial = false;
 
-      if (steps[0]?.role === 'team_lead') {
-        const isLead = await this.isTeamLeadForRequestIdTx(tx, params.requestId, params.initiatedBy);
-        if (isLead) {
+      if (steps[0]?.role === 'team_lead' || steps[0]?.role === 'team_lead_or_manager') {
+        const isLeadOrManager = await this.isTeamLeadOrManagerForRequestIdTx(tx, params.requestId, params.initiatedBy);
+        if (isLeadOrManager) {
           autoApprovedInitial = true;
           const nextStep = workflowSteps[1];
           await tx.workflowHistory.create({
@@ -325,6 +330,38 @@ export class WorkflowService {
     });
   }
 
+  private normalizeStepsForLeave(categoryKey: string | null, steps: WorkflowStepConfig[]) {
+    const key = String(categoryKey ?? '').trim().toLowerCase();
+    if (!key.includes('leave')) return steps;
+
+    const next = [...steps];
+    const isLeadOrManagerStep = (role?: string) =>
+      role === 'team_lead' || role === 'manager' || role === 'team_lead_or_manager';
+    const leadOrManagerIndex = next.findIndex((step) => isLeadOrManagerStep(step.role));
+    const hrIndex = next.findIndex((step) => step.role === 'hr');
+
+    if (leadOrManagerIndex === -1 && hrIndex === -1) {
+      next.push({ role: 'team_lead_or_manager' }, { role: 'hr' });
+      return next;
+    }
+
+    if (leadOrManagerIndex === -1 && hrIndex >= 0) {
+      next.splice(hrIndex, 0, { role: 'team_lead_or_manager' });
+      return next;
+    }
+
+    if (hrIndex === -1) {
+      next.push({ role: 'hr' });
+      return next;
+    }
+
+    if (leadOrManagerIndex > hrIndex) {
+      next.splice(hrIndex, 0, { role: 'team_lead_or_manager' });
+    }
+
+    return next;
+  }
+
   private async canUserActOnCurrentStep(
     instance: {
       entityType: string;
@@ -342,6 +379,12 @@ export class WorkflowService {
       if (approverId === 'team_lead') {
         const isLead = await this.isTeamLeadForRequest(instance, userId);
         if (isLead) return true;
+        continue;
+      }
+
+      if (approverId === 'team_lead_or_manager') {
+        const isLeadOrManager = await this.isTeamLeadOrManagerForRequest(instance, userId);
+        if (isLeadOrManager) return true;
         continue;
       }
 
@@ -396,21 +439,42 @@ export class WorkflowService {
     return Boolean(member);
   }
 
-  private async isTeamLeadForRequestIdTx(
-    tx: {
-      requestInstance: {
-        findUnique: (args: {
-          where: { id: bigint };
-          select: { teamId: true };
-        }) => Promise<{ teamId: bigint | null } | null>;
-      };
-      groupUser: {
-        findFirst: (args: {
-          where: { groupId: bigint; userId: bigint; role: GroupUserRole };
-          select: { id: true };
-        }) => Promise<{ id: bigint } | null>;
-      };
+  private async isTeamLeadOrManagerForRequest(
+    instance: {
+      entityType: string;
+      entityId: string;
     },
+    userId: string
+  ) {
+    if (instance.entityType !== 'request') return false;
+    const request = await this.prisma.requestInstance.findUnique({
+      where: { id: toBigInt(instance.entityId) },
+      select: { teamId: true }
+    });
+    if (!request?.teamId) return false;
+
+    const member = await this.prisma.groupUser.findFirst({
+      where: {
+        groupId: request.teamId,
+        userId: toBigInt(userId),
+        role: { in: [GroupUserRole.moderator, GroupUserRole.admin] }
+      },
+      select: { id: true }
+    });
+    if (member) return true;
+
+    const managerRole = await this.prisma.userRole.findFirst({
+      where: {
+        profileId: toBigInt(userId),
+        role: { slug: 'manager' }
+      },
+      select: { id: true }
+    });
+    return Boolean(managerRole);
+  }
+
+  private async isTeamLeadForRequestIdTx(
+    tx: any,
     requestId: bigint,
     userId: string
   ) {
@@ -429,5 +493,33 @@ export class WorkflowService {
       select: { id: true }
     });
     return Boolean(member);
+  }
+
+  private async isTeamLeadOrManagerForRequestIdTx(
+    tx: any,
+    requestId: bigint,
+    userId: string
+  ) {
+    const request = await tx.requestInstance.findUnique({
+      where: { id: requestId },
+      select: { teamId: true }
+    });
+    if (!request?.teamId) return false;
+
+    const member = await tx.groupUser.findFirst({
+      where: {
+        groupId: request.teamId,
+        userId: toBigInt(userId),
+        role: { in: [GroupUserRole.moderator, GroupUserRole.admin] }
+      },
+      select: { id: true }
+    });
+    if (member) return true;
+
+    const managerRole = await tx.userRole.findFirst({
+      where: { profileId: toBigInt(userId), role: { slug: 'manager' } },
+      select: { id: true }
+    });
+    return Boolean(managerRole);
   }
 }

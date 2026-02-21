@@ -6,9 +6,25 @@ import { NestExpressApplication } from '@nestjs/platform-express';
 import rateLimit from 'express-rate-limit';
 import { resolve } from 'node:path';
 import { existsSync, mkdirSync } from 'node:fs';
+import { config as loadEnv } from 'dotenv';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/http/all-exceptions.filter';
 import { ResponseEnvelopeInterceptor } from './common/http/response-envelope.interceptor';
+
+if (!process.env.DATABASE_URL) {
+  const candidates = [
+    resolve(process.cwd(), '.env'),
+    resolve(process.cwd(), 'api/.env'),
+    resolve(__dirname, '../.env'),
+    resolve(__dirname, '../../.env')
+  ];
+  for (const file of candidates) {
+    if (existsSync(file)) {
+      loadEnv({ path: file, override: false });
+      if (process.env.DATABASE_URL) break;
+    }
+  }
+}
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
