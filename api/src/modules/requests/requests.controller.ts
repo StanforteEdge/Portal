@@ -85,8 +85,8 @@ export class RequestsController {
       }
     }
   })
-  createType(@Body() dto: CreateTypeDto) {
-    return this.requestsService.createType(dto);
+  createType(@Req() req: any, @Body() dto: CreateTypeDto) {
+    return this.requestsService.createType(dto, this.currentUserId(req));
   }
 
   @Post('types/:id')
@@ -103,8 +103,8 @@ export class RequestsController {
       }
     }
   })
-  updateType(@Param('id') id: string, @Body() dto: UpdateTypeDto) {
-    return this.requestsService.updateType(id, dto);
+  updateType(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTypeDto) {
+    return this.requestsService.updateType(id, dto, this.currentUserId(req));
   }
 
   @Delete('types/:id')
@@ -198,6 +198,12 @@ export class RequestsController {
     return this.requestsService.getApprovals(req.user?.id, query);
   }
 
+  @Get('leave/balance')
+  @Permissions('requests.view')
+  getMyLeaveBalance(@Req() req: any, @Query() query: Record<string, any>) {
+    return this.requestsService.getMyLeaveBalance(req.user?.id, query);
+  }
+
   @Get(':id')
   @Permissions('requests.view')
   @ApiOkResponse({ type: RequestResponseDto })
@@ -277,6 +283,15 @@ export class RequestsController {
     return this.requestsService.checkManualRequestNumber(requestId, requestTypeId, excludeId);
   }
 
+  @Get('manual-entry/check-voucher-number')
+  @Permissions('requests.manage')
+  checkManualVoucherNumber(
+    @Query('voucher_number') voucherNumber?: string,
+    @Query('exclude_request_id') excludeRequestId?: string
+  ) {
+    return this.requestsService.checkManualVoucherNumber(voucherNumber, excludeRequestId);
+  }
+
   @Post(':id/manual-entry')
   @Permissions('requests.manage')
   @ApiOperation({ summary: 'Update finance manual legacy request entry' })
@@ -290,6 +305,10 @@ export class RequestsController {
   @ApiOperation({ summary: 'Delete finance manual legacy request entry' })
   deleteManualEntry(@Req() req: any, @Param('id') id: string) {
     return this.requestsService.deleteManualEntry(id, req.user?.id);
+  }
+
+  private currentUserId(req: any): string | undefined {
+    return req?.user?.id ? String(req.user.id) : undefined;
   }
 
 

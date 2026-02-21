@@ -11,6 +11,7 @@ export type RequestItemInput = {
 export type ManualDisbursementInput = {
   voucher_number: string;
   amount: number;
+  paid_from_account_id?: string;
   method?: string;
   transaction_ref?: string;
   note?: string;
@@ -158,6 +159,30 @@ export async function listApprovals(params?: Record<string, unknown>) {
   return (response.data?.data ?? []) as RequestRecord[];
 }
 
+export async function getMyLeaveBalance(params?: { year?: number; leave_type_key?: string }) {
+  const response = await apiClient.get("/requests/leave/balance", { params });
+  return response.data?.data as {
+    user_id: string;
+    year: number;
+    summary: Array<{
+      leave_type_key: string;
+      entitled_days: number;
+      ledger_delta_days: number;
+      available_days: number;
+    }>;
+    entries: Array<{
+      id: string;
+      leave_type_key: string;
+      period_year: number;
+      delta_days: number;
+      entry_type: string;
+      notes: string | null;
+      source_request_id: string | null;
+      created_at: string;
+    }>;
+  };
+}
+
 export async function getRequest(id: string) {
   const response = await apiClient.get(`/requests/${id}`);
   return response.data?.data as RequestRecord;
@@ -293,6 +318,23 @@ export async function checkManualRequestNumber(
     },
   });
   return (response.data?.data ?? { exists: false, request_id: null }) as { exists: boolean; request_id: string | null };
+}
+
+export async function checkManualVoucherNumber(
+  voucherNumber: string,
+  params?: { exclude_request_id?: string }
+) {
+  const response = await apiClient.get("/requests/manual-entry/check-voucher-number", {
+    params: {
+      voucher_number: voucherNumber,
+      ...(params?.exclude_request_id ? { exclude_request_id: params.exclude_request_id } : {}),
+    },
+  });
+  return (response.data?.data ?? { exists: false, voucher_number: null, request_id: null }) as {
+    exists: boolean;
+    voucher_number: string | null;
+    request_id: string | null;
+  };
 }
 
 export async function generateFullRequestPackage(

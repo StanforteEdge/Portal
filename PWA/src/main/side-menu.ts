@@ -7,30 +7,46 @@ const menu: Array<Menu | "divider"> = [
     pathname: "/app/dashboard",
   },
   {
-    icon: "FileText",
-    title: "Requests",
+    icon: "Wallet",
+    title: "Finance",
+    subMenu: [
+      {
+        icon: "List",
+        pathname: "/app/requests/finance",
+        title: "Requests",
+      },
+      {
+        icon: "Plus",
+        pathname: "/app/requests/finance/new",
+        title: "New Request",
+      },
+    ],
+  },
+  {
+    icon: "ClipboardList",
+    title: "Leave",
     subMenu: [
       {
         icon: "Plus",
-        pathname: "/app/requests/new",
-        title: "Create Request",
+        pathname: "/app/requests/leave/new",
+        title: "New Leave Request",
       },
       {
-        icon: "List",
-        pathname: "/app/requests",
-        title: "All Requests",
-      },
-      {
-        icon: "FileText",
-        pathname: "/app/requests/request/:id",
-        title: "Request",
-      },
-      {
-        icon: "CheckCheck",
-        pathname: "/app/requests/approvals",
-        title: "Approvals",
+        icon: "ClipboardList",
+        pathname: "/app/requests/leave",
+        title: "Leave Tracker",
       },
     ],
+  },
+  {
+    icon: "CheckCheck",
+    pathname: "/app/requests/approvals",
+    title: "Approvals",
+  },
+  {
+    icon: "Clock3",
+    pathname: "/app/requests/attendance",
+    title: "Attendance",
   },
   {
     icon: "FolderOpen",
@@ -66,7 +82,7 @@ const menu: Array<Menu | "divider"> = [
   "divider",
   {
     icon: "Wallet",
-    title: "Finance",
+    title: "Finance Admin",
     roles: ["accountant", "finance_manager"],
     subMenu: [
       {
@@ -94,11 +110,22 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/finance/manual-entry",
         title: "Manual Entry",
       },
+      {
+        icon: "CircleDollarSign",
+        pathname: "/app/finance/accounts",
+        title: "Accounts",
+        matchSubPaths: true,
+      },
+      {
+        icon: "List",
+        pathname: "/app/finance/ledger",
+        title: "Ledger",
+      },
     ],
   },
   {
     icon: "UserCheck",
-    title: "HR",
+    title: "HR Admin",
     roles: ["hr"],
     subMenu: [
       {
@@ -112,9 +139,35 @@ const menu: Array<Menu | "divider"> = [
         title: "Employees",
       },
       {
+        icon: "Clock3",
+        pathname: "/app/hr/attendance",
+        title: "Attendance",
+      },
+      {
+        icon: "ClipboardList",
+        title: "Leave",
+        subMenu: [
+          {
+            icon: "ClipboardList",
+            pathname: "/app/hr/leave",
+            title: "Leave Tracker",
+          },
+          {
+            icon: "CheckCheck",
+            pathname: "/app/hr/leave/requests",
+            title: "Leave Requests",
+          },
+        ],
+      },
+      {
         icon: "ClipboardList",
         pathname: "/app/hr/onboarding",
         title: "Onboarding",
+      },
+      {
+        icon: "Settings",
+        pathname: "/app/hr/settings",
+        title: "Settings",
       },
     ],
   },
@@ -152,6 +205,11 @@ const menu: Array<Menu | "divider"> = [
         icon: "ShieldCheck",
         pathname: "/app/admin/roles",
         title: "Roles & Permissions",
+      },
+      {
+        icon: "Settings2",
+        pathname: "/app/admin/policies",
+        title: "Policies",
       },
       {
         icon: "Settings2",

@@ -6,14 +6,14 @@ import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Bas
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { useAppSelector } from "@/stores/hooks";
 import { listUsers } from "@/services/users";
-import { listRequestGroups, listRequestTypes, createManualRequestEntry, updateManualRequestEntry, deleteManualRequestEntry, checkManualRequestNumber, getRequest, generateRequestPdf, generateRequestPv, generateFullRequestPackage, generateRequestPackageWithAttachments, generateVoucherPackageWithAttachments, type RequestItemInput } from "@/services/requests";
+import { listRequestGroups, listRequestTypes, createManualRequestEntry, updateManualRequestEntry, deleteManualRequestEntry, checkManualRequestNumber, checkManualVoucherNumber, getRequest, generateRequestPdf, generateRequestPv, generateFullRequestPackage, generateRequestPackageWithAttachments, generateVoucherPackageWithAttachments, type RequestItemInput } from "@/services/requests";
 import { listTeams } from "@/services/teams";
 import { listOrganizations } from "@/services/organizations";
 import { listProjects } from "@/services/projects";
 import { listManagedTaxonomies, type ManagedTaxonomy } from "@/services/taxonomy";
 import { formatMoney } from "@/utils/formatting";
 import { uploadFileAsset } from "@/services/files";
-import { listFinanceRequestPaymentVouchers } from "@/services/finance";
+import { listFinanceAccounts, listFinanceRequestPaymentVouchers, type FinanceAccountRecord } from "@/services/finance";
 
 type Option = { id: string; name: string };
 type RequestTypeOption = Option & { categoryKey?: string | null };
@@ -22,6 +22,7 @@ type ManualItem = RequestItemInput;
 type ManualDisbursement = {
   voucher_number: string;
   amount: number;
+  paid_from_account_id?: string;
   method: string;
   transaction_ref: string;
   note: string;
@@ -64,6 +65,8 @@ function FinanceManualEntryPage() {
     exists: false,
     requestId: null,
   });
+  const [checkingVoucherIndex, setCheckingVoucherIndex] = useState<number | null>(null);
+  const [voucherExistsByIndex, setVoucherExistsByIndex] = useState<Record<number, string | null>>({});
 
   const [staffOptions, setStaffOptions] = useState<Option[]>([]);
   const [typeOptions, setTypeOptions] = useState<RequestTypeOption[]>([]);
@@ -72,6 +75,7 @@ function FinanceManualEntryPage() {
   const [projectOptions, setProjectOptions] = useState<Option[]>([]);
   const [categoryOptions, setCategoryOptions] = useState<Option[]>([]);
   const [taxonomyOptions, setTaxonomyOptions] = useState<ManagedTaxonomy[]>([]);
+  const [financeAccounts, setFinanceAccounts] = useState<FinanceAccountRecord[]>([]);
 
   const [form, setForm] = useState({
     request_type_id: "",
@@ -106,6 +110,7 @@ function FinanceManualEntryPage() {
     {
       voucher_number: "",
       amount: 0,
+      paid_from_account_id: "",
       method: "bank_transfer",
       transaction_ref: "",
       note: "",
@@ -117,6 +122,55 @@ function FinanceManualEntryPage() {
     },
   ]);
 
+  const resetManualForm = () => {
+    setRequestId("");
+    setVoucherId("");
+    setLookupId("");
+    setEditingId("");
+    setNumberExists({ exists: false, requestId: null });
+    setForm({
+      request_type_id: "",
+      staff_id: "",
+      request_id: "",
+      team_id: "",
+      organization_id: "",
+      project_id: "",
+      category_id: "",
+      status: "completed",
+      created_at: "",
+      due_date: "",
+      purpose: "",
+      currency: "NGN",
+      approvals: {
+        team_lead_name: "",
+        team_lead_date: "",
+        accountant_name: "",
+        accountant_date: "",
+        coo_name: "",
+        coo_date: "",
+        ed_name: "",
+        ed_date: "",
+        include_ed: false,
+      },
+    });
+    setItems([{ description: "", amount: 0, quantity: 1, notes: "", file_id: "" }]);
+    setDisbursements([
+      {
+        voucher_number: "",
+        amount: 0,
+        paid_from_account_id: "",
+        method: "bank_transfer",
+        transaction_ref: "",
+        note: "",
+        disbursed_at: "",
+        evidence_file_id: "",
+        retired_amount: 0,
+        retirement_status: "not_retired",
+        retirement_file_ids_text: "",
+      },
+    ]);
+  };
+
   const itemsTotal = useMemo(
     () => items.reduce((sum, item) => sum + Number(item.amount || 0) * Number(item.quantity || 1), 0),
     [items]
@@ -126,13 +180,14 @@ function FinanceManualEntryPage() {
     const load = async () => {
       try {
         setLoading(true);
-        const [users, groups, teams, orgs, projects, taxonomies] = await Promise.all([
+        const [users, groups, teams, orgs, projects, taxonomies, accounts] = await Promise.all([
           listUsers({ page: 1, per_page: 200 }),
           listRequestGroups(),
           listTeams({ active_only: false }),
           listOrganizations({ is_active: true }),
           listProjects({ active_only: false }),
           listManagedTaxonomies({ module: "finance", include_inactive: false }),
+          listFinanceAccounts({ is_active: true }).catch(() => []),
         ]);
         setStaffOptions(
           users.data.map((u) => ({
@@ -147,6 +202,7 @@ function FinanceManualEntryPage() {
         setOrganizationOptions(orgs.map((o) => ({ id: o.id, name: o.name })));
         setProjectOptions(projects.map((p) => ({ id: p.id, name: p.name })));
         setTaxonomyOptions(taxonomies);
+        setFinanceAccounts(accounts);
       } catch (error: any) {
         setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load manual entry options." });
       } finally {
@@ -211,6 +267,26 @@ function FinanceManualEntryPage() {
       setNotice({ tone: "warning", message: `Request ID already exists (Request ID ${numberExists.requestId}).` });
       return;
     }
+    const voucherRows = disbursements
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => String(row.voucher_number || "").trim().length > 0);
+    for (const { row, index } of voucherRows) {
+      const rawVoucherNumber = String(row.voucher_number || "").trim();
+      if (!/^\d+$/.test(rawVoucherNumber)) {
+        setNotice({ tone: "warning", message: `PV voucher ID in row ${index + 1} must be digits only.` });
+        return;
+      }
+      const exists = await checkManualVoucherNumber(rawVoucherNumber, {
+        exclude_request_id: editingId || undefined,
+      });
+      if (exists.exists) {
+        setNotice({
+          tone: "warning",
+          message: `PV voucher ID ${rawVoucherNumber} already exists on request ${exists.request_id}.`,
+        });
+        return;
+      }
+    }
     try {
       setSaving(true);
       setNotice(null);
@@ -257,6 +333,7 @@ function FinanceManualEntryPage() {
           .map((d) => ({
             voucher_number: d.voucher_number,
             amount: Number(d.amount),
+            paid_from_account_id: d.paid_from_account_id || undefined,
             method: d.method || undefined,
             transaction_ref: d.transaction_ref || undefined,
             note: d.note || undefined,
@@ -283,6 +360,32 @@ function FinanceManualEntryPage() {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save manual request." });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const checkVoucherNumberAtIndex = async (index: number) => {
+    const rawVoucherNumber = String(disbursements[index]?.voucher_number || "").trim();
+    if (!rawVoucherNumber) {
+      setVoucherExistsByIndex((prev) => ({ ...prev, [index]: null }));
+      return;
+    }
+    if (!/^\d+$/.test(rawVoucherNumber)) {
+      setVoucherExistsByIndex((prev) => ({ ...prev, [index]: "Voucher ID must be digits only." }));
+      return;
+    }
+    try {
+      setCheckingVoucherIndex(index);
+      const exists = await checkManualVoucherNumber(rawVoucherNumber, {
+        exclude_request_id: editingId || undefined,
+      });
+      setVoucherExistsByIndex((prev) => ({
+        ...prev,
+        [index]: exists.exists ? `Already exists on request ${exists.request_id}.` : null,
+      }));
+    } catch {
+      setVoucherExistsByIndex((prev) => ({ ...prev, [index]: null }));
+    } finally {
+      setCheckingVoucherIndex((current) => (current === index ? null : current));
     }
   };
 
@@ -339,6 +442,7 @@ function FinanceManualEntryPage() {
         pvs.map((pv) => ({
           voucher_number: pv.voucher_number,
           amount: Number(pv.amount || 0),
+          paid_from_account_id: pv.paid_from_account?.id || "",
           method: pv.method || "bank_transfer",
           transaction_ref: pv.transaction_ref || "",
           note: pv.note || "",
@@ -520,11 +624,28 @@ function FinanceManualEntryPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="outline-secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "" }])}>Add PV</Button></div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="outline-secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "" }])}>Add PV</Button></div>
           {disbursements.map((row, idx) => (
             <div key={`pv-${idx}`} className="grid grid-cols-12 gap-3 mb-4 p-3 border rounded">
-              <div className="col-span-12 md:col-span-3"><FormLabel>Voucher No</FormLabel><FormInput value={row.voucher_number} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, voucher_number: e.target.value } : x))} /></div>
+              <div className="col-span-12 md:col-span-3">
+                <FormLabel>Voucher ID (Digits)</FormLabel>
+                <FormInput
+                  value={row.voucher_number}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/[^\d]/g, "");
+                    setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, voucher_number: next } : x));
+                    setVoucherExistsByIndex((prev) => ({ ...prev, [idx]: null }));
+                  }}
+                  onBlur={() => void checkVoucherNumberAtIndex(idx)}
+                />
+                <div className="mt-1 text-xs text-slate-500">
+                  {checkingVoucherIndex === idx
+                    ? "Checking voucher..."
+                    : voucherExistsByIndex[idx] || " "}
+                </div>
+              </div>
               <div className="col-span-6 md:col-span-2"><FormLabel>Amount</FormLabel><FormInput type="number" value={row.amount} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, amount: Number(e.target.value || 0) } : x))} /></div>
+              <div className="col-span-12 md:col-span-3"><FormLabel>Paid From Account</FormLabel><FormSelect value={row.paid_from_account_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, paid_from_account_id: e.target.value } : x))}><option value="">Select account</option>{financeAccounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.name}{acc.code ? ` (${acc.code})` : ""}</option>)}</FormSelect></div>
               <div className="col-span-6 md:col-span-2"><FormLabel>Method</FormLabel><FormSelect value={row.method} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, method: e.target.value } : x))}><option value="bank_transfer">Bank Transfer</option><option value="cash">Cash</option><option value="cheque">Cheque</option></FormSelect></div>
               <div className="col-span-12 md:col-span-3"><FormLabel>Transaction Ref</FormLabel><FormInput value={row.transaction_ref} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, transaction_ref: e.target.value } : x))} /></div>
               <div className="col-span-12 md:col-span-2"><FormLabel>Date</FormLabel><FormInput type="date" value={row.disbursed_at} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, disbursed_at: e.target.value } : x))} /></div>
@@ -567,6 +688,15 @@ function FinanceManualEntryPage() {
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <Button
+            variant="outline-secondary"
+            onClick={() => {
+              resetManualForm();
+              setNotice({ tone: "success", message: "Form cleared." });
+            }}
+          >
+            Refresh
+          </Button>
           <Button disabled={loading || saving} onClick={saveManualRequest}>
             {saving ? "Saving..." : editingId ? "Update Manual Request" : "Save Manual Request"}
           </Button>

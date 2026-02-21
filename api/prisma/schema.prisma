@@ -112,6 +112,9 @@ model Profile {
   managedEmployees EmployeeProfile[] @relation("EmployeeManager")
   onboardingProgress OnboardingProgress?
   employeeMeta EmployeeMeta[]
+  attendanceEntries AttendanceEntry[]
+  attendanceDaily AttendanceDaily[]
+  leaveBalanceLedger LeaveBalanceLedger[]
   acknowledgements Acknowledgement[]
   documentAcknowledgements DocumentAcknowledgement[]
 
@@ -165,6 +168,71 @@ model EmployeeMeta {
   @@map("sta_employee_meta")
 }
 
+model AttendanceEntry {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    BigInt   @map("user_id")
+  entryType String   @map("entry_type") @db.VarChar(30)
+  entryAt   DateTime @map("entry_at")
+  workDate  DateTime @map("work_date") @db.Date
+  source    String   @default("web") @db.VarChar(30)
+  metadata  Json?
+  createdBy BigInt?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, workDate])
+  @@index([entryType, entryAt])
+  @@map("sta_attendance_entries")
+}
+
+model AttendanceDaily {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           BigInt   @map("user_id")
+  workDate         DateTime @map("work_date") @db.Date
+  status           String   @default("absent") @db.VarChar(20)
+  scheduledMinutes Int      @default(0) @map("scheduled_minutes")
+  workedMinutes    Int      @default(0) @map("worked_minutes")
+  lateMinutes      Int      @default(0) @map("late_minutes")
+  overtimeMinutes  Int      @default(0) @map("overtime_minutes")
+  firstInAt        DateTime? @map("first_in_at")
+  lastOutAt        DateTime? @map("last_out_at")
+  policySnapshot   Json?    @map("policy_snapshot")
+  computedAt       DateTime @default(now()) @map("computed_at")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, workDate], name: "unique_attendance_daily")
+  @@index([status])
+  @@map("sta_attendance_daily")
+}
+
+model LeaveBalanceLedger {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          BigInt   @map("user_id")
+  leaveTypeKey    String   @map("leave_type_key") @db.VarChar(100)
+  periodYear      Int      @map("period_year")
+  deltaDays       Decimal  @map("delta_days") @db.Decimal(7,2)
+  entryType       String   @map("entry_type") @db.VarChar(30)
+  sourceRequestId BigInt?  @map("source_request_id")
+  notes           String?
+  metadata        Json?
+  createdBy       BigInt?  @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  user          Profile          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  sourceRequest RequestInstance? @relation(fields: [sourceRequestId], references: [id], onDelete: SetNull)
+
+  @@index([userId, leaveTypeKey, periodYear])
+  @@index([entryType])
+  @@index([sourceRequestId])
+  @@map("sta_leave_balance_ledger")
+}
+
 model OnboardingProgress {
   id          String           @id @default(uuid()) @db.Uuid
   userId      BigInt           @unique @map("user_id")
@@ -203,6 +271,7 @@ model Organization {
   requests  RequestInstance[]
   requestGroups RequestGroup[]
   fileAssets FileAsset[]
+  financeAccounts FinanceAccount[]
   employeeProfiles EmployeeProfile[]
   documents Document[]
 
@@ -458,6 +527,7 @@ model RequestInstance {
   creator     Profile @relation("RequestCreatedBy", fields: [createdBy], references: [id])
   items       RequestItem[]
   paymentVouchers FinancePaymentVoucher[]
+  leaveBalanceLedger LeaveBalanceLedger[]
 
   @@index([requestTypeId])
   @@index([groupId])
@@ -503,6 +573,85 @@ model FinanceSetting {
   @@map("sta_finance_settings")
 }
 
+model FinanceAccount {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  name           String   @db.VarChar(150)
+  code           String?  @db.VarChar(60)
+  accountType    String   @default("bank") @map("account_type") @db.VarChar(30)
+  bankName       String?  @map("bank_name") @db.VarChar(150)
+  accountName    String?  @map("account_name") @db.VarChar(150)
+  accountNumber  String?  @map("account_number") @db.VarChar(50)
+  branchName     String?  @map("branch_name") @db.VarChar(120)
+  currency       String   @default("NGN") @db.VarChar(3)
+  openingBalance Decimal  @default(0) @map("opening_balance") @db.Decimal(15,2)
+  isActive       Boolean  @default(true) @map("is_active")
+  metadata       Json?
+  createdBy      BigInt?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization   Organization?          @relation(fields: [organizationId], references: [id])
+  paymentVouchers FinancePaymentVoucher[]
+  ledgerEntries  FinanceLedgerEntry[]
+  incomeEntries  FinanceIncomeEntry[]
+
+  @@unique([organizationId, name], name: "unique_finance_account_name_per_org")
+  @@index([organizationId])
+  @@index([accountType])
+  @@index([isActive])
+  @@map("sta_finance_accounts")
+}
+
+model FinanceLedgerEntry {
+  id          String   @id @default(uuid()) @db.Uuid
+  accountId   String   @map("account_id") @db.Uuid
+  direction   String   @db.VarChar(10)
+  amount      Decimal  @db.Decimal(15,2)
+  currency    String   @default("NGN") @db.VarChar(3)
+  entryDate   DateTime @map("entry_date")
+  description String?  @db.VarChar(255)
+  sourceType  String?  @map("source_type") @db.VarChar(60)
+  sourceId    String?  @map("source_id") @db.VarChar(120)
+  metadata    Json?
+  createdBy   BigInt?  @map("created_by")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  account FinanceAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId])
+  @@index([entryDate])
+  @@index([sourceType, sourceId])
+  @@index([direction])
+  @@map("sta_finance_ledger_entries")
+}
+
+model FinanceIncomeEntry {
+  id             String   @id @default(uuid()) @db.Uuid
+  accountId      String   @map("account_id") @db.Uuid
+  amount         Decimal  @db.Decimal(15,2)
+  currency       String   @default("NGN") @db.VarChar(3)
+  receivedAt     DateTime @map("received_at")
+  reference      String?  @db.VarChar(120)
+  payer          String?  @db.VarChar(150)
+  categoryId     String?  @map("category_id") @db.Uuid
+  notes          String?
+  fileId         String?  @map("file_id") @db.Uuid
+  metadata       Json?
+  createdBy      BigInt?  @map("created_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  account FinanceAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  file    FileAsset?     @relation(fields: [fileId], references: [id], onDelete: SetNull)
+
+  @@index([accountId])
+  @@index([receivedAt])
+  @@index([categoryId])
+  @@map("sta_finance_income_entries")
+}
+
 model FileAsset {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId BigInt?  @map("organization_id")
@@ -521,6 +670,7 @@ model FileAsset {
   uploader     Profile?      @relation("FileUploadedBy", fields: [uploadedBy], references: [id])
   requestItems RequestItem[]
   financePaymentVouchers FinancePaymentVoucher[]
+  financeIncomeEntries FinanceIncomeEntry[]
   documents Document[]
 
   @@index([organizationId])
@@ -548,6 +698,7 @@ model Document {
   organization      Organization?            @relation(fields: [organizationId], references: [id])
   file              FileAsset?               @relation(fields: [fileId], references: [id], onDelete: SetNull)
   acknowledgements  DocumentAcknowledgement[]
+  policies          Policy[]
 
   @@index([organizationId])
   @@index([status])
@@ -574,9 +725,37 @@ model DocumentAcknowledgement {
   @@map("sta_document_acknowledgements")
 }
 
+model Policy {
+  id                     String    @id @default(uuid()) @db.Uuid
+  module                 String    @db.VarChar(60)
+  policyKey              String    @map("policy_key") @db.VarChar(120)
+  scopeType              String    @default("global") @map("scope_type") @db.VarChar(40)
+  scopeId                String?   @map("scope_id") @db.VarChar(191)
+  priority               Int       @default(100)
+  configJson             Json      @map("config_json")
+  effectiveFrom          DateTime? @map("effective_from")
+  effectiveTo            DateTime? @map("effective_to")
+  isActive               Boolean   @default(true) @map("is_active")
+  documentId             String?   @map("document_id") @db.Uuid
+  documentVersion        String?   @map("document_version") @db.VarChar(40)
+  requireAcknowledgement Boolean   @default(false) @map("require_acknowledgement")
+  createdBy              BigInt?   @map("created_by")
+  updatedBy              BigInt?   @map("updated_by")
+  createdAt              DateTime  @default(now()) @map("created_at")
+  updatedAt              DateTime  @updatedAt @map("updated_at")
+
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([module, policyKey, isActive])
+  @@index([scopeType, scopeId])
+  @@index([effectiveFrom, effectiveTo])
+  @@map("sta_policies")
+}
+
 model FinancePaymentVoucher {
   id               String   @id @default(uuid()) @db.Uuid
   requestId        BigInt   @map("request_id")
+  paidFromAccountId String? @map("paid_from_account_id") @db.Uuid
   voucherNumber    String   @map("voucher_number") @db.VarChar(60)
   amount           Decimal  @db.Decimal(15,2)
   retiredAmount    Decimal  @default(0) @map("retired_amount") @db.Decimal(15,2)
@@ -594,8 +773,10 @@ model FinancePaymentVoucher {
 
   request      RequestInstance @relation(fields: [requestId], references: [id], onDelete: Cascade)
   evidenceFile FileAsset?      @relation(fields: [evidenceFileId], references: [id], onDelete: SetNull)
+  paidFromAccount FinanceAccount? @relation(fields: [paidFromAccountId], references: [id], onDelete: SetNull)
 
   @@index([requestId])
+  @@index([paidFromAccountId])
   @@index([voucherNumber])
   @@index([retirementStatus])
   @@map("sta_finance_payment_vouchers")

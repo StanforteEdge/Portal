@@ -91,6 +91,11 @@ class ManualVoucherDto {
   @IsUUID()
   evidence_file_id?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  paid_from_account_id?: string;
+
   @ApiPropertyOptional({ default: 0 })
   @IsOptional()
   @IsNumber()

@@ -50,6 +50,15 @@ const AdminSettingsPage = lazy(
 const FinanceManualEntryPage = lazy(
   () => import("../pages/finance/manual-entry/FinanceManualEntry")
 );
+const FinanceAccountsPage = lazy(
+  () => import("../pages/finance/accounts/FinanceAccounts")
+);
+const FinanceAccountDetailPage = lazy(
+  () => import("../pages/finance/accounts/FinanceAccountDetail")
+);
+const FinanceLedgerPage = lazy(
+  () => import("../pages/finance/ledger/FinanceLedger")
+);
 const AdminFilesPage = lazy(() => import("../pages/admin/files/AdminFiles"));
 const AdminProjectsPage = lazy(
   () => import("../pages/admin/projects/AdminProjects")
@@ -61,12 +70,22 @@ const AdminDocumentEditorPage = lazy(
   () => import("../pages/admin/documents/AdminDocumentEditor")
 );
 const AdminRolesPage = lazy(() => import("../pages/admin/roles/AdminRoles"));
+const AdminPoliciesPage = lazy(() => import("../pages/admin/policies/AdminPolicies"));
 const MediaLibraryPage = lazy(() => import("../pages/staff/media/MediaLibrary"));
 const DocumentsPage = lazy(() => import("../pages/staff/documents/Documents"));
 const OnboardingPage = lazy(() => import("../pages/staff/onboarding/Onboarding"));
+const StaffAttendancePage = lazy(() => import("../pages/staff/attendance/StaffAttendance"));
+const StaffLeaveTrackerPage = lazy(() => import("../pages/staff/leave/StaffLeaveTracker"));
 const HrEmployeesPage = lazy(() => import("../pages/hr/employees/HrEmployees"));
 const HrDashboardPage = lazy(() => import("../pages/hr/dashboard/HrDashboard"));
 const HrOnboardingPage = lazy(() => import("../pages/hr/onboarding/HrOnboarding"));
+const HrAttendancePage = lazy(() => import("../pages/hr/attendance/HrAttendance"));
+const HrLeaveTrackerPage = lazy(() => import("../pages/hr/leave/HrLeaveTracker"));
+const HrLeaveRequestsPage = lazy(() => import("../pages/hr/leave/HrLeaveRequests"));
+const HrSettingsPage = lazy(() => import("../pages/hr/settings/HrSettings"));
+const HrRequestTypeEditorPage = lazy(
+  () => import("../pages/hr/settings/HrRequestTypeEditor")
+);
 const HrOnboardingEditorPage = lazy(
   () => import("../pages/hr/onboarding/HrOnboardingEditor")
 );
@@ -140,7 +159,19 @@ function Router() {
           element: page(<RequestsPage />),
         },
         {
+          path: "requests/finance",
+          element: page(<RequestsPage />),
+        },
+        {
           path: "requests/new",
+          element: page(<RequestsCreatePage />),
+        },
+        {
+          path: "requests/finance/new",
+          element: page(<RequestsCreatePage />),
+        },
+        {
+          path: "requests/leave/new",
           element: page(<RequestsCreatePage />),
         },
         {
@@ -162,6 +193,14 @@ function Router() {
         {
           path: "requests/approvals/:id",
           element: page(<RequestDetailPage />),
+        },
+        {
+          path: "requests/attendance",
+          element: page(<StaffAttendancePage />),
+        },
+        {
+          path: "requests/leave",
+          element: page(<StaffLeaveTrackerPage />),
         },
         {
           path: "finance",
@@ -232,6 +271,30 @@ function Router() {
           element: (
             <RoleRoute allowedRoles={["finance_manager"]}>
               {page(<FinanceManualEntryPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "finance/accounts",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              {page(<FinanceAccountsPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "finance/accounts/:id",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              {page(<FinanceAccountDetailPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "finance/ledger",
+          element: (
+            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+              {page(<FinanceLedgerPage />)}
             </RoleRoute>
           ),
         },
@@ -328,6 +391,14 @@ function Router() {
           ),
         },
         {
+          path: "admin/policies",
+          element: (
+            <RoleRoute allowedRoles={["admin"]}>
+              {page(<AdminPoliciesPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
           path: "admin/forms",
           element: (
             <RoleRoute allowedRoles={["admin"]}>
@@ -392,6 +463,54 @@ function Router() {
           element: (
             <RoleRoute allowedRoles={["hr"]}>
               {page(<HrOnboardingPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/attendance",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrAttendancePage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/leave",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrLeaveTrackerPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/leave/requests",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrLeaveRequestsPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/settings",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrSettingsPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/settings/request-types/new",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrRequestTypeEditorPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/settings/request-types/:id",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrRequestTypeEditorPage />)}
             </RoleRoute>
           ),
         },

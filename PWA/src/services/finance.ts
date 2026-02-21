@@ -70,10 +70,162 @@ export async function listFinanceRequests(params?: Record<string, unknown>) {
 
 export async function disburseFinanceRequest(
   id: string,
-  payload: { note?: string; method?: string; transaction_ref?: string; amount?: number; evidence_file_id?: string }
+  payload: {
+    note?: string;
+    method?: string;
+    transaction_ref?: string;
+    amount?: number;
+    evidence_file_id?: string;
+    paid_from_account_id?: string;
+  }
 ) {
   const response = await apiClient.post(`/finance/requests/${id}/disburse`, payload);
   return response.data?.data as RequestRecord;
+}
+
+export type FinanceAccountRecord = {
+  id: string;
+  organization_id: string | null;
+  name: string;
+  code: string | null;
+  account_type: string;
+  bank_name: string | null;
+  account_name: string | null;
+  account_number: string | null;
+  branch_name: string | null;
+  currency: string;
+  opening_balance: number;
+  current_balance: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+};
+
+export async function listFinanceAccounts(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/finance/accounts", { params });
+  return (response.data?.data ?? []) as FinanceAccountRecord[];
+}
+
+export async function getFinanceAccount(id: string) {
+  const response = await apiClient.get(`/finance/accounts/${id}`);
+  return response.data?.data as FinanceAccountRecord;
+}
+
+export async function createFinanceAccount(payload: {
+  name: string;
+  code?: string;
+  account_type?: "bank" | "cash" | "wallet" | "other";
+  bank_name?: string;
+  account_name?: string;
+  account_number?: string;
+  branch_name?: string;
+  currency?: string;
+  opening_balance?: number;
+  is_active?: boolean;
+  metadata?: Record<string, unknown>;
+}) {
+  const response = await apiClient.post("/finance/accounts", payload);
+  return response.data?.data as FinanceAccountRecord;
+}
+
+export async function updateFinanceAccount(
+  id: string,
+  payload: {
+    name: string;
+    code?: string;
+    account_type?: "bank" | "cash" | "wallet" | "other";
+    bank_name?: string;
+    account_name?: string;
+    account_number?: string;
+    branch_name?: string;
+    currency?: string;
+    opening_balance?: number;
+    is_active?: boolean;
+    metadata?: Record<string, unknown>;
+  }
+) {
+  const response = await apiClient.post(`/finance/accounts/${id}`, payload);
+  return response.data?.data as FinanceAccountRecord;
+}
+
+export type FinanceLedgerRecord = {
+  id: string;
+  account_id: string;
+  account_name: string;
+  account_code: string | null;
+  account_type: string;
+  direction: "in" | "out" | "transfer";
+  amount: number;
+  currency: string;
+  entry_date: string;
+  description: string | null;
+  source_type: string | null;
+  source_id: string | null;
+  created_at: string;
+};
+
+export async function listFinanceLedger(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/finance/ledger", { params });
+  return (response.data?.data ?? []) as FinanceLedgerRecord[];
+}
+
+export type FinanceIncomeRecord = {
+  id: string;
+  account_id: string;
+  amount: number;
+  currency: string;
+  received_at: string;
+  reference: string | null;
+  payer: string | null;
+  notes: string | null;
+  file_id: string | null;
+  created_at: string;
+};
+
+export async function createFinanceIncome(payload: {
+  account_id: string;
+  amount: number;
+  currency?: string;
+  received_at?: string;
+  reference?: string;
+  payer?: string;
+  notes?: string;
+  file_id?: string;
+}) {
+  const response = await apiClient.post("/finance/income", payload);
+  return response.data?.data as FinanceIncomeRecord;
+}
+
+export async function listFinanceIncome(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/finance/income", { params });
+  return (response.data?.data ?? []) as Array<
+    FinanceIncomeRecord & {
+      account_name: string;
+      account_code: string | null;
+      file: { id: string; file_name: string; public_url: string | null } | null;
+    }
+  >;
+}
+
+export async function createFinanceTransfer(payload: {
+  from_account_id: string;
+  to_account_id: string;
+  amount: number;
+  currency?: string;
+  reference?: string;
+  note?: string;
+  transfer_at?: string;
+}) {
+  const response = await apiClient.post("/finance/transfers", payload);
+  return response.data?.data as {
+    success: boolean;
+    source_id: string;
+    from_account_id: string;
+    to_account_id: string;
+    amount: number;
+    currency: string;
+    transferred_at: string;
+  };
 }
 
 export async function listFinanceRequestPaymentVouchers(id: string) {
@@ -89,6 +241,7 @@ export async function listFinanceRequestPaymentVouchers(id: string) {
     method: string | null;
     transaction_ref: string | null;
     note: string | null;
+    paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
     disbursed_at: string;
     retired_at: string | null;
     verified_at: string | null;

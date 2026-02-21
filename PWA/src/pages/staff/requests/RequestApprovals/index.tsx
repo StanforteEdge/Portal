@@ -1,20 +1,24 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import clsx from "clsx";
 import Lucide from "@/components/Base/Lucide";
+import Button from "@/components/Base/Button";
 import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import Pagination from "@/components/Base/Pagination";
 import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
-import { listApprovals, type RequestRecord } from "@/services/requests";
+import { approveRequest, listApprovals, rejectRequest, type RequestRecord } from "@/services/requests";
 import { formatDisplayDate, formatMoney, formatPersonName, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
 
 function RequestApprovalsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const kind = (searchParams.get("kind") || "all").toLowerCase();
   const [allRequests, setAllRequests] = useState<RequestRecord[]>([]);
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
   const [perPage, setPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
+  const [actingId, setActingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
@@ -22,17 +26,20 @@ function RequestApprovalsPage() {
     const searchText = search.trim().toLowerCase();
     return allRequests.filter((req) => {
       const requestType = String(req.request_type?.name || "");
+      const categoryKey = String(req.request_type?.category_key || "").toLowerCase();
+      const isLeave = categoryKey.includes("leave") || requestType.toLowerCase().includes("leave");
       const requestPurpose = String(((req.data || {}) as Record<string, unknown>).purpose || "");
       const statusOk = !status || req.approval_view_status === status;
+      const kindOk = kind === "all" ? true : kind === "leave" ? isLeave : !isLeave;
       const searchOk =
         !searchText ||
         req.request_number.toLowerCase().includes(searchText) ||
         requestType.toLowerCase().includes(searchText) ||
         requestPurpose.toLowerCase().includes(searchText) ||
         String(req.creator?.email || "").toLowerCase().includes(searchText);
-      return statusOk && searchOk;
+      return statusOk && searchOk && kindOk;
     });
-  }, [allRequests, status, search]);
+  }, [allRequests, status, search, kind]);
 
   const pendingCount = useMemo(
     () => filteredRequests.filter((req) => req.approval_view_status === "pending").length,
@@ -65,6 +72,27 @@ function RequestApprovalsPage() {
     }
   };
 
+  const handleAction = async (id: string, action: "approve" | "reject") => {
+    try {
+      setActingId(id);
+      if (action === "approve") {
+        await approveRequest(id, "Approved from approvals queue");
+      } else {
+        const comment = window.prompt("Rejection reason");
+        if (!comment) return;
+        await rejectRequest(id, comment);
+      }
+      await load();
+    } catch (error: any) {
+      setNotice({
+        tone: "error",
+        message: error?.response?.data?.error?.message || `Unable to ${action} request.`,
+      });
+    } finally {
+      setActingId(null);
+    }
+  };
+
   useEffect(() => {
     void load();
   }, []);
@@ -77,6 +105,32 @@ function RequestApprovalsPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">My Approvals</h2>
+      </div>
+      <div className="flex gap-2 mt-4">
+        {[
+          { key: "all", label: "All" },
+          { key: "financial", label: "Financial" },
+          { key: "leave", label: "Leave" },
+        ].map((tab) => (
+          <button
+            key={tab.key}
+            type="button"
+            onClick={() => {
+              const next = new URLSearchParams(searchParams);
+              if (tab.key === "all") next.delete("kind");
+              else next.set("kind", tab.key);
+              setSearchParams(next);
+            }}
+            className={clsx(
+              "px-3 py-2 text-sm rounded border",
+              kind === tab.key || (tab.key === "all" && !searchParams.get("kind"))
+                ? "bg-primary text-white border-primary"
+                : "bg-white text-slate-700 border-slate-300"
+            )}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-12 gap-6 mt-5">
@@ -150,16 +204,22 @@ function RequestApprovalsPage() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Request No</Table.Th>
+                  <Table.Th>Kind</Table.Th>
                   <Table.Th>Type</Table.Th>
                   <Table.Th>Total</Table.Th>
+                  <Table.Th>Leave</Table.Th>
                   <Table.Th>Requester</Table.Th>
                   <Table.Th>Due Date</Table.Th>
                   <Table.Th>My View</Table.Th>
+                  <Table.Th>Action</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {pageData.map((req) => {
                   const data = (req.data || {}) as Record<string, unknown>;
+                  const isLeave =
+                    String(req.request_type?.category_key ?? "").toLowerCase().includes("leave") ||
+                    String(req.request_type?.name ?? "").toLowerCase().includes("leave");
                   return (
                     <Table.Tr key={req.id}>
                       <Table.Td>
@@ -167,8 +227,22 @@ function RequestApprovalsPage() {
                           {formatRequestNumber(req.request_number)}
                         </Link>
                       </Table.Td>
+                      <Table.Td className="capitalize">{isLeave ? "Leave" : "Financial"}</Table.Td>
                       <Table.Td>{req.request_type?.name || "-"}</Table.Td>
                       <Table.Td>{formatMoney(req.total_amount)}</Table.Td>
+                      <Table.Td>
+                        {isLeave ? (
+                          <div className="text-xs leading-5">
+                            <div>{Number(data.days_requested ?? 0)} day(s)</div>
+                            <div>
+                              {formatDisplayDate(typeof data.start_date === "string" ? data.start_date : null)} -{" "}
+                              {formatDisplayDate(typeof data.end_date === "string" ? data.end_date : null)}
+                            </div>
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </Table.Td>
                       <Table.Td>
                         <div className="font-medium">{formatPersonName(req.creator)}</div>
                         <div className="text-xs text-slate-500">{req.creator?.email || "-"}</div>
@@ -180,6 +254,27 @@ function RequestApprovalsPage() {
                         <span className={clsx("inline-flex rounded-full px-2 py-1 text-xs font-medium capitalize", statusBadgeClass(req.approval_view_status || "pending"))}>
                           {req.approval_view_status || "pending"}
                         </span>
+                      </Table.Td>
+                      <Table.Td>
+                        {req.approval_view_status === "pending" ? (
+                          <div className="flex gap-2">
+                            <Button size="sm" variant="outline-primary" disabled={actingId === req.id} onClick={() => void handleAction(req.id, "approve")}>
+                              <Lucide icon="CheckCheck" className="w-4 h-4 mr-1" />
+                              Approve
+                            </Button>
+                            <Button size="sm" variant="outline-danger" disabled={actingId === req.id} onClick={() => void handleAction(req.id, "reject")}>
+                              <Lucide icon="XCircle" className="w-4 h-4 mr-1" />
+                              Reject
+                            </Button>
+                          </div>
+                        ) : (
+                          <Link to={`/app/requests/request/${req.id}`}>
+                            <Button size="sm" variant="outline-secondary">
+                              <Lucide icon="Eye" className="w-4 h-4 mr-1" />
+                              View
+                            </Button>
+                          </Link>
+                        )}
                       </Table.Td>
                     </Table.Tr>
                   );

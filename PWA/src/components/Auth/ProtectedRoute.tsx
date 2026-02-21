@@ -36,12 +36,10 @@ function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (hasStoredSession && !auth.initialized && auth.status === "idle") {
-    return <>{children}</>;
-  }
-
-  if (hasStoredSession && auth.status === "checking") {
-    return <>{children}</>;
+  // Keep current URL while auth rehydrates from stored session.
+  // This prevents role routes from redirecting to dashboard before roles are available.
+  if (hasStoredSession && (!auth.initialized || auth.status === "checking")) {
+    return <div className="min-h-screen bg-slate-50" />;
   }
 
   if (!isAuthenticated) {
