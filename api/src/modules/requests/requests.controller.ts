@@ -85,8 +85,8 @@ export class RequestsController {
       }
     }
   })
-  createType(@Body() dto: CreateTypeDto) {
-    return this.requestsService.createType(dto);
+  createType(@Req() req: any, @Body() dto: CreateTypeDto) {
+    return this.requestsService.createType(dto, this.currentUserId(req));
   }
 
   @Post('types/:id')
@@ -103,8 +103,8 @@ export class RequestsController {
       }
     }
   })
-  updateType(@Param('id') id: string, @Body() dto: UpdateTypeDto) {
-    return this.requestsService.updateType(id, dto);
+  updateType(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTypeDto) {
+    return this.requestsService.updateType(id, dto, this.currentUserId(req));
   }
 
   @Delete('types/:id')
@@ -305,6 +305,10 @@ export class RequestsController {
   @ApiOperation({ summary: 'Delete finance manual legacy request entry' })
   deleteManualEntry(@Req() req: any, @Param('id') id: string) {
     return this.requestsService.deleteManualEntry(id, req.user?.id);
+  }
+
+  private currentUserId(req: any): string | undefined {
+    return req?.user?.id ? String(req.user.id) : undefined;
   }
 
 

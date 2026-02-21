@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
@@ -18,11 +18,13 @@ import type { FileAssetRecord } from "@/services/files";
 import { listTeams, type TeamOption } from "@/services/teams";
 import { listManagedTaxonomies, replaceEntityTags, type TagTerm } from "@/services/taxonomy";
 import { getMyProfile } from "@/services/profile";
+import { listPolicies } from "@/services/policies";
 import { formatMoney } from "@/utils/formatting";
 import MediaPickerModal from "@/components/Media/MediaPickerModal";
 import TagPicker from "@/components/Tags/TagPicker";
 
 type CategoryTermOption = { id: string; value: string; label: string };
+type LeaveTypeOption = { key: string; label: string; available_days?: number };
 
 type CreateItemState = RequestItemInput & {
   unit_price?: number;
@@ -78,6 +80,14 @@ const defaultForm: CreateFormState = {
 
 function RequestsCreatePage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const pathKind = location.pathname.includes("/requests/finance/new")
+    ? "financial"
+    : location.pathname.includes("/requests/leave/new")
+      ? "leave"
+      : "all";
+  const kind = (searchParams.get("kind") || pathKind || "all").toLowerCase();
   const [types, setTypes] = useState<RequestTypeOption[]>([]);
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [organizationOptions, setOrganizationOptions] = useState<Array<{ id: string; name: string }>>([]);
@@ -92,11 +102,33 @@ function RequestsCreatePage() {
   const [tags, setTags] = useState<TagTerm[]>([]);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [myUserId, setMyUserId] = useState("");
+  const [leaveTypeOptions, setLeaveTypeOptions] = useState<LeaveTypeOption[]>([]);
+  const [defaultLeaveRequestTypeId, setDefaultLeaveRequestTypeId] = useState("");
 
   const selectedRequestType = useMemo(
     () => types.find((type) => type.id === form.request_type_id),
     [types, form.request_type_id]
   );
+  const filteredTypeOptions = useMemo(() => {
+    if (kind === "all") return types;
+    return types.filter((type) => {
+      const categoryKey = String(type.category_key || "").toLowerCase();
+      const typeName = String(type.name || "").toLowerCase();
+      const isLeave = categoryKey.includes("leave") || typeName.includes("leave");
+      return kind === "leave" ? isLeave : !isLeave;
+    });
+  }, [types, kind]);
+
+  useEffect(() => {
+    if (kind !== "leave") return;
+    if (filteredTypeOptions.length === 0) return;
+    if (form.request_type_id && filteredTypeOptions.some((type) => type.id === form.request_type_id)) return;
+    const configured =
+      defaultLeaveRequestTypeId && filteredTypeOptions.some((type) => type.id === defaultLeaveRequestTypeId)
+        ? defaultLeaveRequestTypeId
+        : filteredTypeOptions[0].id;
+    setForm((prev) => ({ ...prev, request_type_id: configured }));
+  }, [kind, filteredTypeOptions, form.request_type_id, defaultLeaveRequestTypeId]);
 
   const projectRequired = useMemo(() => {
     return Boolean((selectedRequestType?.form_schema as any)?.project_required);
@@ -106,10 +138,11 @@ function RequestsCreatePage() {
     return projectOptions.find((project) => project.id === form.project_id)?.name || "";
   }, [form.project_id, projectOptions]);
   const isLeaveRequest = useMemo(() => {
+    if (kind === "leave") return true;
     const categoryKey = String(selectedRequestType?.category_key || "").toLowerCase();
     const typeName = String(selectedRequestType?.name || "").toLowerCase();
     return categoryKey.includes("leave") || typeName.includes("leave");
-  }, [selectedRequestType]);
+  }, [selectedRequestType, kind]);
 
   const [leaveBalance, setLeaveBalance] = useState<number | null>(null);
   const handoverColleagueOptions = useMemo(() => {
@@ -143,15 +176,33 @@ function RequestsCreatePage() {
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [typeData, projects, orgs, teams, taxonomies] = await Promise.all([
+        const [typeData, projects, orgs, teams, taxonomies, leaveTypePolicyRes] = await Promise.all([
           listRequestTypes(),
           listProjects().catch(() => []),
           listMyOrganizations().catch(() => []),
           listTeams({ active_only: false }).catch(() => []),
           listManagedTaxonomies({ include_inactive: false }).catch(() => []),
+          listPolicies({
+            module: "leave",
+            policy_key: "leave_request_type",
+            scope_type: "global",
+            per_page: 1,
+          }).catch(() => ({ data: [] as any[] })),
         ]);
+        const configuredLeaveRequestTypeId = String(
+          ((leaveTypePolicyRes.data?.[0]?.config_json as Record<string, unknown> | undefined)?.request_type_id as string | undefined) ?? ""
+        );
+        setDefaultLeaveRequestTypeId(configuredLeaveRequestTypeId);
 
-        setTypes(typeData);
+        const onlyMatching = kind === "all"
+          ? typeData
+          : typeData.filter((type) => {
+              const categoryKey = String(type.category_key || "").toLowerCase();
+              const typeName = String(type.name || "").toLowerCase();
+              const isLeave = categoryKey.includes("leave") || typeName.includes("leave");
+              return kind === "leave" ? isLeave : !isLeave;
+            });
+        setTypes(onlyMatching);
         setProjectOptions(projects.map((project) => ({ id: project.id, name: project.name })));
         const myProfile = await getMyProfile().catch(() => null);
         const myUserId = myProfile?.id ? String(myProfile.id) : "";
@@ -186,11 +237,26 @@ function RequestsCreatePage() {
         }
         setTaxonomyMap(nextTaxonomyMap);
 
-        setForm((prev) => ({
-          ...prev,
-          organization_id: allOrgOptions.length === 1 ? allOrgOptions[0].id : prev.organization_id,
-          team_id: resolvedTeams.length === 1 ? resolvedTeams[0].id : prev.team_id,
-        }));
+        setForm((prev) => {
+          const selectedStillValid = onlyMatching.some((type) => type.id === prev.request_type_id);
+          const resolvedLeaveTypeId =
+            configuredLeaveRequestTypeId && onlyMatching.some((type) => type.id === configuredLeaveRequestTypeId)
+              ? configuredLeaveRequestTypeId
+              : "";
+          return {
+            ...prev,
+            request_type_id:
+              kind === "leave"
+                ? (resolvedLeaveTypeId || (onlyMatching.length > 0 ? onlyMatching[0].id : ""))
+                : selectedStillValid
+                  ? prev.request_type_id
+                  : onlyMatching.length > 0
+                    ? onlyMatching[0].id
+                    : "",
+            organization_id: allOrgOptions.length === 1 ? allOrgOptions[0].id : prev.organization_id,
+            team_id: resolvedTeams.length === 1 ? resolvedTeams[0].id : prev.team_id,
+          };
+        });
       } catch (error: any) {
         setNotice({
           tone: "error",
@@ -200,7 +266,7 @@ function RequestsCreatePage() {
     };
 
     void loadOptions();
-  }, []);
+    }, [kind]);
 
   useEffect(() => {
     const taxonomyKey = selectedRequestType?.category_key || "";
@@ -221,18 +287,35 @@ function RequestsCreatePage() {
 
   useEffect(() => {
     const loadLeaveBalance = async () => {
-      if (!isLeaveRequest || !form.leave_type_key) {
+      if (!isLeaveRequest) {
+        setLeaveTypeOptions([]);
         setLeaveBalance(null);
         return;
       }
       try {
         const year = form.leave_start_date ? new Date(form.leave_start_date).getFullYear() : new Date().getFullYear();
-        const response = await getMyLeaveBalance({
-          year,
-          leave_type_key: form.leave_type_key
-        });
-        const row = (response.summary || []).find((item) => item.leave_type_key === form.leave_type_key);
-        setLeaveBalance(row ? Number(row.available_days) : 0);
+        const response = await getMyLeaveBalance({ year });
+        const summary = response.summary || [];
+        const optionsFromPolicy = summary.map((item) => ({
+          key: String(item.leave_type_key || "").trim().toLowerCase(),
+          label: String(item.leave_type_key || "")
+            .replaceAll("_", " ")
+            .replace(/\b\w/g, (m) => m.toUpperCase()),
+          available_days: Number(item.available_days || 0),
+        }));
+        const options = optionsFromPolicy.length
+          ? optionsFromPolicy
+          : [
+              { key: "annual_leave", label: "Annual Leave" },
+              { key: "sick_leave", label: "Sick Leave" },
+              { key: "casual_leave", label: "Casual Leave" },
+            ];
+        setLeaveTypeOptions(options);
+        const row = summary.find((item) => item.leave_type_key === form.leave_type_key);
+        setLeaveBalance(form.leave_type_key ? (row ? Number(row.available_days) : 0) : null);
+        if (!form.leave_type_key && options.length > 0) {
+          setForm((prev) => ({ ...prev, leave_type_key: options[0].key }));
+        }
       } catch {
         setLeaveBalance(null);
       }
@@ -392,7 +475,9 @@ function RequestsCreatePage() {
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
-        <h2 className="mr-auto text-lg font-medium">Create Request</h2>
+        <h2 className="mr-auto text-lg font-medium">
+          {kind === "leave" ? "Create Leave Request" : kind === "financial" ? "Create Financial Request" : "Create Request"}
+        </h2>
         <Button variant="outline-secondary" onClick={() => navigate("/app/requests")}>
           <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" />
           Back to Requests
@@ -405,15 +490,21 @@ function RequestsCreatePage() {
         <div className="col-span-12">
           <FormLabel className="w-full">Request Type</FormLabel>
           <div className="flex flex-wrap items-center gap-4">
-            <FormSelect className="w-auto" value={form.request_type_id} onChange={(e) => setForm((prev) => ({ ...prev, request_type_id: e.target.value }))}>
-              <option value="">Select type</option>
-              {types.map((type) => (
-                <option key={type.id} value={type.id}>
-                  {type.name}
-                </option>
-              ))}
-            </FormSelect>
-            {form.request_type_id ? (
+            {kind === "leave" ? (
+              <div className="px-3 py-2 rounded border border-slate-300 bg-slate-50 text-sm">
+                {selectedRequestType?.name || filteredTypeOptions[0]?.name || "Leave Request"}
+              </div>
+            ) : (
+              <FormSelect className="w-auto" value={form.request_type_id} onChange={(e) => setForm((prev) => ({ ...prev, request_type_id: e.target.value }))}>
+                <option value="">Select type</option>
+                {filteredTypeOptions.map((type) => (
+                  <option key={type.id} value={type.id}>
+                    {type.name}
+                  </option>
+                ))}
+              </FormSelect>
+            )}
+            {form.request_type_id && !isLeaveRequest ? (
               <label className="inline-flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
@@ -439,12 +530,18 @@ function RequestsCreatePage() {
           {isLeaveRequest ? (
             <>
               <div className="col-span-12 md:col-span-4">
-                <FormLabel>Leave Type Key</FormLabel>
-                <FormInput
+                <FormLabel>Leave Type</FormLabel>
+                <FormSelect
                   value={form.leave_type_key}
                   onChange={(e) => setForm((prev) => ({ ...prev, leave_type_key: e.target.value.trim().toLowerCase() }))}
-                  placeholder="annual_leave"
-                />
+                >
+                  <option value="">Select leave type</option>
+                  {leaveTypeOptions.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </FormSelect>
               </div>
               <div className="col-span-12 md:col-span-3">
                 <FormLabel>Start Date</FormLabel>
@@ -502,23 +599,27 @@ function RequestsCreatePage() {
             </>
           ) : null}
 
-          <div className="col-span-12 md:col-span-4">
-            <FormLabel>Category</FormLabel>
-            <FormSelect value={form.category_id} onChange={(e) => setForm((prev) => ({ ...prev, category_id: e.target.value }))}>
-              <option value="">Select category</option>
-              {categoryOptions.map((category) => (
-                <option key={category.id} value={category.id}>
-                  {category.label}
-                </option>
-              ))}
-            </FormSelect>
-          </div>
+          {!isLeaveRequest ? (
+            <div className="col-span-12 md:col-span-4">
+              <FormLabel>Category</FormLabel>
+              <FormSelect value={form.category_id} onChange={(e) => setForm((prev) => ({ ...prev, category_id: e.target.value }))}>
+                <option value="">Select category</option>
+                {categoryOptions.map((category) => (
+                  <option key={category.id} value={category.id}>
+                    {category.label}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+          ) : null}
 
-          <div className="col-span-12 md:col-span-4">
-            <FormLabel>Due Date</FormLabel>
-            <FormInput type="date" value={form.due_date} onChange={(e) => setForm((prev) => ({ ...prev, due_date: e.target.value }))} />
-          </div>
-          {projectRequired ? (
+          {!isLeaveRequest ? (
+            <div className="col-span-12 md:col-span-4">
+              <FormLabel>Due Date</FormLabel>
+              <FormInput type="date" value={form.due_date} onChange={(e) => setForm((prev) => ({ ...prev, due_date: e.target.value }))} />
+            </div>
+          ) : null}
+          {!isLeaveRequest && projectRequired ? (
             <div className="col-span-12 md:col-span-4">
               <FormLabel>Project</FormLabel>
               <FormSelect value={form.project_id} onChange={(e) => setForm((prev) => ({ ...prev, project_id: e.target.value }))}>
@@ -532,7 +633,7 @@ function RequestsCreatePage() {
             </div>
           ) : null}
 
-          {shouldShowTeamSelect ? (
+          {!isLeaveRequest && shouldShowTeamSelect ? (
             <div className="col-span-12 md:col-span-4">
               <FormLabel>Team</FormLabel>
               <FormSelect value={form.team_id} onChange={(e) => setForm((prev) => ({ ...prev, team_id: e.target.value }))}>
@@ -546,7 +647,7 @@ function RequestsCreatePage() {
             </div>
           ) : null}
 
-          {shouldShowOrganizationSelect ? (
+          {!isLeaveRequest && shouldShowOrganizationSelect ? (
             <div className="col-span-12 md:col-span-4">
               <FormLabel>Organization</FormLabel>
               <FormSelect value={form.organization_id} onChange={(e) => setForm((prev) => ({ ...prev, organization_id: e.target.value }))}>
@@ -563,7 +664,7 @@ function RequestsCreatePage() {
 
 
           <div className="col-span-12">
-            <FormLabel>Purpose</FormLabel>
+            <FormLabel>{isLeaveRequest ? "Reason for Leave" : "Purpose"}</FormLabel>
             <FormTextarea rows={4} value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
           </div>
         </div>

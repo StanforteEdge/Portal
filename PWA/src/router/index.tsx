@@ -81,6 +81,11 @@ const HrDashboardPage = lazy(() => import("../pages/hr/dashboard/HrDashboard"));
 const HrOnboardingPage = lazy(() => import("../pages/hr/onboarding/HrOnboarding"));
 const HrAttendancePage = lazy(() => import("../pages/hr/attendance/HrAttendance"));
 const HrLeaveTrackerPage = lazy(() => import("../pages/hr/leave/HrLeaveTracker"));
+const HrLeaveRequestsPage = lazy(() => import("../pages/hr/leave/HrLeaveRequests"));
+const HrSettingsPage = lazy(() => import("../pages/hr/settings/HrSettings"));
+const HrRequestTypeEditorPage = lazy(
+  () => import("../pages/hr/settings/HrRequestTypeEditor")
+);
 const HrOnboardingEditorPage = lazy(
   () => import("../pages/hr/onboarding/HrOnboardingEditor")
 );
@@ -154,7 +159,19 @@ function Router() {
           element: page(<RequestsPage />),
         },
         {
+          path: "requests/finance",
+          element: page(<RequestsPage />),
+        },
+        {
           path: "requests/new",
+          element: page(<RequestsCreatePage />),
+        },
+        {
+          path: "requests/finance/new",
+          element: page(<RequestsCreatePage />),
+        },
+        {
+          path: "requests/leave/new",
           element: page(<RequestsCreatePage />),
         },
         {
@@ -462,6 +479,38 @@ function Router() {
           element: (
             <RoleRoute allowedRoles={["hr"]}>
               {page(<HrLeaveTrackerPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/leave/requests",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrLeaveRequestsPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/settings",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrSettingsPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/settings/request-types/new",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrRequestTypeEditorPage />)}
+            </RoleRoute>
+          ),
+        },
+        {
+          path: "hr/settings/request-types/:id",
+          element: (
+            <RoleRoute allowedRoles={["hr"]}>
+              {page(<HrRequestTypeEditorPage />)}
             </RoleRoute>
           ),
         },

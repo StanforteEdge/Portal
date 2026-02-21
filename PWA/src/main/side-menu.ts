@@ -7,40 +7,46 @@ const menu: Array<Menu | "divider"> = [
     pathname: "/app/dashboard",
   },
   {
-    icon: "FileText",
-    title: "Requests",
+    icon: "Wallet",
+    title: "Finance",
+    subMenu: [
+      {
+        icon: "List",
+        pathname: "/app/requests/finance",
+        title: "Requests",
+      },
+      {
+        icon: "Plus",
+        pathname: "/app/requests/finance/new",
+        title: "New Request",
+      },
+    ],
+  },
+  {
+    icon: "ClipboardList",
+    title: "Leave",
     subMenu: [
       {
         icon: "Plus",
-        pathname: "/app/requests/new",
-        title: "Create Request",
-      },
-      {
-        icon: "List",
-        pathname: "/app/requests",
-        title: "All Requests",
-      },
-      {
-        icon: "FileText",
-        pathname: "/app/requests/request/:id",
-        title: "Request",
-      },
-      {
-        icon: "CheckCheck",
-        pathname: "/app/requests/approvals",
-        title: "Approvals",
-      },
-      {
-        icon: "Clock3",
-        pathname: "/app/requests/attendance",
-        title: "My Attendance",
+        pathname: "/app/requests/leave/new",
+        title: "New Leave Request",
       },
       {
         icon: "ClipboardList",
         pathname: "/app/requests/leave",
-        title: "My Leave",
+        title: "Leave Tracker",
       },
     ],
+  },
+  {
+    icon: "CheckCheck",
+    pathname: "/app/requests/approvals",
+    title: "Approvals",
+  },
+  {
+    icon: "Clock3",
+    pathname: "/app/requests/attendance",
+    title: "Attendance",
   },
   {
     icon: "FolderOpen",
@@ -76,7 +82,7 @@ const menu: Array<Menu | "divider"> = [
   "divider",
   {
     icon: "Wallet",
-    title: "Finance",
+    title: "Finance Admin",
     roles: ["accountant", "finance_manager"],
     subMenu: [
       {
@@ -119,7 +125,7 @@ const menu: Array<Menu | "divider"> = [
   },
   {
     icon: "UserCheck",
-    title: "HR",
+    title: "HR Admin",
     roles: ["hr"],
     subMenu: [
       {
@@ -139,13 +145,29 @@ const menu: Array<Menu | "divider"> = [
       },
       {
         icon: "ClipboardList",
-        pathname: "/app/hr/leave",
-        title: "Leave Tracker",
+        title: "Leave",
+        subMenu: [
+          {
+            icon: "ClipboardList",
+            pathname: "/app/hr/leave",
+            title: "Leave Tracker",
+          },
+          {
+            icon: "CheckCheck",
+            pathname: "/app/hr/leave/requests",
+            title: "Leave Requests",
+          },
+        ],
       },
       {
         icon: "ClipboardList",
         pathname: "/app/hr/onboarding",
         title: "Onboarding",
+      },
+      {
+        icon: "Settings",
+        pathname: "/app/hr/settings",
+        title: "Settings",
       },
     ],
   },

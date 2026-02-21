@@ -80,7 +80,8 @@ export class RequestsService {
     return type;
   }
 
-  async createType(dto: CreateTypeDto) {
+  async createType(dto: CreateTypeDto, actorId?: string) {
+    await this.assertRequestTypeGroupAccess(dto.group_id, actorId);
     return this.prisma.requestType.create({
       data: {
         groupId: dto.group_id,
@@ -98,7 +99,14 @@ export class RequestsService {
     });
   }
 
-  async updateType(id: string, dto: UpdateTypeDto) {
+  async updateType(id: string, dto: UpdateTypeDto, actorId?: string) {
+    const existing = await this.prisma.requestType.findUnique({
+      where: { id },
+      select: { groupId: true }
+    });
+    if (!existing) throw new NotFoundException('Request type not found');
+    await this.assertRequestTypeGroupAccess(existing.groupId, actorId);
+
     return this.prisma.requestType.update({
       where: { id },
       data: {
@@ -125,6 +133,40 @@ export class RequestsService {
   async deleteType(id: string) {
     await this.prisma.requestType.delete({ where: { id } });
     return { success: true };
+  }
+
+  private async assertRequestTypeGroupAccess(groupId: string, actorId?: string) {
+    if (!actorId) return;
+    const actorRoles = await this.getActorRoleSlugs(actorId);
+    const isAdmin = actorRoles.has('admin');
+    if (isAdmin) return;
+
+    const group = await this.prisma.requestGroup.findUnique({
+      where: { id: groupId },
+      select: { id: true, name: true, code: true }
+    });
+    if (!group) throw new BadRequestException('Invalid request group');
+
+    const marker = `${String(group.code || '').toLowerCase()} ${String(group.name || '').toLowerCase()}`;
+    const isFinanceGroup = /(^|[\s_-])(fin|finance|financial)([\s_-]|$)/.test(marker);
+    const isHrGroup = /(^|[\s_-])(hr|leave|human\s*resources)([\s_-]|$)/.test(marker);
+    const hasFinanceRole = actorRoles.has('accountant') || actorRoles.has('finance_manager');
+    const hasHrRole = actorRoles.has('hr');
+
+    if (isFinanceGroup && !hasFinanceRole) {
+      throw new BadRequestException('Only finance admins can manage finance request types');
+    }
+    if (isHrGroup && !hasHrRole) {
+      throw new BadRequestException('Only HR admins can manage HR request types');
+    }
+  }
+
+  private async getActorRoleSlugs(actorId: string) {
+    const roles = await this.prisma.userRole.findMany({
+      where: { profileId: toBigInt(actorId) },
+      select: { role: { select: { slug: true } } }
+    });
+    return new Set(roles.map((item) => String(item.role.slug || '').toLowerCase()));
   }
 
   async createRequest(userId: string, dto: CreateRequestDto) {
@@ -929,7 +971,7 @@ export class RequestsService {
       })
     ]);
 
-    const entitlements = await this.resolveLeaveEntitlements();
+    const entitlements = await this.resolveLeaveEntitlements(actorId);
     const summary = aggregate.map((entry) => {
       const key = entry.leaveTypeKey;
       const entitled = Number(entitlements[key] ?? 0);
@@ -1686,7 +1728,7 @@ export class RequestsService {
     });
     if (existingDebit) return;
 
-    const entitlements = await this.resolveLeaveEntitlements();
+    const entitlements = await this.resolveLeaveEntitlements(leave.user_id);
     const entitledDays = Number(entitlements[leave.leave_type_key] ?? 0);
 
     const aggregate = await this.prisma.leaveBalanceLedger.aggregate({
@@ -1787,18 +1829,35 @@ export class RequestsService {
     };
   }
 
-  private async resolveLeaveEntitlements() {
+  private async resolveLeaveEntitlements(userId?: bigint) {
+    const now = new Date();
+    const context = userId ? await this.resolvePolicyContextForUser(userId) : null;
+
     const rows = await this.prisma.policy.findMany({
       where: {
         module: 'leave',
-        policyKey: 'entitlement',
+        policyKey: { in: ['leave_entitlements', 'entitlement'] },
         isActive: true,
-        scopeType: 'global'
+        OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: now } }],
+        AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }]
       },
-      orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }]
+      orderBy: [{ scopeType: 'asc' }, { priority: 'asc' }, { createdAt: 'asc' }]
     });
+
+    const matched = rows
+      .filter((row) => {
+        if (!context) return row.scopeType === 'global';
+        return this.policyScopeMatches(row.scopeType, row.scopeId, context);
+      })
+      .sort((a, b) => {
+        const rankDelta = this.policyScopeRank(a.scopeType) - this.policyScopeRank(b.scopeType);
+        if (rankDelta !== 0) return rankDelta;
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
+
     const merged: Record<string, number> = {};
-    for (const row of rows) {
+    for (const row of matched) {
       const cfg =
         row.configJson && typeof row.configJson === 'object' && !Array.isArray(row.configJson)
           ? (row.configJson as Record<string, unknown>)
@@ -1809,6 +1868,45 @@ export class RequestsService {
       }
     }
     return merged;
+  }
+
+  private async resolvePolicyContextForUser(userId: bigint) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      include: {
+        employeeProfile: { select: { primaryOrganizationId: true, primaryTeamId: true, employmentType: true } }
+      }
+    });
+
+    return {
+      user_id: userId.toString(),
+      organization_id: profile?.employeeProfile?.primaryOrganizationId?.toString(),
+      team_id: profile?.employeeProfile?.primaryTeamId?.toString(),
+      staff_type: profile?.employeeProfile?.employmentType ?? undefined
+    };
+  }
+
+  private policyScopeMatches(
+    scopeType: string,
+    scopeId: string | null,
+    context: { organization_id?: string; team_id?: string; staff_type?: string; user_id?: string }
+  ) {
+    if (scopeType === 'global') return true;
+    if (!scopeId) return false;
+    if (scopeType === 'organization') return context.organization_id === scopeId;
+    if (scopeType === 'team') return context.team_id === scopeId;
+    if (scopeType === 'staff_type') return context.staff_type === scopeId;
+    if (scopeType === 'user') return context.user_id === scopeId;
+    return false;
+  }
+
+  private policyScopeRank(scopeType: string) {
+    if (scopeType === 'global') return 0;
+    if (scopeType === 'organization') return 1;
+    if (scopeType === 'team') return 2;
+    if (scopeType === 'staff_type') return 3;
+    if (scopeType === 'user') return 4;
+    return 99;
   }
 
   private async getRequestForDocument(id: string) {

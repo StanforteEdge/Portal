@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
+import clsx from "clsx";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import Table from "@/components/Base/Table";
@@ -7,9 +8,9 @@ import { Dialog } from "@/components/Base/Headless";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { adjustLeaveBalance, getLeaveBalances, listHrEmployees, type HrEmployee, type LeaveBalanceRow } from "@/services/hr";
+import { listApprovals } from "@/services/requests";
 
 function HrLeaveTrackerPage() {
-  const navigate = useNavigate();
   const [rows, setRows] = useState<LeaveBalanceRow[]>([]);
   const [employees, setEmployees] = useState<HrEmployee[]>([]);
   const [loading, setLoading] = useState(false);
@@ -17,6 +18,7 @@ function HrLeaveTrackerPage() {
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [year, setYear] = useState(new Date().getFullYear());
   const [userId, setUserId] = useState("");
+  const [pendingApprovals, setPendingApprovals] = useState(0);
   const [showAdjust, setShowAdjust] = useState(false);
   const [adjust, setAdjust] = useState({
     user_id: "",
@@ -44,12 +46,31 @@ function HrLeaveTrackerPage() {
       ]);
       setRows(balances.data ?? []);
       setEmployees(employeeRes.data ?? []);
+      const approvalRows = await listApprovals({ status: "pending" }).catch(() => []);
+      const pendingLeave = (approvalRows || []).filter((row) =>
+        String(row.request_type?.category_key ?? "").toLowerCase().includes("leave") ||
+        String(row.request_type?.name ?? "").toLowerCase().includes("leave")
+      );
+      setPendingApprovals(pendingLeave.length);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load leave balances." });
     } finally {
       setLoading(false);
     }
   };
+
+  const totals = useMemo(() => {
+    return rows.reduce(
+      (acc, row) => {
+        acc.entitled += Number(row.entitled || 0);
+        acc.used += Number(row.used || 0);
+        acc.available += Number(row.available || 0);
+        return acc;
+      },
+      { entitled: 0, used: 0, available: 0 }
+    );
+  }, [rows]);
+  const coveredEmployees = useMemo(() => new Set(rows.map((row) => row.user_id)).size, [rows]);
 
   useEffect(() => {
     void load();
@@ -86,10 +107,6 @@ function HrLeaveTrackerPage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Leave Tracker</h2>
         <div className="flex gap-2">
-          <Button variant="outline-primary" onClick={() => navigate("/app/requests/approvals")}>
-            <Lucide icon="CheckCheck" className="w-4 h-4 mr-1" />
-            Leave Approvals
-          </Button>
           <Button variant="primary" onClick={() => setShowAdjust(true)}>
             <Lucide icon="Settings2" className="w-4 h-4 mr-1" />
             Adjust Balance
@@ -100,7 +117,53 @@ function HrLeaveTrackerPage() {
           </Button>
         </div>
       </div>
+      <div className="mt-4 intro-y">
+        <div className="box p-2">
+          <div className="flex gap-2">
+            <Button variant="primary">
+              <Lucide icon="BarChart2" className="w-4 h-4 mr-1" />
+              Tracker
+            </Button>
+            <Link to="/app/hr/leave/requests">
+              <Button variant="outline-secondary">
+                <Lucide icon="CheckCheck" className="w-4 h-4 mr-1" />
+                Requests
+              </Button>
+            </Link>
+            <Link to="/app/hr/settings?tab=leave">
+              <Button variant="outline-secondary">
+                <Lucide icon="Settings" className="w-4 h-4 mr-1" />
+                Settings
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </div>
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
+
+      <div className="grid grid-cols-12 gap-6 mt-5">
+        {[
+          { label: "Employees", value: coveredEmployees, icon: "Users", color: "text-primary" },
+          { label: "Entitled Days", value: totals.entitled, icon: "FileText", color: "text-success" },
+          { label: "Used Days", value: totals.used, icon: "Clock3", color: "text-warning" },
+          { label: "Available Days", value: totals.available, icon: "BadgeCheck", color: "text-primary" },
+          { label: "Pending Leave Approvals", value: pendingApprovals, icon: "CheckCheck", color: "text-danger" },
+        ].map((card) => (
+          <div key={card.label} className="col-span-12 xs:col-span-6 md:col-span-4 xl:col-span-2 intro-y">
+            <div
+              className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']"
+            >
+              <div className="p-5 box">
+                <div className="flex">
+                  <Lucide icon={card.icon as any} className={clsx("w-[28px] h-[28px]", card.color)} />
+                </div>
+                <div className="mt-6 text-3xl font-medium leading-8">{card.value}</div>
+                <div className="mt-1 text-base text-slate-500">{card.label}</div>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
 
       <div className="box p-5 mt-5">
         <div className="grid grid-cols-12 gap-3">
