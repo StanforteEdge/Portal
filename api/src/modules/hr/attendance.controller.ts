@@ -36,4 +36,10 @@ export class AttendanceController {
   summary(@Query() query: Record<string, any>) {
     return this.attendanceService.summary(query);
   }
+
+  @Get('records')
+  @Permissions('users.manage')
+  records(@Query() query: Record<string, any>) {
+    return this.attendanceService.records(query);
+  }
 }

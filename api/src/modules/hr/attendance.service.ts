@@ -171,6 +171,67 @@ export class AttendanceService {
     };
   }
 
+  async records(query: Record<string, any>) {
+    const from = query.from ? new Date(String(query.from)) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const to = query.to ? new Date(String(query.to)) : new Date();
+    const fromDate = this.toWorkDate(from);
+    const toDate = this.toWorkDate(to);
+    const status = query.status ? String(query.status).trim().toLowerCase() : '';
+    const userId = query.user_id ? toBigInt(String(query.user_id)) : null;
+    const search = query.search ? String(query.search).trim().toLowerCase() : '';
+
+    const dailyRows = await this.prisma.attendanceDaily.findMany({
+      where: {
+        workDate: { gte: fromDate, lte: toDate },
+        ...(status ? { status } : {}),
+        ...(userId ? { userId } : {})
+      },
+      orderBy: [{ workDate: 'desc' }, { userId: 'asc' }]
+    });
+    if (dailyRows.length === 0) {
+      return { from: fromDate, to: toDate, data: [] };
+    }
+
+    const userIds = Array.from(new Set(dailyRows.map((row) => row.userId.toString())));
+    const profiles = await this.prisma.profile.findMany({
+      where: { id: { in: userIds.map((id) => toBigInt(id)) } },
+      select: { id: true, email: true, username: true, firstName: true, lastName: true }
+    });
+    const profileMap = new Map(
+      profiles.map((profile) => [
+        profile.id.toString(),
+        {
+          id: profile.id.toString(),
+          email: profile.email,
+          username: profile.username,
+          first_name: profile.firstName,
+          last_name: profile.lastName
+        }
+      ])
+    );
+
+    const rows = dailyRows
+      .map((row) => ({
+        ...this.serializeDaily(row),
+        profile: profileMap.get(row.userId.toString()) ?? null
+      }))
+      .filter((row) => {
+        if (!search) return true;
+        const name = `${row.profile?.first_name ?? ''} ${row.profile?.last_name ?? ''}`.trim().toLowerCase();
+        return (
+          name.includes(search) ||
+          String(row.profile?.email ?? '').toLowerCase().includes(search) ||
+          String(row.profile?.username ?? '').toLowerCase().includes(search)
+        );
+      });
+
+    return {
+      from: fromDate,
+      to: toDate,
+      data: rows
+    };
+  }
+
   private async recomputeDay(userId: bigint, workDate: Date) {
     const [entries, policy] = await Promise.all([
       this.prisma.attendanceEntry.findMany({

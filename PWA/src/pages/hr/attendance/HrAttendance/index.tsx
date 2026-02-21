@@ -1,43 +1,72 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import clsx from "clsx";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import Table from "@/components/Base/Table";
+import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
-import { clockIn, clockOut, getAttendanceSummary, getMyAttendance, type AttendanceDaily, type AttendanceEntry } from "@/services/hr";
+import { getAttendanceRecords, getAttendanceSummary, listHrEmployees, type HrEmployee } from "@/services/hr";
 import { formatDisplayDate } from "@/utils/formatting";
 
+type AttendanceRecord = {
+  id: string;
+  user_id: string;
+  work_date: string;
+  status: string;
+  scheduled_minutes: number;
+  worked_minutes: number;
+  late_minutes: number;
+  overtime_minutes: number;
+  first_in_at: string | null;
+  last_out_at: string | null;
+  computed_at: string;
+  profile: {
+    id: string;
+    email: string | null;
+    username: string | null;
+    first_name: string | null;
+    last_name: string | null;
+  } | null;
+};
+
 function HrAttendancePage() {
-  const [entries, setEntries] = useState<AttendanceEntry[]>([]);
-  const [daily, setDaily] = useState<AttendanceDaily[]>([]);
+  const navigate = useNavigate();
+  const [records, setRecords] = useState<AttendanceRecord[]>([]);
+  const [employees, setEmployees] = useState<HrEmployee[]>([]);
   const [summary, setSummary] = useState<Record<string, number>>({});
-  const [isClockedIn, setIsClockedIn] = useState(false);
-  const [canClockIn, setCanClockIn] = useState(true);
-  const [canClockOut, setCanClockOut] = useState(false);
-  const [clockReason, setClockReason] = useState<string | null>(null);
-  const [policy, setPolicy] = useState<{ start_time: string; end_time: string; grace_minutes: number } | null>(null);
-  const [today, setToday] = useState<AttendanceDaily | null>(null);
+  const [from, setFrom] = useState(() => new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10));
+  const [to, setTo] = useState(() => new Date().toISOString().slice(0, 10));
+  const [status, setStatus] = useState("");
+  const [userId, setUserId] = useState("");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
-  const [acting, setActing] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const load = async () => {
     try {
       setLoading(true);
-      const [meData, summaryData] = await Promise.all([getMyAttendance(), getAttendanceSummary()]);
-      setEntries(meData.entries ?? []);
-      setDaily(meData.daily ?? []);
-      setIsClockedIn(Boolean(meData.current_state?.is_clocked_in));
-      setCanClockIn(meData.current_state?.can_clock_in ?? !meData.current_state?.is_clocked_in);
-      setCanClockOut(meData.current_state?.can_clock_out ?? Boolean(meData.current_state?.is_clocked_in));
-      setClockReason(meData.current_state?.reason ?? null);
-      setPolicy(meData.policy ?? null);
-      setToday(meData.today ?? null);
-      setSummary(summaryData.by_status ?? {});
+      const [recordsData, summaryData, employeeRes] = await Promise.all([
+        getAttendanceRecords({
+          from: from || undefined,
+          to: to || undefined,
+          status: status || undefined,
+          user_id: userId || undefined,
+          search: search || undefined,
+        }),
+        getAttendanceSummary({
+          from: from || undefined,
+          to: to || undefined,
+        }),
+        listHrEmployees({ page: 1, per_page: 200 }),
+      ]);
+      setRecords((recordsData.data || []) as AttendanceRecord[]);
+      setSummary(summaryData.by_status || {});
+      setEmployees(employeeRes.data || []);
     } catch (error: any) {
       setNotice({
         tone: "error",
-        message: error?.response?.data?.error?.message || "Unable to load attendance.",
+        message: error?.response?.data?.error?.message || "Unable to load attendance monitoring data.",
       });
     } finally {
       setLoading(false);
@@ -58,42 +87,19 @@ function HrAttendancePage() {
     [summary]
   );
 
-  const runClockIn = async () => {
-    try {
-      setActing(true);
-      await clockIn();
-      setNotice({ tone: "success", message: "Clock in recorded." });
-      await load();
-    } catch (error: any) {
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Clock in failed." });
-    } finally {
-      setActing(false);
-    }
-  };
-
-  const runClockOut = async () => {
-    try {
-      setActing(true);
-      await clockOut();
-      setNotice({ tone: "success", message: "Clock out recorded." });
-      await load();
-    } catch (error: any) {
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Clock out failed." });
-    } finally {
-      setActing(false);
-    }
+  const getEmployeeName = (row: AttendanceRecord) => {
+    if (!row.profile) return row.user_id;
+    const fullName = `${row.profile.first_name ?? ""} ${row.profile.last_name ?? ""}`.trim();
+    return fullName || row.profile.username || row.profile.email || row.user_id;
   };
 
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
-        <h2 className="mr-auto text-lg font-medium">Attendance</h2>
+        <h2 className="mr-auto text-lg font-medium">Attendance Monitoring</h2>
         <div className="flex gap-2">
-          <Button variant="primary" onClick={() => void runClockIn()} disabled={acting || !canClockIn}>
-            <Lucide icon="CheckCheck" className="w-4 h-4 mr-1" /> Clock In
-          </Button>
-          <Button variant="outline-secondary" onClick={() => void runClockOut()} disabled={acting || !canClockOut}>
-            <Lucide icon="ToggleRight" className="w-4 h-4 mr-1" /> Clock Out
+          <Button variant="outline-primary" onClick={() => navigate("/app/hr/settings?tab=attendance")}>
+            <Lucide icon="Settings" className="w-4 h-4 mr-1" /> Policy Settings
           </Button>
           <Button variant="outline-secondary" onClick={() => void load()} disabled={loading}>
             <Lucide icon="Undo2" className="w-4 h-4 mr-1" /> Refresh
@@ -102,22 +108,6 @@ function HrAttendancePage() {
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
-      <div className="mt-4 p-4 box flex flex-wrap items-center gap-4">
-        <div className="text-sm text-slate-600">
-          Status: <span className={clsx("font-medium", isClockedIn ? "text-success" : "text-slate-800")}>{isClockedIn ? "Clocked In" : "Clocked Out"}</span>
-        </div>
-        {policy ? (
-          <div className="text-sm text-slate-600">
-            Schedule: <span className="font-medium text-slate-800">{policy.start_time} - {policy.end_time}</span>
-          </div>
-        ) : null}
-        {today ? (
-          <div className="text-sm text-slate-600">
-            Today: <span className="font-medium text-slate-800">{today.worked_minutes} mins worked</span>
-          </div>
-        ) : null}
-        {clockReason ? <div className="text-sm text-warning">{clockReason}</div> : null}
-      </div>
 
       <div className="grid grid-cols-12 gap-6 mt-5">
         {statsCards.map((card) => (
@@ -140,67 +130,84 @@ function HrAttendancePage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-12 gap-5 mt-5">
-        <div className="col-span-12 lg:col-span-7 box p-5 overflow-x-auto">
-          <div className="font-medium mb-3">Daily Summary</div>
-          <Table className="table-report" striped hover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Date</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>First In</Table.Th>
-                <Table.Th>Last Out</Table.Th>
-                <Table.Th>Worked (mins)</Table.Th>
-                <Table.Th>Late (mins)</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {daily.map((row) => (
-                <Table.Tr key={row.id}>
-                  <Table.Td>{formatDisplayDate(row.work_date)}</Table.Td>
-                  <Table.Td className="capitalize">{row.status}</Table.Td>
-                  <Table.Td>{row.first_in_at ? formatDisplayDate(row.first_in_at) : "-"}</Table.Td>
-                  <Table.Td>{row.last_out_at ? formatDisplayDate(row.last_out_at) : "-"}</Table.Td>
-                  <Table.Td>{row.worked_minutes}</Table.Td>
-                  <Table.Td>{row.late_minutes}</Table.Td>
-                </Table.Tr>
+      <div className="box p-5 mt-5">
+        <div className="grid grid-cols-12 gap-3">
+          <div className="col-span-12 md:col-span-2">
+            <FormLabel>From</FormLabel>
+            <FormInput type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          </div>
+          <div className="col-span-12 md:col-span-2">
+            <FormLabel>To</FormLabel>
+            <FormInput type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          </div>
+          <div className="col-span-12 md:col-span-2">
+            <FormLabel>Status</FormLabel>
+            <FormSelect value={status} onChange={(e) => setStatus(e.target.value)}>
+              <option value="">All</option>
+              <option value="present">Present</option>
+              <option value="late">Late</option>
+              <option value="absent">Absent</option>
+            </FormSelect>
+          </div>
+          <div className="col-span-12 md:col-span-3">
+            <FormLabel>Employee</FormLabel>
+            <FormSelect value={userId} onChange={(e) => setUserId(e.target.value)}>
+              <option value="">All employees</option>
+              {employees.map((employee) => (
+                <option key={employee.id} value={employee.id}>
+                  {`${employee.first_name ?? ""} ${employee.last_name ?? ""}`.trim() || employee.email}
+                </option>
               ))}
-              {!loading && daily.length === 0 ? (
-                <Table.Tr>
-                  <Table.Td colSpan={6} className="text-center text-slate-500 py-8">No attendance summary yet.</Table.Td>
-                </Table.Tr>
-              ) : null}
-            </Table.Tbody>
-          </Table>
+            </FormSelect>
+          </div>
+          <div className="col-span-12 md:col-span-3">
+            <FormLabel>Search</FormLabel>
+            <FormInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Name, username, email" />
+          </div>
         </div>
-        <div className="col-span-12 lg:col-span-5 box p-5 overflow-x-auto">
-          <div className="font-medium mb-3">Clock Entries</div>
-          <Table className="table-report" striped hover>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Date</Table.Th>
-                <Table.Th>Type</Table.Th>
-                <Table.Th>Time</Table.Th>
-                <Table.Th>Source</Table.Th>
+        <div className="mt-3 flex justify-end gap-2">
+          <Button variant="primary" onClick={() => void load()} disabled={loading}>
+            <Lucide icon="Search" className="w-4 h-4 mr-1" />
+            Apply Filters
+          </Button>
+        </div>
+      </div>
+
+      <div className="box p-5 mt-5 overflow-x-auto">
+        <div className="font-medium mb-3">Daily Attendance Records</div>
+        <Table className="table-report" striped hover>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Date</Table.Th>
+              <Table.Th>Employee</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>First In</Table.Th>
+              <Table.Th>Last Out</Table.Th>
+              <Table.Th>Worked (mins)</Table.Th>
+              <Table.Th>Late (mins)</Table.Th>
+              <Table.Th>Overtime (mins)</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {records.map((row) => (
+              <Table.Tr key={row.id}>
+                <Table.Td>{formatDisplayDate(row.work_date)}</Table.Td>
+                <Table.Td>{getEmployeeName(row)}</Table.Td>
+                <Table.Td className="capitalize">{row.status}</Table.Td>
+                <Table.Td>{row.first_in_at ? formatDisplayDate(row.first_in_at) : "-"}</Table.Td>
+                <Table.Td>{row.last_out_at ? formatDisplayDate(row.last_out_at) : "-"}</Table.Td>
+                <Table.Td>{row.worked_minutes}</Table.Td>
+                <Table.Td>{row.late_minutes}</Table.Td>
+                <Table.Td>{row.overtime_minutes}</Table.Td>
               </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {entries.slice(0, 50).map((row) => (
-                <Table.Tr key={row.id}>
-                  <Table.Td>{formatDisplayDate(row.work_date)}</Table.Td>
-                  <Table.Td className="capitalize">{row.entry_type.replaceAll("_", " ")}</Table.Td>
-                  <Table.Td>{formatDisplayDate(row.entry_at)}</Table.Td>
-                  <Table.Td>{row.source}</Table.Td>
-                </Table.Tr>
-              ))}
-              {!loading && entries.length === 0 ? (
-                <Table.Tr>
-                  <Table.Td colSpan={4} className="text-center text-slate-500 py-8">No entries yet.</Table.Td>
-                </Table.Tr>
-              ) : null}
-            </Table.Tbody>
-          </Table>
-        </div>
+            ))}
+            {!loading && records.length === 0 ? (
+              <Table.Tr>
+                <Table.Td colSpan={8} className="text-center text-slate-500 py-8">No attendance records found.</Table.Td>
+              </Table.Tr>
+            ) : null}
+          </Table.Tbody>
+        </Table>
       </div>
     </>
   );

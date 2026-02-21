@@ -219,6 +219,31 @@ export async function getAttendanceSummary(params?: { from?: string; to?: string
   };
 }
 
+export async function getAttendanceRecords(params?: {
+  from?: string;
+  to?: string;
+  status?: string;
+  user_id?: string;
+  search?: string;
+}) {
+  const response = await apiClient.get("/hr/attendance/records", { params });
+  return response.data.data as {
+    from: string;
+    to: string;
+    data: Array<
+      AttendanceDaily & {
+        profile: {
+          id: string;
+          email: string | null;
+          username: string | null;
+          first_name: string | null;
+          last_name: string | null;
+        } | null;
+      }
+    >;
+  };
+}
+
 export type LeaveBalanceRow = {
   user_id: string;
   leave_type_key: string;

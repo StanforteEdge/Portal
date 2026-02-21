@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import clsx from "clsx";
 import Lucide from "@/components/Base/Lucide";
 import Button from "@/components/Base/Button";
@@ -13,6 +13,14 @@ import { listMyOrganizations } from "@/services/organizations";
 import { formatDisplayDate, formatMoney, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
 
 function RequestsPage() {
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+  const pathKind = location.pathname.includes("/requests/finance")
+    ? "financial"
+    : location.pathname.includes("/requests/leave")
+      ? "leave"
+      : "all";
+  const kind = (searchParams.get("kind") || pathKind || "all").toLowerCase();
   const [allRequests, setAllRequests] = useState<RequestRecord[]>([]);
   const [status, setStatus] = useState("");
   const [search, setSearch] = useState("");
@@ -31,6 +39,9 @@ function RequestsPage() {
   const filteredRequests = useMemo(() => {
     return allRequests.filter((req) => {
       const data = (req.data || {}) as Record<string, unknown>;
+      const categoryKey = String(req.request_type?.category_key || "").toLowerCase();
+      const typeName = String(req.request_type?.name || "").toLowerCase();
+      const isLeave = categoryKey.includes("leave") || typeName.includes("leave");
       const requestDueDate = typeof data.due_date === "string" ? data.due_date.slice(0, 10) : "";
       const requestProject = String(data.project_id || "");
       const requestTeam = String(data.team || "");
@@ -49,10 +60,11 @@ function RequestsPage() {
       const projectOk = !project || requestProject === project;
       const teamOk = !team || requestTeam === team;
       const orgOk = !organization || requestOrganization === organization;
+      const kindOk = kind === "all" ? true : kind === "leave" ? isLeave : !isLeave;
 
-      return searchOk && statusOk && dueDateOk && projectOk && teamOk && orgOk;
+      return searchOk && statusOk && dueDateOk && projectOk && teamOk && orgOk && kindOk;
     });
-  }, [allRequests, search, status, dueDate, project, team, organization]);
+  }, [allRequests, search, status, dueDate, project, team, organization, kind]);
 
   const teamOptions = useMemo(() => {
     const teams = new Set<string>();
@@ -119,11 +131,13 @@ function RequestsPage() {
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
-        <h2 className="mr-auto text-lg font-medium">Requests</h2>
-        <Link to="/app/requests/new">
+        <h2 className="mr-auto text-lg font-medium">
+          {kind === "leave" ? "Leave Requests" : kind === "financial" ? "Financial Requests" : "Requests"}
+        </h2>
+        <Link to={`/app/requests/new${kind === "all" ? "" : `?kind=${kind}`}`}>
           <Button variant="primary">
             <Lucide icon="Plus" className="w-4 h-4 mr-2" />
-            Create Request
+            {kind === "leave" ? "Create Leave Request" : "Create Request"}
           </Button>
         </Link>
       </div>

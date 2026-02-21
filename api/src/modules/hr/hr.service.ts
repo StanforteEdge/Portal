@@ -509,13 +509,16 @@ export class HrService {
       orderBy: [{ userId: 'asc' }, { leaveTypeKey: 'asc' }, { createdAt: 'asc' }]
     });
 
-    const defaultEntitlements = await this.resolveLeaveEntitlementPolicy();
+    const entitlementByUser = new Map<string, Record<string, number>>();
     const balanceMap = new Map<string, { user_id: string; leave_type_key: string; entitled: number; used: number; adjustments: number; available: number }>();
 
-    const touch = (uid: string, leaveType: string) => {
+    const touch = async (uid: string, leaveType: string) => {
       const key = `${uid}:${leaveType}`;
       if (!balanceMap.has(key)) {
-        const entitled = Number(defaultEntitlements[leaveType] ?? 0);
+        if (!entitlementByUser.has(uid)) {
+          entitlementByUser.set(uid, await this.resolveLeaveEntitlementPolicy(BigInt(uid)));
+        }
+        const entitled = Number(entitlementByUser.get(uid)?.[leaveType] ?? 0);
         balanceMap.set(key, {
           user_id: uid,
           leave_type_key: leaveType,
@@ -531,7 +534,7 @@ export class HrService {
     for (const row of rows) {
       const uid = row.userId.toString();
       const leaveType = row.leaveTypeKey;
-      const bucket = touch(uid, leaveType);
+      const bucket = await touch(uid, leaveType);
       const delta = Number(row.deltaDays ?? 0);
       if (delta < 0) bucket.used += Math.abs(delta);
       else bucket.adjustments += delta;
@@ -711,22 +714,34 @@ export class HrService {
     } as const;
   }
 
-  private async resolveLeaveEntitlementPolicy() {
+  private async resolveLeaveEntitlementPolicy(userId?: bigint) {
     const now = new Date();
+    const context = userId ? await this.resolvePolicyContextForUser(userId) : null;
     const rows = await this.prisma.policy.findMany({
       where: {
         module: 'leave',
-        policyKey: 'entitlement',
+        policyKey: { in: ['leave_entitlements', 'entitlement'] },
         isActive: true,
-        scopeType: 'global',
         OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: now } }],
         AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }]
       },
-      orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }]
+      orderBy: [{ scopeType: 'asc' }, { priority: 'asc' }, { createdAt: 'asc' }]
     });
 
+    const matched = rows
+      .filter((row) => {
+        if (!context) return row.scopeType === 'global';
+        return this.policyScopeMatches(row.scopeType, row.scopeId, context);
+      })
+      .sort((a, b) => {
+        const rankDelta = this.policyScopeRank(a.scopeType) - this.policyScopeRank(b.scopeType);
+        if (rankDelta !== 0) return rankDelta;
+        if (a.priority !== b.priority) return a.priority - b.priority;
+        return a.createdAt.getTime() - b.createdAt.getTime();
+      });
+
     const merged: Record<string, number> = {};
-    for (const row of rows) {
+    for (const row of matched) {
       const cfg =
         row.configJson && typeof row.configJson === 'object' && !Array.isArray(row.configJson)
           ? (row.configJson as Record<string, unknown>)
@@ -737,6 +752,45 @@ export class HrService {
       }
     }
     return merged;
+  }
+
+  private async resolvePolicyContextForUser(userId: bigint) {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userId },
+      include: {
+        employeeProfile: { select: { primaryOrganizationId: true, primaryTeamId: true, employmentType: true } }
+      }
+    });
+
+    return {
+      user_id: userId.toString(),
+      organization_id: profile?.employeeProfile?.primaryOrganizationId?.toString(),
+      team_id: profile?.employeeProfile?.primaryTeamId?.toString(),
+      staff_type: profile?.employeeProfile?.employmentType ?? undefined
+    };
+  }
+
+  private policyScopeMatches(
+    scopeType: string,
+    scopeId: string | null,
+    context: { organization_id?: string; team_id?: string; staff_type?: string; user_id?: string }
+  ) {
+    if (scopeType === 'global') return true;
+    if (!scopeId) return false;
+    if (scopeType === 'organization') return context.organization_id === scopeId;
+    if (scopeType === 'team') return context.team_id === scopeId;
+    if (scopeType === 'staff_type') return context.staff_type === scopeId;
+    if (scopeType === 'user') return context.user_id === scopeId;
+    return false;
+  }
+
+  private policyScopeRank(scopeType: string) {
+    if (scopeType === 'global') return 0;
+    if (scopeType === 'organization') return 1;
+    if (scopeType === 'team') return 2;
+    if (scopeType === 'staff_type') return 3;
+    if (scopeType === 'user') return 4;
+    return 99;
   }
 
   private serializeEmployee(profile: any) {
