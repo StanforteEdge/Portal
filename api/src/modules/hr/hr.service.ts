@@ -85,6 +85,9 @@ export class HrService {
   }
 
   async createEmployee(dto: UpsertEmployeeDto) {
+    if (!dto.primary_organization_id) {
+      throw new BadRequestException('primary_organization_id is required');
+    }
     return this.prisma.$transaction(async (tx) => {
       let profileId: bigint;
 
@@ -595,6 +598,10 @@ export class HrService {
     const primaryOrganizationId = dto.primary_organization_id
       ? this.parseId(dto.primary_organization_id, 'primary organization id')
       : undefined;
+    if (primaryOrganizationId) {
+      const organizationExists = await tx.organization.count({ where: { id: primaryOrganizationId } });
+      if (!organizationExists) throw new NotFoundException('Organization not found');
+    }
 
     await tx.employeeProfile.upsert({
       where: { userId: profileId },
@@ -631,6 +638,32 @@ export class HrService {
         updatedBy: actorId ?? undefined
       }
     });
+
+    if (primaryOrganizationId) {
+      await tx.profileOrganization.updateMany({
+        where: { profileId, isPrimary: true, organizationId: { not: primaryOrganizationId } },
+        data: { isPrimary: false }
+      });
+      await tx.profileOrganization.upsert({
+        where: {
+          profile_org_unique: {
+            profileId,
+            organizationId: primaryOrganizationId
+          }
+        },
+        update: { isPrimary: true },
+        create: {
+          profileId,
+          organizationId: primaryOrganizationId,
+          isPrimary: true,
+          createdAt: new Date()
+        }
+      });
+      await tx.profile.update({
+        where: { id: profileId },
+        data: { primaryOrganizationId }
+      });
+    }
 
     if (dto.metadata && Object.keys(dto.metadata).length > 0) {
       const normalizedMetadata: Record<string, unknown> = { ...dto.metadata };

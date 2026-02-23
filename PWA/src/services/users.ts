@@ -50,6 +50,7 @@ export async function createUser(payload: {
   last_name?: string;
   type?: string;
   roles?: string[];
+  primary_organization_id?: string;
 }) {
   const response = await apiClient.post("/users", payload);
   const {

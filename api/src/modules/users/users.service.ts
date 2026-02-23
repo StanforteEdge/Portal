@@ -138,6 +138,25 @@ export class UsersService {
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.profile.findUnique({ where: { email } });
     if (existing) throw new BadRequestException('Email already exists');
+    const userType = dto.type ?? 'staff';
+    let primaryOrganizationId: bigint | null = null;
+    if (dto.primary_organization_id) {
+      try {
+        primaryOrganizationId = toBigInt(dto.primary_organization_id);
+      } catch {
+        throw new BadRequestException('Invalid primary organization id');
+      }
+    }
+    if (['staff', 'employee'].includes(userType) && !primaryOrganizationId) {
+      throw new BadRequestException('Primary organization is required for staff');
+    }
+    if (primaryOrganizationId) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: primaryOrganizationId },
+        select: { id: true }
+      });
+      if (!organization) throw new BadRequestException('Organization not found');
+    }
     const requestedUsername = dto.username?.trim();
     const username = requestedUsername
       ? requestedUsername
@@ -162,12 +181,24 @@ export class UsersService {
           username,
           email,
           passwordHash,
-          type: dto.type ?? 'staff',
+          type: userType,
           status: 'active',
           firstName: dto.first_name,
-          lastName: dto.last_name
+          lastName: dto.last_name,
+          primaryOrganizationId
         }
       });
+
+      if (primaryOrganizationId) {
+        await tx.profileOrganization.create({
+          data: {
+            profileId: user.id,
+            organizationId: primaryOrganizationId,
+            isPrimary: true,
+            createdAt: new Date()
+          }
+        });
+      }
 
       if (roleSlugs.length > 0) {
         const roles = await tx.role.findMany({

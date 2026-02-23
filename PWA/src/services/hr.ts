@@ -17,6 +17,8 @@ export type HrEmployee = {
     id: string;
     employeeCode?: string | null;
     employee_code?: string | null;
+    primaryOrganizationId?: string | null;
+    primary_organization_id?: string | null;
     jobTitle?: string | null;
     job_title?: string | null;
     employmentStatus?: string | null;

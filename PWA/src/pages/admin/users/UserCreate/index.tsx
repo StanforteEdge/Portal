@@ -5,6 +5,7 @@ import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import PasswordInput from "@/components/Auth/PasswordInput";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { createUser, listRoleOptions, type RoleOption } from "@/services/users";
+import { listOrganizations, type OrganizationRecord } from "@/services/organizations";
 
 type CreateUserForm = {
   username: string;
@@ -13,6 +14,7 @@ type CreateUserForm = {
   last_name: string;
   password: string;
   type: string;
+  primary_organization_id: string;
 };
 
 const initialCreateForm: CreateUserForm = {
@@ -22,18 +24,25 @@ const initialCreateForm: CreateUserForm = {
   last_name: "",
   password: "",
   type: "staff",
+  primary_organization_id: "",
 };
 
 function UserCreatePage() {
   const navigate = useNavigate();
   const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationRecord[]>([]);
   const [selectedRoles, setSelectedRoles] = useState<string[]>(["staff"]);
   const [form, setForm] = useState<CreateUserForm>(initialCreateForm);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   useEffect(() => {
-    void listRoleOptions().then(setRoles).catch(() => []);
+    void Promise.all([listRoleOptions(), listOrganizations({ is_active: true })])
+      .then(([roleOptions, orgOptions]) => {
+        setRoles(roleOptions);
+        setOrganizations(orgOptions);
+      })
+      .catch(() => []);
   }, []);
 
   const toggleRole = (role: string) => {
@@ -49,6 +58,10 @@ function UserCreatePage() {
       setNotice({ tone: "warning", message: "Select at least one role." });
       return;
     }
+    if (form.type === "staff" && !form.primary_organization_id) {
+      setNotice({ tone: "warning", message: "Primary organization is required for staff." });
+      return;
+    }
 
     try {
       setSaving(true);
@@ -60,6 +73,7 @@ function UserCreatePage() {
         password: form.password || undefined,
         type: form.type || undefined,
         roles: selectedRoles,
+        primary_organization_id: form.primary_organization_id || undefined,
       });
       navigate("/app/admin/users", { replace: true });
     } catch (error: any) {
@@ -107,6 +121,20 @@ function UserCreatePage() {
             <option value="staff">staff</option>
             <option value="admin">admin</option>
             <option value="contractor">contractor</option>
+          </FormSelect>
+        </div>
+        <div>
+          <FormLabel>Primary Organization</FormLabel>
+          <FormSelect
+            value={form.primary_organization_id}
+            onChange={(e) => setForm((prev) => ({ ...prev, primary_organization_id: e.target.value }))}
+          >
+            <option value="">Select organization</option>
+            {organizations.map((organization) => (
+              <option key={organization.id} value={organization.id}>
+                {organization.name}
+              </option>
+            ))}
           </FormSelect>
         </div>
         <div>
