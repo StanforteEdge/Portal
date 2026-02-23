@@ -83,7 +83,7 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "Wallet",
     title: "Finance Admin",
-    roles: ["accountant", "finance_manager"],
+    permissions: ["finance.view"],
     subMenu: [
       {
         icon: "LayoutDashboard",
@@ -104,11 +104,13 @@ const menu: Array<Menu | "divider"> = [
         icon: "Settings",
         pathname: "/app/finance/settings",
         title: "Settings",
+        permissions: ["settings.manage"],
       },
       {
         icon: "Clipboard",
         pathname: "/app/finance/manual-entry",
         title: "Manual Entry",
+        permissions: ["requests.manage"],
       },
       {
         icon: "CircleDollarSign",
@@ -126,7 +128,7 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "UserCheck",
     title: "HR Admin",
-    roles: ["hr"],
+    permissions: ["users.manage"],
     subMenu: [
       {
         icon: "LayoutDashboard",
@@ -174,12 +176,13 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "Users",
     title: "Admin",
-    roles: ["admin"],
+    permissions: ["settings.manage"],
     subMenu: [
       {
         icon: "UserCog",
         pathname: "/app/admin/users",
         title: "Users",
+        permissions: ["users.manage"],
       },
       {
         icon: "Folder",
@@ -205,6 +208,7 @@ const menu: Array<Menu | "divider"> = [
         icon: "ShieldCheck",
         pathname: "/app/admin/roles",
         title: "Roles & Permissions",
+        permissions: ["roles.manage"],
       },
       {
         icon: "Settings2",
