@@ -5,7 +5,7 @@ import Layout from "../themes";
 
 import ProtectedRoute from "@/components/Auth/ProtectedRoute";
 import PublicOnlyRoute from "@/components/Auth/PublicOnlyRoute";
-import RoleRoute from "@/components/Auth/RoleRoute";
+import PermissionRoute from "@/components/Auth/PermissionRoute";
 
 const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
@@ -205,97 +205,97 @@ function Router() {
         {
           path: "finance",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceDashboardPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/requests",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceRequestsPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/requests/new",
           element: (
-            <RoleRoute allowedRoles={["finance_manager"]}>
+            <PermissionRoute requiredPermissions={["requests.manage"]}>
               {page(<FinanceManualEntryPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/requests/request/:id",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceRequestDetailPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/requests/:id",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceRequestDetailPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/settings",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceSettings />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/settings/request-types/new",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceRequestTypeEditor />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/settings/request-types/:id",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceRequestTypeEditor />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/manual-entry",
           element: (
-            <RoleRoute allowedRoles={["finance_manager"]}>
+            <PermissionRoute requiredPermissions={["requests.manage"]}>
               {page(<FinanceManualEntryPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/accounts",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceAccountsPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/accounts/:id",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceAccountDetailPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "finance/ledger",
           element: (
-            <RoleRoute allowedRoles={["accountant", "finance_manager"]}>
+            <PermissionRoute requiredPermissions={["finance.view"]}>
               {page(<FinanceLedgerPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
@@ -309,25 +309,25 @@ function Router() {
         {
           path: "admin/users",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<UserManagement />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/users/new",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<UserCreatePage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/users/:id/roles",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["roles.manage"]}>
               {page(<UserRolesPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
@@ -337,113 +337,113 @@ function Router() {
         {
           path: "admin/settings",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminSettingsPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/files",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminFilesPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/projects",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminProjectsPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/documents",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminDocumentsPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/documents/new",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminDocumentEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/documents/:id",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminDocumentEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/roles",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["roles.manage"]}>
               {page(<AdminRolesPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/policies",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminPoliciesPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/forms",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminFormsPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/forms/new",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminFormEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "admin/forms/:id",
           element: (
-            <RoleRoute allowedRoles={["admin"]}>
+            <PermissionRoute requiredPermissions={["settings.manage"]}>
               {page(<AdminFormEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrDashboardPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/employees",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrEmployeesPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/employees/new",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrEmployeeEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
@@ -453,81 +453,81 @@ function Router() {
         {
           path: "hr/employees/:id",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrEmployeeEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/onboarding",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrOnboardingPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/attendance",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrAttendancePage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/leave",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrLeaveTrackerPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/leave/requests",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrLeaveRequestsPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/settings",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrSettingsPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/settings/request-types/new",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrRequestTypeEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/settings/request-types/:id",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrRequestTypeEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/onboarding/new",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrOnboardingEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
         {
           path: "hr/onboarding/:id",
           element: (
-            <RoleRoute allowedRoles={["hr"]}>
+            <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrOnboardingEditorPage />)}
-            </RoleRoute>
+            </PermissionRoute>
           ),
         },
       ],

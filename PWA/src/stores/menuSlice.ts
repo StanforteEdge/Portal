@@ -16,6 +16,7 @@ export interface Menu {
   subMenu?: Menu[];
   ignore?: boolean;
   roles?: string[];
+  permissions?: string[];
 }
 
 export interface MenuState {
@@ -32,11 +33,20 @@ export const menuSlice = createSlice({
   reducers: {},
 });
 
-const filterMenuByRole = (
+const filterMenuByAccess = (
   menu: Array<Menu | "divider">,
-  roleSet: Set<string>
+  roleSet: Set<string>,
+  permissionSet: Set<string>
 ): Array<Menu | "divider"> => {
+  const hasAllPermissions = (required: string[]) => {
+    if (permissionSet.has("*")) return true;
+    return required.every((permission) => permissionSet.has(String(permission).toLowerCase()));
+  };
+
   const isAllowed = (item: Menu) => {
+    if (item.permissions && item.permissions.length > 0) {
+      return hasAllPermissions(item.permissions);
+    }
     if (!item.roles || item.roles.length === 0) return true;
     if (roleSet.has("admin")) return true;
     return item.roles.some((role) => roleSet.has(String(role).toLowerCase()));
@@ -53,7 +63,9 @@ const filterMenuByRole = (
 
     const next: Menu = { ...item };
     if (item.subMenu) {
-      const subMenu = filterMenuByRole(item.subMenu, roleSet).filter((x): x is Menu => typeof x !== "string");
+      const subMenu = filterMenuByAccess(item.subMenu, roleSet, permissionSet).filter(
+        (x): x is Menu => typeof x !== "string"
+      );
       if (subMenu.length === 0 && !item.pathname) continue;
       next.subMenu = subMenu;
     }
@@ -78,9 +90,10 @@ const getMenuByLayout = (layout: Themes["layout"]) => {
 };
 
 const makeMenuSelector = (layout: Themes["layout"]) =>
-  createSelector([(state: RootState) => state.auth.roles], (roles) => {
+  createSelector([(state: RootState) => state.auth.roles, (state: RootState) => state.auth.permissions], (roles, permissions) => {
     const roleSet = new Set((roles ?? []).map((role) => String(role).toLowerCase()));
-    return filterMenuByRole(getMenuByLayout(layout), roleSet);
+    const permissionSet = new Set((permissions ?? []).map((permission) => String(permission).toLowerCase()));
+    return filterMenuByAccess(getMenuByLayout(layout), roleSet, permissionSet);
   });
 
 export const selectSideMenu = makeMenuSelector("side-menu");
