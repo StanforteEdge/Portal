@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/Base/Button";
-import { FormInput, FormLabel, FormTextarea } from "@/components/Base/Form";
+import Lucide from "@/components/Base/Lucide";
+import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
 import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
@@ -29,15 +30,17 @@ function AdminRolesPage() {
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [search, setSearch] = useState("");
+  const [permissionSearch, setPermissionSearch] = useState("");
+  const [roleSearch, setRoleSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const selectedRole = useMemo(() => roles.find((row) => row.id === selectedRoleId), [roles, selectedRoleId]);
 
   const groupedPermissions = useMemo(() => {
     const filtered = permissions.filter((permission) => {
-      if (!search.trim()) return true;
-      const q = search.trim().toLowerCase();
+      if (!permissionSearch.trim()) return true;
+      const q = permissionSearch.trim().toLowerCase();
       return permission.name.toLowerCase().includes(q) || permission.slug.toLowerCase().includes(q);
     });
     const groups = new Map<string, PermissionRecord[]>();
@@ -47,7 +50,42 @@ function AdminRolesPage() {
       groups.get(key)!.push(item);
     }
     return Array.from(groups.entries()).sort((a, b) => a[0].localeCompare(b[0]));
-  }, [permissions, search]);
+  }, [permissions, permissionSearch]);
+
+  const filteredRoles = useMemo(
+    () =>
+      roles.filter((role) => {
+        if (statusFilter === "active" && !role.is_active) return false;
+        if (statusFilter === "inactive" && role.is_active) return false;
+        if (!roleSearch.trim()) return true;
+        const q = roleSearch.trim().toLowerCase();
+        return (
+          role.name.toLowerCase().includes(q) ||
+          role.slug.toLowerCase().includes(q) ||
+          (role.description || "").toLowerCase().includes(q)
+        );
+      }),
+    [roles, roleSearch, statusFilter]
+  );
+
+  const stats = useMemo(() => {
+    const totalRoles = roles.length;
+    const activeRoles = roles.filter((role) => role.is_active).length;
+    const totalPermissions = permissions.length;
+    const roleAssignments = roles.reduce((sum, role) => sum + (role.users?.length ?? 0), 0);
+    return { totalRoles, activeRoles, totalPermissions, roleAssignments };
+  }, [roles, permissions]);
+
+  const permissionMatrix = useMemo(
+    () =>
+      permissions.map((permission) => {
+        const assignedRoleIds = roles
+          .filter((role) => (role.permissions || []).some((assignedPermission) => assignedPermission.id === permission.id))
+          .map((role) => role.id);
+        return { permission, assignedRoleIds };
+      }),
+    [permissions, roles]
+  );
 
   const load = async () => {
     try {
@@ -139,48 +177,105 @@ function AdminRolesPage() {
       </div>
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
+      <div className="grid grid-cols-12 gap-6 mt-5">
+        <div className="col-span-12 sm:col-span-6 xl:col-span-3 intro-y">
+          <div className="box p-5">
+            <div className="flex">
+              <Lucide icon="ShieldCheck" className="w-5 h-5 text-primary" />
+            </div>
+            <div className="mt-6 text-2xl font-semibold">{stats.totalRoles}</div>
+            <div className="mt-1 text-slate-500">Total Roles</div>
+          </div>
+        </div>
+        <div className="col-span-12 sm:col-span-6 xl:col-span-3 intro-y">
+          <div className="box p-5">
+            <div className="flex">
+              <Lucide icon="Users" className="w-5 h-5 text-success" />
+            </div>
+            <div className="mt-6 text-2xl font-semibold">{stats.roleAssignments}</div>
+            <div className="mt-1 text-slate-500">Role Assignments</div>
+          </div>
+        </div>
+        <div className="col-span-12 sm:col-span-6 xl:col-span-3 intro-y">
+          <div className="box p-5">
+            <div className="flex">
+              <Lucide icon="Lock" className="w-5 h-5 text-warning" />
+            </div>
+            <div className="mt-6 text-2xl font-semibold">{stats.totalPermissions}</div>
+            <div className="mt-1 text-slate-500">Total Permissions</div>
+          </div>
+        </div>
+        <div className="col-span-12 sm:col-span-6 xl:col-span-3 intro-y">
+          <div className="box p-5">
+            <div className="flex">
+              <Lucide icon="ShieldCheck" className="w-5 h-5 text-info" />
+            </div>
+            <div className="mt-6 text-2xl font-semibold">{stats.activeRoles}</div>
+            <div className="mt-1 text-slate-500">Active Roles</div>
+          </div>
+        </div>
+      </div>
+
       <div className="grid grid-cols-12 gap-5 mt-5">
         <div className="col-span-12 lg:col-span-5 box p-4">
           <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium">Roles</h3>
+            <h3 className="font-medium">Roles Management</h3>
             <Button
-              variant="outline-primary"
+              variant="primary"
               onClick={() => {
                 setSelectedRoleId("");
                 setForm(emptyForm);
                 setSelectedPermissions([]);
               }}
             >
-              New Role
+              <Lucide icon="Plus" className="w-4 h-4 mr-2" />
+              Create Role
             </Button>
+          </div>
+          <div className="grid grid-cols-12 gap-2 mb-4">
+            <div className="col-span-12 md:col-span-8">
+              <FormInput value={roleSearch} onChange={(event) => setRoleSearch(event.target.value)} placeholder="Search roles..." />
+            </div>
+            <div className="col-span-12 md:col-span-4">
+              <FormSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "inactive")}>
+                <option value="all">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </FormSelect>
+            </div>
           </div>
           <div className="overflow-x-auto">
             <Table className="table-report w-full" striped hover>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
-                  <Table.Th>Slug</Table.Th>
+                  <Table.Th className="text-center">Users</Table.Th>
+                  <Table.Th className="text-center">Permissions</Table.Th>
                   <Table.Th>Status</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {roles.map((role) => (
+                {filteredRoles.map((role) => (
                   <Table.Tr
                     key={role.id}
                     onClick={() => setSelectedRoleId(role.id)}
                     className={role.id === selectedRoleId ? "bg-primary/10" : ""}
                     style={{ cursor: "pointer" }}
                   >
-                    <Table.Td>{role.name}</Table.Td>
-                    <Table.Td>{role.slug}</Table.Td>
+                    <Table.Td>
+                      <div className="font-medium">{role.name}</div>
+                      <div className="text-xs text-slate-500">{role.slug}</div>
+                    </Table.Td>
+                    <Table.Td className="text-center">{role.users?.length ?? 0}</Table.Td>
+                    <Table.Td className="text-center">{role.permissions?.length ?? 0}</Table.Td>
                     <Table.Td className={role.is_active ? "text-success" : "text-slate-500"}>
                       {role.is_active ? "Active" : "Inactive"}
                     </Table.Td>
                   </Table.Tr>
                 ))}
-                {!loading && roles.length === 0 ? (
+                {!loading && filteredRoles.length === 0 ? (
                   <Table.Tr>
-                    <Table.Td colSpan={3} className="text-slate-500">
+                    <Table.Td colSpan={4} className="text-slate-500">
                       No roles found.
                     </Table.Td>
                   </Table.Tr>
@@ -203,14 +298,13 @@ function AdminRolesPage() {
             </div>
             <div className="col-span-12 md:col-span-3">
               <FormLabel>Status</FormLabel>
-              <select
-                className="form-select"
+              <FormSelect
                 value={form.is_active ? "true" : "false"}
                 onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.value === "true" }))}
               >
                 <option value="true">Active</option>
                 <option value="false">Inactive</option>
-              </select>
+              </FormSelect>
             </div>
             <div className="col-span-12">
               <FormLabel>Description</FormLabel>
@@ -227,8 +321,8 @@ function AdminRolesPage() {
               <div className="font-medium">Permissions</div>
               <div className="flex gap-2">
                 <FormInput
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  value={permissionSearch}
+                  onChange={(e) => setPermissionSearch(e.target.value)}
                   placeholder="Search permissions..."
                   className="max-w-xs"
                 />
@@ -292,6 +386,50 @@ function AdminRolesPage() {
               {saving ? "Saving..." : "Save Role"}
             </Button>
           </div>
+        </div>
+      </div>
+
+      <div className="mt-5 box p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-medium">Permission Matrix</h3>
+          <Button variant="outline-secondary" onClick={() => void load()}>
+            <Lucide icon="Undo2" className="w-4 h-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
+        <div className="overflow-x-auto">
+          <Table className="table-report w-full" striped>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Permission</Table.Th>
+                <Table.Th>Module</Table.Th>
+                <Table.Th>Assigned Roles</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {permissionMatrix.map((row) => (
+                <Table.Tr key={row.permission.id}>
+                  <Table.Td>
+                    <div className="font-medium">{row.permission.name}</div>
+                    <div className="text-xs text-slate-500">{row.permission.slug}</div>
+                  </Table.Td>
+                  <Table.Td className="capitalize">{(row.permission.module || "general").replaceAll("_", " ")}</Table.Td>
+                  <Table.Td>
+                    <div className="flex flex-wrap gap-2">
+                      {roles
+                        .filter((role) => row.assignedRoleIds.includes(role.id))
+                        .map((role) => (
+                          <span key={`${row.permission.id}-${role.id}`} className="px-2 py-1 rounded bg-slate-100 text-xs">
+                            {role.name}
+                          </span>
+                        ))}
+                      {row.assignedRoleIds.length === 0 ? <span className="text-slate-500 text-xs">Not assigned</span> : null}
+                    </div>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
         </div>
       </div>
     </>

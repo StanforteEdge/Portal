@@ -1,5 +1,6 @@
-import { IsArray, IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../../../common/validation/password-policy';
 
 export class CreateUserDto {
   @ApiPropertyOptional({ example: 'jdoe' })
@@ -15,6 +16,7 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   @MinLength(8)
+  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
   password?: string;
 
   @ApiPropertyOptional({ example: 'John' })
