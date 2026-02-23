@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
@@ -40,6 +40,12 @@ export class TaxonomyController {
   @Permissions('settings.manage')
   updateTaxonomy(@Param('id') id: string, @Body() dto: UpdateTaxonomyDto) {
     return this.taxonomyService.updateTaxonomy(id, dto);
+  }
+
+  @Delete('taxonomies/:id')
+  @Permissions('settings.manage')
+  deleteTaxonomy(@Param('id') id: string) {
+    return this.taxonomyService.deleteTaxonomy(id);
   }
 
   @Post('taxonomies/:id/terms/sync')

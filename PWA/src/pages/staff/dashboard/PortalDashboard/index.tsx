@@ -61,7 +61,7 @@ function PortalDashboardPage() {
       try {
         setLoading(true);
         const [requestRows, approvalRows, summary, usersData, rolesData] = await Promise.all([
-          listRequests({ per_page: 50 }).catch(() => []),
+          listRequests({ per_page: 50, only_mine: "true" }).catch(() => []),
           listApprovals({ per_page: 50 }).catch(() => []),
           canSeeFinance ? getFinanceSummary().catch(() => null) : Promise.resolve(null),
           canSeeAdmin ? listUsers({ page: 1, per_page: 1 }).catch(() => null) : Promise.resolve(null),

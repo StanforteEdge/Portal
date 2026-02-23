@@ -12,6 +12,7 @@
     "seed:finance-requests": "node scripts/seed-finance-requests.js",
     "seed:documents": "node scripts/seed-documents.js",
     "seed:hr-onboarding-forms": "node scripts/seed-hr-onboarding.js",
+    "seed:hr-leave-system": "node scripts/seed-hr-leave-system.js",
     "seed:release-baseline": "node scripts/seed-release-baseline.js",
     "seed:grant-all-roles": "node scripts/grant-all-roles.js",
     "prisma:generate": "prisma generate",

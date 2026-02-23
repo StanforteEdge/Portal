@@ -103,6 +103,11 @@ export async function updateManagedTaxonomy(
   return response.data?.data as ManagedTaxonomy;
 }
 
+export async function deleteManagedTaxonomy(id: string) {
+  const response = await apiClient.delete(`/taxonomy/taxonomies/${id}`);
+  return response.data?.data as { success: boolean };
+}
+
 export async function syncManagedTaxonomyTerms(id: string, terms: string[]) {
   const response = await apiClient.post(`/taxonomy/taxonomies/${id}/terms/sync`, { terms });
   return response.data?.data as ManagedTaxonomy;

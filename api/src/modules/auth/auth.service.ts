@@ -309,8 +309,10 @@ export class AuthService {
     const profile = await this.prisma.profile.findUnique({ where: { id: profileId } });
     if (!profile || profile.status !== 'active') return null;
 
-    const permissions = payload.permissions ?? (await this.getUserPermissions(profileId));
-    const roles = payload.roles ?? (await this.getUserRoles(profileId));
+    // Always resolve fresh roles/permissions from DB so RBAC changes apply immediately
+    // without forcing users to re-login and re-issue tokens.
+    const roles = await this.getUserRoles(profileId);
+    const permissions = await this.getUserPermissions(profileId, roles);
 
     return {
       id: profile.id.toString(),

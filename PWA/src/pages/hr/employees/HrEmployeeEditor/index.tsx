@@ -31,12 +31,13 @@ const emptyForm = {
   employment_type: "full_time",
   work_mode: "onsite",
   manager_user_id: "",
+  primary_organization_id: "",
 };
 
 function HrEmployeeEditorPage() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
-  const isCreate = id === "employee";
+  const isCreate = !id || id === "new";
 
   const [employee, setEmployee] = useState<HrEmployee | null>(null);
   const [form, setForm] = useState<Record<string, string>>(emptyForm);
@@ -84,6 +85,10 @@ function HrEmployeeEditorPage() {
       employment_type: data.employee_profile?.employment_type || "full_time",
       work_mode: data.employee_profile?.work_mode || "onsite",
       manager_user_id: (data.employee_profile?.manager?.id as string | undefined) || "",
+      primary_organization_id:
+        (data.employee_profile?.primaryOrganizationId as string | undefined) ||
+        (data.employee_profile?.primary_organization_id as string | undefined) ||
+        "",
     });
   };
 
@@ -118,6 +123,7 @@ function HrEmployeeEditorPage() {
       const payload = {
         ...form,
         manager_user_id: form.manager_user_id || undefined,
+        primary_organization_id: form.primary_organization_id || undefined,
       };
       if (isCreate) {
         const created = await createHrEmployee(payload);
@@ -225,6 +231,20 @@ function HrEmployeeEditorPage() {
           <div><FormLabel>Phone</FormLabel><FormInput value={form.phone || ""} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} /></div>
           <div><FormLabel>Employee Code</FormLabel><FormInput value={form.employee_code || ""} onChange={(e) => setForm((p) => ({ ...p, employee_code: e.target.value }))} /></div>
           <div><FormLabel>Job Title</FormLabel><FormInput value={form.job_title || ""} onChange={(e) => setForm((p) => ({ ...p, job_title: e.target.value }))} /></div>
+          <div>
+            <FormLabel>Primary Organization</FormLabel>
+            <FormSelect
+              value={form.primary_organization_id || ""}
+              onChange={(e) => setForm((p) => ({ ...p, primary_organization_id: e.target.value }))}
+            >
+              <option value="">Select organization</option>
+              {organizations.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name}
+                </option>
+              ))}
+            </FormSelect>
+          </div>
           <div>
             <FormLabel>Manager</FormLabel>
             <FormSelect value={form.manager_user_id || ""} onChange={(e) => setForm((p) => ({ ...p, manager_user_id: e.target.value }))}>
