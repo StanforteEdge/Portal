@@ -101,6 +101,13 @@ export class TaxonomyService {
     });
   }
 
+  async deleteTaxonomy(id: string) {
+    const existing = await this.prisma.taxonomy.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Taxonomy not found');
+    await this.prisma.taxonomy.delete({ where: { id } });
+    return { success: true };
+  }
+
   async syncTerms(taxonomyId: string, dto: SyncTaxonomyTermsDto) {
     const taxonomy = await this.prisma.taxonomy.findUnique({ where: { id: taxonomyId } });
     if (!taxonomy) throw new NotFoundException('Taxonomy not found');

@@ -6,6 +6,7 @@ import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
   createManagedTaxonomy,
+  deleteManagedTaxonomy,
   listManagedTaxonomies,
   syncManagedTaxonomyTerms,
   updateManagedTaxonomy,
@@ -19,6 +20,12 @@ import {
   type OrganizationRecord,
 } from "@/services/organizations";
 import { listUsers, type UserListItem } from "@/services/users";
+import {
+  createRequestGroup,
+  listRequestGroups,
+  updateRequestGroup,
+  type RequestGroupOption,
+} from "@/services/requests";
 
 type EditableTerm = {
   id: string;
@@ -53,6 +60,7 @@ function AdminSettingsPage() {
   const [taxonomies, setTaxonomies] = useState<ManagedTaxonomy[]>([]);
   const [selectedTaxonomyId, setSelectedTaxonomyId] = useState("");
   const [showTaxonomyEditor, setShowTaxonomyEditor] = useState(false);
+  const [taxonomyModuleFilter, setTaxonomyModuleFilter] = useState("finance");
   const [taxonomyForm, setTaxonomyForm] = useState<{
     id?: string;
     key: string;
@@ -71,6 +79,18 @@ function AdminSettingsPage() {
   const [termLabelInput, setTermLabelInput] = useState("");
 
   const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [requestGroups, setRequestGroups] = useState<RequestGroupOption[]>([]);
+  const [showRequestGroupEditor, setShowRequestGroupEditor] = useState(false);
+  const [requestGroupForm, setRequestGroupForm] = useState<{
+    id?: string;
+    name: string;
+    code: string;
+    description: string;
+  }>({
+    name: "",
+    code: "",
+    description: "",
+  });
   const [userOptions, setUserOptions] = useState<UserListItem[]>([]);
   const [memberForm, setMemberForm] = useState<{ user_id: string; role: "member" | "lead" | "manager" }>({
     user_id: "",
@@ -113,28 +133,41 @@ function AdminSettingsPage() {
     () => taxonomies.find((row) => row.id === selectedTaxonomyId),
     [taxonomies, selectedTaxonomyId]
   );
+  const visibleTaxonomies = useMemo(
+    () =>
+      taxonomies.filter((row) => {
+        const module = String(row.module || "").trim().toLowerCase();
+        return module === taxonomyModuleFilter;
+      }),
+    [taxonomies, taxonomyModuleFilter]
+  );
 
   const loadAll = async () => {
     setLoading(true);
     try {
-      const [taxonomyResult, teamsResult, orgsResult, usersResult] = await Promise.allSettled([
-        listManagedTaxonomies({ include_inactive: true, module: "finance" }),
+      const [taxonomyResult, requestGroupsResult, teamsResult, orgsResult, usersResult] = await Promise.allSettled([
+        listManagedTaxonomies({ include_inactive: true }),
+        listRequestGroups(),
         listTeams({ active_only: false }),
         listOrganizations(),
         listUsers({ per_page: 200 }),
       ]);
 
       const taxonomyData = taxonomyResult.status === "fulfilled" ? taxonomyResult.value : [];
+      const requestGroupsData = requestGroupsResult.status === "fulfilled" ? requestGroupsResult.value : [];
       const teamsData = teamsResult.status === "fulfilled" ? teamsResult.value : [];
       const orgs = orgsResult.status === "fulfilled" ? orgsResult.value : [];
       const usersData = usersResult.status === "fulfilled" ? usersResult.value.data : [];
 
       setTaxonomies(taxonomyData);
+      setRequestGroups(requestGroupsData);
       setTeams(teamsData);
       setOrganizations(orgs);
       setUserOptions(usersData);
 
-      const firstTaxonomy = taxonomyData[0];
+      const firstTaxonomy = taxonomyData.find(
+        (row) => String(row.module || "").trim().toLowerCase() === taxonomyModuleFilter
+      );
       if (firstTaxonomy) {
         setSelectedTaxonomyId(firstTaxonomy.id);
         setTaxonomyTerms(normalizeTerms(firstTaxonomy.terms));
@@ -165,6 +198,14 @@ function AdminSettingsPage() {
     setTaxonomyTerms(normalizeTerms(selectedTaxonomy.terms));
   }, [selectedTaxonomy]);
 
+  useEffect(() => {
+    const taxonomyExistsInModule = visibleTaxonomies.some((row) => row.id === selectedTaxonomyId);
+    if (taxonomyExistsInModule) return;
+    const first = visibleTaxonomies[0];
+    setSelectedTaxonomyId(first?.id || "");
+    setTaxonomyTerms(first ? normalizeTerms(first.terms) : []);
+  }, [visibleTaxonomies, selectedTaxonomyId]);
+
   const saveTaxonomy = async () => {
     if (!taxonomyForm.key.trim() || !taxonomyForm.name.trim()) {
       setNotice({ tone: "warning", message: "Taxonomy key and name are required." });
@@ -184,15 +225,15 @@ function AdminSettingsPage() {
         await createManagedTaxonomy({
           key: taxonomyForm.key.trim(),
           name: taxonomyForm.name.trim(),
-          module: taxonomyForm.module.trim() || undefined,
+          module: (taxonomyForm.module.trim() || taxonomyModuleFilter).toLowerCase(),
           is_active: taxonomyForm.is_active,
         });
       }
 
-      const rows = await listManagedTaxonomies({ include_inactive: true, module: "finance" });
+      const rows = await listManagedTaxonomies({ include_inactive: true });
       setTaxonomies(rows);
       setShowTaxonomyEditor(false);
-      setTaxonomyForm({ key: "", name: "", module: "finance", is_active: true });
+      setTaxonomyForm({ key: "", name: "", module: taxonomyModuleFilter, is_active: true });
       setTaxonomyTerms([]);
       setNotice({ tone: "success", message: "Taxonomy saved." });
     } catch (error: any) {
@@ -215,11 +256,35 @@ function AdminSettingsPage() {
     try {
       setSaving(true);
       await syncManagedTaxonomyTerms(selectedTaxonomyId, terms);
-      const rows = await listManagedTaxonomies({ include_inactive: true, module: "finance" });
+      const rows = await listManagedTaxonomies({ include_inactive: true });
       setTaxonomies(rows);
       setNotice({ tone: "success", message: "Taxonomy terms updated." });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to update taxonomy terms." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const removeTaxonomy = async (id: string) => {
+    const confirmed = window.confirm("Delete this taxonomy and all its terms?");
+    if (!confirmed) return;
+    try {
+      setSaving(true);
+      await deleteManagedTaxonomy(id);
+      const rows = await listManagedTaxonomies({ include_inactive: true });
+      setTaxonomies(rows);
+      if (selectedTaxonomyId === id) {
+        setSelectedTaxonomyId("");
+        setTaxonomyTerms([]);
+        if (taxonomyForm.id === id) {
+          setShowTaxonomyEditor(false);
+          setTaxonomyForm({ key: "", name: "", module: taxonomyModuleFilter, is_active: true });
+        }
+      }
+      setNotice({ tone: "success", message: "Taxonomy deleted." });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete taxonomy." });
     } finally {
       setSaving(false);
     }
@@ -279,6 +344,44 @@ function AdminSettingsPage() {
 
   const deleteTerm = (id: string) => {
     setTaxonomyTerms((prev) => prev.filter((term) => term.id !== id));
+  };
+
+  const loadRequestGroupIntoForm = (group: RequestGroupOption) => {
+    setRequestGroupForm({
+      id: group.id,
+      name: group.name,
+      code: group.code,
+      description: group.description || "",
+    });
+    setShowRequestGroupEditor(true);
+  };
+
+  const saveRequestGroup = async () => {
+    if (!requestGroupForm.name.trim() || !requestGroupForm.code.trim()) {
+      setNotice({ tone: "warning", message: "Request group name and code are required." });
+      return;
+    }
+    try {
+      setSaving(true);
+      const payload = {
+        name: requestGroupForm.name.trim(),
+        code: requestGroupForm.code.trim().toLowerCase(),
+        description: requestGroupForm.description.trim() || undefined,
+      };
+      if (requestGroupForm.id) {
+        await updateRequestGroup(requestGroupForm.id, payload);
+      } else {
+        await createRequestGroup(payload);
+      }
+      setRequestGroups(await listRequestGroups());
+      setShowRequestGroupEditor(false);
+      setRequestGroupForm({ name: "", code: "", description: "" });
+      setNotice({ tone: "success", message: "Request group saved." });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save request group." });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const loadTeamIntoForm = (team: TeamOption) => {
@@ -432,6 +535,11 @@ function AdminSettingsPage() {
                 </Tab>
                 <Tab>
                   <Tab.Button className="w-full py-2" as="button">
+                    Request Groups
+                  </Tab.Button>
+                </Tab>
+                <Tab>
+                  <Tab.Button className="w-full py-2" as="button">
                     Groups (Teams/Departments)
                   </Tab.Button>
                 </Tab>
@@ -444,11 +552,28 @@ function AdminSettingsPage() {
 
               <Tab.Panels className="border-b border-l border-r">
                 <Tab.Panel className="p-5 space-y-4">
-                  <div className="flex justify-end">
+                  <div className="flex flex-col sm:flex-row gap-2 sm:items-end sm:justify-between">
+                    <div className="w-full sm:w-56">
+                      <FormLabel>Module</FormLabel>
+                      <FormSelect
+                        value={taxonomyModuleFilter}
+                        onChange={(e) => {
+                          const nextModule = e.target.value;
+                          setTaxonomyModuleFilter(nextModule);
+                          if (!showTaxonomyEditor || !taxonomyForm.id) {
+                            setTaxonomyForm((prev) => ({ ...prev, module: nextModule }));
+                          }
+                        }}
+                      >
+                        <option value="finance">Finance</option>
+                        <option value="hr">Human Resources</option>
+                        <option value="admin">Admin</option>
+                      </FormSelect>
+                    </div>
                     <Button
                       variant="primary"
                       onClick={() => {
-                        setTaxonomyForm({ key: "", name: "", module: "finance", is_active: true });
+                        setTaxonomyForm({ key: "", name: "", module: taxonomyModuleFilter, is_active: true });
                         setTaxonomyTerms([]);
                         setShowTaxonomyEditor(true);
                       }}
@@ -472,7 +597,7 @@ function AdminSettingsPage() {
                             </Table.Tr>
                           </Table.Thead>
                           <Table.Tbody>
-                            {taxonomies.map((row) => (
+                            {visibleTaxonomies.map((row) => (
                               <Table.Tr key={row.id}>
                                 <Table.Td>{row.name}</Table.Td>
                                 {showTaxonomyEditor ? null : <Table.Td>{row.key}</Table.Td>}
@@ -484,16 +609,21 @@ function AdminSettingsPage() {
                                   </Table.Td>
                                 )}
                                 <Table.Td>
-                                  <Button variant="outline-primary" onClick={() => loadTaxonomyIntoForm(row)}>
-                                    Edit
-                                  </Button>
+                                  <div className="flex gap-2">
+                                    <Button variant="outline-primary" onClick={() => loadTaxonomyIntoForm(row)}>
+                                      Edit
+                                    </Button>
+                                    <Button variant="outline-danger" onClick={() => void removeTaxonomy(row.id)}>
+                                      Delete
+                                    </Button>
+                                  </div>
                                 </Table.Td>
                               </Table.Tr>
                             ))}
-                            {taxonomies.length === 0 ? (
+                            {visibleTaxonomies.length === 0 ? (
                               <Table.Tr>
                                 <Table.Td colSpan={showTaxonomyEditor ? 3 : 6} className="text-slate-500">
-                                  No taxonomies found.
+                                  No taxonomies found for this module.
                                 </Table.Td>
                               </Table.Tr>
                             ) : null}
@@ -521,10 +651,14 @@ function AdminSettingsPage() {
                           </div>
                           <div className="col-span-12 md:col-span-2">
                             <FormLabel>Module</FormLabel>
-                            <FormInput
+                            <FormSelect
                               value={taxonomyForm.module}
                               onChange={(e) => setTaxonomyForm((prev) => ({ ...prev, module: e.target.value }))}
-                            />
+                            >
+                              <option value="finance">Finance</option>
+                              <option value="hr">Human Resources</option>
+                              <option value="admin">Admin</option>
+                            </FormSelect>
                           </div>
                           <div className="col-span-12 md:col-span-2">
                             <FormLabel>Status</FormLabel>
@@ -546,7 +680,7 @@ function AdminSettingsPage() {
                             variant="outline-secondary"
                             onClick={() => {
                               setShowTaxonomyEditor(false);
-                              setTaxonomyForm({ key: "", name: "", module: "finance", is_active: true });
+                              setTaxonomyForm({ key: "", name: "", module: taxonomyModuleFilter, is_active: true });
                               setTaxonomyTerms([]);
                             }}
                           >
@@ -601,6 +735,105 @@ function AdminSettingsPage() {
                             </Button>
                           </div>
                         ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </Tab.Panel>
+
+                <Tab.Panel className="p-5 space-y-4">
+                  <div className="flex justify-end">
+                    <Button
+                      variant="primary"
+                      onClick={() => {
+                        setRequestGroupForm({ name: "", code: "", description: "" });
+                        setShowRequestGroupEditor(true);
+                      }}
+                    >
+                      Create Request Group
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-12 gap-5">
+                    <div
+                      className={
+                        showRequestGroupEditor ? "col-span-12 sm:col-span-5 border rounded-md p-4" : "col-span-12 border rounded-md p-4"
+                      }
+                    >
+                      <div className="overflow-x-auto">
+                        <Table className="table-report w-full" striped hover>
+                          <Table.Thead>
+                            <Table.Tr>
+                              <Table.Th>Name</Table.Th>
+                              <Table.Th>Code</Table.Th>
+                              {showRequestGroupEditor ? null : <Table.Th>Description</Table.Th>}
+                              <Table.Th>Action</Table.Th>
+                            </Table.Tr>
+                          </Table.Thead>
+                          <Table.Tbody>
+                            {requestGroups.map((group) => (
+                              <Table.Tr key={group.id}>
+                                <Table.Td>{group.name}</Table.Td>
+                                <Table.Td>{group.code}</Table.Td>
+                                {showRequestGroupEditor ? null : <Table.Td>{group.description || "-"}</Table.Td>}
+                                <Table.Td>
+                                  <Button variant="outline-primary" onClick={() => loadRequestGroupIntoForm(group)}>
+                                    Edit
+                                  </Button>
+                                </Table.Td>
+                              </Table.Tr>
+                            ))}
+                            {requestGroups.length === 0 ? (
+                              <Table.Tr>
+                                <Table.Td colSpan={showRequestGroupEditor ? 3 : 4} className="text-slate-500">
+                                  No request groups found.
+                                </Table.Td>
+                              </Table.Tr>
+                            ) : null}
+                          </Table.Tbody>
+                        </Table>
+                      </div>
+                    </div>
+
+                    {showRequestGroupEditor ? (
+                      <div className="col-span-12 sm:col-span-7 border rounded-md p-4">
+                        <div className="grid grid-cols-12 gap-4">
+                          <div className="col-span-12 md:col-span-4">
+                            <FormLabel>Name</FormLabel>
+                            <FormInput
+                              value={requestGroupForm.name}
+                              onChange={(e) => setRequestGroupForm((prev) => ({ ...prev, name: e.target.value }))}
+                            />
+                          </div>
+                          <div className="col-span-12 md:col-span-3">
+                            <FormLabel>Code</FormLabel>
+                            <FormInput
+                              value={requestGroupForm.code}
+                              onChange={(e) => setRequestGroupForm((prev) => ({ ...prev, code: e.target.value.toLowerCase() }))}
+                            />
+                          </div>
+                          <div className="col-span-12 md:col-span-5">
+                            <FormLabel>Description</FormLabel>
+                            <FormInput
+                              value={requestGroupForm.description}
+                              onChange={(e) => setRequestGroupForm((prev) => ({ ...prev, description: e.target.value }))}
+                              placeholder="Optional"
+                            />
+                          </div>
+                          <div className="col-span-12 flex gap-2">
+                            <Button onClick={saveRequestGroup} disabled={saving}>
+                              {saving ? "Saving..." : requestGroupForm.id ? "Update Request Group" : "Create Request Group"}
+                            </Button>
+                            <Button
+                              variant="outline-secondary"
+                              onClick={() => {
+                                setRequestGroupForm({ name: "", code: "", description: "" });
+                                setShowRequestGroupEditor(false);
+                              }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     ) : null}
                   </div>

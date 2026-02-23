@@ -145,6 +145,15 @@ function RequestsCreatePage() {
   }, [selectedRequestType, kind]);
 
   const [leaveBalance, setLeaveBalance] = useState<number | null>(null);
+  const requestedLeaveDays = useMemo(() => {
+    if (!form.leave_start_date || !form.leave_end_date) return 0;
+    const start = new Date(form.leave_start_date);
+    const end = new Date(form.leave_end_date);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs < 0) return 0;
+    return Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
+  }, [form.leave_start_date, form.leave_end_date]);
   const handoverColleagueOptions = useMemo(() => {
     const sourceMembers = form.team_id
       ? (teamOptions.find((option) => option.id === form.team_id)?.members ?? [])
@@ -323,6 +332,14 @@ function RequestsCreatePage() {
     void loadLeaveBalance();
   }, [isLeaveRequest, form.leave_type_key, form.leave_start_date]);
 
+  useEffect(() => {
+    if (!isLeaveRequest) return;
+    setForm((prev) => ({
+      ...prev,
+      leave_days_requested: requestedLeaveDays > 0 ? String(requestedLeaveDays) : "",
+    }));
+  }, [isLeaveRequest, requestedLeaveDays]);
+
   const updateItem = (index: number, key: keyof CreateItemState, value: string | number) => {
     setForm((prev) => {
       const items = [...prev.items];
@@ -369,10 +386,10 @@ function RequestsCreatePage() {
       if (!form.leave_type_key.trim()) return "Leave type is required.";
       if (!form.leave_start_date || !form.leave_end_date) return "Leave start and end dates are required.";
       if (new Date(form.leave_end_date) < new Date(form.leave_start_date)) return "Leave end date cannot be before start date.";
-      if (!form.leave_days_requested || Number(form.leave_days_requested) <= 0) return "Leave days requested must be greater than zero.";
+      if (requestedLeaveDays <= 0) return "Leave days requested must be greater than zero.";
       if (!form.leave_handover_user_id) return "Handover colleague is required for leave.";
       if (!form.leave_handover_notes.trim()) return "Handover notes are required for leave.";
-      if (leaveBalance !== null && Number(form.leave_days_requested) > leaveBalance) {
+      if (leaveBalance !== null && requestedLeaveDays > leaveBalance) {
         return `Requested leave exceeds available balance (${leaveBalance} days).`;
       }
       return null;
@@ -424,7 +441,7 @@ function RequestsCreatePage() {
       items: payloadItems,
     });
 
-    if (created?.id && tags.length > 0) {
+    if (created?.id && tags.length > 0 && !isLeaveRequest) {
       const existingTermIds = tags
         .filter((tag) => !String(tag.id).startsWith("new:"))
         .map((tag) => tag.id);
@@ -487,14 +504,10 @@ function RequestsCreatePage() {
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
       <div className="box mt-5 p-5 space-y-5">
-        <div className="col-span-12">
-          <FormLabel className="w-full">Request Type</FormLabel>
-          <div className="flex flex-wrap items-center gap-4">
-            {kind === "leave" ? (
-              <div className="px-3 py-2 rounded border border-slate-300 bg-slate-50 text-sm">
-                {selectedRequestType?.name || filteredTypeOptions[0]?.name || "Leave Request"}
-              </div>
-            ) : (
+        {kind !== "leave" ? (
+          <div className="col-span-12">
+            <FormLabel className="w-full">Request Type</FormLabel>
+            <div className="flex flex-wrap items-center gap-4">
               <FormSelect className="w-auto" value={form.request_type_id} onChange={(e) => setForm((prev) => ({ ...prev, request_type_id: e.target.value }))}>
                 <option value="">Select type</option>
                 {filteredTypeOptions.map((type) => (
@@ -503,7 +516,6 @@ function RequestsCreatePage() {
                   </option>
                 ))}
               </FormSelect>
-            )}
             {form.request_type_id && !isLeaveRequest ? (
               <label className="inline-flex items-center gap-2 text-sm">
                 <input
@@ -514,21 +526,28 @@ function RequestsCreatePage() {
                 <span>Reimbursement</span>
               </label>
             ) : null}
+            </div>
           </div>
-        </div>
+        ) : null}
 
-        <div className="col-span-12">
-          <FormLabel className="w-full">Tags</FormLabel>
-          <TagPicker
-            taxonomyKey="request_tags"
-            value={tags}
-            onChange={setTags}
-            placeholder="Type a tag and press Enter"
-          />
-        </div>
+        {!isLeaveRequest ? (
+          <div className="col-span-12">
+            <FormLabel className="w-full">Tags</FormLabel>
+            <TagPicker
+              taxonomyKey="request_tags"
+              value={tags}
+              onChange={setTags}
+              placeholder="Type a tag and press Enter"
+            />
+          </div>
+        ) : null}
         <div className="grid grid-cols-12 gap-4">
           {isLeaveRequest ? (
             <>
+              <div className="col-span-12">
+                <div className="text-slate-500 text-sm">Leave Days</div>
+                <div className="text-2xl font-semibold mt-2">{requestedLeaveDays} day(s)</div>
+              </div>
               <div className="col-span-12 md:col-span-4">
                 <FormLabel>Leave Type</FormLabel>
                 <FormSelect
@@ -559,15 +578,12 @@ function RequestsCreatePage() {
                   onChange={(e) => setForm((prev) => ({ ...prev, leave_end_date: e.target.value }))}
                 />
               </div>
-              <div className="col-span-12 md:col-span-2">
-                <FormLabel>Days Requested</FormLabel>
-                <FormInput
-                  type="number"
-                  step="0.5"
-                  value={form.leave_days_requested}
-                  onChange={(e) => setForm((prev) => ({ ...prev, leave_days_requested: e.target.value }))}
-                />
+
+              <div className="col-span-12">
+                <FormLabel>Reason for Leave</FormLabel>
+                <FormTextarea rows={4} value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
               </div>
+
               <div className="col-span-12 md:col-span-6">
                 <FormLabel>Handover Colleague</FormLabel>
                 <FormSelect
@@ -660,13 +676,12 @@ function RequestsCreatePage() {
               </FormSelect>
             </div>
           ) : null}
-
-
-
-          <div className="col-span-12">
-            <FormLabel>{isLeaveRequest ? "Reason for Leave" : "Purpose"}</FormLabel>
-            <FormTextarea rows={4} value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
-          </div>
+          {!isLeaveRequest ? (
+            <div className="col-span-12">
+              <FormLabel>Purpose</FormLabel>
+              <FormTextarea rows={4} value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
+            </div>
+          ) : null}
         </div>
 
         {!isLeaveRequest ? (
@@ -737,12 +752,12 @@ function RequestsCreatePage() {
         ) : null}
 
         <div className="flex flex-wrap justify-between gap-2">
-          <div className=" ">
-            <div className="text-slate-500 text-sm">{isLeaveRequest ? "Leave Days" : "Grand Total"}</div>
-            <div className="text-2xl font-semibold mt-2">
-              {isLeaveRequest ? `${Number(form.leave_days_requested || 0)} day(s)` : formatMoney(grandTotal)}
+          {!isLeaveRequest ? (
+            <div>
+              <div className="text-slate-500 text-sm">Grand Total</div>
+              <div className="text-2xl font-semibold mt-2">{formatMoney(grandTotal)}</div>
             </div>
-          </div>
+          ) : <div />}
           <div className="flex flex-row justify-end items-center gap-2">
             <Button variant="outline-secondary" onClick={() => void onSaveDraft()} disabled={savingDraft || submitting}>
               <Lucide icon="CheckCircle2" className="w-4 h-4 mr-1" />

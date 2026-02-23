@@ -27,7 +27,7 @@ function StaffLeaveTrackerPage() {
       setLoading(true);
       const [balanceData, requestRows] = await Promise.all([
         getMyLeaveBalance({ year }),
-        listRequests({ limit: 100 }),
+        listRequests({ limit: 100, only_mine: "true" }),
       ]);
       const leaveRequests = (requestRows ?? []).filter((row) => {
         const categoryKey = String(row.request_type?.category_key ?? "").toLowerCase();

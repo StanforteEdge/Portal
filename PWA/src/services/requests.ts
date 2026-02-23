@@ -60,6 +60,7 @@ export type RequestGroupOption = {
   id: string;
   name: string;
   code: string;
+  description?: string | null;
   is_active?: boolean;
 };
 
@@ -103,8 +104,33 @@ export async function listRequestGroups() {
     id: String(item.id),
     name: String(item.name),
     code: String(item.code),
+    description: item.description ?? null,
     is_active: Boolean(item.is_active ?? item.isActive ?? true),
   })) as RequestGroupOption[];
+}
+
+export async function createRequestGroup(payload: { name: string; code: string; description?: string }) {
+  const response = await apiClient.post("/requests/groups", payload);
+  const item = response.data?.data ?? {};
+  return {
+    id: String(item.id),
+    name: String(item.name),
+    code: String(item.code),
+    description: item.description ?? null,
+    is_active: Boolean(item.is_active ?? item.isActive ?? true),
+  } as RequestGroupOption;
+}
+
+export async function updateRequestGroup(id: string, payload: { name?: string; code?: string; description?: string }) {
+  const response = await apiClient.post(`/requests/groups/${id}`, payload);
+  const item = response.data?.data ?? {};
+  return {
+    id: String(item.id),
+    name: String(item.name),
+    code: String(item.code),
+    description: item.description ?? null,
+    is_active: Boolean(item.is_active ?? item.isActive ?? true),
+  } as RequestGroupOption;
 }
 
 export async function listRequestTypes(params?: { group_id?: string; include_inactive?: boolean }) {

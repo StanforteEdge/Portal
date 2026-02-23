@@ -26,7 +26,6 @@ type RequestTypeFormState = {
 
 type ApprovalStepForm = {
   role: string;
-  min_amount: string;
 };
 
 type HrCategoryOption = {
@@ -43,7 +42,7 @@ const emptyTypeForm: RequestTypeFormState = {
   is_active: true,
 };
 
-const defaultApprovalSteps: ApprovalStepForm[] = [{ role: "team_lead", min_amount: "" }];
+const defaultApprovalSteps: ApprovalStepForm[] = [{ role: "team_lead" }];
 
 const roleOptions = [
   { value: "team_lead", label: "Team Lead" },
@@ -73,12 +72,11 @@ function Main() {
   );
 
   const loadTypeIntoForm = (type: RequestTypeOption) => {
-    const stepsRaw = (type.approval_flow_json as { steps?: Array<{ role?: string; min_amount?: number }> } | null)?.steps;
+    const stepsRaw = (type.approval_flow_json as { steps?: Array<{ role?: string }> } | null)?.steps;
     const normalizedSteps =
       Array.isArray(stepsRaw) && stepsRaw.length > 0
         ? stepsRaw.map((step) => ({
             role: String(step.role || ""),
-            min_amount: step.min_amount !== undefined && step.min_amount !== null ? String(Number(step.min_amount)) : "",
           }))
         : defaultApprovalSteps;
 
@@ -156,7 +154,6 @@ function Main() {
     const stepsPayload = approvalSteps
       .map((step) => ({
         role: step.role.trim(),
-        ...(step.min_amount ? { min_amount: Number(step.min_amount) } : {}),
       }))
       .filter((step) => step.role.length > 0);
 
@@ -249,14 +246,6 @@ function Main() {
                   ))}
                 </FormSelect>
               </div>
-              <div className="col-span-12 md:col-span-3">
-                <FormLabel>Approval Limit</FormLabel>
-                <FormInput
-                  type="number"
-                  value={typeForm.approval_limit}
-                  onChange={(e) => setTypeForm((prev) => ({ ...prev, approval_limit: e.target.value }))}
-                />
-              </div>
 
               <div className="col-span-12">
                 <FormLabel>Description</FormLabel>
@@ -272,7 +261,7 @@ function Main() {
                   <Button
                     variant="outline-primary"
                     type="button"
-                    onClick={() => setApprovalSteps((prev) => [...prev, { role: "", min_amount: "" }])}
+                    onClick={() => setApprovalSteps((prev) => [...prev, { role: "" }])}
                   >
                     Add Step
                   </Button>
@@ -281,7 +270,7 @@ function Main() {
                 <div className="space-y-2">
                   {approvalSteps.map((step, index) => (
                     <div key={`${index}-${step.role}`} className="grid grid-cols-12 gap-3 rounded-md border p-3">
-                      <div className="col-span-12 md:col-span-5">
+                      <div className="col-span-12 md:col-span-9">
                         <FormLabel>Role</FormLabel>
                         <FormSelect
                           value={step.role}
@@ -300,20 +289,6 @@ function Main() {
                             </option>
                           ))}
                         </FormSelect>
-                      </div>
-                      <div className="col-span-12 md:col-span-5">
-                        <FormLabel>Min Amount (optional)</FormLabel>
-                        <FormInput
-                          type="number"
-                          value={step.min_amount}
-                          onChange={(e) =>
-                            setApprovalSteps((prev) =>
-                              prev.map((current, currentIndex) =>
-                                currentIndex === index ? { ...current, min_amount: e.target.value } : current
-                              )
-                            )
-                          }
-                        />
                       </div>
                       <div className="col-span-12 md:col-span-2 flex items-end">
                         <Button
