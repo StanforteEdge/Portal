@@ -14,6 +14,7 @@ export type RoleRecord = {
   description: string | null;
   is_active: boolean;
   permissions: PermissionRecord[];
+  users?: Array<{ profile_id: string }>;
 };
 
 export async function listRbacRoles(includeInactive = true) {

@@ -1,4 +1,5 @@
-import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../../../common/validation/password-policy';
 
 export class UpdateAdminUserDto {
   @IsOptional()
@@ -28,5 +29,6 @@ export class UpdateAdminUserDto {
   @IsOptional()
   @IsString()
   @MinLength(8)
+  @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
   password?: string;
 }

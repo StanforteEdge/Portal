@@ -11,18 +11,16 @@ import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/http/all-exceptions.filter';
 import { ResponseEnvelopeInterceptor } from './common/http/response-envelope.interceptor';
 
-if (!process.env.DATABASE_URL) {
-  const candidates = [
-    resolve(process.cwd(), '.env'),
-    resolve(process.cwd(), 'api/.env'),
-    resolve(__dirname, '../.env'),
-    resolve(__dirname, '../../.env')
-  ];
-  for (const file of candidates) {
-    if (existsSync(file)) {
-      loadEnv({ path: file, override: false });
-      if (process.env.DATABASE_URL) break;
-    }
+const envCandidates = [
+  resolve(process.cwd(), '.env'),
+  resolve(process.cwd(), 'api/.env'),
+  resolve(__dirname, '../.env'),
+  resolve(__dirname, '../../.env')
+];
+for (const file of envCandidates) {
+  if (existsSync(file)) {
+    // Keep runtime-provided env values (PM2/systemd) as highest priority.
+    loadEnv({ path: file, override: false });
   }
 }
 

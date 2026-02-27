@@ -834,7 +834,7 @@ export class HrService {
       role: entry.role
     }));
 
-    return {
+    return this.normalizeBigInts({
       id: profile.id.toString(),
       username: profile.username,
       email: profile.email,
@@ -882,7 +882,21 @@ export class HrService {
       onboarding_progress: profile.onboardingProgress ?? null,
       created_at: profile.createdAt,
       updated_at: profile.updatedAt
-    };
+    });
+  }
+
+  private normalizeBigInts(value: unknown): unknown {
+    if (typeof value === 'bigint') return value.toString();
+    if (Array.isArray(value)) return value.map((item) => this.normalizeBigInts(item));
+    if (value instanceof Date || value === null || value === undefined) return value;
+    if (typeof value === 'object') {
+      const output: Record<string, unknown> = {};
+      for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+        output[key] = this.normalizeBigInts(item);
+      }
+      return output;
+    }
+    return value;
   }
 
   private parseId(value: string, label: string): bigint {
