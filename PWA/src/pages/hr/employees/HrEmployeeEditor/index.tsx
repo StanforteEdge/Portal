@@ -15,10 +15,12 @@ import {
   updateHrEmployee,
   type HrEmployee,
 } from "@/services/hr";
+import { listUsers, type UserListItem } from "@/services/users";
 import { listOrganizations, type OrganizationRecord } from "@/services/organizations";
 import { listTeams, type TeamOption } from "@/services/teams";
 
 const emptyForm = {
+  user_id: "",
   first_name: "",
   last_name: "",
   username: "",
@@ -46,20 +48,24 @@ function HrEmployeeEditorPage() {
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const [allEmployees, setAllEmployees] = useState<HrEmployee[]>([]);
+  const [allUsers, setAllUsers] = useState<UserListItem[]>([]);
   const [organizations, setOrganizations] = useState<OrganizationRecord[]>([]);
   const [teams, setTeams] = useState<TeamOption[]>([]);
+  const [userSearch, setUserSearch] = useState("");
 
   const [organizationToAdd, setOrganizationToAdd] = useState("");
   const [teamToAdd, setTeamToAdd] = useState("");
   const [teamRoleToAdd, setTeamRoleToAdd] = useState<"member" | "lead" | "manager">("member");
 
   const loadMeta = async () => {
-    const [employeesRes, orgs, tms] = await Promise.all([
+    const [employeesRes, usersRes, orgs, tms] = await Promise.all([
       listHrEmployees({ page: 1, per_page: 200 }),
+      listUsers({ page: 1, per_page: 500 }),
       listOrganizations({ is_active: true }),
       listTeams({ active_only: true }),
     ]);
     setAllEmployees(employeesRes.data);
+    setAllUsers(usersRes.data);
     setOrganizations(orgs);
     setTeams(tms);
   };
@@ -73,6 +79,7 @@ function HrEmployeeEditorPage() {
     const data = await getHrEmployee(id);
     setEmployee(data);
     setForm({
+      user_id: data.id || "",
       first_name: data.first_name || "",
       last_name: data.last_name || "",
       username: data.username || "",
@@ -117,11 +124,60 @@ function HrEmployeeEditorPage() {
     [allEmployees]
   );
 
+  const selectableUsers = useMemo(() => {
+    const existingEmployeeIds = new Set(allEmployees.map((row) => String(row.id)));
+    const query = userSearch.trim().toLowerCase();
+    return allUsers
+      .filter((user) => {
+        if (existingEmployeeIds.has(String(user.id))) return false;
+        if (!["staff", "employee"].includes(String(user.type || "").toLowerCase())) return false;
+        if (!query) return true;
+        const fullName = `${user.firstName || ""} ${user.lastName || ""}`.trim().toLowerCase();
+        return (
+          String(user.email || "").toLowerCase().includes(query) ||
+          String(user.username || "").toLowerCase().includes(query) ||
+          fullName.includes(query)
+        );
+      })
+      .sort((a, b) => {
+        const aName = `${a.firstName || ""} ${a.lastName || ""}`.trim() || a.username || a.email;
+        const bName = `${b.firstName || ""} ${b.lastName || ""}`.trim() || b.username || b.email;
+        return aName.localeCompare(bName);
+      });
+  }, [allEmployees, allUsers, userSearch]);
+
+  const selectedCreateUser = useMemo(
+    () => selectableUsers.find((row) => String(row.id) === String(form.user_id || "")) ?? null,
+    [selectableUsers, form.user_id]
+  );
+
   const onSave = async () => {
     try {
       setSaving(true);
-      const payload = {
-        ...form,
+      if (isCreate && !form.user_id) {
+        setNotice({ tone: "warning", message: "Select a user to continue." });
+        setSaving(false);
+        return;
+      }
+      if (!form.primary_organization_id) {
+        setNotice({ tone: "warning", message: "Primary organization is required." });
+        setSaving(false);
+        return;
+      }
+
+      const payload: Record<string, string | undefined> = {
+        user_id: isCreate ? form.user_id || undefined : undefined,
+        first_name: isCreate ? undefined : form.first_name || undefined,
+        last_name: isCreate ? undefined : form.last_name || undefined,
+        username: isCreate ? undefined : form.username || undefined,
+        email: isCreate ? undefined : form.email || undefined,
+        phone: isCreate ? undefined : form.phone || undefined,
+        employee_code: form.employee_code || undefined,
+        job_title: form.job_title || undefined,
+        job_description: form.job_description || undefined,
+        employment_status: form.employment_status || undefined,
+        employment_type: form.employment_type || undefined,
+        work_mode: form.work_mode || undefined,
         manager_user_id: form.manager_user_id || undefined,
         primary_organization_id: form.primary_organization_id || undefined,
       };
@@ -224,11 +280,43 @@ function HrEmployeeEditorPage() {
 
       <div className="mt-5 intro-y box p-5">
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div><FormLabel>First Name</FormLabel><FormInput value={form.first_name || ""} onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))} /></div>
-          <div><FormLabel>Last Name</FormLabel><FormInput value={form.last_name || ""} onChange={(e) => setForm((p) => ({ ...p, last_name: e.target.value }))} /></div>
-          <div><FormLabel>Username</FormLabel><FormInput value={form.username || ""} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} /></div>
-          <div><FormLabel>Email</FormLabel><FormInput value={form.email || ""} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></div>
-          <div><FormLabel>Phone</FormLabel><FormInput value={form.phone || ""} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} /></div>
+          {isCreate ? (
+            <>
+              <div className="md:col-span-2">
+                <FormLabel>Search User</FormLabel>
+                <FormInput
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  placeholder="Search by name, username, or email"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <FormLabel>Select User</FormLabel>
+                <FormSelect value={form.user_id || ""} onChange={(e) => setForm((p) => ({ ...p, user_id: e.target.value }))}>
+                  <option value="">Select user</option>
+                  {selectableUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {`${(user.firstName || "") + " " + (user.lastName || "")}`.trim() || user.username} ({user.email})
+                    </option>
+                  ))}
+                </FormSelect>
+                {selectedCreateUser ? (
+                  <div className="mt-2 text-xs text-slate-500">
+                    Selected: {`${(selectedCreateUser.firstName || "") + " " + (selectedCreateUser.lastName || "")}`.trim() || selectedCreateUser.username} •{" "}
+                    {selectedCreateUser.email}
+                  </div>
+                ) : null}
+              </div>
+            </>
+          ) : (
+            <>
+              <div><FormLabel>First Name</FormLabel><FormInput value={form.first_name || ""} onChange={(e) => setForm((p) => ({ ...p, first_name: e.target.value }))} /></div>
+              <div><FormLabel>Last Name</FormLabel><FormInput value={form.last_name || ""} onChange={(e) => setForm((p) => ({ ...p, last_name: e.target.value }))} /></div>
+              <div><FormLabel>Username</FormLabel><FormInput value={form.username || ""} onChange={(e) => setForm((p) => ({ ...p, username: e.target.value }))} /></div>
+              <div><FormLabel>Email</FormLabel><FormInput value={form.email || ""} onChange={(e) => setForm((p) => ({ ...p, email: e.target.value }))} /></div>
+              <div><FormLabel>Phone</FormLabel><FormInput value={form.phone || ""} onChange={(e) => setForm((p) => ({ ...p, phone: e.target.value }))} /></div>
+            </>
+          )}
           <div><FormLabel>Employee Code</FormLabel><FormInput value={form.employee_code || ""} onChange={(e) => setForm((p) => ({ ...p, employee_code: e.target.value }))} /></div>
           <div><FormLabel>Job Title</FormLabel><FormInput value={form.job_title || ""} onChange={(e) => setForm((p) => ({ ...p, job_title: e.target.value }))} /></div>
           <div>

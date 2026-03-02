@@ -192,11 +192,19 @@ function Router() {
         },
         {
           path: "requests/approvals",
-          element: page(<RequestApprovalsPage />),
+          element: (
+            <PermissionRoute requiredPermissions={["requests.approve"]}>
+              {page(<RequestApprovalsPage />)}
+            </PermissionRoute>
+          ),
         },
         {
           path: "requests/approvals/:id",
-          element: page(<RequestDetailPage />),
+          element: (
+            <PermissionRoute requiredPermissions={["requests.approve"]}>
+              {page(<RequestDetailPage />)}
+            </PermissionRoute>
+          ),
         },
         {
           path: "requests/attendance",

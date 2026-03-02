@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
 import { Prisma, EmploymentStatus, GroupUserRole } from '@prisma/client';
+import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { randomToken } from '../../common/utils/crypto';
 import { toBigInt } from '../../common/utils/ids';
@@ -88,54 +89,59 @@ export class HrService {
     if (!dto.primary_organization_id) {
       throw new BadRequestException('primary_organization_id is required');
     }
-    return this.prisma.$transaction(async (tx) => {
-      let profileId: bigint;
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        let profileId: bigint;
 
-      if (dto.user_id) {
-        profileId = this.parseId(dto.user_id, 'user id');
-        const existing = await tx.profile.findUnique({ where: { id: profileId } });
-        if (!existing) throw new NotFoundException('User not found');
-      } else {
-        if (!dto.email || !dto.first_name || !dto.last_name) {
-          throw new BadRequestException('email, first_name and last_name are required for new employee');
+        if (dto.user_id) {
+          profileId = this.parseId(dto.user_id, 'user id');
+          const existing = await tx.profile.findUnique({ where: { id: profileId } });
+          if (!existing) throw new NotFoundException('User not found');
+        } else {
+          if (!dto.email || !dto.first_name || !dto.last_name) {
+            throw new BadRequestException('email, first_name and last_name are required for new employee');
+          }
+
+          const email = dto.email.trim().toLowerCase();
+          const requestedUsername = dto.username?.trim();
+          const username = requestedUsername
+            ? requestedUsername
+            : await generateUniqueUsername(
+                makeUsernameSeed(dto.first_name, dto.last_name, email.split('@')[0]),
+                async (candidate) => Boolean(await tx.profile.findFirst({ where: { username: candidate } }))
+              );
+          const [emailExists, usernameExists] = await Promise.all([
+            tx.profile.findUnique({ where: { email } }),
+            requestedUsername ? tx.profile.findFirst({ where: { username } }) : Promise.resolve(null)
+          ]);
+
+          if (emailExists) throw new BadRequestException('Email already exists');
+          if (usernameExists) throw new BadRequestException('Username already exists');
+
+          const tempPassword = randomToken(10);
+          const passwordHash = await bcrypt.hash(tempPassword, 12);
+          const created = await tx.profile.create({
+            data: {
+              username,
+              email,
+              passwordHash,
+              type: 'staff',
+              status: 'invited',
+              firstName: dto.first_name,
+              lastName: dto.last_name,
+              phone: dto.phone
+            }
+          });
+          profileId = created.id;
         }
 
-        const email = dto.email.trim().toLowerCase();
-        const requestedUsername = dto.username?.trim();
-        const username = requestedUsername
-          ? requestedUsername
-          : await generateUniqueUsername(
-              makeUsernameSeed(dto.first_name, dto.last_name, email.split('@')[0]),
-              async (candidate) => Boolean(await tx.profile.findFirst({ where: { username: candidate } }))
-            );
-        const [emailExists, usernameExists] = await Promise.all([
-          tx.profile.findUnique({ where: { email } }),
-          requestedUsername ? tx.profile.findFirst({ where: { username } }) : Promise.resolve(null)
-        ]);
-
-        if (emailExists) throw new BadRequestException('Email already exists');
-        if (usernameExists) throw new BadRequestException('Username already exists');
-
-        const tempPassword = randomToken(10);
-        const passwordHash = await bcrypt.hash(tempPassword, 12);
-        const created = await tx.profile.create({
-          data: {
-            username,
-            email,
-            passwordHash,
-            type: 'staff',
-            status: 'invited',
-            firstName: dto.first_name,
-            lastName: dto.last_name,
-            phone: dto.phone
-          }
-        });
-        profileId = created.id;
-      }
-
-      await this.upsertEmployeeProfileTx(tx, profileId, dto, null);
-      return this.getEmployee(profileId.toString());
-    });
+        await this.upsertEmployeeProfileTx(tx, profileId, dto, null);
+        return this.getEmployee(profileId.toString());
+      });
+    } catch (error) {
+      this.handleEmployeePersistenceError(error);
+      throw error;
+    }
   }
 
   async getEmployee(id: string) {
@@ -158,21 +164,41 @@ export class HrService {
       throw new NotFoundException('Employee not found');
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      await tx.profile.update({
-        where: { id: profileId },
-        data: {
-          firstName: dto.first_name ?? profile.firstName,
-          lastName: dto.last_name ?? profile.lastName,
-          phone: dto.phone ?? profile.phone,
-          email: dto.email ? dto.email.trim().toLowerCase() : profile.email,
-          username: dto.username?.trim() ? dto.username.trim() : profile.username
-        }
+    const nextEmail = dto.email ? dto.email.trim().toLowerCase() : profile.email;
+    const nextUsername = dto.username !== undefined ? this.normalizeOptionalText(dto.username) : profile.username;
+    if (dto.email !== undefined && nextEmail !== profile.email) {
+      const existingEmail = await this.prisma.profile.findFirst({
+        where: { email: nextEmail, id: { not: profileId } }
       });
+      if (existingEmail) throw new BadRequestException('Email already exists');
+    }
+    if (dto.username !== undefined && nextUsername && nextUsername !== profile.username) {
+      const existingUsername = await this.prisma.profile.findFirst({
+        where: { username: nextUsername, id: { not: profileId } }
+      });
+      if (existingUsername) throw new BadRequestException('Username already exists');
+    }
 
-      await this.upsertEmployeeProfileTx(tx, profileId, dto, profileId);
-      return this.getEmployee(profileId.toString());
-    });
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        await tx.profile.update({
+          where: { id: profileId },
+          data: {
+            firstName: dto.first_name ?? profile.firstName,
+            lastName: dto.last_name ?? profile.lastName,
+            phone: dto.phone ?? profile.phone,
+            email: nextEmail,
+            username: nextUsername
+          }
+        });
+
+        await this.upsertEmployeeProfileTx(tx, profileId, dto, profileId);
+        return this.getEmployee(profileId.toString());
+      });
+    } catch (error) {
+      this.handleEmployeePersistenceError(error);
+      throw error;
+    }
   }
 
   async runEmployeeAction(id: string, dto: EmployeeActionDto) {
@@ -598,17 +624,38 @@ export class HrService {
     const primaryOrganizationId = dto.primary_organization_id
       ? this.parseId(dto.primary_organization_id, 'primary organization id')
       : undefined;
+    const employeeCode = this.normalizeOptionalText(dto.employee_code);
+    const jobTitle = this.normalizeOptionalText(dto.job_title);
+    const jobDescription = this.normalizeOptionalText(dto.job_description);
+
+    if (managerUserId) {
+      const managerExists = await tx.profile.count({ where: { id: managerUserId } });
+      if (!managerExists) throw new BadRequestException('Manager not found');
+    }
+    if (primaryTeamId) {
+      const teamExists = await tx.group.count({ where: { id: primaryTeamId } });
+      if (!teamExists) throw new BadRequestException('Primary team not found');
+    }
     if (primaryOrganizationId) {
       const organizationExists = await tx.organization.count({ where: { id: primaryOrganizationId } });
       if (!organizationExists) throw new NotFoundException('Organization not found');
+    }
+    if (employeeCode) {
+      const employeeCodeExists = await tx.employeeProfile.findFirst({
+        where: {
+          employeeCode,
+          userId: { not: profileId }
+        }
+      });
+      if (employeeCodeExists) throw new BadRequestException('Employee code already exists');
     }
 
     await tx.employeeProfile.upsert({
       where: { userId: profileId },
       update: {
-        employeeCode: dto.employee_code,
-        jobTitle: dto.job_title,
-        jobDescription: dto.job_description,
+        employeeCode,
+        jobTitle,
+        jobDescription,
         managerUserId,
         employmentType: dto.employment_type,
         employmentStatus: dto.employment_status,
@@ -622,9 +669,9 @@ export class HrService {
       },
       create: {
         userId: profileId,
-        employeeCode: dto.employee_code,
-        jobTitle: dto.job_title,
-        jobDescription: dto.job_description,
+        employeeCode,
+        jobTitle,
+        jobDescription,
         managerUserId,
         employmentType: dto.employment_type,
         employmentStatus: dto.employment_status ?? 'draft',
@@ -988,6 +1035,35 @@ export class HrService {
       return output;
     }
     return value;
+  }
+
+  private normalizeOptionalText(value: string | null | undefined): string | null | undefined {
+    if (value === undefined) return undefined;
+    if (value === null) return null;
+    const trimmed = String(value).trim();
+    return trimmed.length > 0 ? trimmed : null;
+  }
+
+  private handleEmployeePersistenceError(error: unknown) {
+    if (!(error instanceof PrismaClientKnownRequestError)) return;
+    if (error.code === 'P2002') {
+      const target = Array.isArray(error.meta?.target)
+        ? (error.meta?.target as string[]).join(', ')
+        : String(error.meta?.target ?? '');
+      if (target.includes('email')) {
+        throw new BadRequestException('Email already exists');
+      }
+      if (target.includes('username')) {
+        throw new BadRequestException('Username already exists');
+      }
+      if (target.includes('employee_code')) {
+        throw new BadRequestException('Employee code already exists');
+      }
+      throw new BadRequestException('Duplicate value detected');
+    }
+    if (error.code === 'P2003') {
+      throw new BadRequestException('Invalid employee relationship reference');
+    }
   }
 
   private parseId(value: string, label: string): bigint {
