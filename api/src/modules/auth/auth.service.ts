@@ -28,11 +28,21 @@ export class AuthService {
     const email = dto.email.trim().toLowerCase();
     const organizationCode = dto.organization?.trim();
     const profile = await this.prisma.profile.findUnique({ where: { email } });
-    if (!profile || profile.status !== 'active') throw new UnauthorizedException('Invalid credentials');
-    if (!profile.passwordHash) throw new UnauthorizedException('Password not set');
+    if (!profile) this.throwUnauthorized('Invalid credentials', 'AUTH_INVALID_CREDENTIALS');
+    if (profile.status !== 'active') {
+      this.throwUnauthorized('Account is inactive. Contact administrator.', 'AUTH_ACCOUNT_INACTIVE');
+    }
+    if (!profile.passwordHash) {
+      this.throwUnauthorized('Password is not set. Use invite/reset flow first.', 'AUTH_PASSWORD_NOT_SET');
+    }
 
     const organization = await this.resolveLoginOrganization(profile.id, profile.primaryOrganizationId, email, organizationCode);
-    if (!organization) throw new UnauthorizedException('Invalid organization for this account');
+    if (!organization) {
+      this.throwUnauthorized(
+        'Organization could not be resolved for this account.',
+        'AUTH_ORGANIZATION_RESOLUTION_FAILED'
+      );
+    }
 
     const primaryOrgId = profile.primaryOrganizationId;
     if (primaryOrgId) {
@@ -44,13 +54,16 @@ export class AuthService {
       if (domains.length > 0) {
         const domain = email.split('@')[1]?.toLowerCase() ?? '';
         if (!domains.includes(domain)) {
-          throw new UnauthorizedException('Primary login email must match organization domain policy');
+          this.throwUnauthorized(
+            'Primary login email must match organization domain policy',
+            'AUTH_EMAIL_DOMAIN_RESTRICTED'
+          );
         }
       }
     }
 
     const ok = await bcrypt.compare(dto.password, profile.passwordHash);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
+    if (!ok) this.throwUnauthorized('Invalid credentials', 'AUTH_INVALID_CREDENTIALS');
 
     const authContext = await this.buildAuthContext(profile.id);
     const tokens = await this.issueTokens(profile.id, authContext.permissions, authContext.roles);
@@ -165,10 +178,13 @@ export class AuthService {
     }
 
     const profile = await this.prisma.profile.findUnique({ where: { id: toBigInt(userId) } });
-    if (!profile || !profile.passwordHash) throw new UnauthorizedException('Invalid credentials');
+    if (!profile) this.throwUnauthorized('Invalid credentials', 'AUTH_INVALID_CREDENTIALS');
+    if (!profile.passwordHash) {
+      this.throwUnauthorized('Password is not set. Use invite/reset flow first.', 'AUTH_PASSWORD_NOT_SET');
+    }
 
     const ok = await bcrypt.compare(dto.current_password, profile.passwordHash);
-    if (!ok) throw new UnauthorizedException('Invalid credentials');
+    if (!ok) this.throwUnauthorized('Invalid credentials', 'AUTH_INVALID_CREDENTIALS');
 
     const newHash = await bcrypt.hash(dto.new_password, 12);
     await this.prisma.profile.update({
@@ -187,10 +203,10 @@ export class AuthService {
       where: { tokenHash, type: 'refresh' }
     });
 
-    if (!tokenRow) throw new UnauthorizedException('Invalid refresh token');
+    if (!tokenRow) this.throwUnauthorized('Invalid refresh token', 'AUTH_REFRESH_INVALID');
     if (tokenRow.expiresAt.getTime() < Date.now()) {
       await this.prisma.token.delete({ where: { id: tokenRow.id } });
-      throw new UnauthorizedException('Refresh token expired');
+      this.throwUnauthorized('Refresh token expired', 'AUTH_REFRESH_EXPIRED');
     }
 
     const authContext = await this.buildAuthContext(tokenRow.profileId);
@@ -245,10 +261,10 @@ export class AuthService {
       where: { tokenHash, type: 'reset' }
     });
 
-    if (!tokenRow) throw new UnauthorizedException('Invalid reset token');
+    if (!tokenRow) this.throwUnauthorized('Invalid reset token', 'AUTH_RESET_TOKEN_INVALID');
     if (tokenRow.expiresAt.getTime() < Date.now()) {
       await this.prisma.token.delete({ where: { id: tokenRow.id } });
-      throw new UnauthorizedException('Reset token expired');
+      this.throwUnauthorized('Reset token expired', 'AUTH_RESET_TOKEN_EXPIRED');
     }
 
     const newHash = await bcrypt.hash(dto.new_password, 12);
@@ -274,10 +290,10 @@ export class AuthService {
       where: { tokenHash, type: 'invite' }
     });
 
-    if (!tokenRow) throw new UnauthorizedException('Invalid invite token');
+    if (!tokenRow) this.throwUnauthorized('Invalid invite token', 'AUTH_INVITE_TOKEN_INVALID');
     if (tokenRow.expiresAt.getTime() < Date.now()) {
       await this.prisma.token.delete({ where: { id: tokenRow.id } });
-      throw new UnauthorizedException('Invite token expired');
+      this.throwUnauthorized('Invite token expired', 'AUTH_INVITE_TOKEN_EXPIRED');
     }
 
     const passwordHash = await bcrypt.hash(dto.new_password, 12);
@@ -370,6 +386,13 @@ export class AuthService {
         ? value * 1000 * 60 * 60
         : value * 1000 * 60 * 60 * 24;
     return new Date(Date.now() + ms);
+  }
+
+  private throwUnauthorized(message: string, code: string): never {
+    throw new UnauthorizedException({
+      message,
+      error: { code }
+    });
   }
 
   private async buildAuthContext(profileId: bigint) {

@@ -181,6 +181,7 @@ const authSlice = createSlice({
       })
       .addCase(loginThunk.fulfilled, (state, action) => {
         state.loading = false;
+        state.initialized = true;
         state.status = "authenticated";
         state.user = action.payload.user;
         state.roles = action.payload.user.roles ?? [];
@@ -189,6 +190,7 @@ const authSlice = createSlice({
       })
       .addCase(loginThunk.rejected, (state, action) => {
         state.loading = false;
+        state.initialized = true;
         state.status = "unauthenticated";
         state.error = action.payload as string | null;
       })
