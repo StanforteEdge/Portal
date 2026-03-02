@@ -8,6 +8,7 @@ import { UsersService } from './users.service';
 import { CreateUserDto } from './dto/create-user.dto';
 import { AssignUserRolesDto } from './dto/assign-user-roles.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 
 @Controller()
 @ApiTags('Users')
@@ -78,6 +79,37 @@ export class UsersController {
   })
   create(@Body() dto: CreateUserDto) {
     return this.usersService.createUser(dto);
+  }
+
+  @Get('users/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('users.manage')
+  @ApiOperation({ summary: 'Get a user by id' })
+  getById(@Param('id') id: string) {
+    return this.usersService.getUserById(id);
+  }
+
+  @Patch('users/:id')
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('users.manage')
+  @ApiOperation({ summary: 'Update a user profile by id' })
+  @ApiBody({
+    type: UpdateUserDto,
+    examples: {
+      updateUser: {
+        value: {
+          first_name: 'John',
+          last_name: 'Doe',
+          type: 'staff',
+          status: 'active',
+          set_password: true,
+          password: 'ChangeMe123!'
+        }
+      }
+    }
+  })
+  update(@Param('id') id: string, @Body() dto: UpdateUserDto) {
+    return this.usersService.updateUser(id, dto);
   }
 
   @Get('users/:id/roles')

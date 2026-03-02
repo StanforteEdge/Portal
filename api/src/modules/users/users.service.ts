@@ -7,6 +7,7 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { ProfileResponseDto } from './dto/profile-response.dto';
 import { AssignUserRolesDto } from './dto/assign-user-roles.dto';
 import { InviteUserDto } from './dto/invite-user.dto';
+import { UpdateUserDto } from './dto/update-user.dto';
 import { randomToken, sha256 } from '../../common/utils/crypto';
 import { MailService } from '../../common/mail/mail.service';
 import { generateUniqueUsername, makeUsernameSeed } from '../../common/utils/username';
@@ -235,6 +236,169 @@ export class UsersService {
       }
 
       return user;
+    });
+
+    if (shouldSendInvite) {
+      const { inviteToken, expiresAt } = await this.issueInvite(user.id, 'pending');
+      await this.sendInviteEmail(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName
+        },
+        inviteToken,
+        expiresAt
+      );
+    }
+
+    if (shouldSendWelcomeEmail) {
+      await this.sendWelcomeEmail({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName
+      });
+    }
+
+    return user;
+  }
+
+  async getUserById(userId: string) {
+    const profileId = toBigInt(userId);
+    const user = await this.prisma.profile.findUnique({
+      where: { id: profileId }
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
+  async updateUser(userId: string, dto: UpdateUserDto) {
+    const profileId = toBigInt(userId);
+    const existing = await this.prisma.profile.findUnique({
+      where: { id: profileId }
+    });
+    if (!existing) throw new NotFoundException('User not found');
+
+    const shouldSetPassword = dto.set_password === true || Boolean(dto.password);
+    if (shouldSetPassword && !dto.password) {
+      throw new BadRequestException('Password is required when "set password" is enabled');
+    }
+    const shouldSendInvite = dto.send_invite === true;
+    const shouldSendWelcomeEmail = dto.send_welcome_email === true;
+
+    let nextEmail = existing.email;
+    if (dto.email !== undefined) {
+      nextEmail = dto.email.trim().toLowerCase();
+      if (!nextEmail) throw new BadRequestException('Email is required');
+      if (nextEmail !== existing.email) {
+        const emailExists = await this.prisma.profile.findUnique({ where: { email: nextEmail } });
+        if (emailExists && emailExists.id !== existing.id) {
+          throw new BadRequestException('Email already exists');
+        }
+      }
+    }
+
+    let nextUsername = existing.username ?? null;
+    if (dto.username !== undefined) {
+      const requestedUsername = dto.username.trim();
+      if (!requestedUsername) {
+        nextUsername = await generateUniqueUsername(
+          makeUsernameSeed(existing.firstName, existing.lastName, nextEmail.split('@')[0]),
+          async (candidate) =>
+            Boolean(
+              await this.prisma.profile.findFirst({
+                where: { username: candidate, id: { not: existing.id } }
+              })
+            )
+        );
+      } else {
+        const usernameExists = await this.prisma.profile.findFirst({
+          where: { username: requestedUsername, id: { not: existing.id } }
+        });
+        if (usernameExists) throw new BadRequestException('Username already exists');
+        nextUsername = requestedUsername;
+      }
+    }
+
+    const nextType = dto.type ?? existing.type;
+    let nextStatus = dto.status ?? (existing.status as 'active' | 'pending' | string);
+    let nextPrimaryOrganizationId = existing.primaryOrganizationId;
+
+    if (dto.primary_organization_id !== undefined) {
+      const trimmed = dto.primary_organization_id.trim();
+      if (!trimmed) {
+        nextPrimaryOrganizationId = null;
+      } else {
+        try {
+          nextPrimaryOrganizationId = toBigInt(trimmed);
+        } catch {
+          throw new BadRequestException('Invalid primary organization id');
+        }
+      }
+    }
+
+    if (['staff', 'employee'].includes(nextType) && !nextPrimaryOrganizationId) {
+      throw new BadRequestException('Primary organization is required for staff');
+    }
+
+    if (nextPrimaryOrganizationId) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: nextPrimaryOrganizationId },
+        select: { id: true }
+      });
+      if (!organization) throw new BadRequestException('Organization not found');
+    }
+
+    if (shouldSendInvite) {
+      nextStatus = 'pending';
+    }
+    if (nextStatus === 'active' && !existing.passwordHash && !shouldSetPassword && !shouldSendInvite) {
+      throw new BadRequestException('Active users must have a password or invite link');
+    }
+
+    const passwordHash = shouldSetPassword && dto.password ? await bcrypt.hash(dto.password, 12) : undefined;
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.profile.update({
+        where: { id: existing.id },
+        data: {
+          username: nextUsername,
+          email: nextEmail,
+          firstName: dto.first_name ?? existing.firstName,
+          lastName: dto.last_name ?? existing.lastName,
+          type: nextType,
+          status: nextStatus,
+          primaryOrganizationId: nextPrimaryOrganizationId,
+          ...(passwordHash ? { passwordHash } : {})
+        }
+      });
+
+      if (dto.primary_organization_id !== undefined) {
+        await tx.profileOrganization.updateMany({
+          where: { profileId: existing.id },
+          data: { isPrimary: false }
+        });
+        if (nextPrimaryOrganizationId) {
+          await tx.profileOrganization.upsert({
+            where: {
+              profile_org_unique: {
+                profileId: existing.id,
+                organizationId: nextPrimaryOrganizationId
+              }
+            },
+            update: { isPrimary: true },
+            create: {
+              profileId: existing.id,
+              organizationId: nextPrimaryOrganizationId,
+              isPrimary: true,
+              createdAt: new Date()
+            }
+          });
+        }
+      }
+
+      return updated;
     });
 
     if (shouldSendInvite) {

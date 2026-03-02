@@ -56,6 +56,7 @@ const menu: Array<Menu | "divider"> = [
         icon: "UserCog",
         pathname: "/app/admin/users",
         title: "Users",
+        matchSubPaths: true,
       },
       {
         icon: "Settings2",
