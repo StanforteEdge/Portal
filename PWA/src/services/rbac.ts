@@ -5,6 +5,7 @@ export type PermissionRecord = {
   name: string;
   slug: string;
   module: string | null;
+  description?: string | null;
 };
 
 export type RoleRecord = {
@@ -64,4 +65,14 @@ export async function setRbacRolePermissions(id: string, permissionIds: string[]
     permission_ids: permissionIds,
   });
   return response.data?.data as RoleRecord;
+}
+
+export async function createRbacPermission(payload: {
+  name: string;
+  slug?: string;
+  module?: string;
+  description?: string;
+}) {
+  const response = await apiClient.post("/admin/rbac/permissions", payload);
+  return response.data?.data as PermissionRecord;
 }

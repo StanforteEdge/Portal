@@ -5,6 +5,7 @@ import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Bas
 import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
+  createRbacPermission,
   createRbacRole,
   listRbacPermissions,
   listRbacRoles,
@@ -22,6 +23,21 @@ const emptyForm = {
   is_active: true,
 };
 
+const emptyPermissionForm = {
+  name: "",
+  slug: "",
+  module: "",
+  description: "",
+};
+
+function normalizeSlug(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ".")
+    .replace(/^\.+|\.+$/g, "");
+}
+
 function AdminRolesPage() {
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
@@ -33,6 +49,8 @@ function AdminRolesPage() {
   const [permissionSearch, setPermissionSearch] = useState("");
   const [roleSearch, setRoleSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
+  const [permissionForm, setPermissionForm] = useState(emptyPermissionForm);
+  const [savingPermission, setSavingPermission] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const selectedRole = useMemo(() => roles.find((row) => row.id === selectedRoleId), [roles, selectedRoleId]);
@@ -167,6 +185,30 @@ function AdminRolesPage() {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save role." });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const createPermission = async () => {
+    if (!permissionForm.name.trim()) {
+      setNotice({ tone: "warning", message: "Permission name is required." });
+      return;
+    }
+    try {
+      setSavingPermission(true);
+      setNotice(null);
+      const created = await createRbacPermission({
+        name: permissionForm.name.trim(),
+        slug: permissionForm.slug.trim() || undefined,
+        module: permissionForm.module.trim() || undefined,
+        description: permissionForm.description.trim() || undefined,
+      });
+      setPermissions((prev) => [...prev, created]);
+      setPermissionForm(emptyPermissionForm);
+      setNotice({ tone: "success", message: "Permission created." });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to create permission." });
+    } finally {
+      setSavingPermission(false);
     }
   };
 
@@ -317,6 +359,57 @@ function AdminRolesPage() {
           </div>
 
           <div className="border-t pt-4">
+            <div className="rounded-md border p-4 mb-4">
+              <div className="font-medium mb-3">Create Permission</div>
+              <div className="grid grid-cols-12 gap-3">
+                <div className="col-span-12 md:col-span-4">
+                  <FormLabel>Name</FormLabel>
+                  <FormInput
+                    value={permissionForm.name}
+                    onChange={(e) =>
+                      setPermissionForm((prev) => ({
+                        ...prev,
+                        name: e.target.value,
+                        slug: prev.slug ? prev.slug : normalizeSlug(e.target.value),
+                      }))
+                    }
+                    placeholder="e.g. View Leave Requests"
+                  />
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <FormLabel>Slug</FormLabel>
+                  <FormInput
+                    value={permissionForm.slug}
+                    onChange={(e) => setPermissionForm((prev) => ({ ...prev, slug: normalizeSlug(e.target.value) }))}
+                    placeholder="e.g. leave.view"
+                  />
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <FormLabel>Module</FormLabel>
+                  <FormInput
+                    value={permissionForm.module}
+                    onChange={(e) => setPermissionForm((prev) => ({ ...prev, module: e.target.value.toLowerCase() }))}
+                    placeholder="e.g. hr"
+                  />
+                </div>
+                <div className="col-span-12">
+                  <FormLabel>Description</FormLabel>
+                  <FormTextarea
+                    rows={2}
+                    value={permissionForm.description}
+                    onChange={(e) => setPermissionForm((prev) => ({ ...prev, description: e.target.value }))}
+                    placeholder="Optional description"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex justify-end">
+                <Button onClick={() => void createPermission()} disabled={savingPermission}>
+                  <Lucide icon="Plus" className="w-4 h-4 mr-2" />
+                  {savingPermission ? "Creating..." : "Create Permission"}
+                </Button>
+              </div>
+            </div>
+
             <div className="flex items-center justify-between gap-3 mb-3">
               <div className="font-medium">Permissions</div>
               <div className="flex gap-2">

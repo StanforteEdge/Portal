@@ -64,7 +64,10 @@ export class UsersController {
         value: {
           username: 'jdoe',
           email: 'jdoe@stanforteedge.com',
-          password: 'ChangeMe123!',
+          status: 'pending',
+          set_password: false,
+          send_invite: true,
+          send_welcome_email: true,
           type: 'staff',
           first_name: 'John',
           last_name: 'Doe',
