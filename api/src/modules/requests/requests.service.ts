@@ -130,8 +130,22 @@ export class RequestsService {
     });
   }
 
-  async deleteType(id: string) {
-    await this.prisma.requestType.delete({ where: { id } });
+  async deleteType(id: string, actorId?: string) {
+    const existing = await this.prisma.requestType.findUnique({
+      where: { id },
+      select: { id: true, groupId: true }
+    });
+    if (!existing) throw new NotFoundException('Request type not found');
+    await this.assertRequestTypeGroupAccess(existing.groupId, actorId);
+
+    const usageCount = await this.prisma.requestInstance.count({
+      where: { requestTypeId: existing.id }
+    });
+    if (usageCount > 0) {
+      throw new BadRequestException('Cannot delete request type with existing requests. Set it inactive instead.');
+    }
+
+    await this.prisma.requestType.delete({ where: { id: existing.id } });
     return { success: true };
   }
 
@@ -173,7 +187,14 @@ export class RequestsService {
     const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id } });
     if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
     await this.formsService.validateRequestTypePayload(requestType.id, dto.data);
-    this.validateLeaveRequestPayload(requestType.categoryKey, dto.data);
+    this.validateLeaveRequestPayload(
+      {
+        name: requestType.name,
+        categoryKey: requestType.categoryKey,
+        formSchema: requestType.formSchema
+      },
+      dto.data
+    );
 
     const createdBy = toBigInt(userId);
 
@@ -814,9 +835,16 @@ export class RequestsService {
       await this.formsService.validateRequestTypePayload(request.requestTypeId, dto.data);
       const requestType = await this.prisma.requestType.findUnique({
         where: { id: request.requestTypeId },
-        select: { categoryKey: true }
+        select: { name: true, categoryKey: true, formSchema: true }
       });
-      this.validateLeaveRequestPayload(requestType?.categoryKey ?? null, dto.data);
+      this.validateLeaveRequestPayload(
+        {
+          name: requestType?.name ?? null,
+          categoryKey: requestType?.categoryKey ?? null,
+          formSchema: requestType?.formSchema ?? null
+        },
+        dto.data
+      );
     }
 
     const updated = await this.prisma.$transaction(async (tx) => {
@@ -971,28 +999,31 @@ export class RequestsService {
       })
     ]);
 
-    const entitlements = await this.resolveLeaveEntitlements(actorId);
-    const summary = aggregate.map((entry) => {
-      const key = entry.leaveTypeKey;
-      const entitled = Number(entitlements[key] ?? 0);
-      const delta = Number(entry._sum?.deltaDays ?? 0);
-      return {
-        leave_type_key: key,
-        entitled_days: entitled,
-        ledger_delta_days: delta,
-        available_days: entitled + delta
-      };
-    });
-
-    if (leaveTypeKey && !summary.some((item) => item.leave_type_key === leaveTypeKey)) {
-      const entitled = Number(entitlements[leaveTypeKey] ?? 0);
-      summary.push({
-        leave_type_key: leaveTypeKey,
-        entitled_days: entitled,
-        ledger_delta_days: 0,
-        available_days: entitled
-      });
+    const entitlements = await this.resolveLeaveEntitlements(actorId, year);
+    const aggregateByKey = new Map<string, number>();
+    for (const entry of aggregate) {
+      aggregateByKey.set(entry.leaveTypeKey, Number(entry._sum?.deltaDays ?? 0));
     }
+
+    const summaryKeys = new Set<string>([
+      ...Object.keys(entitlements),
+      ...Array.from(aggregateByKey.keys())
+    ]);
+    if (leaveTypeKey) summaryKeys.add(leaveTypeKey);
+
+    const summary = Array.from(summaryKeys)
+      .sort((a, b) => a.localeCompare(b))
+      .map((key) => {
+        const entitled = Number(entitlements[key] ?? 0);
+        const delta = Number(aggregateByKey.get(key) ?? 0);
+        return {
+          leave_type_key: key,
+          entitled_days: entitled,
+          ledger_delta_days: delta,
+          available_days: entitled + delta
+        };
+      })
+      .filter((item) => (!leaveTypeKey ? true : item.leave_type_key === leaveTypeKey));
 
     return {
       user_id: actorId.toString(),
@@ -1667,19 +1698,56 @@ export class RequestsService {
     return request;
   }
 
-  private validateLeaveRequestPayload(categoryKey: string | null, data: unknown) {
-    const key = String(categoryKey ?? '').toLowerCase();
-    if (!key.includes('leave')) return;
+  private validateLeaveRequestPayload(
+    requestType: { name?: string | null; categoryKey?: string | null; formSchema?: unknown } | null,
+    data: unknown
+  ) {
+    if (!this.isLeaveRequestType(requestType?.name ?? null, requestType?.categoryKey ?? null, requestType?.formSchema)) {
+      return;
+    }
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
       throw new BadRequestException('Leave request data is required');
     }
 
     const payload = data as Record<string, unknown>;
+    const schema =
+      requestType?.formSchema && typeof requestType.formSchema === 'object' && !Array.isArray(requestType.formSchema)
+        ? (requestType.formSchema as Record<string, unknown>)
+        : {};
     const reason = String(payload.leave_reason ?? payload.reason_for_leave ?? payload.purpose ?? '').trim();
     const handoverUserId = String(payload.handover_user_id ?? '').trim();
     const handoverNotes = String(payload.handover_notes ?? '').trim();
+    const startDateValue = String(payload.start_date ?? '').trim();
+    const endDateValue = String(payload.end_date ?? '').trim();
+    const minNoticeDays = Number(schema.min_notice_days ?? 0);
+    const maxDaysPerRequest = Number(schema.max_days_per_request ?? 0);
+    const allowHalfDay = Boolean(schema.allow_half_day ?? false);
+    const daysRequestedRaw = Number(payload.days_requested ?? payload.days ?? 0);
+    const daysRequested = Number.isFinite(daysRequestedRaw) && daysRequestedRaw > 0
+      ? daysRequestedRaw
+      : this.computeLeaveDays(startDateValue, endDateValue);
 
     if (!reason) throw new BadRequestException('Leave reason is required');
+    if (!startDateValue || !endDateValue) throw new BadRequestException('Leave start and end dates are required');
+    if (daysRequested <= 0) throw new BadRequestException('Leave days requested must be greater than zero');
+    if (!allowHalfDay && !Number.isInteger(daysRequested)) {
+      throw new BadRequestException('Half-day leave is not allowed for this leave type');
+    }
+    if (Number.isFinite(maxDaysPerRequest) && maxDaysPerRequest > 0 && daysRequested > maxDaysPerRequest) {
+      throw new BadRequestException(`This leave type allows maximum ${maxDaysPerRequest} day(s) per request`);
+    }
+    if (Number.isFinite(minNoticeDays) && minNoticeDays > 0) {
+      const startDate = new Date(startDateValue);
+      if (!Number.isNaN(startDate.getTime())) {
+        startDate.setHours(0, 0, 0, 0);
+        const threshold = new Date();
+        threshold.setHours(0, 0, 0, 0);
+        threshold.setDate(threshold.getDate() + minNoticeDays);
+        if (startDate < threshold) {
+          throw new BadRequestException(`Leave must be requested at least ${minNoticeDays} day(s) in advance`);
+        }
+      }
+    }
     if (!handoverUserId) throw new BadRequestException('Handover colleague is required');
     if (!handoverNotes) throw new BadRequestException('Handover notes are required');
   }
@@ -1728,7 +1796,7 @@ export class RequestsService {
     });
     if (existingDebit) return;
 
-    const entitlements = await this.resolveLeaveEntitlements(leave.user_id);
+    const entitlements = await this.resolveLeaveEntitlements(leave.user_id, leave.period_year);
     const entitledDays = Number(entitlements[leave.leave_type_key] ?? 0);
 
     const aggregate = await this.prisma.leaveBalanceLedger.aggregate({
@@ -1792,20 +1860,29 @@ export class RequestsService {
     const request = await this.prisma.requestInstance.findUnique({
       where: { id: requestId },
       include: {
-        requestType: { select: { categoryKey: true } }
+        requestType: { select: { name: true, categoryKey: true, formSchema: true } }
       }
     });
     if (!request) return null;
-    const categoryKey = String(request.requestType?.categoryKey ?? '').toLowerCase();
-    if (!categoryKey.includes('leave')) return null;
+    if (
+      !this.isLeaveRequestType(
+        request.requestType?.name ?? null,
+        request.requestType?.categoryKey ?? null,
+        request.requestType?.formSchema ?? null
+      )
+    ) {
+      return null;
+    }
 
     const data =
       request.data && typeof request.data === 'object' && !Array.isArray(request.data)
         ? (request.data as Record<string, unknown>)
         : {};
-    const leaveTypeRaw = String(data.leave_type_key ?? data.leave_type ?? 'annual_leave')
-      .trim()
-      .toLowerCase();
+    const leaveTypeRaw = this.resolveLeaveTypeKey(
+      data,
+      request.requestType?.name ?? null,
+      request.requestType?.formSchema ?? null
+    );
 
     let daysRequested = Number(data.days_requested ?? data.days ?? 0);
     if (!Number.isFinite(daysRequested) || daysRequested <= 0) {
@@ -1829,7 +1906,18 @@ export class RequestsService {
     };
   }
 
-  private async resolveLeaveEntitlements(userId?: bigint) {
+  private computeLeaveDays(startDateValue: string, endDateValue: string) {
+    const start = startDateValue ? new Date(startDateValue) : null;
+    const end = endDateValue ? new Date(endDateValue) : null;
+    if (!start || !end) return 0;
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
+    if (end < start) return 0;
+    const diff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+    return diff + 1;
+  }
+
+  private async resolveLeaveEntitlements(userId?: bigint, year = new Date().getFullYear()) {
+    const { entitlements, carryoverCaps } = await this.getDefaultLeaveRulesFromRequestTypes();
     const now = new Date();
     const context = userId ? await this.resolvePolicyContextForUser(userId) : null;
 
@@ -1837,6 +1925,7 @@ export class RequestsService {
       where: {
         module: 'leave',
         policyKey: { in: ['leave_entitlements', 'entitlement'] },
+        NOT: { scopeType: 'global' },
         isActive: true,
         OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: now } }],
         AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }]
@@ -1856,18 +1945,109 @@ export class RequestsService {
         return a.createdAt.getTime() - b.createdAt.getTime();
       });
 
-    const merged: Record<string, number> = {};
     for (const row of matched) {
       const cfg =
         row.configJson && typeof row.configJson === 'object' && !Array.isArray(row.configJson)
           ? (row.configJson as Record<string, unknown>)
           : {};
       for (const [key, value] of Object.entries(cfg)) {
-        const n = Number(value);
-        if (Number.isFinite(n)) merged[String(key).toLowerCase()] = n;
+        const n = Number(value ?? 0);
+        if (!Number.isFinite(n) || n < 0) continue;
+        entitlements[String(key).toLowerCase()] = n;
       }
     }
-    return merged;
+
+    if (userId && Number.isFinite(year) && year > 2000) {
+      const previousYear = year - 1;
+      const previousDeltaRows = await this.prisma.leaveBalanceLedger.groupBy({
+        by: ['leaveTypeKey'],
+        where: {
+          userId,
+          periodYear: previousYear
+        },
+        _sum: {
+          deltaDays: true
+        }
+      });
+      const previousDeltaByKey = new Map(
+        previousDeltaRows.map((row) => [row.leaveTypeKey, Number(row._sum?.deltaDays ?? 0)])
+      );
+      const baseEntitlements = { ...entitlements };
+
+      for (const [key, capRaw] of Object.entries(carryoverCaps)) {
+        const cap = Number(capRaw ?? 0);
+        if (!Number.isFinite(cap) || cap <= 0) continue;
+        const previousAvailable = Number(baseEntitlements[key] ?? 0) + Number(previousDeltaByKey.get(key) ?? 0);
+        const carry = Math.min(cap, Math.max(previousAvailable, 0));
+        entitlements[key] = Number(entitlements[key] ?? 0) + carry;
+      }
+    }
+
+    return entitlements;
+  }
+
+  private isLeaveRequestType(name: string | null, categoryKey: string | null, formSchema: unknown) {
+    const normalizedName = String(name ?? '').toLowerCase();
+    const normalizedCategory = String(categoryKey ?? '').toLowerCase();
+    const schema =
+      formSchema && typeof formSchema === 'object' && !Array.isArray(formSchema)
+        ? (formSchema as Record<string, unknown>)
+        : {};
+    const schemaLeaveTypeKey = String(schema.leave_type_key ?? '').trim().toLowerCase();
+    return (
+      normalizedCategory.includes('leave') ||
+      normalizedName.includes('leave') ||
+      schemaLeaveTypeKey.length > 0
+    );
+  }
+
+  private resolveLeaveTypeKey(data: Record<string, unknown>, requestTypeName: string | null, formSchema: unknown) {
+    const schema =
+      formSchema && typeof formSchema === 'object' && !Array.isArray(formSchema)
+        ? (formSchema as Record<string, unknown>)
+        : {};
+    const fromPayload = String(data.leave_type_key ?? data.leave_type ?? '').trim().toLowerCase();
+    if (fromPayload) return fromPayload;
+    const fromSchema = String(schema.leave_type_key ?? '').trim().toLowerCase();
+    if (fromSchema) return fromSchema;
+    const fromName = String(requestTypeName ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    return fromName || 'annual_leave';
+  }
+
+  private async getDefaultLeaveRulesFromRequestTypes() {
+    const types = await this.prisma.requestType.findMany({
+      where: { isActive: true },
+      select: {
+        name: true,
+        categoryKey: true,
+        formSchema: true
+      }
+    });
+
+    const defaults: Record<string, number> = {};
+    const carryoverCaps: Record<string, number> = {};
+    for (const type of types) {
+      if (!this.isLeaveRequestType(type.name, type.categoryKey, type.formSchema)) continue;
+      const schema =
+        type.formSchema && typeof type.formSchema === 'object' && !Array.isArray(type.formSchema)
+          ? (type.formSchema as Record<string, unknown>)
+          : {};
+      const key = this.resolveLeaveTypeKey({}, type.name, schema);
+      if (!key) continue;
+      const entitled = Number(schema.entitled_days_per_year ?? 0);
+      defaults[key] = Number.isFinite(entitled) && entitled > 0 ? entitled : 0;
+      const carryover = Number(schema.max_carryover_days ?? 0);
+      carryoverCaps[key] = Number.isFinite(carryover) && carryover > 0 ? carryover : 0;
+    }
+
+    return {
+      entitlements: defaults,
+      carryoverCaps
+    };
   }
 
   private async resolvePolicyContextForUser(userId: bigint) {

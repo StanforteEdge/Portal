@@ -519,7 +519,7 @@ export class HrService {
       const key = `${uid}:${leaveType}`;
       if (!balanceMap.has(key)) {
         if (!entitlementByUser.has(uid)) {
-          entitlementByUser.set(uid, await this.resolveLeaveEntitlementPolicy(BigInt(uid)));
+          entitlementByUser.set(uid, await this.resolveLeaveEntitlementPolicy(BigInt(uid), year));
         }
         const entitled = Number(entitlementByUser.get(uid)?.[leaveType] ?? 0);
         balanceMap.set(key, {
@@ -747,13 +747,15 @@ export class HrService {
     } as const;
   }
 
-  private async resolveLeaveEntitlementPolicy(userId?: bigint) {
+  private async resolveLeaveEntitlementPolicy(userId?: bigint, year = new Date().getFullYear()) {
+    const { entitlements, carryoverCaps } = await this.getDefaultLeaveRulesFromRequestTypes();
     const now = new Date();
     const context = userId ? await this.resolvePolicyContextForUser(userId) : null;
     const rows = await this.prisma.policy.findMany({
       where: {
         module: 'leave',
         policyKey: { in: ['leave_entitlements', 'entitlement'] },
+        NOT: { scopeType: 'global' },
         isActive: true,
         OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: now } }],
         AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }]
@@ -773,18 +775,107 @@ export class HrService {
         return a.createdAt.getTime() - b.createdAt.getTime();
       });
 
-    const merged: Record<string, number> = {};
     for (const row of matched) {
       const cfg =
         row.configJson && typeof row.configJson === 'object' && !Array.isArray(row.configJson)
           ? (row.configJson as Record<string, unknown>)
           : {};
       for (const [key, value] of Object.entries(cfg)) {
-        const parsed = Number(value);
-        if (Number.isFinite(parsed)) merged[String(key)] = parsed;
+        const parsed = Number(value ?? 0);
+        if (!Number.isFinite(parsed) || parsed < 0) continue;
+        entitlements[String(key).toLowerCase()] = parsed;
       }
     }
-    return merged;
+
+    if (userId && Number.isFinite(year) && year > 2000) {
+      const previousYear = year - 1;
+      const previousDeltaRows = await this.prisma.leaveBalanceLedger.groupBy({
+        by: ['leaveTypeKey'],
+        where: {
+          userId,
+          periodYear: previousYear
+        },
+        _sum: {
+          deltaDays: true
+        }
+      });
+      const previousDeltaByKey = new Map(
+        previousDeltaRows.map((row) => [row.leaveTypeKey, Number(row._sum?.deltaDays ?? 0)])
+      );
+      const baseEntitlements = { ...entitlements };
+
+      for (const [key, capRaw] of Object.entries(carryoverCaps)) {
+        const cap = Number(capRaw ?? 0);
+        if (!Number.isFinite(cap) || cap <= 0) continue;
+        const previousAvailable = Number(baseEntitlements[key] ?? 0) + Number(previousDeltaByKey.get(key) ?? 0);
+        const carry = Math.min(cap, Math.max(previousAvailable, 0));
+        entitlements[key] = Number(entitlements[key] ?? 0) + carry;
+      }
+    }
+
+    return entitlements;
+  }
+
+  private async getDefaultLeaveRulesFromRequestTypes() {
+    const types = await this.prisma.requestType.findMany({
+      where: { isActive: true },
+      select: {
+        name: true,
+        categoryKey: true,
+        formSchema: true
+      }
+    });
+
+    const defaults: Record<string, number> = {};
+    const carryoverCaps: Record<string, number> = {};
+    for (const type of types) {
+      if (!this.isLeaveRequestType(type.name, type.categoryKey, type.formSchema)) continue;
+      const schema =
+        type.formSchema && typeof type.formSchema === 'object' && !Array.isArray(type.formSchema)
+          ? (type.formSchema as Record<string, unknown>)
+          : {};
+      const key = this.resolveLeaveTypeKey(type.name, schema);
+      if (!key) continue;
+      const entitled = Number(schema.entitled_days_per_year ?? 0);
+      defaults[key] = Number.isFinite(entitled) && entitled > 0 ? entitled : 0;
+      const carryover = Number(schema.max_carryover_days ?? 0);
+      carryoverCaps[key] = Number.isFinite(carryover) && carryover > 0 ? carryover : 0;
+    }
+
+    return {
+      entitlements: defaults,
+      carryoverCaps
+    };
+  }
+
+  private isLeaveRequestType(name: string | null, categoryKey: string | null, formSchema: unknown) {
+    const normalizedName = String(name ?? '').toLowerCase();
+    const normalizedCategory = String(categoryKey ?? '').toLowerCase();
+    const schema =
+      formSchema && typeof formSchema === 'object' && !Array.isArray(formSchema)
+        ? (formSchema as Record<string, unknown>)
+        : {};
+    const schemaLeaveTypeKey = String(schema.leave_type_key ?? '').trim().toLowerCase();
+    return (
+      normalizedCategory.includes('leave') ||
+      normalizedName.includes('leave') ||
+      schemaLeaveTypeKey.length > 0
+    );
+  }
+
+  private resolveLeaveTypeKey(requestTypeName: string | null, formSchema: unknown) {
+    const schema =
+      formSchema && typeof formSchema === 'object' && !Array.isArray(formSchema)
+        ? (formSchema as Record<string, unknown>)
+        : {};
+    const fromSchema = String(schema.leave_type_key ?? '').trim().toLowerCase();
+    if (fromSchema) return fromSchema;
+    const fromName = String(requestTypeName ?? '')
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '');
+    return fromName || 'annual_leave';
   }
 
   private async resolvePolicyContextForUser(userId: bigint) {

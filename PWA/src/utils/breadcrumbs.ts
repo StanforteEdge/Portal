@@ -34,6 +34,12 @@ const LABELS: Record<string, string> = {
   list: "List",
 };
 
+const PATH_LABELS: Record<string, string> = {
+  "/app/hr/settings": "Attendance Settings",
+  "/app/hr/settings/leave": "Leave Settings",
+  "/app/hr/leave": "Leave Tracker",
+};
+
 function formatLabel(segment: string) {
   const key = segment.toLowerCase();
   if (LABELS[key]) return LABELS[key];
@@ -62,6 +68,12 @@ export function buildAppBreadcrumbs(pathname: string): BreadcrumbItem[] {
   }
 
   const normalized = crumbs.length ? crumbs : [{ label: "Dashboard", path: "/app/dashboard" }];
-  if (normalized.length <= 3) return normalized;
-  return [normalized[0], ...normalized.slice(-2)];
+  const deduped = normalized.filter((crumb, index, all) => index === 0 || crumb.path !== all[index - 1].path);
+  const labelled = deduped.map((crumb) => ({
+    ...crumb,
+    label: PATH_LABELS[crumb.path] ?? crumb.label,
+  }));
+
+  if (labelled.length <= 2) return labelled;
+  return [labelled[0], labelled[labelled.length - 1]];
 }

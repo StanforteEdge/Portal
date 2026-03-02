@@ -6,6 +6,7 @@ import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
   createRequestType,
+  deleteRequestType,
   listRequestGroups,
   listRequestTypes,
   updateRequestType,
@@ -19,6 +20,13 @@ type RequestTypeFormState = {
   name: string;
   code_prefix: string;
   category_key: string;
+  leave_type_key: string;
+  entitled_days_per_year: string;
+  max_carryover_days: string;
+  min_notice_days: string;
+  max_days_per_request: string;
+  allow_half_day: boolean;
+  half_day_requires_attachment: boolean;
   description: string;
   approval_limit: string;
   is_active: boolean;
@@ -37,6 +45,13 @@ const emptyTypeForm: RequestTypeFormState = {
   name: "",
   code_prefix: "",
   category_key: "",
+  leave_type_key: "",
+  entitled_days_per_year: "",
+  max_carryover_days: "",
+  min_notice_days: "",
+  max_days_per_request: "",
+  allow_half_day: false,
+  half_day_requires_attachment: false,
   description: "",
   approval_limit: "",
   is_active: true,
@@ -51,6 +66,14 @@ const roleOptions = [
   { value: "ed", label: "ED" },
 ];
 
+function normalizeLeaveKey(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+}
+
 function Main() {
   const navigate = useNavigate();
   const { id } = useParams();
@@ -64,6 +87,7 @@ function Main() {
   const [approvalSteps, setApprovalSteps] = useState<ApprovalStepForm[]>(defaultApprovalSteps);
   const [loading, setLoading] = useState(true);
   const [savingType, setSavingType] = useState(false);
+  const [deletingType, setDeletingType] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const selectedGroup = useMemo(
@@ -72,6 +96,7 @@ function Main() {
   );
 
   const loadTypeIntoForm = (type: RequestTypeOption) => {
+    const schema = (type.form_schema || {}) as Record<string, unknown>;
     const stepsRaw = (type.approval_flow_json as { steps?: Array<{ role?: string }> } | null)?.steps;
     const normalizedSteps =
       Array.isArray(stepsRaw) && stepsRaw.length > 0
@@ -85,6 +110,25 @@ function Main() {
       name: type.name,
       code_prefix: type.code_prefix,
       category_key: type.category_key || "",
+      leave_type_key: String(schema.leave_type_key ?? ""),
+      entitled_days_per_year:
+        schema.entitled_days_per_year !== undefined && schema.entitled_days_per_year !== null
+          ? String(schema.entitled_days_per_year)
+          : "",
+      max_carryover_days:
+        schema.max_carryover_days !== undefined && schema.max_carryover_days !== null
+          ? String(schema.max_carryover_days)
+          : "",
+      min_notice_days:
+        schema.min_notice_days !== undefined && schema.min_notice_days !== null
+          ? String(schema.min_notice_days)
+          : "",
+      max_days_per_request:
+        schema.max_days_per_request !== undefined && schema.max_days_per_request !== null
+          ? String(schema.max_days_per_request)
+          : "",
+      allow_half_day: Boolean(schema.allow_half_day ?? false),
+      half_day_requires_attachment: Boolean(schema.half_day_requires_attachment ?? false),
       description: type.description || "",
       approval_limit: type.approval_limit !== null && type.approval_limit !== undefined ? String(type.approval_limit) : "",
       is_active: type.is_active,
@@ -165,11 +209,20 @@ function Main() {
     try {
       setSavingType(true);
       setNotice(null);
+      const normalizedLeaveKey = normalizeLeaveKey(typeForm.leave_type_key || typeForm.name);
       const payload = {
         name: typeForm.name.trim(),
         code_prefix: typeForm.code_prefix.trim().toUpperCase(),
         category_key: typeForm.category_key || undefined,
-        form_schema: {},
+        form_schema: {
+          leave_type_key: normalizedLeaveKey || undefined,
+          entitled_days_per_year: typeForm.entitled_days_per_year ? Number(typeForm.entitled_days_per_year) : 0,
+          max_carryover_days: typeForm.max_carryover_days ? Number(typeForm.max_carryover_days) : 0,
+          min_notice_days: typeForm.min_notice_days ? Number(typeForm.min_notice_days) : 0,
+          max_days_per_request: typeForm.max_days_per_request ? Number(typeForm.max_days_per_request) : 0,
+          allow_half_day: Boolean(typeForm.allow_half_day),
+          half_day_requires_attachment: Boolean(typeForm.allow_half_day && typeForm.half_day_requires_attachment),
+        },
         description: typeForm.description || undefined,
         approval_limit: typeForm.approval_limit ? Number(typeForm.approval_limit) : undefined,
         approval_flow_json: { steps: stepsPayload },
@@ -182,11 +235,27 @@ function Main() {
         await createRequestType({ group_id: selectedGroupId, ...payload });
       }
 
-      navigate("/app/hr/settings?tab=leave", { replace: true });
+      navigate("/app/hr/settings/leave", { replace: true });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save request type." });
     } finally {
       setSavingType(false);
+    }
+  };
+
+  const removeRequestType = async () => {
+    if (!typeForm.id) return;
+    const confirmed = window.confirm("Delete this request type? This cannot be undone.");
+    if (!confirmed) return;
+    try {
+      setDeletingType(true);
+      setNotice(null);
+      await deleteRequestType(typeForm.id);
+      navigate("/app/hr/settings/leave", { replace: true });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete request type." });
+    } finally {
+      setDeletingType(false);
     }
   };
 
@@ -233,7 +302,7 @@ function Main() {
               </div>
 
               <div className="col-span-12 md:col-span-6">
-                <FormLabel>Category Taxonomy</FormLabel>
+                <FormLabel>Category Taxonomy (Optional)</FormLabel>
                 <FormSelect
                   value={typeForm.category_key}
                   onChange={(e) => setTypeForm((prev) => ({ ...prev, category_key: e.target.value }))}
@@ -245,6 +314,19 @@ function Main() {
                     </option>
                   ))}
                 </FormSelect>
+                <div className="text-xs text-slate-500 mt-1">
+                  Optional for extra classification/reporting. Leave blank for standard leave types.
+                </div>
+              </div>
+
+              <div className="col-span-12 md:col-span-6">
+                <FormLabel>Leave Type Key</FormLabel>
+                <FormInput
+                  value={typeForm.leave_type_key}
+                  onChange={(e) => setTypeForm((prev) => ({ ...prev, leave_type_key: normalizeLeaveKey(e.target.value) }))}
+                  placeholder="e.g. annual_leave"
+                />
+                <div className="text-xs text-slate-500 mt-1">Used by leave balances and overrides.</div>
               </div>
 
               <div className="col-span-12">
@@ -253,6 +335,76 @@ function Main() {
                   value={typeForm.description}
                   onChange={(e) => setTypeForm((prev) => ({ ...prev, description: e.target.value }))}
                 />
+              </div>
+
+              <div className="col-span-12">
+                <div className="rounded-md border p-4">
+                  <div className="font-medium">Leave Rules</div>
+                  <div className="grid grid-cols-12 gap-3 mt-3">
+                    <div className="col-span-12 md:col-span-4">
+                      <FormLabel>Entitled Days / Year</FormLabel>
+                      <FormInput
+                        type="number"
+                        min={0}
+                        step="0.5"
+                        value={typeForm.entitled_days_per_year}
+                        onChange={(e) => setTypeForm((prev) => ({ ...prev, entitled_days_per_year: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-4">
+                      <FormLabel>Max Carryover Days</FormLabel>
+                      <FormInput
+                        type="number"
+                        min={0}
+                        step="0.5"
+                        value={typeForm.max_carryover_days}
+                        onChange={(e) => setTypeForm((prev) => ({ ...prev, max_carryover_days: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-4">
+                      <FormLabel>Min Notice (days)</FormLabel>
+                      <FormInput
+                        type="number"
+                        min={0}
+                        value={typeForm.min_notice_days}
+                        onChange={(e) => setTypeForm((prev) => ({ ...prev, min_notice_days: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-6">
+                      <FormLabel>Max Days Per Request</FormLabel>
+                      <FormInput
+                        type="number"
+                        min={0}
+                        step="0.5"
+                        value={typeForm.max_days_per_request}
+                        onChange={(e) => setTypeForm((prev) => ({ ...prev, max_days_per_request: e.target.value }))}
+                      />
+                    </div>
+                    <div className="col-span-12 md:col-span-6">
+                      <FormLabel>Allow Half Day</FormLabel>
+                      <FormSelect
+                        value={typeForm.allow_half_day ? "true" : "false"}
+                        onChange={(e) => setTypeForm((prev) => ({ ...prev, allow_half_day: e.target.value === "true" }))}
+                      >
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                      </FormSelect>
+                    </div>
+                    <div className="col-span-12 md:col-span-4">
+                      <FormLabel>Half Day Needs Attachment</FormLabel>
+                      <FormSelect
+                        value={typeForm.half_day_requires_attachment ? "true" : "false"}
+                        onChange={(e) =>
+                          setTypeForm((prev) => ({ ...prev, half_day_requires_attachment: e.target.value === "true" }))
+                        }
+                        disabled={!typeForm.allow_half_day}
+                      >
+                        <option value="false">No</option>
+                        <option value="true">Yes</option>
+                      </FormSelect>
+                    </div>
+                  </div>
+                </div>
               </div>
 
               <div className="col-span-12">
@@ -311,11 +463,17 @@ function Main() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline-secondary" onClick={() => navigate("/app/hr/settings?tab=leave")}>
+            <div className="mt-6 border-t pt-4 flex justify-end gap-2">
+              {isEdit ? (
+                <Button variant="outline-danger" onClick={() => void removeRequestType()} disabled={savingType || deletingType}>
+                  <Lucide icon="Trash2" className="w-4 h-4 mr-1" />
+                  {deletingType ? "Deleting..." : "Delete"}
+                </Button>
+              ) : null}
+              <Button variant="outline-secondary" onClick={() => navigate("/app/hr/settings/leave")}>
                 Cancel
               </Button>
-              <Button variant="primary" onClick={() => void saveRequestType()} disabled={savingType}>
+              <Button variant="primary" onClick={() => void saveRequestType()} disabled={savingType || deletingType}>
                 {savingType ? "Saving..." : "Save Request Type"}
               </Button>
             </div>
