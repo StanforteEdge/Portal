@@ -46,6 +46,10 @@ export async function createUser(payload: {
   username: string;
   email: string;
   password?: string;
+  set_password?: boolean;
+  status?: "active" | "pending";
+  send_invite?: boolean;
+  send_welcome_email?: boolean;
   first_name?: string;
   last_name?: string;
   type?: string;

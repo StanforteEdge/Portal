@@ -12,7 +12,11 @@ type CreateUserForm = {
   email: string;
   first_name: string;
   last_name: string;
+  status: "active" | "pending";
+  set_password: boolean;
   password: string;
+  send_invite: boolean;
+  send_welcome_email: boolean;
   type: string;
   primary_organization_id: string;
 };
@@ -22,7 +26,11 @@ const initialCreateForm: CreateUserForm = {
   email: "",
   first_name: "",
   last_name: "",
+  status: "pending",
+  set_password: false,
   password: "",
+  send_invite: true,
+  send_welcome_email: false,
   type: "staff",
   primary_organization_id: "",
 };
@@ -62,6 +70,17 @@ function UserCreatePage() {
       setNotice({ tone: "warning", message: "Primary organization is required for staff." });
       return;
     }
+    if (form.set_password && !form.password.trim()) {
+      setNotice({ tone: "warning", message: "Password is required when \"Set password\" is enabled." });
+      return;
+    }
+    if (form.status === "active" && !form.set_password && !form.send_invite) {
+      setNotice({
+        tone: "warning",
+        message: "Active users need a password or invite link to access their account.",
+      });
+      return;
+    }
 
     try {
       setSaving(true);
@@ -70,7 +89,11 @@ function UserCreatePage() {
         email: form.email,
         first_name: form.first_name || undefined,
         last_name: form.last_name || undefined,
-        password: form.password || undefined,
+        password: form.set_password ? form.password || undefined : undefined,
+        set_password: form.set_password,
+        status: form.status,
+        send_invite: form.send_invite,
+        send_welcome_email: form.send_welcome_email,
         type: form.type || undefined,
         roles: selectedRoles,
         primary_organization_id: form.primary_organization_id || undefined,
@@ -112,8 +135,45 @@ function UserCreatePage() {
           </div>
         </div>
         <div>
-          <FormLabel>Password (optional)</FormLabel>
-          <PasswordInput value={form.password} onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))} />
+          <FormLabel>Status</FormLabel>
+          <FormSelect value={form.status} onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value as "active" | "pending" }))}>
+            <option value="pending">pending</option>
+            <option value="active">active</option>
+          </FormSelect>
+        </div>
+        <div>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.set_password}
+              onChange={(e) => setForm((prev) => ({ ...prev, set_password: e.target.checked, password: e.target.checked ? prev.password : "" }))}
+            />
+            <span>Set password now</span>
+          </label>
+        </div>
+        {form.set_password ? (
+          <div>
+            <FormLabel>Password</FormLabel>
+            <PasswordInput value={form.password} onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))} />
+          </div>
+        ) : null}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.send_invite}
+              onChange={(e) => setForm((prev) => ({ ...prev, send_invite: e.target.checked }))}
+            />
+            <span>Send invite email</span>
+          </label>
+          <label className="flex items-center gap-2 text-sm">
+            <input
+              type="checkbox"
+              checked={form.send_welcome_email}
+              onChange={(e) => setForm((prev) => ({ ...prev, send_welcome_email: e.target.checked }))}
+            />
+            <span>Send welcome email</span>
+          </label>
         </div>
         <div>
           <FormLabel>User Type</FormLabel>

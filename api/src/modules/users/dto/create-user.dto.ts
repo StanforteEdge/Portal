@@ -1,4 +1,4 @@
-import { IsArray, IsEmail, IsOptional, IsString, Matches, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, Matches, MinLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { PASSWORD_POLICY_MESSAGE, PASSWORD_POLICY_REGEX } from '../../../common/validation/password-policy';
 
@@ -34,6 +34,11 @@ export class CreateUserDto {
   @IsString()
   type?: string;
 
+  @ApiPropertyOptional({ enum: ['active', 'pending'], example: 'pending' })
+  @IsOptional()
+  @IsIn(['active', 'pending'])
+  status?: 'active' | 'pending';
+
   @ApiPropertyOptional({ type: [String], example: ['staff'] })
   @IsOptional()
   @IsArray()
@@ -44,4 +49,19 @@ export class CreateUserDto {
   @IsOptional()
   @IsString()
   primary_organization_id?: string;
+
+  @ApiPropertyOptional({ example: true, description: 'When true, password is required and stored for immediate login.' })
+  @IsOptional()
+  @IsBoolean()
+  set_password?: boolean;
+
+  @ApiPropertyOptional({ example: true, description: 'When true, sends invite email with password setup link.' })
+  @IsOptional()
+  @IsBoolean()
+  send_invite?: boolean;
+
+  @ApiPropertyOptional({ example: false, description: 'When true, sends welcome email after account creation.' })
+  @IsOptional()
+  @IsBoolean()
+  send_welcome_email?: boolean;
 }

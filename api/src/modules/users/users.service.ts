@@ -138,6 +138,18 @@ export class UsersService {
     const email = dto.email.trim().toLowerCase();
     const existing = await this.prisma.profile.findUnique({ where: { email } });
     if (existing) throw new BadRequestException('Email already exists');
+    const shouldSetPassword = dto.set_password ?? Boolean(dto.password);
+    if (shouldSetPassword && !dto.password) {
+      throw new BadRequestException('Password is required when "set password" is enabled');
+    }
+    const shouldSendInvite = dto.send_invite === true;
+    const shouldSendWelcomeEmail = dto.send_welcome_email === true;
+    const requestedStatus = dto.status === 'pending' ? 'pending' : 'active';
+    const effectiveStatus = shouldSendInvite ? 'pending' : requestedStatus;
+    if (effectiveStatus === 'active' && !shouldSetPassword) {
+      throw new BadRequestException('Active users must have a password or be created as pending');
+    }
+
     const userType = dto.type ?? 'staff';
     let primaryOrganizationId: bigint | null = null;
     if (dto.primary_organization_id) {
@@ -172,17 +184,17 @@ export class UsersService {
       if (usernameExists) throw new BadRequestException('Username already exists');
     }
 
-    const passwordHash = dto.password ? await bcrypt.hash(dto.password, 12) : null;
+    const passwordHash = shouldSetPassword && dto.password ? await bcrypt.hash(dto.password, 12) : null;
     const roleSlugs = Array.from(new Set(dto.roles?.map((r) => r.trim()).filter(Boolean) ?? []));
 
-    return this.prisma.$transaction(async (tx) => {
+    const user = await this.prisma.$transaction(async (tx) => {
       const user = await tx.profile.create({
         data: {
           username,
           email,
           passwordHash,
           type: userType,
-          status: 'active',
+          status: effectiveStatus,
           firstName: dto.first_name,
           lastName: dto.last_name,
           primaryOrganizationId
@@ -224,6 +236,31 @@ export class UsersService {
 
       return user;
     });
+
+    if (shouldSendInvite) {
+      const { inviteToken, expiresAt } = await this.issueInvite(user.id, 'pending');
+      await this.sendInviteEmail(
+        {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName
+        },
+        inviteToken,
+        expiresAt
+      );
+    }
+
+    if (shouldSendWelcomeEmail) {
+      await this.sendWelcomeEmail({
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName
+      });
+    }
+
+    return user;
   }
 
   async getUserRoles(userId: string) {
@@ -315,61 +352,92 @@ export class UsersService {
     });
     if (!user) throw new NotFoundException('User not found');
 
+    const { inviteToken, expiresAt } = await this.issueInvite(user.id, 'invited');
+    await this.sendInviteEmail(user, inviteToken, expiresAt, dto.message);
+
+    return {
+      success: true,
+      expires_at: expiresAt.toISOString()
+    };
+  }
+
+  private resolvePortalUrl() {
+    return (process.env.PWA_URL || process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/+$/, '');
+  }
+
+  private async issueInvite(profileId: bigint, status: 'pending' | 'invited') {
     const inviteToken = randomToken(32);
     const tokenHash = sha256(inviteToken);
     const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24 * 7);
 
     await this.prisma.$transaction([
       this.prisma.token.deleteMany({
-        where: { profileId: user.id, type: 'invite' }
+        where: { profileId, type: 'invite' }
       }),
       this.prisma.token.create({
         data: {
           id: randomToken(24),
-          profileId: user.id,
+          profileId,
           type: 'invite',
           tokenHash,
           expiresAt
         }
       }),
       this.prisma.profile.update({
-        where: { id: user.id },
-        data: { status: 'invited' }
+        where: { id: profileId },
+        data: { status }
       }),
       this.prisma.onboardingProgress.upsert({
-        where: { userId: user.id },
+        where: { userId: profileId },
         update: {
           status: 'invited',
           currentStep: 'invite',
-          dueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7)
+          dueDate: expiresAt
         },
         create: {
-          userId: user.id,
+          userId: profileId,
           status: 'invited',
           currentStep: 'invite',
-          dueDate: new Date(Date.now() + 1000 * 60 * 60 * 24 * 7)
+          dueDate: expiresAt
         }
       })
     ]);
 
-    const appUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-    const inviteLink = `${appUrl}/accept-invite?token=${encodeURIComponent(inviteToken)}`;
-    const displayName =
-      `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email;
+    return { inviteToken, expiresAt };
+  }
+
+  private async sendInviteEmail(
+    user: { id: bigint; email: string; firstName: string | null; lastName: string | null },
+    inviteToken: string,
+    expiresAt: Date,
+    message?: string
+  ) {
+    const portalUrl = this.resolvePortalUrl();
+    const inviteLink = `${portalUrl}/accept-invite?token=${encodeURIComponent(inviteToken)}`;
+    const displayName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email;
 
     await this.mailService.send({
       to: user.email,
       subject: 'You are invited to StanforteEdge Portal',
-      text: `${displayName},\n\nYou have been invited to StanforteEdge Portal. Set up your password here:\n${inviteLink}\n\n${dto.message ?? ''}`.trim(),
-      html: `<p>Hello ${displayName},</p><p>You have been invited to StanforteEdge Portal. Set up your password here:</p><p><a href="${inviteLink}">${inviteLink}</a></p>${dto.message ? `<p>${dto.message}</p>` : ''}`,
+      text: `${displayName},\n\nYou have been invited to StanforteEdge Portal. Set up your password here:\n${inviteLink}\n\n${message ?? ''}`.trim(),
+      html: `<p>Hello ${displayName},</p><p>You have been invited to StanforteEdge Portal. Set up your password here:</p><p><a href="${inviteLink}">${inviteLink}</a></p>${message ? `<p>${message}</p>` : ''}<p>This invite expires on ${expiresAt.toDateString()}.</p>`,
       threadKey: `invite-${user.id.toString()}`,
       userId: user.id
     });
+  }
 
-    return {
-      success: true,
-      expires_at: expiresAt.toISOString()
-    };
+  private async sendWelcomeEmail(user: { id: bigint; email: string; firstName: string | null; lastName: string | null }) {
+    const portalUrl = this.resolvePortalUrl();
+    const displayName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim() || user.email;
+
+    await this.mailService.send({
+      to: user.email,
+      subject: 'Welcome to StanforteEdge Portal',
+      text: `Hello ${displayName},\n\nYour account has been created. You can sign in here:\n${portalUrl}/login`,
+      html: `<p>Hello ${displayName},</p><p>Your account has been created.</p><p>You can sign in here: <a href="${portalUrl}/login">${portalUrl}/login</a></p>`,
+      threadKey: `welcome-${user.id.toString()}`,
+      userId: user.id
+    });
   }
 
   private serializeProfile(user: any): ProfileResponseDto {
