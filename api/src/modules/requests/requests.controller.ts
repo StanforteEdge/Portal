@@ -109,8 +109,8 @@ export class RequestsController {
 
   @Delete('types/:id')
   @Permissions('requests.manage')
-  deleteType(@Param('id') id: string) {
-    return this.requestsService.deleteType(id);
+  deleteType(@Req() req: any, @Param('id') id: string) {
+    return this.requestsService.deleteType(id, this.currentUserId(req));
   }
 
   @Post()

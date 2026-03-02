@@ -117,7 +117,7 @@ function HrLeaveRequestsPage() {
               <Lucide icon="CheckCheck" className="w-4 h-4 mr-1" />
               Requests
             </Button>
-            <Link to="/app/hr/settings?tab=leave">
+            <Link to="/app/hr/settings/leave">
               <Button variant="outline-secondary">
                 <Lucide icon="Settings" className="w-4 h-4 mr-1" />
                 Settings

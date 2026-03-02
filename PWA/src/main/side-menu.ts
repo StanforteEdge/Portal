@@ -168,8 +168,19 @@ const menu: Array<Menu | "divider"> = [
       },
       {
         icon: "Settings",
-        pathname: "/app/hr/settings",
         title: "Settings",
+        subMenu: [
+          {
+            icon: "Clock3",
+            pathname: "/app/hr/settings",
+            title: "Attendance Settings",
+          },
+          {
+            icon: "BookOpen",
+            pathname: "/app/hr/settings/leave",
+            title: "Leave Settings",
+          },
+        ],
       },
     ],
   },

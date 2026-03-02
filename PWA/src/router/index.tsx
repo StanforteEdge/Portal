@@ -83,6 +83,9 @@ const HrAttendancePage = lazy(() => import("../pages/hr/attendance/HrAttendance"
 const HrLeaveTrackerPage = lazy(() => import("../pages/hr/leave/HrLeaveTracker"));
 const HrLeaveRequestsPage = lazy(() => import("../pages/hr/leave/HrLeaveRequests"));
 const HrSettingsPage = lazy(() => import("../pages/hr/settings/HrSettings"));
+const HrLeaveSettingsPage = lazy(
+  () => import("../pages/hr/settings/HrLeaveSettings")
+);
 const HrRequestTypeEditorPage = lazy(
   () => import("../pages/hr/settings/HrRequestTypeEditor")
 );
@@ -495,6 +498,14 @@ function Router() {
           element: (
             <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<HrSettingsPage />)}
+            </PermissionRoute>
+          ),
+        },
+        {
+          path: "hr/settings/leave",
+          element: (
+            <PermissionRoute requiredPermissions={["users.manage"]}>
+              {page(<HrLeaveSettingsPage />)}
             </PermissionRoute>
           ),
         },

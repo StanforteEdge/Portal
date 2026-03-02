@@ -175,6 +175,11 @@ export async function updateRequestType(
   return toRequestTypeOption(response.data?.data ?? {});
 }
 
+export async function deleteRequestType(id: string) {
+  const response = await apiClient.delete(`/requests/types/${id}`);
+  return response.data?.data ?? { success: true };
+}
+
 export async function listRequests(params?: Record<string, unknown>) {
   const response = await apiClient.get("/requests", { params });
   return (response.data?.data ?? []) as RequestRecord[];

@@ -18,13 +18,11 @@ import type { FileAssetRecord } from "@/services/files";
 import { listTeams, type TeamOption } from "@/services/teams";
 import { listManagedTaxonomies, replaceEntityTags, type TagTerm } from "@/services/taxonomy";
 import { getMyProfile } from "@/services/profile";
-import { listPolicies } from "@/services/policies";
 import { formatMoney } from "@/utils/formatting";
 import MediaPickerModal from "@/components/Media/MediaPickerModal";
 import TagPicker from "@/components/Tags/TagPicker";
 
 type CategoryTermOption = { id: string; value: string; label: string };
-type LeaveTypeOption = { key: string; label: string; available_days?: number };
 
 type CreateItemState = RequestItemInput & {
   unit_price?: number;
@@ -37,7 +35,6 @@ type CreateFormState = {
   reimbursement: boolean;
   purpose: string;
   category_id: string;
-  leave_type_key: string;
   leave_start_date: string;
   leave_end_date: string;
   leave_days_requested: string;
@@ -65,7 +62,6 @@ const defaultForm: CreateFormState = {
   reimbursement: false,
   purpose: "",
   category_id: "",
-  leave_type_key: "",
   leave_start_date: "",
   leave_end_date: "",
   leave_days_requested: "",
@@ -102,33 +98,22 @@ function RequestsCreatePage() {
   const [tags, setTags] = useState<TagTerm[]>([]);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [myUserId, setMyUserId] = useState("");
-  const [leaveTypeOptions, setLeaveTypeOptions] = useState<LeaveTypeOption[]>([]);
-  const [defaultLeaveRequestTypeId, setDefaultLeaveRequestTypeId] = useState("");
 
   const selectedRequestType = useMemo(
     () => types.find((type) => type.id === form.request_type_id),
     [types, form.request_type_id]
   );
+  const isLeaveType = (type: RequestTypeOption) => {
+    const categoryKey = String(type.category_key || "").toLowerCase();
+    const typeName = String(type.name || "").toLowerCase();
+    const schema = (type.form_schema || {}) as Record<string, unknown>;
+    const schemaLeaveTypeKey = String(schema.leave_type_key || "").trim().toLowerCase();
+    return categoryKey.includes("leave") || typeName.includes("leave") || schemaLeaveTypeKey.length > 0;
+  };
   const filteredTypeOptions = useMemo(() => {
     if (kind === "all") return types;
-    return types.filter((type) => {
-      const categoryKey = String(type.category_key || "").toLowerCase();
-      const typeName = String(type.name || "").toLowerCase();
-      const isLeave = categoryKey.includes("leave") || typeName.includes("leave");
-      return kind === "leave" ? isLeave : !isLeave;
-    });
+    return types.filter((type) => (kind === "leave" ? isLeaveType(type) : !isLeaveType(type)));
   }, [types, kind]);
-
-  useEffect(() => {
-    if (kind !== "leave") return;
-    if (filteredTypeOptions.length === 0) return;
-    if (form.request_type_id && filteredTypeOptions.some((type) => type.id === form.request_type_id)) return;
-    const configured =
-      defaultLeaveRequestTypeId && filteredTypeOptions.some((type) => type.id === defaultLeaveRequestTypeId)
-        ? defaultLeaveRequestTypeId
-        : filteredTypeOptions[0].id;
-    setForm((prev) => ({ ...prev, request_type_id: configured }));
-  }, [kind, filteredTypeOptions, form.request_type_id, defaultLeaveRequestTypeId]);
 
   const projectRequired = useMemo(() => {
     return Boolean((selectedRequestType?.form_schema as any)?.project_required);
@@ -139,10 +124,28 @@ function RequestsCreatePage() {
   }, [form.project_id, projectOptions]);
   const isLeaveRequest = useMemo(() => {
     if (kind === "leave") return true;
-    const categoryKey = String(selectedRequestType?.category_key || "").toLowerCase();
-    const typeName = String(selectedRequestType?.name || "").toLowerCase();
-    return categoryKey.includes("leave") || typeName.includes("leave");
+    return selectedRequestType ? isLeaveType(selectedRequestType) : false;
   }, [selectedRequestType, kind]);
+  const selectedLeaveTypeKey = useMemo(() => {
+    const schema = (selectedRequestType?.form_schema || {}) as Record<string, unknown>;
+    const fromSchema = String(schema.leave_type_key || "").trim().toLowerCase();
+    if (fromSchema) return fromSchema;
+    const fallbackName = String(selectedRequestType?.name || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "");
+    return fallbackName || "annual_leave";
+  }, [selectedRequestType]);
+  const leaveRules = useMemo(() => {
+    const schema = (selectedRequestType?.form_schema || {}) as Record<string, unknown>;
+    const minNoticeDays = Number(schema.min_notice_days ?? 0);
+    const maxDaysPerRequest = Number(schema.max_days_per_request ?? 0);
+    return {
+      minNoticeDays: Number.isFinite(minNoticeDays) && minNoticeDays > 0 ? minNoticeDays : 0,
+      maxDaysPerRequest: Number.isFinite(maxDaysPerRequest) && maxDaysPerRequest > 0 ? maxDaysPerRequest : 0,
+    };
+  }, [selectedRequestType]);
 
   const [leaveBalance, setLeaveBalance] = useState<number | null>(null);
   const requestedLeaveDays = useMemo(() => {
@@ -185,30 +188,22 @@ function RequestsCreatePage() {
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [typeData, projects, orgs, teams, taxonomies, leaveTypePolicyRes] = await Promise.all([
+        const [typeData, projects, orgs, teams, taxonomies] = await Promise.all([
           listRequestTypes(),
           listProjects().catch(() => []),
           listMyOrganizations().catch(() => []),
           listTeams({ active_only: false }).catch(() => []),
           listManagedTaxonomies({ include_inactive: false }).catch(() => []),
-          listPolicies({
-            module: "leave",
-            policy_key: "leave_request_type",
-            scope_type: "global",
-            per_page: 1,
-          }).catch(() => ({ data: [] as any[] })),
         ]);
-        const configuredLeaveRequestTypeId = String(
-          ((leaveTypePolicyRes.data?.[0]?.config_json as Record<string, unknown> | undefined)?.request_type_id as string | undefined) ?? ""
-        );
-        setDefaultLeaveRequestTypeId(configuredLeaveRequestTypeId);
 
         const onlyMatching = kind === "all"
           ? typeData
           : typeData.filter((type) => {
               const categoryKey = String(type.category_key || "").toLowerCase();
               const typeName = String(type.name || "").toLowerCase();
-              const isLeave = categoryKey.includes("leave") || typeName.includes("leave");
+              const schema = (type.form_schema || {}) as Record<string, unknown>;
+              const schemaLeaveTypeKey = String(schema.leave_type_key || "").trim().toLowerCase();
+              const isLeave = categoryKey.includes("leave") || typeName.includes("leave") || schemaLeaveTypeKey.length > 0;
               return kind === "leave" ? isLeave : !isLeave;
             });
         setTypes(onlyMatching);
@@ -248,15 +243,11 @@ function RequestsCreatePage() {
 
         setForm((prev) => {
           const selectedStillValid = onlyMatching.some((type) => type.id === prev.request_type_id);
-          const resolvedLeaveTypeId =
-            configuredLeaveRequestTypeId && onlyMatching.some((type) => type.id === configuredLeaveRequestTypeId)
-              ? configuredLeaveRequestTypeId
-              : "";
           return {
             ...prev,
             request_type_id:
               kind === "leave"
-                ? (resolvedLeaveTypeId || (onlyMatching.length > 0 ? onlyMatching[0].id : ""))
+                ? (selectedStillValid ? prev.request_type_id : onlyMatching.length > 0 ? onlyMatching[0].id : "")
                 : selectedStillValid
                   ? prev.request_type_id
                   : onlyMatching.length > 0
@@ -297,7 +288,6 @@ function RequestsCreatePage() {
   useEffect(() => {
     const loadLeaveBalance = async () => {
       if (!isLeaveRequest) {
-        setLeaveTypeOptions([]);
         setLeaveBalance(null);
         return;
       }
@@ -305,32 +295,15 @@ function RequestsCreatePage() {
         const year = form.leave_start_date ? new Date(form.leave_start_date).getFullYear() : new Date().getFullYear();
         const response = await getMyLeaveBalance({ year });
         const summary = response.summary || [];
-        const optionsFromPolicy = summary.map((item) => ({
-          key: String(item.leave_type_key || "").trim().toLowerCase(),
-          label: String(item.leave_type_key || "")
-            .replaceAll("_", " ")
-            .replace(/\b\w/g, (m) => m.toUpperCase()),
-          available_days: Number(item.available_days || 0),
-        }));
-        const options = optionsFromPolicy.length
-          ? optionsFromPolicy
-          : [
-              { key: "annual_leave", label: "Annual Leave" },
-              { key: "sick_leave", label: "Sick Leave" },
-              { key: "casual_leave", label: "Casual Leave" },
-            ];
-        setLeaveTypeOptions(options);
-        const row = summary.find((item) => item.leave_type_key === form.leave_type_key);
-        setLeaveBalance(form.leave_type_key ? (row ? Number(row.available_days) : 0) : null);
-        if (!form.leave_type_key && options.length > 0) {
-          setForm((prev) => ({ ...prev, leave_type_key: options[0].key }));
-        }
+        const normalizedKey = selectedLeaveTypeKey.trim().toLowerCase();
+        const row = summary.find((item) => String(item.leave_type_key || "").trim().toLowerCase() === normalizedKey);
+        setLeaveBalance(normalizedKey ? (row ? Number(row.available_days || 0) : 0) : null);
       } catch {
         setLeaveBalance(null);
       }
     };
     void loadLeaveBalance();
-  }, [isLeaveRequest, form.leave_type_key, form.leave_start_date]);
+  }, [isLeaveRequest, form.leave_start_date, selectedLeaveTypeKey]);
 
   useEffect(() => {
     if (!isLeaveRequest) return;
@@ -383,10 +356,21 @@ function RequestsCreatePage() {
     if (!form.request_type_id) return "Select a request type.";
     if (!form.purpose.trim()) return "Purpose is required.";
     if (isLeaveRequest) {
-      if (!form.leave_type_key.trim()) return "Leave type is required.";
       if (!form.leave_start_date || !form.leave_end_date) return "Leave start and end dates are required.";
       if (new Date(form.leave_end_date) < new Date(form.leave_start_date)) return "Leave end date cannot be before start date.";
       if (requestedLeaveDays <= 0) return "Leave days requested must be greater than zero.";
+      if (leaveRules.minNoticeDays > 0) {
+        const start = new Date(form.leave_start_date);
+        const threshold = new Date();
+        threshold.setHours(0, 0, 0, 0);
+        threshold.setDate(threshold.getDate() + leaveRules.minNoticeDays);
+        if (start < threshold) {
+          return `Leave must be requested at least ${leaveRules.minNoticeDays} day(s) in advance.`;
+        }
+      }
+      if (leaveRules.maxDaysPerRequest > 0 && requestedLeaveDays > leaveRules.maxDaysPerRequest) {
+        return `This leave type allows a maximum of ${leaveRules.maxDaysPerRequest} day(s) per request.`;
+      }
       if (!form.leave_handover_user_id) return "Handover colleague is required for leave.";
       if (!form.leave_handover_notes.trim()) return "Handover notes are required for leave.";
       if (leaveBalance !== null && requestedLeaveDays > leaveBalance) {
@@ -425,7 +409,7 @@ function RequestsCreatePage() {
         purpose: form.purpose,
         reimbursement: form.reimbursement,
         category_id: form.category_id || undefined,
-        leave_type_key: form.leave_type_key || undefined,
+        leave_type_key: isLeaveRequest ? selectedLeaveTypeKey : undefined,
         leave_reason: isLeaveRequest ? form.purpose : undefined,
         start_date: form.leave_start_date || undefined,
         end_date: form.leave_end_date || undefined,
@@ -489,33 +473,54 @@ function RequestsCreatePage() {
     }
   };
 
+  const onCancel = () => {
+    if (kind === "leave") {
+      navigate("/app/staff/leave");
+      return;
+    }
+    navigate("/app/requests");
+  };
+
+  const onDelete = () => {
+    const confirmed = window.confirm("Delete current form input?");
+    if (!confirmed) return;
+    setForm((prev) => ({
+      ...defaultForm,
+      request_type_id: prev.request_type_id,
+      organization_id: prev.organization_id,
+      team_id: prev.team_id,
+      items: [{ ...defaultItem }],
+    }));
+    setTags([]);
+    setNotice({ tone: "success", message: "Form input deleted." });
+  };
+
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">
           {kind === "leave" ? "Create Leave Request" : kind === "financial" ? "Create Financial Request" : "Create Request"}
         </h2>
-        <Button variant="outline-secondary" onClick={() => navigate("/app/requests")}>
+        <Button variant="outline-secondary" onClick={onCancel}>
           <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" />
-          Back to Requests
+          {kind === "leave" ? "Back to Leave" : "Back to Requests"}
         </Button>
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
       <div className="box mt-5 p-5 space-y-5">
-        {kind !== "leave" ? (
-          <div className="col-span-12">
-            <FormLabel className="w-full">Request Type</FormLabel>
-            <div className="flex flex-wrap items-center gap-4">
-              <FormSelect className="w-auto" value={form.request_type_id} onChange={(e) => setForm((prev) => ({ ...prev, request_type_id: e.target.value }))}>
-                <option value="">Select type</option>
-                {filteredTypeOptions.map((type) => (
-                  <option key={type.id} value={type.id}>
-                    {type.name}
-                  </option>
-                ))}
-              </FormSelect>
+        <div className="col-span-12">
+          <FormLabel className="w-full">{kind === "leave" ? "Leave Type" : "Request Type"}</FormLabel>
+          <div className="flex flex-wrap items-center gap-4">
+            <FormSelect className="w-auto" value={form.request_type_id} onChange={(e) => setForm((prev) => ({ ...prev, request_type_id: e.target.value }))}>
+              <option value="">{kind === "leave" ? "Select leave type" : "Select type"}</option>
+              {filteredTypeOptions.map((type) => (
+                <option key={type.id} value={type.id}>
+                  {type.name}
+                </option>
+              ))}
+            </FormSelect>
             {form.request_type_id && !isLeaveRequest ? (
               <label className="inline-flex items-center gap-2 text-sm">
                 <input
@@ -526,9 +531,8 @@ function RequestsCreatePage() {
                 <span>Reimbursement</span>
               </label>
             ) : null}
-            </div>
           </div>
-        ) : null}
+        </div>
 
         {!isLeaveRequest ? (
           <div className="col-span-12">
@@ -547,20 +551,6 @@ function RequestsCreatePage() {
               <div className="col-span-12">
                 <div className="text-slate-500 text-sm">Leave Days</div>
                 <div className="text-2xl font-semibold mt-2">{requestedLeaveDays} day(s)</div>
-              </div>
-              <div className="col-span-12 md:col-span-4">
-                <FormLabel>Leave Type</FormLabel>
-                <FormSelect
-                  value={form.leave_type_key}
-                  onChange={(e) => setForm((prev) => ({ ...prev, leave_type_key: e.target.value.trim().toLowerCase() }))}
-                >
-                  <option value="">Select leave type</option>
-                  {leaveTypeOptions.map((option) => (
-                    <option key={option.key} value={option.key}>
-                      {option.label}
-                    </option>
-                  ))}
-                </FormSelect>
               </div>
               <div className="col-span-12 md:col-span-3">
                 <FormLabel>Start Date</FormLabel>
@@ -610,6 +600,8 @@ function RequestsCreatePage() {
               <div className="col-span-12">
                 <div className="text-xs text-slate-500">
                   Available balance: {leaveBalance === null ? "—" : `${leaveBalance} day(s)`}
+                  {leaveRules.minNoticeDays > 0 ? ` • Min notice: ${leaveRules.minNoticeDays} day(s)` : ""}
+                  {leaveRules.maxDaysPerRequest > 0 ? ` • Max per request: ${leaveRules.maxDaysPerRequest} day(s)` : ""}
                 </div>
               </div>
             </>
@@ -759,9 +751,17 @@ function RequestsCreatePage() {
             </div>
           ) : <div />}
           <div className="flex flex-row justify-end items-center gap-2">
+            <Button variant="outline-danger" onClick={onDelete} disabled={savingDraft || submitting}>
+              <Lucide icon="Trash2" className="w-4 h-4 mr-1" />
+              Delete
+            </Button>
+            <Button variant="outline-secondary" onClick={onCancel} disabled={savingDraft || submitting}>
+              <Lucide icon="XCircle" className="w-4 h-4 mr-1" />
+              Cancel
+            </Button>
             <Button variant="outline-secondary" onClick={() => void onSaveDraft()} disabled={savingDraft || submitting}>
               <Lucide icon="CheckCircle2" className="w-4 h-4 mr-1" />
-              {savingDraft ? "Saving..." : "Save Draft"}
+              {savingDraft ? "Saving..." : "Save"}
             </Button>
             <Button variant="primary" onClick={() => void onSubmit()} disabled={savingDraft || submitting}>
               <Lucide icon="Send" className="w-4 h-4 mr-1" />

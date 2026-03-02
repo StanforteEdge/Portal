@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import Table from "@/components/Base/Table";
@@ -95,6 +95,7 @@ function mapLeaveRows(config: unknown): LeaveEntitlementRow[] {
 }
 
 function HrSettingsPage() {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<SettingsTab>("attendance");
   const [attendancePolicy, setAttendancePolicy] = useState<PolicyRecord | null>(null);
   const [leavePolicy, setLeavePolicy] = useState<PolicyRecord | null>(null);
@@ -446,8 +447,8 @@ function HrSettingsPage() {
               Attendance Settings
             </Button>
             <Button
-              variant={activeTab === "leave" ? "primary" : "outline-secondary"}
-              onClick={() => setActiveTab("leave")}
+              variant="outline-secondary"
+              onClick={() => navigate("/app/hr/settings/leave")}
             >
               <Lucide icon="BookOpen" className="w-4 h-4 mr-1" />
               Leave Settings
