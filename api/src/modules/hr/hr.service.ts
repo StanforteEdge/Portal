@@ -86,20 +86,24 @@ export class HrService {
   }
 
   async createEmployee(dto: UpsertEmployeeDto) {
-    if (!dto.primary_organization_id) {
-      throw new BadRequestException('primary_organization_id is required');
-    }
     try {
       return await this.prisma.$transaction(async (tx) => {
         let profileId: bigint;
+        let resolvedPrimaryOrganizationId = dto.primary_organization_id?.trim() || undefined;
 
         if (dto.user_id) {
           profileId = this.parseId(dto.user_id, 'user id');
           const existing = await tx.profile.findUnique({ where: { id: profileId } });
           if (!existing) throw new NotFoundException('User not found');
+          if (!resolvedPrimaryOrganizationId && existing.primaryOrganizationId) {
+            resolvedPrimaryOrganizationId = existing.primaryOrganizationId.toString();
+          }
         } else {
           if (!dto.email || !dto.first_name || !dto.last_name) {
             throw new BadRequestException('email, first_name and last_name are required for new employee');
+          }
+          if (!resolvedPrimaryOrganizationId) {
+            throw new BadRequestException('primary_organization_id is required');
           }
 
           const email = dto.email.trim().toLowerCase();
@@ -135,7 +139,21 @@ export class HrService {
           profileId = created.id;
         }
 
-        await this.upsertEmployeeProfileTx(tx, profileId, dto, null);
+        if (!resolvedPrimaryOrganizationId) {
+          throw new BadRequestException(
+            'Primary organization is required. Set it on the user first or choose one in employee organizations.'
+          );
+        }
+
+        await this.upsertEmployeeProfileTx(
+          tx,
+          profileId,
+          {
+            ...dto,
+            primary_organization_id: resolvedPrimaryOrganizationId
+          },
+          null
+        );
         return this.getEmployee(profileId.toString());
       });
     } catch (error) {

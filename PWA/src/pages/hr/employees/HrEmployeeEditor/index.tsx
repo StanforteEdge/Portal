@@ -33,7 +33,6 @@ const emptyForm = {
   employment_type: "full_time",
   work_mode: "onsite",
   manager_user_id: "",
-  primary_organization_id: "",
 };
 
 function HrEmployeeEditorPage() {
@@ -54,6 +53,7 @@ function HrEmployeeEditorPage() {
   const [userSearch, setUserSearch] = useState("");
 
   const [organizationToAdd, setOrganizationToAdd] = useState("");
+  const [organizationIsPrimary, setOrganizationIsPrimary] = useState(false);
   const [teamToAdd, setTeamToAdd] = useState("");
   const [teamRoleToAdd, setTeamRoleToAdd] = useState<"member" | "lead" | "manager">("member");
 
@@ -92,10 +92,6 @@ function HrEmployeeEditorPage() {
       employment_type: data.employee_profile?.employment_type || "full_time",
       work_mode: data.employee_profile?.work_mode || "onsite",
       manager_user_id: (data.employee_profile?.manager?.id as string | undefined) || "",
-      primary_organization_id:
-        (data.employee_profile?.primaryOrganizationId as string | undefined) ||
-        (data.employee_profile?.primary_organization_id as string | undefined) ||
-        "",
     });
   };
 
@@ -159,11 +155,6 @@ function HrEmployeeEditorPage() {
         setSaving(false);
         return;
       }
-      if (!form.primary_organization_id) {
-        setNotice({ tone: "warning", message: "Primary organization is required." });
-        setSaving(false);
-        return;
-      }
 
       const payload: Record<string, string | undefined> = {
         user_id: isCreate ? form.user_id || undefined : undefined,
@@ -179,7 +170,6 @@ function HrEmployeeEditorPage() {
         employment_type: form.employment_type || undefined,
         work_mode: form.work_mode || undefined,
         manager_user_id: form.manager_user_id || undefined,
-        primary_organization_id: form.primary_organization_id || undefined,
       };
       if (isCreate) {
         const created = await createHrEmployee(payload);
@@ -215,12 +205,36 @@ function HrEmployeeEditorPage() {
     if (!employee || !organizationToAdd) return;
     try {
       setSaving(true);
-      await addEmployeeOrganization(employee.id, { organization_id: organizationToAdd });
+      await addEmployeeOrganization(employee.id, {
+        organization_id: organizationToAdd,
+        is_primary: organizationIsPrimary,
+      });
       setOrganizationToAdd("");
+      setOrganizationIsPrimary(false);
       await reload();
-      setNotice({ tone: "success", message: "Organization assigned." });
+      setNotice({
+        tone: "success",
+        message: organizationIsPrimary ? "Primary organization updated." : "Organization assigned.",
+      });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to assign organization." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const onMakePrimaryOrganization = async (organizationId: string) => {
+    if (!employee) return;
+    try {
+      setSaving(true);
+      await addEmployeeOrganization(employee.id, { organization_id: organizationId, is_primary: true });
+      await reload();
+      setNotice({ tone: "success", message: "Primary organization updated." });
+    } catch (error: any) {
+      setNotice({
+        tone: "error",
+        message: error?.response?.data?.error?.message || "Unable to update primary organization.",
+      });
     } finally {
       setSaving(false);
     }
@@ -320,20 +334,6 @@ function HrEmployeeEditorPage() {
           <div><FormLabel>Employee Code</FormLabel><FormInput value={form.employee_code || ""} onChange={(e) => setForm((p) => ({ ...p, employee_code: e.target.value }))} /></div>
           <div><FormLabel>Job Title</FormLabel><FormInput value={form.job_title || ""} onChange={(e) => setForm((p) => ({ ...p, job_title: e.target.value }))} /></div>
           <div>
-            <FormLabel>Primary Organization</FormLabel>
-            <FormSelect
-              value={form.primary_organization_id || ""}
-              onChange={(e) => setForm((p) => ({ ...p, primary_organization_id: e.target.value }))}
-            >
-              <option value="">Select organization</option>
-              {organizations.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {org.name}
-                </option>
-              ))}
-            </FormSelect>
-          </div>
-          <div>
             <FormLabel>Manager</FormLabel>
             <FormSelect value={form.manager_user_id || ""} onChange={(e) => setForm((p) => ({ ...p, manager_user_id: e.target.value }))}>
               <option value="">No manager</option>
@@ -377,13 +377,43 @@ function HrEmployeeEditorPage() {
                 <option value="">Add organization</option>
                 {organizations.map((org) => (<option key={org.id} value={org.id}>{org.name}</option>))}
               </FormSelect>
+              <label className="flex items-center gap-2 px-2 text-xs whitespace-nowrap border rounded">
+                <input
+                  type="checkbox"
+                  checked={organizationIsPrimary}
+                  onChange={(e) => setOrganizationIsPrimary(e.target.checked)}
+                />
+                Primary
+              </label>
               <Button variant="outline-primary" disabled={saving} onClick={onAddOrganization}>Add</Button>
             </div>
             <div className="mt-3 space-y-2">
               {(employee.organizations || []).map((entry: any) => (
                 <div key={entry.id} className="flex items-center justify-between p-2 border rounded">
-                  <div><div className="font-medium">{entry.name}</div><div className="text-xs text-slate-500">{entry.code}</div></div>
-                  <Button size="sm" variant="outline-danger" disabled={saving} onClick={() => onRemoveOrganization(entry.id)}>Remove</Button>
+                  <div>
+                    <div className="flex items-center gap-2 font-medium">
+                      <span>{entry.name}</span>
+                      {entry.is_primary ? (
+                        <span className="px-2 py-0.5 text-[10px] font-semibold uppercase rounded bg-primary/10 text-primary">
+                          Primary
+                        </span>
+                      ) : null}
+                    </div>
+                    <div className="text-xs text-slate-500">{entry.code}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    {!entry.is_primary ? (
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        disabled={saving}
+                        onClick={() => onMakePrimaryOrganization(entry.id)}
+                      >
+                        Make Primary
+                      </Button>
+                    ) : null}
+                    <Button size="sm" variant="outline-danger" disabled={saving} onClick={() => onRemoveOrganization(entry.id)}>Remove</Button>
+                  </div>
                 </div>
               ))}
             </div>

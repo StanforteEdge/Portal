@@ -12,6 +12,7 @@ export interface LoginResponse {
   user: {
     id: number;
     roles: string[];
+    enabled_modules?: string[];
     [key: string]: unknown;
   };
   tokens: AuthTokens;
@@ -24,6 +25,7 @@ export interface StatusResponse {
     id: number;
     roles: string[];
     permissions?: string[];
+    enabled_modules?: string[];
     [key: string]: unknown;
   } | null;
 }

@@ -6,6 +6,7 @@ import Layout from "../themes";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute";
 import PublicOnlyRoute from "@/components/Auth/PublicOnlyRoute";
 import PermissionRoute from "@/components/Auth/PermissionRoute";
+import ModuleRoute from "@/components/Auth/ModuleRoute";
 
 const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
@@ -148,35 +149,67 @@ function Router() {
         },
         {
           path: "onboarding",
-          element: page(<OnboardingPage />),
+          element: (
+            <ModuleRoute moduleKey="hr">
+              {page(<OnboardingPage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "media",
-          element: page(<MediaLibraryPage />),
+          element: (
+            <ModuleRoute moduleKey="media">
+              {page(<MediaLibraryPage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "documents",
-          element: page(<DocumentsPage />),
+          element: (
+            <ModuleRoute moduleKey="documents">
+              {page(<DocumentsPage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "requests",
-          element: page(<RequestsPage />),
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<RequestsPage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "requests/finance",
-          element: page(<RequestsPage />),
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<RequestsPage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "requests/new",
-          element: page(<RequestsCreatePage />),
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<RequestsCreatePage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "requests/finance/new",
-          element: page(<RequestsCreatePage />),
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<RequestsCreatePage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "requests/leave/new",
-          element: page(<RequestsCreatePage />),
+          element: (
+            <ModuleRoute moduleKey="leave">
+              {page(<RequestsCreatePage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "requests/create",
@@ -184,130 +217,174 @@ function Router() {
         },
         {
           path: "requests/request/:id",
-          element: page(<RequestDetailPage />),
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<RequestDetailPage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "requests/:id",
-          element: page(<RequestDetailPage />),
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<RequestDetailPage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "requests/approvals",
           element: (
-            <PermissionRoute requiredPermissions={["requests.approve"]}>
-              {page(<RequestApprovalsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["requests.approve"]}>
+                {page(<RequestApprovalsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "requests/approvals/:id",
           element: (
-            <PermissionRoute requiredPermissions={["requests.approve"]}>
-              {page(<RequestDetailPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["requests.approve"]}>
+                {page(<RequestDetailPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "requests/attendance",
-          element: page(<StaffAttendancePage />),
+          element: (
+            <ModuleRoute moduleKey="attendance">
+              {page(<StaffAttendancePage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "requests/leave",
-          element: page(<StaffLeaveTrackerPage />),
+          element: (
+            <ModuleRoute moduleKey="leave">
+              {page(<StaffLeaveTrackerPage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "finance",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceDashboardPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceDashboardPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/requests",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceRequestsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceRequestsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/requests/new",
           element: (
-            <PermissionRoute requiredPermissions={["requests.manage"]}>
-              {page(<FinanceManualEntryPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["requests.manage"]}>
+                {page(<FinanceManualEntryPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/requests/request/:id",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceRequestDetailPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceRequestDetailPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/requests/:id",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceRequestDetailPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceRequestDetailPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/settings",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceSettings />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceSettings />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/settings/request-types/new",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceRequestTypeEditor />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceRequestTypeEditor />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/settings/request-types/:id",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceRequestTypeEditor />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceRequestTypeEditor />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/manual-entry",
           element: (
-            <PermissionRoute requiredPermissions={["requests.manage"]}>
-              {page(<FinanceManualEntryPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["requests.manage"]}>
+                {page(<FinanceManualEntryPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/accounts",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceAccountsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceAccountsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/accounts/:id",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceAccountDetailPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceAccountDetailPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "finance/ledger",
           element: (
-            <PermissionRoute requiredPermissions={["finance.view"]}>
-              {page(<FinanceLedgerPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceLedgerPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
@@ -321,33 +398,41 @@ function Router() {
         {
           path: "admin/users",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<UserManagement />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<UserManagement />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/users/new",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<UserCreatePage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<UserCreatePage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/users/:id/edit",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<UserEditPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<UserEditPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/users/:id/roles",
           element: (
-            <PermissionRoute requiredPermissions={["roles.manage"]}>
-              {page(<UserRolesPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["roles.manage"]}>
+                {page(<UserRolesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
@@ -357,113 +442,141 @@ function Router() {
         {
           path: "admin/settings",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminSettingsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminSettingsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/files",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminFilesPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminFilesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/projects",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminProjectsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminProjectsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/documents",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminDocumentsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminDocumentsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/documents/new",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminDocumentEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminDocumentEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/documents/:id",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminDocumentEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminDocumentEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/roles",
           element: (
-            <PermissionRoute requiredPermissions={["roles.manage"]}>
-              {page(<AdminRolesPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["roles.manage"]}>
+                {page(<AdminRolesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/policies",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminPoliciesPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminPoliciesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/forms",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminFormsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminFormsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/forms/new",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminFormEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminFormEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "admin/forms/:id",
           element: (
-            <PermissionRoute requiredPermissions={["settings.manage"]}>
-              {page(<AdminFormEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {page(<AdminFormEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrDashboardPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrDashboardPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/employees",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrEmployeesPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrEmployeesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/employees/new",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrEmployeeEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrEmployeeEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
@@ -473,89 +586,111 @@ function Router() {
         {
           path: "hr/employees/:id",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrEmployeeEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrEmployeeEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/onboarding",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrOnboardingPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrOnboardingPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/attendance",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrAttendancePage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrAttendancePage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/leave",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrLeaveTrackerPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrLeaveTrackerPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/leave/requests",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrLeaveRequestsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrLeaveRequestsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/settings",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrSettingsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrSettingsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/settings/leave",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrLeaveSettingsPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrLeaveSettingsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/settings/request-types/new",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrRequestTypeEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrRequestTypeEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/settings/request-types/:id",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrRequestTypeEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrRequestTypeEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/onboarding/new",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrOnboardingEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrOnboardingEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
         {
           path: "hr/onboarding/:id",
           element: (
-            <PermissionRoute requiredPermissions={["users.manage"]}>
-              {page(<HrOnboardingEditorPage />)}
-            </PermissionRoute>
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["users.manage"]}>
+                {page(<HrOnboardingEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
           ),
         },
       ],
