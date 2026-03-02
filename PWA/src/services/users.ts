@@ -63,6 +63,45 @@ export async function createUser(payload: {
   return data;
 }
 
+export async function getUser(userId: string) {
+  const response = await apiClient.get(`/users/${userId}`);
+  const {
+    data: { data },
+  }: {
+    data: {
+      data: UserListItem & {
+        firstName?: string | null;
+        lastName?: string | null;
+        primaryOrganizationId?: string | null;
+      };
+    };
+  } = response;
+  return data;
+}
+
+export async function updateUser(
+  userId: string,
+  payload: {
+    username?: string;
+    email?: string;
+    password?: string;
+    set_password?: boolean;
+    status?: "active" | "pending";
+    send_invite?: boolean;
+    send_welcome_email?: boolean;
+    first_name?: string;
+    last_name?: string;
+    type?: string;
+    primary_organization_id?: string;
+  }
+) {
+  const response = await apiClient.patch(`/users/${userId}`, payload);
+  const {
+    data: { data },
+  }: { data: { data: UserListItem } } = response;
+  return data;
+}
+
 export async function getUserRoles(userId: string) {
   const response = await apiClient.get(`/users/${userId}/roles`);
   const {

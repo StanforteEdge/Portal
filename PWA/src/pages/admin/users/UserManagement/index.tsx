@@ -128,6 +128,13 @@ function UserManagementPage() {
                             <Button
                               size="sm"
                               variant="outline-primary"
+                              onClick={() => navigate(`/app/admin/users/${user.id}/edit`)}
+                            >
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline-primary"
                               onClick={() => navigate(`/app/admin/users/${user.id}/roles`)}
                             >
                               Roles

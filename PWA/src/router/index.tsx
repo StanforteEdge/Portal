@@ -26,6 +26,7 @@ const FinanceRequestTypeEditor = lazy(
 );
 const UserManagement = lazy(() => import("../pages/admin/users/UserManagement"));
 const UserCreatePage = lazy(() => import("../pages/admin/users/UserCreate"));
+const UserEditPage = lazy(() => import("../pages/admin/users/UserEdit"));
 const UserRolesPage = lazy(() => import("../pages/admin/users/UserRoles"));
 const RequestsPage = lazy(() => import("../pages/staff/requests/RequestsList"));
 const RequestsCreatePage = lazy(
@@ -322,6 +323,14 @@ function Router() {
           element: (
             <PermissionRoute requiredPermissions={["users.manage"]}>
               {page(<UserCreatePage />)}
+            </PermissionRoute>
+          ),
+        },
+        {
+          path: "admin/users/:id/edit",
+          element: (
+            <PermissionRoute requiredPermissions={["users.manage"]}>
+              {page(<UserEditPage />)}
             </PermissionRoute>
           ),
         },
