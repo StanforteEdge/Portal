@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { type MouseEvent, useEffect, useMemo, useState } from "react";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
@@ -7,9 +7,16 @@ import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
   createRbacPermission,
   createRbacRole,
+  deleteRbacPermission,
+  deleteRbacPermissionWithReplacement,
+  deleteRbacRole,
+  deleteRbacRoleWithReplacement,
+  getRbacPermissionDeleteImpact,
+  getRbacRoleDeleteImpact,
   listRbacPermissions,
   listRbacRoles,
   setRbacRolePermissions,
+  updateRbacPermission,
   updateRbacRole,
   type PermissionRecord,
   type RoleRecord,
@@ -24,6 +31,7 @@ const emptyForm = {
 };
 
 const emptyPermissionForm = {
+  id: "",
   name: "",
   slug: "",
   module: "",
@@ -51,6 +59,8 @@ function AdminRolesPage() {
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [permissionForm, setPermissionForm] = useState(emptyPermissionForm);
   const [savingPermission, setSavingPermission] = useState(false);
+  const [deletingRoleId, setDeletingRoleId] = useState("");
+  const [deletingPermissionId, setDeletingPermissionId] = useState("");
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const selectedRole = useMemo(() => roles.find((row) => row.id === selectedRoleId), [roles, selectedRoleId]);
@@ -196,19 +206,117 @@ function AdminRolesPage() {
     try {
       setSavingPermission(true);
       setNotice(null);
-      const created = await createRbacPermission({
-        name: permissionForm.name.trim(),
-        slug: permissionForm.slug.trim() || undefined,
-        module: permissionForm.module.trim() || undefined,
-        description: permissionForm.description.trim() || undefined,
-      });
-      setPermissions((prev) => [...prev, created]);
+      if (permissionForm.id) {
+        const updated = await updateRbacPermission(permissionForm.id, {
+          name: permissionForm.name.trim(),
+          slug: permissionForm.slug.trim() || undefined,
+          module: permissionForm.module.trim() || undefined,
+          description: permissionForm.description.trim() || undefined,
+        });
+        setPermissions((prev) => prev.map((item) => (item.id === updated.id ? updated : item)));
+      } else {
+        const created = await createRbacPermission({
+          name: permissionForm.name.trim(),
+          slug: permissionForm.slug.trim() || undefined,
+          module: permissionForm.module.trim() || undefined,
+          description: permissionForm.description.trim() || undefined,
+        });
+        setPermissions((prev) => [...prev, created]);
+      }
       setPermissionForm(emptyPermissionForm);
-      setNotice({ tone: "success", message: "Permission created." });
+      setNotice({ tone: "success", message: permissionForm.id ? "Permission updated." : "Permission created." });
     } catch (error: any) {
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to create permission." });
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save permission." });
     } finally {
       setSavingPermission(false);
+    }
+  };
+
+  const onEditPermission = (permission: PermissionRecord) => {
+    setPermissionForm({
+      id: permission.id,
+      name: permission.name,
+      slug: permission.slug,
+      module: permission.module || "",
+      description: permission.description || "",
+    });
+  };
+
+  const onDeleteRole = async (role: RoleRecord) => {
+    if (!window.confirm(`Delete role "${role.name}"?`)) return;
+    try {
+      setDeletingRoleId(role.id);
+      setNotice(null);
+      const impact = await getRbacRoleDeleteImpact(role.id);
+      if (impact.usage.assignment_count > 0) {
+        const candidates = roles.filter((item) => item.id !== role.id && item.is_active);
+        if (candidates.length === 0) {
+          setNotice({
+            tone: "warning",
+            message: `Role "${role.name}" is assigned to ${impact.usage.assignment_count} user-role records. Create another active role first.`,
+          });
+          return;
+        }
+        const optionsText = candidates.map((item) => `${item.id}: ${item.name} (${item.slug})`).join("\n");
+        const chosen = window.prompt(
+          `Role "${role.name}" is in use by ${impact.usage.assignment_count} assignment(s).\nEnter replacement role ID:\n\n${optionsText}`,
+          candidates[0]?.id || ""
+        );
+        if (!chosen) return;
+        await deleteRbacRoleWithReplacement(role.id, chosen.trim());
+      } else {
+        await deleteRbacRole(role.id);
+      }
+      if (selectedRoleId === role.id) {
+        setSelectedRoleId("");
+      }
+      await load();
+      setNotice({ tone: "success", message: "Role deleted." });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete role." });
+    } finally {
+      setDeletingRoleId("");
+    }
+  };
+
+  const onDeletePermission = async (permission: PermissionRecord) => {
+    if (!window.confirm(`Delete permission "${permission.name}"?`)) return;
+    try {
+      setDeletingPermissionId(permission.id);
+      setNotice(null);
+      const impact = await getRbacPermissionDeleteImpact(permission.id);
+      if (impact.usage.role_count > 0) {
+        const candidates = permissions.filter((item) => item.id !== permission.id);
+        if (candidates.length === 0) {
+          setNotice({
+            tone: "warning",
+            message: `Permission "${permission.name}" is used by ${impact.usage.role_count} role(s). Create another permission first.`,
+          });
+          return;
+        }
+        const optionsText = candidates
+          .map((item) => `${item.id}: ${item.name} (${item.slug})`)
+          .join("\n");
+        const chosen = window.prompt(
+          `Permission "${permission.name}" is assigned to ${impact.usage.role_count} role(s).\nEnter replacement permission ID:\n\n${optionsText}`,
+          candidates[0]?.id || ""
+        );
+        if (!chosen) return;
+        await deleteRbacPermissionWithReplacement(permission.id, chosen.trim());
+      } else {
+        await deleteRbacPermission(permission.id);
+      }
+      setPermissions((prev) => prev.filter((item) => item.id !== permission.id));
+      setSelectedPermissions((prev) => prev.filter((id) => id !== permission.id));
+      if (permissionForm.id === permission.id) {
+        setPermissionForm(emptyPermissionForm);
+      }
+      await load();
+      setNotice({ tone: "success", message: "Permission deleted." });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete permission." });
+    } finally {
+      setDeletingPermissionId("");
     }
   };
 
@@ -294,6 +402,7 @@ function AdminRolesPage() {
                   <Table.Th className="text-center">Users</Table.Th>
                   <Table.Th className="text-center">Permissions</Table.Th>
                   <Table.Th>Status</Table.Th>
+                  <Table.Th className="text-right">Actions</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -313,11 +422,36 @@ function AdminRolesPage() {
                     <Table.Td className={role.is_active ? "text-success" : "text-slate-500"}>
                       {role.is_active ? "Active" : "Inactive"}
                     </Table.Td>
+                    <Table.Td>
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline-primary"
+                          onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                            event.stopPropagation();
+                            setSelectedRoleId(role.id);
+                          }}
+                        >
+                          Edit
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline-danger"
+                          disabled={deletingRoleId === role.id}
+                          onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                            event.stopPropagation();
+                            void onDeleteRole(role);
+                          }}
+                        >
+                          {deletingRoleId === role.id ? "Deleting..." : "Delete"}
+                        </Button>
+                      </div>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
                 {!loading && filteredRoles.length === 0 ? (
                   <Table.Tr>
-                    <Table.Td colSpan={4} className="text-slate-500">
+                    <Table.Td colSpan={5} className="text-slate-500">
                       No roles found.
                     </Table.Td>
                   </Table.Tr>
@@ -360,7 +494,7 @@ function AdminRolesPage() {
 
           <div className="border-t pt-4">
             <div className="rounded-md border p-4 mb-4">
-              <div className="font-medium mb-3">Create Permission</div>
+              <div className="font-medium mb-3">{permissionForm.id ? "Edit Permission" : "Create Permission"}</div>
               <div className="grid grid-cols-12 gap-3">
                 <div className="col-span-12 md:col-span-4">
                   <FormLabel>Name</FormLabel>
@@ -403,9 +537,18 @@ function AdminRolesPage() {
                 </div>
               </div>
               <div className="mt-3 flex justify-end">
+                {permissionForm.id ? (
+                  <Button
+                    variant="outline-secondary"
+                    className="mr-2"
+                    onClick={() => setPermissionForm(emptyPermissionForm)}
+                  >
+                    Cancel
+                  </Button>
+                ) : null}
                 <Button onClick={() => void createPermission()} disabled={savingPermission}>
-                  <Lucide icon="Plus" className="w-4 h-4 mr-2" />
-                  {savingPermission ? "Creating..." : "Create Permission"}
+                  <Lucide icon={permissionForm.id ? "CheckCircle2" : "Plus"} className="w-4 h-4 mr-2" />
+                  {savingPermission ? "Saving..." : permissionForm.id ? "Save Permission" : "Create Permission"}
                 </Button>
               </div>
             </div>
@@ -497,6 +640,7 @@ function AdminRolesPage() {
                 <Table.Th>Permission</Table.Th>
                 <Table.Th>Module</Table.Th>
                 <Table.Th>Assigned Roles</Table.Th>
+                <Table.Th className="text-right">Actions</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -517,6 +661,25 @@ function AdminRolesPage() {
                           </span>
                         ))}
                       {row.assignedRoleIds.length === 0 ? <span className="text-slate-500 text-xs">Not assigned</span> : null}
+                    </div>
+                  </Table.Td>
+                  <Table.Td>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        onClick={() => onEditPermission(row.permission)}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline-danger"
+                        disabled={deletingPermissionId === row.permission.id}
+                        onClick={() => void onDeletePermission(row.permission)}
+                      >
+                        {deletingPermissionId === row.permission.id ? "Deleting..." : "Delete"}
+                      </Button>
                     </div>
                   </Table.Td>
                 </Table.Tr>

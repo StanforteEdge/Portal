@@ -15,6 +15,8 @@ import { MailService } from '../../common/mail/mail.service';
 
 const ACCESS_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
 const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
+const RELEASE_MODULE_POLICY = { module: 'system', key: 'enabled_modules' } as const;
+const TESTER_MODULE_POLICY = { module: 'system', key: 'tester_enabled_modules' } as const;
 
 @Injectable()
 export class AuthService {
@@ -84,7 +86,8 @@ export class AuthService {
           code: organization.code
         },
         roles: authContext.roles,
-        permissions: authContext.permissions
+        permissions: authContext.permissions,
+        enabled_modules: authContext.enabledModules
       },
       ...tokens
     };
@@ -163,6 +166,7 @@ export class AuthService {
       status: profile.status,
       roles: authContext.roles,
       permissions: authContext.permissions,
+      enabled_modules: authContext.enabledModules,
       onboarding_status: profile.onboardingProgress?.status
     };
   }
@@ -398,7 +402,8 @@ export class AuthService {
   private async buildAuthContext(profileId: bigint) {
     const roles = await this.getUserRoles(profileId);
     const permissions = await this.getUserPermissions(profileId, roles);
-    return { roles, permissions };
+    const enabledModules = await this.getEnabledModules(roles);
+    return { roles, permissions, enabledModules };
   }
 
   private async getUserRoles(profileId: bigint): Promise<string[]> {
@@ -427,5 +432,57 @@ export class AuthService {
 
     const slugs = perms.map((p) => p.permission.slug);
     return Array.from(new Set(slugs));
+  }
+
+  private async getEnabledModules(roleSlugs: string[]): Promise<string[]> {
+    if (roleSlugs.includes('administrator') || roleSlugs.includes('admin')) return ['*'];
+    const released = await this.getGlobalModuleList(RELEASE_MODULE_POLICY.key, ['finance']);
+    if (!roleSlugs.includes('tester')) return released;
+
+    const testerModules = await this.getGlobalModuleList(TESTER_MODULE_POLICY.key, []);
+    return Array.from(new Set([...released, ...testerModules]));
+  }
+
+  private async getGlobalModuleList(policyKey: string, fallback: string[]): Promise<string[]> {
+    const now = new Date();
+    const rows = await this.prisma.policy.findMany({
+      where: {
+        module: RELEASE_MODULE_POLICY.module,
+        policyKey,
+        scopeType: 'global',
+        isActive: true,
+        OR: [{ effectiveFrom: null }, { effectiveFrom: { lte: now } }],
+        AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gte: now } }] }]
+      },
+      orderBy: [{ priority: 'asc' }, { createdAt: 'asc' }]
+    });
+
+    if (!rows.length) return fallback;
+
+    const merged = rows.reduce<Record<string, unknown>>((acc, row) => {
+      const cfg =
+        row.configJson && typeof row.configJson === 'object' && !Array.isArray(row.configJson)
+          ? (row.configJson as Record<string, unknown>)
+          : {};
+      return { ...acc, ...cfg };
+    }, {});
+
+    const raw = Array.isArray(merged.modules)
+      ? merged.modules
+      : Array.isArray(merged.enabled_modules)
+      ? merged.enabled_modules
+      : null;
+
+    if (!raw) return fallback;
+
+    const modules = Array.from(
+      new Set(
+        raw
+          .map((entry) => String(entry ?? '').trim().toLowerCase())
+          .filter(Boolean)
+      )
+    );
+
+    return modules.length > 0 ? modules : fallback;
   }
 }

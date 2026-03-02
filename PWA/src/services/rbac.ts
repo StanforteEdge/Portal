@@ -6,6 +6,7 @@ export type PermissionRecord = {
   slug: string;
   module: string | null;
   description?: string | null;
+  roles?: Array<{ id: string; name: string; slug: string }>;
 };
 
 export type RoleRecord = {
@@ -46,6 +47,35 @@ export async function createRbacRole(payload: {
   return response.data?.data as RoleRecord;
 }
 
+export async function deleteRbacRole(id: string) {
+  const response = await apiClient.delete(`/admin/rbac/roles/${id}`);
+  return response.data?.data as { success: boolean };
+}
+
+export async function getRbacRoleDeleteImpact(id: string) {
+  const response = await apiClient.get(`/admin/rbac/roles/${id}/delete-impact`);
+  return response.data?.data as {
+    role: { id: string; name: string; slug: string };
+    usage: {
+      assignment_count: number;
+      assignments: Array<{
+        id: string;
+        profile_id: string;
+        email: string;
+        username: string | null;
+        organization: { id: string; name: string; code: string } | null;
+      }>;
+    };
+  };
+}
+
+export async function deleteRbacRoleWithReplacement(id: string, replacementRoleId: string) {
+  const response = await apiClient.delete(`/admin/rbac/roles/${id}`, {
+    params: { replacement_role_id: replacementRoleId },
+  });
+  return response.data?.data as { success: boolean; reassigned_assignments: number };
+}
+
 export async function updateRbacRole(
   id: string,
   payload: {
@@ -75,4 +105,37 @@ export async function createRbacPermission(payload: {
 }) {
   const response = await apiClient.post("/admin/rbac/permissions", payload);
   return response.data?.data as PermissionRecord;
+}
+
+export async function updateRbacPermission(
+  id: string,
+  payload: {
+    name?: string;
+    slug?: string;
+    module?: string;
+    description?: string;
+  }
+) {
+  const response = await apiClient.post(`/admin/rbac/permissions/${id}`, payload);
+  return response.data?.data as PermissionRecord;
+}
+
+export async function deleteRbacPermission(id: string) {
+  const response = await apiClient.delete(`/admin/rbac/permissions/${id}`);
+  return response.data?.data as { success: boolean };
+}
+
+export async function getRbacPermissionDeleteImpact(id: string) {
+  const response = await apiClient.get(`/admin/rbac/permissions/${id}/delete-impact`);
+  return response.data?.data as {
+    permission: { id: string; name: string; slug: string; module: string | null };
+    usage: { role_count: number; roles: Array<{ id: string; name: string; slug: string }> };
+  };
+}
+
+export async function deleteRbacPermissionWithReplacement(id: string, replacementPermissionId: string) {
+  const response = await apiClient.delete(`/admin/rbac/permissions/${id}`, {
+    params: { replacement_permission_id: replacementPermissionId },
+  });
+  return response.data?.data as { success: boolean; affected_roles: number };
 }

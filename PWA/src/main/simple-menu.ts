@@ -9,6 +9,7 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "FileText",
     title: "Requests",
+    moduleKey: "finance",
     subMenu: [
       {
         icon: "List",
@@ -19,12 +20,14 @@ const menu: Array<Menu | "divider"> = [
         icon: "CheckCheck",
         pathname: "/app/requests/approvals",
         title: "Approvals",
+        permissions: ["requests.approve"],
       },
     ],
   },
   {
     icon: "Wallet",
     title: "Finance",
+    moduleKey: "finance",
     subMenu: [
       {
         icon: "LayoutDashboard",
@@ -51,6 +54,7 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "Users",
     title: "Admin",
+    moduleKey: "admin",
     subMenu: [
       {
         icon: "UserCog",

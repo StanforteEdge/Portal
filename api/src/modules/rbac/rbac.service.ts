@@ -5,6 +5,7 @@ import { AssignUserRolesDto } from './dto/assign-user-roles.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { SetRolePermissionsDto } from './dto/set-role-permissions.dto';
+import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 
 @Injectable()
@@ -144,22 +145,115 @@ export class RbacService {
     return this.getRoleById(id);
   }
 
-  async deleteRole(roleId: string) {
+  async getRoleDeleteImpact(roleId: string) {
     const id = this.parseId(roleId, 'role id');
     const role = await this.prisma.role.findUnique({ where: { id } });
     if (!role) throw new NotFoundException('Role not found');
 
-    const assignments = await this.prisma.userRole.count({ where: { roleId: id } });
-    if (assignments > 0) {
-      throw new BadRequestException('Cannot delete role with active user assignments');
+    const assignments = await this.prisma.userRole.findMany({
+      where: { roleId: id },
+      select: {
+        id: true,
+        profileId: true,
+        organizationId: true,
+        profile: { select: { email: true, username: true } },
+        organization: { select: { id: true, name: true, code: true } }
+      },
+      orderBy: [{ profileId: 'asc' }]
+    });
+
+    return {
+      role: {
+        id: role.id.toString(),
+        name: role.name,
+        slug: role.slug
+      },
+      usage: {
+        assignment_count: assignments.length,
+        assignments: assignments.map((item) => ({
+          id: item.id.toString(),
+          profile_id: item.profileId.toString(),
+          email: item.profile.email,
+          username: item.profile.username,
+          organization: item.organization
+            ? {
+                id: item.organization.id.toString(),
+                name: item.organization.name,
+                code: item.organization.code
+              }
+            : null
+        }))
+      }
+    };
+  }
+
+  async deleteRole(roleId: string, replacementRoleId?: string) {
+    const id = this.parseId(roleId, 'role id');
+    const role = await this.prisma.role.findUnique({ where: { id } });
+    if (!role) throw new NotFoundException('Role not found');
+
+    const assignments = await this.prisma.userRole.findMany({
+      where: { roleId: id },
+      select: {
+        id: true,
+        profileId: true,
+        organizationId: true,
+        isPrimaryRole: true
+      }
+    });
+
+    let replacementId: bigint | null = null;
+    if (assignments.length > 0) {
+      if (!replacementRoleId) {
+        throw new BadRequestException(
+          `Role is assigned to ${assignments.length} user-role record(s). Provide replacement_role_id to reassign before delete.`
+        );
+      }
+      replacementId = this.parseId(replacementRoleId, 'replacement role id');
+      if (replacementId === id) {
+        throw new BadRequestException('Replacement role must be different from role being deleted');
+      }
+      const replacementRole = await this.prisma.role.findUnique({ where: { id: replacementId } });
+      if (!replacementRole) throw new NotFoundException('Replacement role not found');
     }
 
-    await this.prisma.$transaction([
-      this.prisma.rolePermission.deleteMany({ where: { roleId: id } }),
-      this.prisma.role.delete({ where: { id } })
-    ]);
+    await this.prisma.$transaction(async (tx) => {
+      if (replacementId) {
+        for (const assignment of assignments) {
+          const existingReplacement = await tx.userRole.findFirst({
+            where: {
+              profileId: assignment.profileId,
+              roleId: replacementId,
+              organizationId: assignment.organizationId
+            }
+          });
 
-    return { success: true };
+          if (existingReplacement) {
+            if (assignment.isPrimaryRole && !existingReplacement.isPrimaryRole) {
+              await tx.userRole.update({
+                where: { id: existingReplacement.id },
+                data: { isPrimaryRole: true }
+              });
+            }
+            await tx.userRole.delete({ where: { id: assignment.id } });
+            continue;
+          }
+
+          await tx.userRole.update({
+            where: { id: assignment.id },
+            data: { roleId: replacementId, isPrimaryRole: assignment.isPrimaryRole }
+          });
+        }
+      }
+
+      await tx.rolePermission.deleteMany({ where: { roleId: id } });
+      await tx.role.delete({ where: { id } });
+    });
+
+    return {
+      success: true,
+      reassigned_assignments: assignments.length
+    };
   }
 
   async setRolePermissions(roleId: string, dto: SetRolePermissionsDto) {
@@ -247,6 +341,123 @@ export class RbacService {
       module: permission.module,
       created_at: permission.createdAt,
       updated_at: permission.updatedAt
+    };
+  }
+
+  async getPermissionDeleteImpact(permissionId: string) {
+    const id = this.parseId(permissionId, 'permission id');
+    const permission = await this.prisma.permission.findUnique({
+      where: { id },
+      include: {
+        roles: {
+          include: {
+            role: true
+          },
+          orderBy: {
+            role: {
+              name: 'asc'
+            }
+          }
+        }
+      }
+    });
+    if (!permission) throw new NotFoundException('Permission not found');
+
+    return {
+      permission: {
+        id: permission.id.toString(),
+        name: permission.name,
+        slug: permission.slug,
+        module: permission.module
+      },
+      usage: {
+        role_count: permission.roles.length,
+        roles: permission.roles.map((item) => ({
+          id: item.role.id.toString(),
+          name: item.role.name,
+          slug: item.role.slug
+        }))
+      }
+    };
+  }
+
+  async updatePermission(permissionId: string, dto: UpdatePermissionDto) {
+    const id = this.parseId(permissionId, 'permission id');
+    const existing = await this.prisma.permission.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Permission not found');
+
+    const slug = dto.slug ? this.normalizeSlug(dto.slug) : undefined;
+    if (slug && slug !== existing.slug) {
+      const slugExists = await this.prisma.permission.findUnique({ where: { slug } });
+      if (slugExists) throw new BadRequestException('Permission slug already exists');
+    }
+
+    const updated = await this.prisma.permission.update({
+      where: { id },
+      data: {
+        name: dto.name !== undefined ? dto.name.trim() : undefined,
+        slug,
+        description: dto.description !== undefined ? dto.description : undefined,
+        module: dto.module !== undefined ? dto.module : undefined,
+        updatedAt: new Date()
+      }
+    });
+
+    return {
+      id: updated.id.toString(),
+      name: updated.name,
+      slug: updated.slug,
+      description: updated.description,
+      module: updated.module,
+      created_at: updated.createdAt,
+      updated_at: updated.updatedAt
+    };
+  }
+
+  async deletePermission(permissionId: string, replacementPermissionId?: string) {
+    const id = this.parseId(permissionId, 'permission id');
+    const existing = await this.prisma.permission.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Permission not found');
+
+    const assignments = await this.prisma.rolePermission.findMany({
+      where: { permissionId: id },
+      select: { roleId: true }
+    });
+    const affectedRoleIds = Array.from(new Set(assignments.map((item) => item.roleId)));
+
+    let replacementId: bigint | null = null;
+    if (affectedRoleIds.length > 0) {
+      if (!replacementPermissionId) {
+        throw new BadRequestException(
+          `Permission is assigned to ${affectedRoleIds.length} role(s). Provide replacement_permission_id to preserve role capabilities before delete.`
+        );
+      }
+      replacementId = this.parseId(replacementPermissionId, 'replacement permission id');
+      if (replacementId === id) {
+        throw new BadRequestException('Replacement permission must be different from permission being deleted');
+      }
+      const replacement = await this.prisma.permission.findUnique({ where: { id: replacementId } });
+      if (!replacement) throw new NotFoundException('Replacement permission not found');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      if (replacementId && affectedRoleIds.length > 0) {
+        await tx.rolePermission.createMany({
+          data: affectedRoleIds.map((roleId) => ({
+            roleId,
+            permissionId: replacementId as bigint
+          })),
+          skipDuplicates: true
+        });
+      }
+
+      await tx.rolePermission.deleteMany({ where: { permissionId: id } });
+      await tx.permission.delete({ where: { id } });
+    });
+
+    return {
+      success: true,
+      affected_roles: affectedRoleIds.length
     };
   }
 

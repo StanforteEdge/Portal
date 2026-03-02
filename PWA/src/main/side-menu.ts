@@ -9,6 +9,7 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "Wallet",
     title: "Finance",
+    moduleKey: "finance",
     subMenu: [
       {
         icon: "List",
@@ -25,6 +26,7 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "ClipboardList",
     title: "Leave",
+    moduleKey: "leave",
     subMenu: [
       {
         icon: "Plus",
@@ -42,21 +44,26 @@ const menu: Array<Menu | "divider"> = [
     icon: "CheckCheck",
     pathname: "/app/requests/approvals",
     title: "Approvals",
+    permissions: ["requests.approve"],
+    moduleKey: "finance",
   },
   {
     icon: "Clock3",
     pathname: "/app/requests/attendance",
     title: "Attendance",
+    moduleKey: "attendance",
   },
   {
     icon: "FolderOpen",
     title: "My Media",
     pathname: "/app/media",
+    moduleKey: "media",
   },
   {
     icon: "BookOpen",
     title: "Documents",
     pathname: "/app/documents",
+    moduleKey: "documents",
   },
   {
     icon: "Trello",
@@ -84,6 +91,7 @@ const menu: Array<Menu | "divider"> = [
     icon: "Wallet",
     title: "Finance Admin",
     permissions: ["finance.view"],
+    moduleKey: "finance",
     subMenu: [
       {
         icon: "LayoutDashboard",
@@ -129,6 +137,7 @@ const menu: Array<Menu | "divider"> = [
     icon: "UserCheck",
     title: "HR Admin",
     permissions: ["users.manage"],
+    moduleKey: "hr",
     subMenu: [
       {
         icon: "LayoutDashboard",
@@ -188,6 +197,7 @@ const menu: Array<Menu | "divider"> = [
     icon: "Users",
     title: "Admin",
     permissions: ["settings.manage"],
+    moduleKey: "admin",
     subMenu: [
       {
         icon: "UserCog",

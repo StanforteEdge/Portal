@@ -7,6 +7,7 @@ import { AssignUserRolesDto } from './dto/assign-user-roles.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { SetRolePermissionsDto } from './dto/set-role-permissions.dto';
+import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RbacService } from './rbac.service';
 
@@ -39,8 +40,16 @@ export class RbacController {
   }
 
   @Delete('roles/:id')
-  deleteRole(@Param('id') id: string) {
-    return this.rbacService.deleteRole(id);
+  deleteRole(
+    @Param('id') id: string,
+    @Query('replacement_role_id') replacementRoleId?: string
+  ) {
+    return this.rbacService.deleteRole(id, replacementRoleId);
+  }
+
+  @Get('roles/:id/delete-impact')
+  getRoleDeleteImpact(@Param('id') id: string) {
+    return this.rbacService.getRoleDeleteImpact(id);
   }
 
   @Post('roles/:id/permissions')
@@ -56,6 +65,24 @@ export class RbacController {
   @Post('permissions')
   createPermission(@Body() dto: CreatePermissionDto) {
     return this.rbacService.createPermission(dto);
+  }
+
+  @Post('permissions/:id')
+  updatePermission(@Param('id') id: string, @Body() dto: UpdatePermissionDto) {
+    return this.rbacService.updatePermission(id, dto);
+  }
+
+  @Delete('permissions/:id')
+  deletePermission(
+    @Param('id') id: string,
+    @Query('replacement_permission_id') replacementPermissionId?: string
+  ) {
+    return this.rbacService.deletePermission(id, replacementPermissionId);
+  }
+
+  @Get('permissions/:id/delete-impact')
+  getPermissionDeleteImpact(@Param('id') id: string) {
+    return this.rbacService.getPermissionDeleteImpact(id);
   }
 
   @Get('users/:profileId')
