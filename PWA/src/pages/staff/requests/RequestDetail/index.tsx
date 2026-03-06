@@ -29,6 +29,7 @@ import { listEntityTags, listManagedTaxonomies, type TagTerm } from "@/services/
 import { formatDisplayDate, formatMoney, formatPaymentMethod, formatPersonName, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
 import { buildRequestWorkflowSteps } from "@/utils/requestWorkflow";
 import MediaPickerModal from "@/components/Media/MediaPickerModal";
+import { useAppSelector } from "@/stores/hooks";
 
 function downloadBase64File(fileName: string, mimeType: string, contentBase64: string) {
   const bytes = atob(contentBase64);
@@ -119,6 +120,7 @@ function RequestDetailPage() {
   });
   const [showRetirementPicker, setShowRetirementPicker] = useState(false);
   const [requestTags, setRequestTags] = useState<TagTerm[]>([]);
+  const authUserId = useAppSelector((state) => String(state.auth.user?.id ?? ""));
 
   const load = async () => {
     try {
@@ -202,6 +204,10 @@ function RequestDetailPage() {
   };
 
   const progressSteps = buildRequestWorkflowSteps(request, paymentVouchers);
+  const canEditDraft =
+    Boolean(request) &&
+    String(request?.status || "").toLowerCase() === "draft" &&
+    String(request?.creator?.id || "") === authUserId;
 
   const requestData = (request?.data || {}) as Record<string, unknown>;
   const teamName = (() => {
@@ -510,6 +516,15 @@ function RequestDetailPage() {
             </div>
 
             <div className="flex flex-wrap gap-2">
+              {canEditDraft ? (
+                <Button
+                  variant="outline-primary"
+                  onClick={() => navigate(`/app/requests/new?edit=${request?.id}`)}
+                >
+                  <Lucide icon="FilePenLine" className="w-4 h-4 mr-1" />
+                  Edit Draft
+                </Button>
+              ) : null}
               {actions.filter((action) => action !== "confirm" && action !== "retire").map((action) => (
                 <Button className="capitalize"
                   key={action}

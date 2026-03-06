@@ -12,6 +12,7 @@ export type UserProfile = {
   address?: string | null;
   avatar: string | null;
   primary_organization_id: string | null;
+  organizations?: Array<{ id: string; name: string; code: string; is_primary?: boolean }>;
   onboarding_progress?: {
     status?: string;
     currentStep?: string;

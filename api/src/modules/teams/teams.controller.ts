@@ -16,13 +16,11 @@ export class TeamsController {
   constructor(private readonly teamsService: TeamsService) {}
 
   @Get()
-  @Permissions('requests.view')
   list(@Query() query: Record<string, any>) {
     return this.teamsService.list(query);
   }
 
   @Get(':id')
-  @Permissions('requests.view')
   get(@Param('id') id: string) {
     return this.teamsService.get(id);
   }

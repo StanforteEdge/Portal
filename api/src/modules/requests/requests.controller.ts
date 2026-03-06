@@ -313,7 +313,7 @@ export class RequestsController {
 
 
   @Post(':id')
-  @Permissions('requests.manage')
+  @Permissions('requests.create')
   @ApiOperation({ summary: 'Update draft request' })
   @ApiOkResponse({ type: RequestResponseDto })
   @ApiBody({

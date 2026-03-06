@@ -7,16 +7,18 @@ import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
   createRequest,
   getMyLeaveBalance,
+  getRequest,
   listRequestTypes,
   submitRequest,
+  updateRequest,
   type RequestItemInput,
   type RequestTypeOption,
 } from "@/services/requests";
 import { listProjects } from "@/services/projects";
-import { listMyOrganizations, listOrganizations } from "@/services/organizations";
+import { listMyOrganizations } from "@/services/organizations";
 import type { FileAssetRecord } from "@/services/files";
 import { listTeams, type TeamOption } from "@/services/teams";
-import { listManagedTaxonomies, replaceEntityTags, type TagTerm } from "@/services/taxonomy";
+import { listEntityTags, listManagedTaxonomies, replaceEntityTags, type TagTerm } from "@/services/taxonomy";
 import { getMyProfile } from "@/services/profile";
 import { formatMoney } from "@/utils/formatting";
 import MediaPickerModal from "@/components/Media/MediaPickerModal";
@@ -84,6 +86,7 @@ function RequestsCreatePage() {
       ? "leave"
       : "all";
   const kind = (searchParams.get("kind") || pathKind || "all").toLowerCase();
+  const editId = searchParams.get("edit") || "";
   const [types, setTypes] = useState<RequestTypeOption[]>([]);
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [organizationOptions, setOrganizationOptions] = useState<Array<{ id: string; name: string }>>([]);
@@ -98,6 +101,7 @@ function RequestsCreatePage() {
   const [tags, setTags] = useState<TagTerm[]>([]);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [myUserId, setMyUserId] = useState("");
+  const [editingRequestId, setEditingRequestId] = useState("");
 
   const selectedRequestType = useMemo(
     () => types.find((type) => type.id === form.request_type_id),
@@ -213,31 +217,29 @@ function RequestsCreatePage() {
         setMyUserId(myUserId);
 
         const myOrgOptions = orgs.map((row) => ({ id: row.organization.id, name: row.organization.name }));
-        const allOrgOptions =
-          myOrgOptions.length === 0
-            ? (await listOrganizations({ is_active: true }).catch(() => [])).map((row) => ({ id: row.id, name: row.name }))
-            : myOrgOptions;
-        setOrganizationOptions(allOrgOptions);
+        setOrganizationOptions(myOrgOptions);
 
         const allTeams = teams || [];
         const myTeams =
           myUserId.length > 0
             ? allTeams.filter((team) => (team.members || []).some((member) => String(member.userId) === myUserId))
             : [];
-        const resolvedTeams = myTeams.length > 0 ? myTeams : allTeams;
-        setTeamOptions(resolvedTeams);
+        setTeamOptions(myTeams);
 
         const nextTaxonomyMap: Record<string, CategoryTermOption[]> = {};
         for (const taxonomy of taxonomies || []) {
           const key = String(taxonomy.key || "").trim();
+          const taxonomyId = String(taxonomy.id || "").trim();
           if (!key) continue;
-          nextTaxonomyMap[key] = (taxonomy.terms || [])
+          const options = (taxonomy.terms || [])
             .map((term) => ({
               id: String(term.id || "").trim(),
               value: String(term.value || "").trim(),
               label: String(term.label || "").trim(),
             }))
             .filter((term) => term.id && term.value && term.label);
+          nextTaxonomyMap[key.toLowerCase()] = options;
+          if (taxonomyId) nextTaxonomyMap[taxonomyId] = options;
         }
         setTaxonomyMap(nextTaxonomyMap);
 
@@ -253,8 +255,8 @@ function RequestsCreatePage() {
                   : onlyMatching.length > 0
                     ? onlyMatching[0].id
                     : "",
-            organization_id: allOrgOptions.length === 1 ? allOrgOptions[0].id : prev.organization_id,
-            team_id: resolvedTeams.length === 1 ? resolvedTeams[0].id : prev.team_id,
+            organization_id: myOrgOptions.length === 1 ? myOrgOptions[0].id : prev.organization_id,
+            team_id: myTeams.length === 1 ? myTeams[0].id : prev.team_id,
           };
         });
       } catch (error: any) {
@@ -269,10 +271,85 @@ function RequestsCreatePage() {
     }, [kind]);
 
   useEffect(() => {
-    const taxonomyKey = selectedRequestType?.category_key || "";
+    const loadDraftForEdit = async () => {
+      if (!editId) {
+        setEditingRequestId("");
+        return;
+      }
+      try {
+        const draft = await getRequest(editId);
+        if (String(draft.status || "").toLowerCase() !== "draft") {
+          setNotice({ tone: "warning", message: "Only draft requests can be edited." });
+          return;
+        }
+
+        const data = (draft.data || {}) as Record<string, any>;
+        const draftRequestTypeId = String(draft.request_type?.id || "");
+        const draftItems =
+          Array.isArray(draft.items) && draft.items.length > 0
+            ? draft.items.map((item) => ({
+                description: String(item.description || ""),
+                unit_price: Number(item.amount || 0),
+                amount: Number(item.amount || 0) * Number(item.quantity || 1),
+                quantity: Number(item.quantity || 1),
+                notes: item.notes || "",
+                file_id: item.file_id || undefined,
+                file_name: "",
+              }))
+            : [{ ...defaultItem }];
+
+        const nextForm: CreateFormState = {
+          request_type_id: draftRequestTypeId,
+          reimbursement: Boolean(data.reimbursement),
+          purpose: String(data.purpose || data.leave_reason || ""),
+          category_id: String(data.category_id || ""),
+          leave_start_date: String(data.start_date || ""),
+          leave_end_date: String(data.end_date || ""),
+          leave_days_requested: data.days_requested !== undefined && data.days_requested !== null ? String(data.days_requested) : "",
+          leave_handover_user_id: String(data.handover_user_id || ""),
+          leave_handover_notes: String(data.handover_notes || ""),
+          project_id: String(data.project_id || ""),
+          team_id: String(data.team_id || ""),
+          organization_id: String(data.organization_id || ""),
+          due_date: String(data.due_date || ""),
+          items: draftItems,
+        };
+
+        setForm(nextForm);
+        setEditingRequestId(String(draft.id));
+
+        const isLeave = kind === "leave" || isLeaveType({
+          id: draftRequestTypeId,
+          group_id: "",
+          name: String(draft.request_type?.name || ""),
+          code_prefix: String(draft.request_type?.code_prefix || ""),
+          category_key: String(draft.request_type?.category_key || ""),
+          form_schema: (draft.request_type?.form_schema ?? {}) as Record<string, unknown>,
+          description: "",
+          approval_limit: null,
+          approval_flow_json: null,
+          is_active: true,
+        });
+        if (!isLeave) {
+          const tagPayload = await listEntityTags("request", String(draft.id), "request_tags").catch(() => ({ tags: [] as TagTerm[] }));
+          setTags(tagPayload.tags || []);
+        }
+      } catch (error: any) {
+        setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load draft for editing." });
+      }
+    };
+
+    void loadDraftForEdit();
+  }, [editId, kind]);
+
+  useEffect(() => {
+    const taxonomyKey = String(selectedRequestType?.category_key || "").trim();
+    const normalizedKey = taxonomyKey.toLowerCase();
     const resolvedTaxonomyKey =
-      taxonomyKey && taxonomyMap[taxonomyKey]
-        ? taxonomyKey
+      normalizedKey && taxonomyMap[normalizedKey]
+        ? normalizedKey
+        : taxonomyKey && taxonomyMap[taxonomyKey]
+          ? taxonomyKey
         : Object.keys(taxonomyMap).length === 1
           ? Object.keys(taxonomyMap)[0]
           : "";
@@ -385,7 +462,7 @@ function RequestsCreatePage() {
     return null;
   };
 
-  const createOnly = async () => {
+  const upsertDraft = async () => {
     const validationError = validate();
     if (validationError) {
       setNotice({ tone: "warning", message: validationError });
@@ -402,8 +479,7 @@ function RequestsCreatePage() {
       file_id: item.file_id,
     }));
 
-    const created = await createRequest({
-      request_type_id: form.request_type_id,
+    const payload = {
       team_id: form.team_id || undefined,
       data: {
         purpose: form.purpose,
@@ -423,7 +499,14 @@ function RequestsCreatePage() {
         due_date: form.due_date || undefined,
       },
       items: payloadItems,
-    });
+    };
+
+    const created = editingRequestId
+      ? await updateRequest(editingRequestId, payload)
+      : await createRequest({
+          request_type_id: form.request_type_id,
+          ...payload,
+        });
 
     if (created?.id && tags.length > 0 && !isLeaveRequest) {
       const existingTermIds = tags
@@ -444,12 +527,13 @@ function RequestsCreatePage() {
   };
 
   const onSaveDraft = async () => {
+    if (savingDraft || submitting) return;
     try {
       setSavingDraft(true);
       setNotice(null);
-      const created = await createOnly();
+      const created = await upsertDraft();
       if (!created) return;
-      setNotice({ tone: "success", message: "Draft saved successfully." });
+      setNotice({ tone: "success", message: editingRequestId ? "Draft updated successfully." : "Draft saved successfully." });
       navigate(`/app/requests/request/${created.id}`);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save draft." });
@@ -459,13 +543,14 @@ function RequestsCreatePage() {
   };
 
   const onSubmit = async () => {
+    if (savingDraft || submitting) return;
     try {
       setSubmitting(true);
       setNotice(null);
-      const created = await createOnly();
+      const created = await upsertDraft();
       if (!created) return;
       await submitRequest(created.id);
-      navigate(`/app/requests/request/${created.id}`);
+      navigate(`/app/requests/request/${created.id}`, { replace: true });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to submit request." });
     } finally {
@@ -481,25 +566,17 @@ function RequestsCreatePage() {
     navigate("/app/requests");
   };
 
-  const onDelete = () => {
-    const confirmed = window.confirm("Delete current form input?");
-    if (!confirmed) return;
-    setForm((prev) => ({
-      ...defaultForm,
-      request_type_id: prev.request_type_id,
-      organization_id: prev.organization_id,
-      team_id: prev.team_id,
-      items: [{ ...defaultItem }],
-    }));
-    setTags([]);
-    setNotice({ tone: "success", message: "Form input deleted." });
-  };
-
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">
-          {kind === "leave" ? "Create Leave Request" : kind === "financial" ? "Create Financial Request" : "Create Request"}
+          {editingRequestId
+            ? "Edit Draft Request"
+            : kind === "leave"
+              ? "Create Leave Request"
+              : kind === "financial"
+                ? "Create Financial Request"
+                : "Create Request"}
         </h2>
         <Button variant="outline-secondary" onClick={onCancel}>
           <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" />
@@ -534,17 +611,6 @@ function RequestsCreatePage() {
           </div>
         </div>
 
-        {!isLeaveRequest ? (
-          <div className="col-span-12">
-            <FormLabel className="w-full">Tags</FormLabel>
-            <TagPicker
-              taxonomyKey="request_tags"
-              value={tags}
-              onChange={setTags}
-              placeholder="Type a tag and press Enter"
-            />
-          </div>
-        ) : null}
         <div className="grid grid-cols-12 gap-4">
           {isLeaveRequest ? (
             <>
@@ -674,6 +740,17 @@ function RequestsCreatePage() {
               <FormTextarea rows={4} value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
             </div>
           ) : null}
+          {!isLeaveRequest ? (
+            <div className="col-span-12">
+              <FormLabel className="w-full">Tags (Optional)</FormLabel>
+              <TagPicker
+                taxonomyKey="request_tags"
+                value={tags}
+                onChange={setTags}
+                placeholder="Type a tag and press Enter"
+              />
+            </div>
+          ) : null}
         </div>
 
         {!isLeaveRequest ? (
@@ -687,13 +764,13 @@ function RequestsCreatePage() {
           </div>
 
           {form.items.map((item, index) => (
-            <div key={index} className="border rounded-md p-4 space-y-3">
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-12 md:col-span-5">
+            <div key={index} className="border rounded-md p-4 flex flex-col gap-3">
+              <div className="flex flex-wrap items-end gap-3">
+                <div className="w-full md:flex-[2_1_320px] min-w-0">
                   <FormLabel>Item</FormLabel>
                   <FormInput value={item.description} onChange={(e) => updateItem(index, "description", e.target.value)} />
                 </div>
-                <div className="col-span-6 md:col-span-2">
+                <div className="w-[calc(50%-0.375rem)] md:flex-[1_1_140px] min-w-0">
                   <FormLabel>Price</FormLabel>
                   <FormInput
                     type="number"
@@ -701,7 +778,7 @@ function RequestsCreatePage() {
                     onChange={(e) => updateItem(index, "unit_price", e.target.value)}
                   />
                 </div>
-                <div className="col-span-6 md:col-span-2">
+                <div className="w-[calc(50%-0.375rem)] md:flex-[1_1_120px] min-w-0">
                   <FormLabel>Quantity</FormLabel>
                   <FormInput
                     type="number"
@@ -709,27 +786,27 @@ function RequestsCreatePage() {
                     onChange={(e) => updateItem(index, "quantity", e.target.value)}
                   />
                 </div>
-                <div className="col-span-12 md:col-span-2">
+                <div className="w-full md:flex-[1_1_160px] min-w-0">
                   <FormLabel>Amount</FormLabel>
                   <FormInput value={String(formatMoney(item.amount || 0))} readOnly />
                 </div>
-                <div className="col-span-12 md:col-span-1 flex items-end">
+                <div className="w-full md:w-auto md:ml-auto flex md:justify-end">
                   {form.items.length > 1 ? (
-                    <Button variant="outline-danger" className="w-auto" onClick={() => removeItem(index)}>
-                      Remove
+                    <Button variant="outline-danger" className="w-10 px-0 flex items-center justify-center" onClick={() => removeItem(index)}>
+                      <Lucide icon="Trash2" className="w-4 h-4" />
                     </Button>
                   ) : null}
                 </div>
               </div>
 
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-12 md:col-span-8">
+              <div className="flex flex-wrap gap-3">
+                <div className="w-full md:flex-[2_1_480px] min-w-0">
                   <FormLabel>Notes</FormLabel>
                   <FormTextarea value={item.notes || ""} onChange={(e) => updateItem(index, "notes", e.target.value)} />
                 </div>
-                <div className="col-span-12 md:col-span-4">
+                <div className="w-full md:flex-[1_1_260px] min-w-0">
                   <FormLabel>Invoice File</FormLabel>
-                  <Button variant="outline-secondary" onClick={() => setPickerIndex(index)}>
+                  <Button variant="outline-secondary" className="w-full justify-center" onClick={() => setPickerIndex(index)}>
                     <Lucide icon="FileText" className="w-4 h-4 mr-1" />
                     {item.file_name ? "Change File" : "Pick File"}
                   </Button>
@@ -751,17 +828,9 @@ function RequestsCreatePage() {
             </div>
           ) : <div />}
           <div className="flex flex-row justify-end items-center gap-2">
-            <Button variant="outline-danger" onClick={onDelete} disabled={savingDraft || submitting}>
-              <Lucide icon="Trash2" className="w-4 h-4 mr-1" />
-              Delete
-            </Button>
-            <Button variant="outline-secondary" onClick={onCancel} disabled={savingDraft || submitting}>
-              <Lucide icon="XCircle" className="w-4 h-4 mr-1" />
-              Cancel
-            </Button>
             <Button variant="outline-secondary" onClick={() => void onSaveDraft()} disabled={savingDraft || submitting}>
               <Lucide icon="CheckCircle2" className="w-4 h-4 mr-1" />
-              {savingDraft ? "Saving..." : "Save"}
+              {savingDraft ? "Saving..." : editingRequestId ? "Save Changes" : "Save"}
             </Button>
             <Button variant="primary" onClick={() => void onSubmit()} disabled={savingDraft || submitting}>
               <Lucide icon="Send" className="w-4 h-4 mr-1" />

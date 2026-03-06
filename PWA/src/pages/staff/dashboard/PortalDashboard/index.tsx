@@ -7,11 +7,19 @@ import { listRequests, listApprovals, type RequestRecord } from "@/services/requ
 import { getFinanceSummary, type FinanceSummary } from "@/services/finance";
 import { listUsers } from "@/services/users";
 import { listRbacRoles } from "@/services/rbac";
+import { getMyProfile, type UserProfile } from "@/services/profile";
 import { formatDisplayDate, formatMoney } from "@/utils/formatting";
 import { useAppSelector } from "@/stores/hooks";
 
 function statusLabel(status: string) {
   return status.replaceAll("_", " ").replace(/\b\w/g, (m) => m.toUpperCase());
+}
+
+function resolveGreeting(now = new Date()) {
+  const hour = now.getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
 }
 
 function StatCard({
@@ -46,6 +54,7 @@ function PortalDashboardPage() {
   const [approvals, setApprovals] = useState<RequestRecord[]>([]);
   const [financeSummary, setFinanceSummary] = useState<FinanceSummary | null>(null);
   const [adminSummary, setAdminSummary] = useState<{ users: number; roles: number } | null>(null);
+  const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
@@ -60,16 +69,18 @@ function PortalDashboardPage() {
     const load = async () => {
       try {
         setLoading(true);
-        const [requestRows, approvalRows, summary, usersData, rolesData] = await Promise.all([
+        const [requestRows, approvalRows, summary, usersData, rolesData, profileData] = await Promise.all([
           listRequests({ per_page: 50, only_mine: "true" }).catch(() => []),
           listApprovals({ per_page: 50 }).catch(() => []),
           canSeeFinance ? getFinanceSummary().catch(() => null) : Promise.resolve(null),
           canSeeAdmin ? listUsers({ page: 1, per_page: 1 }).catch(() => null) : Promise.resolve(null),
           canSeeAdmin ? listRbacRoles(true).catch(() => null) : Promise.resolve(null),
+          getMyProfile().catch(() => null),
         ]);
         setRequests(requestRows);
         setApprovals(approvalRows);
         setFinanceSummary(summary);
+        setProfile(profileData);
         setAdminSummary(
           canSeeAdmin
             ? {
@@ -88,11 +99,13 @@ function PortalDashboardPage() {
   }, [canSeeAdmin, canSeeFinance]);
 
   const requestStats = useMemo(() => {
-    const pendingMine = requests.filter((item) => ["draft", "sent", "approval", "cleared", "disbursed", "confirmed", "retired"].includes(item.status)).length;
+    const pendingOnOthersDesk = requests.filter((item) =>
+      ["sent", "approval", "cleared", "disbursed", "confirmed", "retired"].includes(String(item.status || "").toLowerCase())
+    ).length;
     const completedMine = requests.filter((item) => item.status === "completed").length;
     return {
       total: requests.length,
-      pendingMine,
+      pendingOnOthersDesk,
       completedMine,
       draftMine: requests.filter((item) => item.status === "draft").length,
       pendingApprovals: approvals.filter((item) => item.approval_view_status === "pending").length,
@@ -101,79 +114,114 @@ function PortalDashboardPage() {
   }, [requests, approvals]);
 
   const recentRequests = useMemo(() => requests.slice(0, 6), [requests]);
+  const displayName = useMemo(() => {
+    const first = String(profile?.first_name || "").trim();
+    const last = String(profile?.last_name || "").trim();
+    const full = `${first} ${last}`.trim();
+    if (full) return full;
+    const username = String(auth.user?.username || "").trim();
+    return username || "there";
+  }, [profile?.first_name, profile?.last_name, auth.user?.username]);
+  const primaryOrganizationName = useMemo(() => {
+    const orgs = profile?.organizations || [];
+    const primary = orgs.find((org) => org.is_primary) || orgs[0];
+    return primary?.name || "Not assigned";
+  }, [profile?.organizations]);
+  const primaryTeamName = useMemo(() => {
+    const teams = profile?.teams || [];
+    return teams[0]?.name || "Not assigned";
+  }, [profile?.teams]);
 
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
-        <h2 className="mr-auto text-lg font-medium">Dashboard</h2>
+        <div className="mr-auto">
+          <h2 className="text-lg font-medium">
+            {resolveGreeting()}, {displayName}
+          </h2>
+          <p className="text-sm text-slate-500 mt-1">
+            Primary Organization: {primaryOrganizationName}
+            <span className="mx-2">•</span>
+            Team: {primaryTeamName}
+          </p>
+        </div>
       </div>
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
       <div className="grid grid-cols-12 gap-5 mt-5">
         <StatCard label="My Requests" value={loading ? "..." : requestStats.total} icon="FileText" iconClass="text-primary" />
-        <StatCard label="Drafts" value={loading ? "..." : requestStats.draftMine} icon="FilePenLine" iconClass="text-slate-500" />
-        <StatCard label="Pending (My Queue)" value={loading ? "..." : requestStats.pendingMine} icon="Clock3" iconClass="text-warning" />
+        <StatCard label="Pending (On Others Desk)" value={loading ? "..." : requestStats.pendingOnOthersDesk} icon="Clock3" iconClass="text-warning" />
         {canApprove ? (
           <StatCard label="Awaiting My Approval" value={loading ? "..." : requestStats.pendingApprovals} icon="CheckCheck" iconClass="text-pending" />
         ) : (
-          <StatCard label="Approved By Me" value={loading ? "..." : requestStats.approvedByMe} icon="BadgeCheck" iconClass="text-pending" />
+          <StatCard label="Drafts" value={loading ? "..." : requestStats.draftMine} icon="FilePenLine" iconClass="text-slate-500" />
         )}
         <StatCard label="Completed" value={loading ? "..." : requestStats.completedMine} icon="BadgeCheck" iconClass="text-success" />
       </div>
 
       {canSeeFinance ? (
-        <div className="grid grid-cols-12 gap-5 mt-5">
-          <div className="col-span-12 md:col-span-4 intro-y">
-            <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
-              <div className="p-5 box">
-                <Lucide icon="Wallet" className="w-[28px] h-[28px] text-primary" />
-                <div className="mt-4 text-slate-500 text-sm">Finance Total Requests</div>
-                <div className="text-2xl font-semibold mt-1">{financeSummary?.total_requests ?? 0}</div>
+        <>
+          <div className="flex items-center mt-6 intro-y">
+            <h3 className="mr-auto text-base font-medium">Finance</h3>
+          </div>
+          <div className="grid grid-cols-12 gap-5 mt-3">
+            <div className="col-span-12 md:col-span-4 intro-y">
+              <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
+                <div className="p-5 box">
+                  <Lucide icon="Wallet" className="w-[28px] h-[28px] text-primary" />
+                  <div className="mt-4 text-slate-500 text-sm">Finance Total Requests</div>
+                  <div className="text-2xl font-semibold mt-1">{financeSummary?.total_requests ?? 0}</div>
+                </div>
+              </div>
+            </div>
+            <div className="col-span-12 md:col-span-4 intro-y">
+              <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
+                <div className="p-5 box">
+                  <Lucide icon="CircleDollarSign" className="w-[28px] h-[28px] text-success" />
+                  <div className="mt-4 text-slate-500 text-sm">Finance Total Amount</div>
+                  <div className="text-2xl font-semibold mt-1">{formatMoney(Number(financeSummary?.total_amount ?? 0), "NGN")}</div>
+                </div>
+              </div>
+            </div>
+            <div className="col-span-12 md:col-span-4 intro-y">
+              <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
+                <div className="p-5 box">
+                  <Lucide icon="TrendingUp" className="w-[28px] h-[28px] text-warning" />
+                  <div className="mt-4 text-slate-500 text-sm">Finance Average Amount</div>
+                  <div className="text-2xl font-semibold mt-1">{formatMoney(Number(financeSummary?.average_amount ?? 0), "NGN")}</div>
+                </div>
               </div>
             </div>
           </div>
-          <div className="col-span-12 md:col-span-4 intro-y">
-            <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
-              <div className="p-5 box">
-                <Lucide icon="CircleDollarSign" className="w-[28px] h-[28px] text-success" />
-                <div className="mt-4 text-slate-500 text-sm">Finance Total Amount</div>
-                <div className="text-2xl font-semibold mt-1">{formatMoney(Number(financeSummary?.total_amount ?? 0), "NGN")}</div>
-              </div>
-            </div>
-          </div>
-          <div className="col-span-12 md:col-span-4 intro-y">
-            <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
-              <div className="p-5 box">
-                <Lucide icon="TrendingUp" className="w-[28px] h-[28px] text-warning" />
-                <div className="mt-4 text-slate-500 text-sm">Finance Average Amount</div>
-                <div className="text-2xl font-semibold mt-1">{formatMoney(Number(financeSummary?.average_amount ?? 0), "NGN")}</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        </>
       ) : null}
 
       {canSeeAdmin ? (
-        <div className="grid grid-cols-12 gap-5 mt-5">
-          <div className="col-span-12 md:col-span-6 intro-y">
-            <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
-              <div className="p-5 box">
-                <Lucide icon="UsersRound" className="w-[28px] h-[28px] text-primary" />
-                <div className="mt-4 text-slate-500 text-sm">Total Users</div>
-                <div className="text-2xl font-semibold mt-1">{adminSummary?.users ?? 0}</div>
+        <>
+          <div className="flex items-center mt-6 intro-y">
+            <h3 className="mr-auto text-base font-medium">Admin</h3>
+          </div>
+          <div className="grid grid-cols-12 gap-5 mt-3">
+            <div className="col-span-12 md:col-span-6 intro-y">
+              <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
+                <div className="p-5 box">
+                  <Lucide icon="UsersRound" className="w-[28px] h-[28px] text-primary" />
+                  <div className="mt-4 text-slate-500 text-sm">Total Users</div>
+                  <div className="text-2xl font-semibold mt-1">{adminSummary?.users ?? 0}</div>
+                </div>
+              </div>
+            </div>
+            <div className="col-span-12 md:col-span-6 intro-y">
+              <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
+                <div className="p-5 box">
+                  <Lucide icon="ShieldCheck" className="w-[28px] h-[28px] text-success" />
+                  <div className="mt-4 text-slate-500 text-sm">Configured Roles</div>
+                  <div className="text-2xl font-semibold mt-1">{adminSummary?.roles ?? 0}</div>
+                </div>
               </div>
             </div>
           </div>
-          <div className="col-span-12 md:col-span-6 intro-y">
-            <div className="relative zoom-in before:box before:absolute before:inset-x-3 before:mt-3 before:h-full before:bg-slate-50 before:content-['']">
-              <div className="p-5 box">
-                <Lucide icon="ShieldCheck" className="w-[28px] h-[28px] text-success" />
-                <div className="mt-4 text-slate-500 text-sm">Configured Roles</div>
-                <div className="text-2xl font-semibold mt-1">{adminSummary?.roles ?? 0}</div>
-              </div>
-            </div>
-          </div>
-        </div>
+        </>
       ) : null}
 
       <div className="grid grid-cols-12 gap-5 mt-5">

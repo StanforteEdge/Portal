@@ -10,7 +10,40 @@ import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { listRequests, type RequestRecord } from "@/services/requests";
 import { listProjects } from "@/services/projects";
 import { listMyOrganizations } from "@/services/organizations";
+import { listTeams } from "@/services/teams";
 import { formatDisplayDate, formatMoney, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
+
+type SortBy = "created_at" | "request_number" | "total_amount" | "status" | "request_type";
+
+function getRequestTeamId(req: RequestRecord) {
+  const record = req as RequestRecord & { team_id?: string | null };
+  const data = (req.data || {}) as Record<string, unknown>;
+  return String(data.team_id || record.team_id || "").trim();
+}
+
+function getRequestTeamName(req: RequestRecord, teamsById: Record<string, string>) {
+  const data = (req.data || {}) as Record<string, unknown>;
+  const fromDataName = String(data.team_name || data.team || "").trim();
+  if (fromDataName && !/^\d+$/.test(fromDataName)) return fromDataName;
+  const teamId = getRequestTeamId(req) || fromDataName;
+  return teamId ? teamsById[teamId] || teamId : "";
+}
+
+function getRequestOrganizationId(req: RequestRecord) {
+  const record = req as RequestRecord & { organization_id?: string | null };
+  const data = (req.data || {}) as Record<string, unknown>;
+  return String(data.organization_id || record.organization_id || "").trim();
+}
+
+function getRequestOrganizationName(req: RequestRecord, orgsById: Record<string, string>) {
+  const record = req as RequestRecord & { organization?: { id?: string; name?: string } | null };
+  const data = (req.data || {}) as Record<string, unknown>;
+  const fromDataName = String(data.organization_name || data.organization || "").trim();
+  if (fromDataName && !/^\d+$/.test(fromDataName)) return fromDataName;
+  if (record.organization?.name) return record.organization.name;
+  const orgId = getRequestOrganizationId(req) || record.organization?.id || fromDataName;
+  return orgId ? orgsById[orgId] || orgId : "";
+}
 
 function RequestsPage() {
   const [searchParams] = useSearchParams();
@@ -28,13 +61,45 @@ function RequestsPage() {
   const [team, setTeam] = useState("");
   const [organization, setOrganization] = useState("");
   const [dueDate, setDueDate] = useState("");
+  const [sortBy, setSortBy] = useState<SortBy>("created_at");
+  const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [perPage, setPerPage] = useState(10);
   const [currentPage, setCurrentPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [teamOptions, setTeamOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [organizationOptions, setOrganizationOptions] = useState<Array<{ id: string; name: string }>>([]);
+
+  const organizationsById = useMemo(() => {
+    return organizationOptions.reduce<Record<string, string>>((acc, row) => {
+      acc[row.id] = row.name;
+      return acc;
+    }, {});
+  }, [organizationOptions]);
+
+  const teamsById = useMemo(() => {
+    return teamOptions.reduce<Record<string, string>>((acc, row) => {
+      acc[row.id] = row.name;
+      return acc;
+    }, {});
+  }, [teamOptions]);
+
+  const availableTeamOptions = useMemo(() => {
+    const seen = new Set<string>();
+    const rows: Array<{ id: string; name: string }> = [];
+    for (const req of allRequests) {
+      const id = getRequestTeamId(req);
+      if (!id || seen.has(id)) continue;
+      seen.add(id);
+      rows.push({ id, name: teamsById[id] || getRequestTeamName(req, teamsById) || id });
+    }
+    return rows;
+  }, [allRequests, teamsById]);
+
+  const showTeamFilterAndColumn = availableTeamOptions.length > 1;
+  const showOrganizationFilterAndColumn = organizationOptions.length > 1;
 
   const filteredRequests = useMemo(() => {
     return allRequests.filter((req) => {
@@ -44,8 +109,8 @@ function RequestsPage() {
       const isLeave = categoryKey.includes("leave") || typeName.includes("leave");
       const requestDueDate = typeof data.due_date === "string" ? data.due_date.slice(0, 10) : "";
       const requestProject = String(data.project_id || "");
-      const requestTeam = String(data.team || "");
-      const requestOrganization = String(data.organization || "");
+      const requestTeam = getRequestTeamId(req);
+      const requestOrganization = getRequestOrganizationId(req);
       const requestPurpose = String(data.purpose || "");
       const requestType = String(req.request_type?.name || "");
       const searchText = search.trim().toLowerCase();
@@ -66,14 +131,28 @@ function RequestsPage() {
     });
   }, [allRequests, search, status, dueDate, project, team, organization, kind]);
 
-  const teamOptions = useMemo(() => {
-    const teams = new Set<string>();
-    for (const req of allRequests) {
-      const teamValue = String(((req.data || {}) as Record<string, unknown>).team || "").trim();
-      if (teamValue) teams.add(teamValue);
-    }
-    return Array.from(teams);
-  }, [allRequests]);
+  const sortedRequests = useMemo(() => {
+    const rows = [...filteredRequests];
+    const direction = sortOrder === "asc" ? 1 : -1;
+    rows.sort((a, b) => {
+      if (sortBy === "created_at") {
+        const first = new Date(a.created_at || 0).getTime();
+        const second = new Date(b.created_at || 0).getTime();
+        return (first - second) * direction;
+      }
+      if (sortBy === "request_number") {
+        return a.request_number.localeCompare(b.request_number, undefined, { numeric: true }) * direction;
+      }
+      if (sortBy === "total_amount") {
+        return ((a.total_amount ?? 0) - (b.total_amount ?? 0)) * direction;
+      }
+      if (sortBy === "status") {
+        return a.status.localeCompare(b.status) * direction;
+      }
+      return (a.request_type?.name || "").localeCompare(b.request_type?.name || "") * direction;
+    });
+    return rows;
+  }, [filteredRequests, sortBy, sortOrder]);
 
   const pendingCount = useMemo(
     () => filteredRequests.filter((req) => req.status === "sent" || req.status === "approval").length,
@@ -94,22 +173,24 @@ function RequestsPage() {
 
   const pageData = useMemo(() => {
     const start = (currentPage - 1) * perPage;
-    return filteredRequests.slice(start, start + perPage);
-  }, [filteredRequests, currentPage, perPage]);
+    return sortedRequests.slice(start, start + perPage);
+  }, [sortedRequests, currentPage, perPage]);
 
-  const totalPages = Math.max(1, Math.ceil(filteredRequests.length / perPage));
+  const totalPages = Math.max(1, Math.ceil(sortedRequests.length / perPage));
 
   const loadData = async () => {
     try {
       setLoading(true);
-      const [reqs, projects, orgs] = await Promise.all([
+      const [reqs, projects, teams, orgs] = await Promise.all([
         listRequests({ only_mine: "true" }),
         listProjects().catch(() => []),
+        listTeams({ active_only: false }).catch(() => []),
         listMyOrganizations().catch(() => []),
       ]);
 
       setAllRequests(reqs);
       setProjectOptions(projects.map((project) => ({ id: project.id, name: project.name })));
+      setTeamOptions(teams.map((row) => ({ id: row.id, name: row.name })));
       setOrganizationOptions(
         orgs.map((row) => ({ id: row.organization.id, name: row.organization.name }))
       );
@@ -126,7 +207,7 @@ function RequestsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, status, dueDate, project, team, organization, perPage]);
+  }, [search, status, dueDate, project, team, organization, sortBy, sortOrder, perPage]);
 
   return (
     <>
@@ -194,30 +275,47 @@ function RequestsPage() {
                 ))}
               </FormSelect>
             </div>
-            {teamOptions.length > 1 ? (
+            {showTeamFilterAndColumn ? (
               <div className="min-w-[190px]">
                 <FormSelect className="w-auto" value={team} onChange={(e) => setTeam(e.target.value)}>
                   <option value="">All teams</option>
-                  {teamOptions.map((option) => (
-                    <option key={option} value={option}>
-                      {option}
-                    </option>
-                  ))}
-                </FormSelect>
-              </div>
-            ) : null}
-            {organizationOptions.length > 1 ? (
-              <div className="min-w-[190px]">
-                <FormSelect className="w-auto" value={organization} onChange={(e) => setOrganization(e.target.value)}>
-                  <option value="">All organizations</option>
-                  {organizationOptions.map((option) => (
-                    <option key={option.id} value={option.name}>
+                  {availableTeamOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
                       {option.name}
                     </option>
                   ))}
                 </FormSelect>
               </div>
             ) : null}
+            {showOrganizationFilterAndColumn ? (
+              <div className="min-w-[190px]">
+                <FormSelect className="w-auto" value={organization} onChange={(e) => setOrganization(e.target.value)}>
+                  <option value="">All organizations</option>
+                  {organizationOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.name}
+                    </option>
+                  ))}
+                </FormSelect>
+              </div>
+            ) : null}
+            <div className="w-auto">
+              <FormSelect className="w-auto" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
+                <option value="">Order by</option>
+                <option value="created_at">Created Date</option>
+                <option value="request_number">Request Number</option>
+                <option value="total_amount">Total Amount</option>
+                <option value="status">Status</option>
+                <option value="request_type">Request Type</option>
+              </FormSelect>
+            </div>
+            <div className="w-auto">
+              <FormSelect className="w-auto" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}>
+                <option value="">Order</option>
+                <option value="desc">Descending</option>
+                <option value="asc">Ascending</option>
+              </FormSelect>
+            </div>
             <div className="w-auto">
               <FormSelect className="w-auto" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All statuses</option>
@@ -258,8 +356,8 @@ function RequestsPage() {
                   <Table.Th>Type</Table.Th>
                   <Table.Th>Total</Table.Th>
                   <Table.Th>Project</Table.Th>
-                  {teamOptions.length > 1 ? <Table.Th>Team</Table.Th> : null}
-                  {organizationOptions.length > 1 ? <Table.Th>Organization</Table.Th> : null}
+                  {showTeamFilterAndColumn ? <Table.Th>Team</Table.Th> : null}
+                  {showOrganizationFilterAndColumn ? <Table.Th>Organization</Table.Th> : null}
                   <Table.Th>Due Date</Table.Th>
                   <Table.Th>Status</Table.Th>
                 </Table.Tr>
@@ -283,9 +381,9 @@ function RequestsPage() {
                           return String(data.project_name || "-");
                         })()}
                       </Table.Td>
-                      {teamOptions.length > 1 ? <Table.Td>{String(data.team || "-")}</Table.Td> : null}
-                      {organizationOptions.length > 1 ? (
-                        <Table.Td>{String(data.organization || "-")}</Table.Td>
+                      {showTeamFilterAndColumn ? <Table.Td>{getRequestTeamName(req, teamsById) || "-"}</Table.Td> : null}
+                      {showOrganizationFilterAndColumn ? (
+                        <Table.Td>{getRequestOrganizationName(req, organizationsById) || "-"}</Table.Td>
                       ) : null}
                       <Table.Td>{formatDisplayDate(typeof data.due_date === "string" ? data.due_date : null)}</Table.Td>
                       <Table.Td>
@@ -303,7 +401,7 @@ function RequestsPage() {
 
         <div className="flex flex-wrap items-center justify-between p-5 border-t border-slate-200/60 dark:border-darkmode-400">
           <div className="text-slate-500 text-sm">
-            Showing {pageData.length} of {filteredRequests.length} requests
+            Showing {pageData.length} of {sortedRequests.length} requests
           </div>
           <Pagination>
             <Pagination.Link onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}>
