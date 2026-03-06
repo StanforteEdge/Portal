@@ -25,7 +25,7 @@ export class TaxonomyController {
   }
 
   @Get('taxonomies')
-  @Permissions('settings.manage')
+  @Permissions('requests.view')
   listTaxonomies(@Query() query: Record<string, any>) {
     return this.taxonomyService.listTaxonomies(query);
   }

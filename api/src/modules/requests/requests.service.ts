@@ -678,17 +678,23 @@ export class RequestsService {
       });
     }
 
-    await this.notificationsService.create({
-      userId,
-      type: 'action',
-      title: 'Request submitted',
-      message: `Request #${request.id.toString()} submitted for approval.`,
-      data: { requestId: request.id.toString(), comment: dto.comment },
-      notifiableType: 'request',
-      notifiableId: request.id,
-      emailSubject: `Request submitted (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
-    });
+    try {
+      const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+      await this.notificationsService.create({
+        userId,
+        type: 'action',
+        title: 'Request submitted',
+        message: `Request #${request.id.toString()} submitted for approval.`,
+        data: { requestId: request.id.toString(), comment: dto.comment },
+        notifiableType: 'request',
+        notifiableId: request.id,
+        emailSubject: `Request submitted (${formattedRequestNumber})`,
+        emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
+      });
+    } catch (error) {
+      // Do not fail request submission because notification/email delivery failed.
+      console.error('submitRequest notification failed', error);
+    }
 
     return this.getRequest(updated.id.toString(), userId);
   }

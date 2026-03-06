@@ -240,6 +240,20 @@ export async function submitRequest(id: string, comment?: string) {
   return response.data?.data as RequestRecord;
 }
 
+export async function updateRequest(
+  id: string,
+  payload: {
+    team_id?: string;
+    currency?: string;
+    total_amount?: number;
+    data?: Record<string, unknown>;
+    items?: RequestItemInput[];
+  }
+) {
+  const response = await apiClient.post(`/requests/${id}`, payload);
+  return response.data?.data as RequestRecord;
+}
+
 export async function approveRequest(id: string, comment?: string) {
   const response = await apiClient.post(`/requests/${id}/approve`, { action: "approve", comment: comment || undefined });
   return response.data?.data as RequestRecord;
