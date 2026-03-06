@@ -691,6 +691,15 @@ export class RequestsService {
         emailSubject: `Request submitted (${formattedRequestNumber})`,
         emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
       });
+
+      if (workflowStart.instanceId && workflowStart.workflowStatus !== 'approved') {
+        await this.notifyCurrentApprovers(
+          request.id,
+          `Request ${formattedRequestNumber} has been sent to you for approval.`,
+          `Request pending approval (${formattedRequestNumber})`,
+          userId
+        );
+      }
     } catch (error) {
       // Do not fail request submission because notification/email delivery failed.
       console.error('submitRequest notification failed', error);
@@ -718,6 +727,13 @@ export class RequestsService {
           where: { id: request.id },
           data: { status: 'approval' }
         });
+        const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+        await this.notifyCurrentApprovers(
+          request.id,
+          `Request ${formattedRequestNumber} has been sent to you for approval.`,
+          `Request pending approval (${formattedRequestNumber})`,
+          userId
+        );
         return this.getRequest(request.id.toString(), userId);
       }
     }
@@ -1056,13 +1072,22 @@ export class RequestsService {
     });
   }
 
-  async getActions(id: string, _userId: string) {
+  async getActions(id: string, userId: string) {
     const request = await this.getRequestOrThrow(id);
+    const isOwner = request.createdBy === toBigInt(userId);
+
     if (request.workflowInstanceId) {
-      return this.workflowService.getAvailableActions(request.workflowInstanceId);
+      if (['sent', 'approval'].includes(request.status)) {
+        const canAct = await this.isPendingApprovalForUser(id, userId);
+        return canAct ? ['approve', 'reject'] : [];
+      }
+      return [];
     }
-    if (request.status === 'draft') return ['submit'];
-    if (['sent', 'approval'].includes(request.status)) return ['approve', 'reject'];
+    if (request.status === 'draft') return isOwner ? ['submit'] : [];
+    if (['sent', 'approval'].includes(request.status)) {
+      const canAct = await this.isPendingApprovalForUser(id, userId);
+      return canAct ? ['approve', 'reject'] : [];
+    }
     if (request.status === 'cleared') return ['disburse'];
     if (request.status === 'disbursed') return ['confirm'];
     if (request.status === 'confirmed') return ['retire'];
@@ -1558,7 +1583,7 @@ export class RequestsService {
       notifiableType: 'request',
       notifiableId: request.id,
       emailSubject: `Disbursement confirmed (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: `request-${request.id.toString()}-pv-${voucher.voucherNumber}`
+      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
     });
 
     return this.getRequest(request.id.toString(), userId);
@@ -1606,8 +1631,6 @@ export class RequestsService {
         retired_amount: touched.allocated
       });
     }
-    const threadVoucher = retirementResult.touched_vouchers[0]?.voucher_number;
-
     await this.notificationsService.create({
       userId,
       type: 'info',
@@ -1622,7 +1645,7 @@ export class RequestsService {
       notifiableType: 'request',
       notifiableId: request.id,
       emailSubject: `Retirement submitted (${await this.getFormattedRequestNumber(request.id)})`,
-      ...(threadVoucher ? { emailThreadKey: `request-${request.id.toString()}-pv-${threadVoucher}` } : {})
+      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
     });
 
     return this.getRequest(updated.id.toString(), userId);
@@ -1689,7 +1712,7 @@ export class RequestsService {
         notifiableType: 'request',
         notifiableId: request.id,
         emailSubject: `Retirement verified (${await this.getFormattedRequestNumber(request.id)})`,
-        emailThreadKey: `request-${request.id.toString()}-pv-${voucher.voucherNumber}`
+        emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
       });
     }
 
@@ -3324,6 +3347,85 @@ export class RequestsService {
     }
 
     return false;
+  }
+
+  private async listCurrentApproverUserIds(requestId: bigint): Promise<string[]> {
+    const request = await this.prisma.requestInstance.findUnique({
+      where: { id: requestId },
+      select: { teamId: true, workflowInstanceId: true }
+    });
+    if (!request?.workflowInstanceId) return [];
+    const instance = await this.prisma.workflowInstance.findUnique({
+      where: { id: request.workflowInstanceId },
+      include: { currentStep: { include: { approvers: true } } }
+    });
+    if (!instance?.currentStep || instance.status !== 'pending') return [];
+
+    const userIds = new Set<string>();
+    for (const approver of instance.currentStep.approvers) {
+      if (approver.approverType !== 'role') continue;
+      const approverId = String(approver.approverId || '').trim().toLowerCase();
+      if (!approverId) continue;
+
+      if (approverId === 'team_lead' || approverId === 'team_lead_or_manager') {
+        if (!request.teamId) continue;
+        const allowedRoles =
+          approverId === 'team_lead'
+            ? [GroupUserRole.moderator]
+            : [GroupUserRole.moderator, GroupUserRole.admin];
+        const rows = await this.prisma.groupUser.findMany({
+          where: { groupId: request.teamId, role: { in: allowedRoles } },
+          select: { userId: true }
+        });
+        for (const row of rows) userIds.add(row.userId.toString());
+        continue;
+      }
+
+      const directRoleUsers = await this.prisma.userRole.findMany({
+        where: { role: { slug: approverId } },
+        select: { profileId: true }
+      });
+      for (const row of directRoleUsers) userIds.add(row.profileId.toString());
+
+      const permissionUsers = await this.prisma.userRole.findMany({
+        where: {
+          role: {
+            permissions: {
+              some: { permission: { slug: approverId } }
+            }
+          }
+        },
+        select: { profileId: true }
+      });
+      for (const row of permissionUsers) userIds.add(row.profileId.toString());
+    }
+
+    return Array.from(userIds);
+  }
+
+  private async notifyCurrentApprovers(
+    requestId: bigint,
+    message: string,
+    emailSubject: string,
+    excludedUserId?: string
+  ) {
+    const recipients = await this.listCurrentApproverUserIds(requestId);
+    if (!recipients.length) return;
+    const formattedRequestNumber = await this.getFormattedRequestNumber(requestId);
+    for (const targetUserId of recipients) {
+      if (excludedUserId && targetUserId === excludedUserId) continue;
+      await this.notificationsService.create({
+        userId: targetUserId,
+        type: 'action',
+        title: 'Request awaiting approval',
+        message,
+        data: { requestId: requestId.toString() },
+        notifiableType: 'request',
+        notifiableId: requestId,
+        emailSubject,
+        emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
+      });
+    }
   }
 
   private async logWorkflowEvent(

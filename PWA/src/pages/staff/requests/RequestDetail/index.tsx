@@ -216,10 +216,14 @@ function RequestDetailPage() {
     return teams.find((team) => team.id === idValue)?.name || idValue;
   })();
   const organizationName = (() => {
-    const idValue = String(requestData.organization_id || "").trim();
-    if (!idValue) return "-";
-    return organizations.find((org) => org.id === idValue)?.name || idValue;
+    const directName = String((request as any)?.organization?.name || "").trim();
+    if (directName) return directName;
+    const rawValue = String(requestData.organization_name || requestData.organization || requestData.organization_id || "").trim();
+    if (!rawValue) return "-";
+    if (!/^\d+$/.test(rawValue)) return rawValue;
+    return organizations.find((org) => org.id === rawValue)?.name || rawValue;
   })();
+  const purposeText = String(requestData.purpose || requestData.leave_reason || "").trim();
   const projectName = (() => {
     const projectId = String(requestData.project_id || "").trim();
     if (projectId) return projects.find((project) => project.id === projectId)?.name || projectId;
@@ -347,6 +351,10 @@ function RequestDetailPage() {
                   <div>
                     <div className="text-xs text-slate-500">Project</div>
                     <div>{projectName}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <div className="text-xs text-slate-500">Purpose</div>
+                    <div>{purposeText || "-"}</div>
                   </div>
                   <div className="col-span-2">
                     <div className="text-xs text-slate-500">Tags</div>

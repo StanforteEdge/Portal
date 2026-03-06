@@ -21,6 +21,12 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/requests/finance/new",
         title: "New Request",
       },
+      {
+        icon: "CheckCheck",
+        pathname: "/app/requests/approvals",
+        title: "Approvals",
+        permissions: ["requests.approve"],
+      },
     ],
   },
   {
@@ -39,13 +45,6 @@ const menu: Array<Menu | "divider"> = [
         title: "Leave Tracker",
       },
     ],
-  },
-  {
-    icon: "CheckCheck",
-    pathname: "/app/requests/approvals",
-    title: "Approvals",
-    permissions: ["requests.approve"],
-    moduleKey: "finance",
   },
   {
     icon: "Clock3",

@@ -76,6 +76,17 @@ const defaultForm: CreateFormState = {
   items: [{ ...defaultItem }],
 };
 
+function toBoolean(value: unknown): boolean {
+  if (typeof value === "boolean") return value;
+  if (typeof value === "number") return value === 1;
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes", "on"].includes(normalized)) return true;
+    if (["false", "0", "no", "off", ""].includes(normalized)) return false;
+  }
+  return Boolean(value);
+}
+
 function RequestsCreatePage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -274,6 +285,7 @@ function RequestsCreatePage() {
     const loadDraftForEdit = async () => {
       if (!editId) {
         setEditingRequestId("");
+        setTags([]);
         return;
       }
       try {
@@ -300,7 +312,7 @@ function RequestsCreatePage() {
 
         const nextForm: CreateFormState = {
           request_type_id: draftRequestTypeId,
-          reimbursement: Boolean(data.reimbursement),
+          reimbursement: toBoolean(data.reimbursement ?? data.airtime),
           purpose: String(data.purpose || data.leave_reason || ""),
           category_id: String(data.category_id || ""),
           leave_start_date: String(data.start_date || ""),
@@ -330,10 +342,8 @@ function RequestsCreatePage() {
           approval_flow_json: null,
           is_active: true,
         });
-        if (!isLeave) {
-          const tagPayload = await listEntityTags("request", String(draft.id), "request_tags").catch(() => ({ tags: [] as TagTerm[] }));
-          setTags(tagPayload.tags || []);
-        }
+        const tagPayload = await listEntityTags("request", String(draft.id), "request_tags").catch(() => ({ tags: [] as TagTerm[] }));
+        setTags(isLeave ? [] : tagPayload.tags || []);
       } catch (error: any) {
         setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load draft for editing." });
       }

@@ -314,7 +314,7 @@ export class FinanceService {
       notifiableType: 'request',
       notifiableId: request.id,
       emailSubject: `Request disbursed (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: `request-${request.id.toString()}-pv-${voucherNumber}`
+      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
     });
 
     return updated;
@@ -838,6 +838,10 @@ export class FinanceService {
     if (manual) return manual;
     const codePrefix = (request.requestType?.codePrefix || 'REQ').toUpperCase();
     return `${codePrefix}/${request.createdAt.getFullYear()}/${request.id.toString()}`;
+  }
+
+  private getRequestThreadKey(requestNumber: string): string {
+    return `request-${requestNumber.replace(/[^a-zA-Z0-9_.-]/g, '-').toLowerCase()}`;
   }
 
   private normalizeSettings(data: unknown) {
