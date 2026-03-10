@@ -249,3 +249,35 @@ export async function listFinanceRequestPaymentVouchers(id: string) {
     retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
   }>;
 }
+
+export type FinancePaymentVoucherListRecord = {
+  id: string;
+  request_id: string;
+  request_number: string;
+  request_status: string;
+  request_type: string;
+  request_creator_name: string;
+  request_total_amount: number;
+  voucher_number: string;
+  amount: number;
+  retired_amount: number;
+  voucher_balance: number;
+  retirement_status: string;
+  method: string | null;
+  transaction_ref: string | null;
+  note: string | null;
+  disbursed_at: string;
+  retired_at: string | null;
+  verified_at: string | null;
+  paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
+  evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+};
+
+export async function listFinancePaymentVouchers(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/finance/payment-vouchers", { params });
+  const payload = response.data?.data ?? { data: [], meta: {} };
+  return payload as {
+    data: FinancePaymentVoucherListRecord[];
+    meta: { page: number; per_page: number; total: number; last_page: number };
+  };
+}

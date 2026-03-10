@@ -420,6 +420,108 @@ export class FinanceService {
     });
   }
 
+  async listAllPaymentVouchers(query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
+    const where: Prisma.FinancePaymentVoucherWhereInput = {};
+
+    if (query.request_id) where.requestId = this.parseId(String(query.request_id), 'request id');
+    if (query.voucher_number) where.voucherNumber = { contains: String(query.voucher_number), mode: 'insensitive' };
+    if (query.retirement_status) where.retirementStatus = String(query.retirement_status);
+    if (query.method) where.method = String(query.method);
+    if (query.paid_from_account_id) where.paidFromAccountId = String(query.paid_from_account_id);
+    if (query.from || query.to) {
+      where.disbursedAt = {};
+      if (query.from) where.disbursedAt.gte = new Date(String(query.from));
+      if (query.to) where.disbursedAt.lte = new Date(String(query.to));
+    }
+
+    const [total, rows] = await this.prisma.$transaction([
+      this.prisma.financePaymentVoucher.count({ where }),
+      this.prisma.financePaymentVoucher.findMany({
+        where,
+        include: {
+          request: {
+            select: {
+              id: true,
+              status: true,
+              totalAmount: true,
+              createdAt: true,
+              requestType: { select: { name: true, codePrefix: true } },
+              creator: { select: { firstName: true, lastName: true, username: true, email: true } },
+            }
+          },
+          paidFromAccount: {
+            select: { id: true, name: true, code: true, accountType: true }
+          },
+          evidenceFile: {
+            select: { id: true, fileName: true, mimeType: true, publicUrl: true }
+          }
+        },
+        orderBy: [{ disbursedAt: 'desc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * perPage,
+        take: perPage
+      })
+    ]);
+
+    const data = rows.map((row) => {
+      const creatorName =
+        `${row.request.creator.firstName ?? ''} ${row.request.creator.lastName ?? ''}`.trim() ||
+        row.request.creator.username ||
+        row.request.creator.email ||
+        '-';
+      const requestNumber = `${(row.request.requestType?.codePrefix || 'REQ').toUpperCase()}/${row.request.createdAt.getFullYear()}/${row.request.id.toString()}`;
+      const amount = Number(row.amount);
+      const retiredAmount = Number(row.retiredAmount);
+      return {
+        id: row.id,
+        request_id: row.request.id.toString(),
+        request_number: requestNumber,
+        request_status: row.request.status,
+        request_type: row.request.requestType?.name ?? '-',
+        request_creator_name: creatorName,
+        request_total_amount: Number(row.request.totalAmount ?? 0),
+        voucher_number: row.voucherNumber,
+        amount,
+        retired_amount: retiredAmount,
+        voucher_balance: Math.max(0, amount - retiredAmount),
+        retirement_status: row.retirementStatus,
+        method: row.method,
+        transaction_ref: row.transactionRef,
+        note: row.note,
+        disbursed_at: row.disbursedAt,
+        retired_at: row.retiredAt,
+        verified_at: row.verifiedAt,
+        paid_from_account: row.paidFromAccount
+          ? {
+              id: row.paidFromAccount.id,
+              name: row.paidFromAccount.name,
+              code: row.paidFromAccount.code,
+              account_type: row.paidFromAccount.accountType
+            }
+          : null,
+        evidence_file: row.evidenceFile
+          ? {
+              id: row.evidenceFile.id,
+              file_name: row.evidenceFile.fileName,
+              mime_type: row.evidenceFile.mimeType,
+              public_url: row.evidenceFile.publicUrl
+            }
+          : null
+      };
+    });
+
+    return {
+      data,
+      meta: {
+        page,
+        per_page: perPage,
+        total,
+        last_page: Math.max(1, Math.ceil(total / perPage))
+      }
+    };
+  }
+
   async listAccounts(query: Record<string, any>) {
     const where: Prisma.FinanceAccountWhereInput = {
       ...(query.is_active !== undefined ? { isActive: String(query.is_active) !== 'false' } : {}),
