@@ -121,6 +121,8 @@ function UpdateProfilePage() {
     ? `${profile.employee_profile.manager.first_name || ""} ${profile.employee_profile.manager.last_name || ""}`.trim() ||
     profile.employee_profile.manager.email
     : "-";
+  const organizations = profile?.organizations || [];
+  const teams = profile?.teams || [];
 
   return (
     <>
@@ -197,6 +199,43 @@ function UpdateProfilePage() {
                 <div>
                   <div className="text-xs uppercase text-slate-500">Profile Type</div>
                   <div className="mt-1 font-medium">{humanize(profile?.type)}</div>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-4 mt-6 md:grid-cols-2">
+                <div>
+                  <div className="text-xs uppercase text-slate-500">Organizations</div>
+                  <div className="mt-2 space-y-2">
+                    {organizations.length > 0 ? (
+                      organizations.map((org: any) => (
+                        <div key={org.id} className="p-3 border rounded-md">
+                          <div className="font-medium">{org.name}</div>
+                          <div className="text-xs text-slate-500">
+                            {org.code}
+                            {org.is_primary ? " • Primary" : ""}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-slate-500">No organizations assigned.</div>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase text-slate-500">Teams</div>
+                  <div className="mt-2 space-y-2">
+                    {teams.length > 0 ? (
+                      teams.map((team: any) => (
+                        <div key={team.id} className="p-3 border rounded-md">
+                          <div className="font-medium">{team.name}</div>
+                          <div className="text-xs text-slate-500">
+                            {humanize(team.type)} • {humanize(team.role)}
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-sm text-slate-500">No teams assigned.</div>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="mt-6">
