@@ -138,4 +138,11 @@ export class FinanceController {
   listPaymentVouchers(@Param('id') id: string) {
     return this.financeService.listPaymentVouchers(id);
   }
+
+  @Get('payment-vouchers')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'List payment vouchers/disbursements across requests' })
+  listAllPaymentVouchers(@Query() query: Record<string, any>) {
+    return this.financeService.listAllPaymentVouchers(query);
+  }
 }

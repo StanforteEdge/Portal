@@ -61,6 +61,9 @@ const FinanceAccountDetailPage = lazy(
 const FinanceLedgerPage = lazy(
   () => import("../pages/finance/ledger/FinanceLedger")
 );
+const FinancePaymentVouchersPage = lazy(
+  () => import("../pages/finance/payment-vouchers/FinancePaymentVouchers")
+);
 const AdminFilesPage = lazy(() => import("../pages/admin/files/AdminFiles"));
 const AdminProjectsPage = lazy(
   () => import("../pages/admin/projects/AdminProjects")
@@ -383,6 +386,16 @@ function Router() {
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
                 {page(<FinanceLedgerPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payment-vouchers",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinancePaymentVouchersPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),

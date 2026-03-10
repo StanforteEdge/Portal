@@ -175,6 +175,17 @@ function FinanceManualEntryPage() {
     () => items.reduce((sum, item) => sum + Number(item.amount || 0) * Number(item.quantity || 1), 0),
     [items]
   );
+  const approvalNameOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          staffOptions
+            .map((option) => option.name.trim())
+            .filter((name) => Boolean(name))
+        )
+      ).sort((a, b) => a.localeCompare(b)),
+    [staffOptions]
+  );
 
   useEffect(() => {
     const load = async () => {
@@ -671,16 +682,16 @@ function FinanceManualEntryPage() {
         <div>
           <h4 className="font-medium mb-2">Manual Approvals</h4>
           <div className="grid grid-cols-12 gap-3">
-            <div className="col-span-6 md:col-span-3"><FormLabel>Team Lead Name</FormLabel><FormInput value={form.approvals.team_lead_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_name: e.target.value } }))} /></div>
+            <div className="col-span-6 md:col-span-3"><FormLabel>Team Lead Name</FormLabel><FormSelect value={form.approvals.team_lead_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.team_lead_name && !approvalNameOptions.includes(form.approvals.team_lead_name) ? <option value={form.approvals.team_lead_name}>{form.approvals.team_lead_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-team-lead-${name}`} value={name}>{name}</option>)}</FormSelect></div>
             <div className="col-span-6 md:col-span-3"><FormLabel>Team Lead Date</FormLabel><FormInput type="date" value={form.approvals.team_lead_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_date: e.target.value } }))} /></div>
-            <div className="col-span-6 md:col-span-3"><FormLabel>Accountant Name</FormLabel><FormInput value={form.approvals.accountant_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_name: e.target.value } }))} /></div>
+            <div className="col-span-6 md:col-span-3"><FormLabel>Accountant Name</FormLabel><FormSelect value={form.approvals.accountant_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.accountant_name && !approvalNameOptions.includes(form.approvals.accountant_name) ? <option value={form.approvals.accountant_name}>{form.approvals.accountant_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-accountant-${name}`} value={name}>{name}</option>)}</FormSelect></div>
             <div className="col-span-6 md:col-span-3"><FormLabel>Accountant Date</FormLabel><FormInput type="date" value={form.approvals.accountant_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_date: e.target.value } }))} /></div>
-            <div className="col-span-6 md:col-span-3"><FormLabel>COO Name</FormLabel><FormInput value={form.approvals.coo_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_name: e.target.value } }))} /></div>
+            <div className="col-span-6 md:col-span-3"><FormLabel>COO Name</FormLabel><FormSelect value={form.approvals.coo_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.coo_name && !approvalNameOptions.includes(form.approvals.coo_name) ? <option value={form.approvals.coo_name}>{form.approvals.coo_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-coo-${name}`} value={name}>{name}</option>)}</FormSelect></div>
             <div className="col-span-6 md:col-span-3"><FormLabel>COO Date</FormLabel><FormInput type="date" value={form.approvals.coo_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_date: e.target.value } }))} /></div>
             <div className="col-span-12 md:col-span-3 flex items-end"><label className="inline-flex items-center gap-2"><input type="checkbox" checked={form.approvals.include_ed} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, include_ed: e.target.checked } }))} /><span>Include ED</span></label></div>
             {form.approvals.include_ed ? (
               <>
-                <div className="col-span-6 md:col-span-3"><FormLabel>ED Name</FormLabel><FormInput value={form.approvals.ed_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_name: e.target.value } }))} /></div>
+                <div className="col-span-6 md:col-span-3"><FormLabel>ED Name</FormLabel><FormSelect value={form.approvals.ed_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.ed_name && !approvalNameOptions.includes(form.approvals.ed_name) ? <option value={form.approvals.ed_name}>{form.approvals.ed_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-ed-${name}`} value={name}>{name}</option>)}</FormSelect></div>
                 <div className="col-span-6 md:col-span-3"><FormLabel>ED Date</FormLabel><FormInput type="date" value={form.approvals.ed_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_date: e.target.value } }))} /></div>
               </>
             ) : null}
