@@ -24,6 +24,10 @@ import { extname, resolve } from 'node:path';
 import JSZip from 'jszip';
 import { MailService } from '../../common/mail/mail.service';
 
+const MANUAL_REQUEST_ID_MIN = BigInt(1);
+const MANUAL_REQUEST_ID_MAX = BigInt(3000);
+const STAFF_REQUEST_ID_MIN = BigInt(30001);
+
 @Injectable()
 export class RequestsService {
   constructor(
@@ -227,6 +231,11 @@ export class RequestsService {
           currency: dto.currency || 'NGN'
         }
       });
+      if (request.id < STAFF_REQUEST_ID_MIN) {
+        throw new BadRequestException(
+          `Automatic request ids must start from ${STAFF_REQUEST_ID_MIN.toString()}. Set request sequence before creating staff requests.`
+        );
+      }
 
       if (dto.items && dto.items.length > 0) {
         for (const item of dto.items) {
@@ -306,6 +315,7 @@ export class RequestsService {
 
     const explicitRequestId = dto.request_id ? toBigInt(dto.request_id) : null;
     if (explicitRequestId) {
+      this.assertManualRequestIdRange(explicitRequestId);
       const taken = await this.prisma.requestInstance.findUnique({ where: { id: explicitRequestId }, select: { id: true } });
       if (taken) throw new BadRequestException(`request_id ${dto.request_id} already exists`);
     }
@@ -458,6 +468,7 @@ export class RequestsService {
     const createdAt = dto.created_at ? new Date(dto.created_at) : existing.createdAt;
     if (Number.isNaN(createdAt.getTime())) throw new BadRequestException('Invalid created_at');
     const desiredRequestId = dto.request_id ? toBigInt(dto.request_id) : existing.id;
+    this.assertManualRequestIdRange(desiredRequestId);
     const isRequestIdChanged = desiredRequestId !== existing.id;
     if (isRequestIdChanged) {
       const taken = await this.prisma.requestInstance.findUnique({
@@ -3052,6 +3063,14 @@ export class RequestsService {
 
   private getRequestThreadKey(requestNumber: string): string {
     return `request-${requestNumber.replace(/[^a-zA-Z0-9_.-]/g, '-').toLowerCase()}`;
+  }
+
+  private assertManualRequestIdRange(requestId: bigint) {
+    if (requestId < MANUAL_REQUEST_ID_MIN || requestId > MANUAL_REQUEST_ID_MAX) {
+      throw new BadRequestException(
+        `Manual request_id must be between ${MANUAL_REQUEST_ID_MIN.toString()} and ${MANUAL_REQUEST_ID_MAX.toString()}`
+      );
+    }
   }
 
   private extractVoucherNumber(data: unknown): string | null {
