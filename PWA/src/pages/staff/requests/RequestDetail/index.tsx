@@ -13,6 +13,7 @@ import {
   approveRequest,
   completeRequest,
   confirmRequestVoucher,
+  deleteRequest as deleteRequestApi,
   generateRequestPdf,
   generateRequestPvByVoucher,
   getRequest,
@@ -164,6 +165,13 @@ function RequestDetailPage() {
       setBusyAction(action);
       setNotice(null);
 
+      if (action === "delete") {
+        const shouldDelete = window.confirm("Delete this draft request?");
+        if (!shouldDelete) return;
+        await deleteRequestApi(id);
+        navigate("/app/requests");
+        return;
+      }
       if (action === "submit") await submitRequest(id);
       if (action === "approve") await approveRequest(id, window.prompt("Approval comment (optional):") || undefined);
       if (action === "reject") await rejectRequest(id, window.prompt("Rejection reason:") || undefined);
@@ -531,6 +539,18 @@ function RequestDetailPage() {
                 >
                   <Lucide icon="FilePenLine" className="w-4 h-4 mr-1" />
                   Edit Draft
+                </Button>
+              ) : null}
+              {canEditDraft ? (
+                <Button
+                  variant="outline-danger"
+                  onClick={() => {
+                    void run("delete");
+                  }}
+                  disabled={busyAction === "delete"}
+                >
+                  <Lucide icon="Trash2" className="w-4 h-4 mr-1" />
+                  {busyAction === "delete" ? "Deleting..." : "Delete Draft"}
                 </Button>
               ) : null}
               {actions.filter((action) => action !== "confirm" && action !== "retire").map((action) => (

@@ -332,7 +332,7 @@ export class RequestsController {
   }
 
   @Delete(':id')
-  @Permissions('requests.manage')
+  @Permissions('requests.create')
   deleteRequest(@Req() req: any, @Param('id') id: string) {
     return this.requestsService.deleteRequest(id, req.user?.id);
   }

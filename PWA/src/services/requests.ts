@@ -254,6 +254,11 @@ export async function updateRequest(
   return response.data?.data as RequestRecord;
 }
 
+export async function deleteRequest(id: string) {
+  const response = await apiClient.delete(`/requests/${id}`);
+  return response.data?.data ?? { success: true };
+}
+
 export async function approveRequest(id: string, comment?: string) {
   const response = await apiClient.post(`/requests/${id}/approve`, { action: "approve", comment: comment || undefined });
   return response.data?.data as RequestRecord;
