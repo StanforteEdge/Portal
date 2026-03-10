@@ -26,7 +26,7 @@ import { MailService } from '../../common/mail/mail.service';
 
 const MANUAL_REQUEST_ID_MIN = BigInt(1);
 const MANUAL_REQUEST_ID_MAX = BigInt(3000);
-const STAFF_REQUEST_ID_MIN = BigInt(30001);
+const STAFF_REQUEST_ID_MIN = BigInt(3001);
 
 @Injectable()
 export class RequestsService {
