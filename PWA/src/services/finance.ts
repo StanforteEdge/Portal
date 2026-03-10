@@ -275,8 +275,21 @@ export type FinancePaymentVoucherListRecord = {
 
 export async function listFinancePaymentVouchers(params?: Record<string, unknown>) {
   const response = await apiClient.get("/finance/payment-vouchers", { params });
-  const payload = response.data?.data ?? { data: [], meta: {} };
-  return payload as {
+  const raw = response.data?.data;
+  const payload = Array.isArray(raw)
+    ? { data: raw, meta: response.data?.meta ?? {} }
+    : raw && typeof raw === "object"
+      ? (raw as { data?: FinancePaymentVoucherListRecord[]; meta?: { page: number; per_page: number; total: number; last_page: number } })
+      : { data: [], meta: response.data?.meta ?? {} };
+  return {
+    data: (payload.data ?? []) as FinancePaymentVoucherListRecord[],
+    meta: (payload.meta ?? {
+      page: Number((params as any)?.page ?? 1),
+      per_page: Number((params as any)?.per_page ?? 20),
+      total: 0,
+      last_page: 1,
+    }) as { page: number; per_page: number; total: number; last_page: number },
+  } as {
     data: FinancePaymentVoucherListRecord[];
     meta: { page: number; per_page: number; total: number; last_page: number };
   };
