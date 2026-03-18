@@ -9,6 +9,9 @@ import { UpdateFinanceSettingsDto } from './dto/update-finance-settings.dto';
 import { UpsertFinanceAccountDto } from './dto/upsert-finance-account.dto';
 import { CreateFinanceIncomeDto } from './dto/create-finance-income.dto';
 import { CreateTransferDto } from './dto/create-transfer.dto';
+import { UpsertFinanceAssetDto } from './dto/upsert-finance-asset.dto';
+import { CreateFinanceAssetVerificationDto } from './dto/create-finance-asset-verification.dto';
+import { CreateFinanceAssetDisposalDto } from './dto/create-finance-asset-disposal.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -115,6 +118,59 @@ export class FinanceController {
   @ApiBody({ type: CreateTransferDto })
   createTransfer(@Req() req: any, @Body() dto: CreateTransferDto) {
     return this.financeService.createTransfer(dto, req.user?.id);
+  }
+
+  @Get('assets')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'List finance asset register' })
+  listAssets(@Query() query: Record<string, any>) {
+    return this.financeService.listAssets(query);
+  }
+
+  @Get('assets/disposals')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'List asset disposal log' })
+  listAssetDisposals(@Query() query: Record<string, any>) {
+    return this.financeService.listAssetDisposals(query);
+  }
+
+  @Get('assets/:id')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'Get single asset register record' })
+  getAsset(@Param('id') id: string) {
+    return this.financeService.getAsset(id);
+  }
+
+  @Post('assets')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Create asset register record' })
+  @ApiBody({ type: UpsertFinanceAssetDto })
+  createAsset(@Req() req: any, @Body() dto: UpsertFinanceAssetDto) {
+    return this.financeService.createAsset(dto, req.user?.id);
+  }
+
+  @Post('assets/:id')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Update asset register record' })
+  @ApiBody({ type: UpsertFinanceAssetDto })
+  updateAsset(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceAssetDto) {
+    return this.financeService.updateAsset(id, dto, req.user?.id);
+  }
+
+  @Post('assets/:id/verify')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Verify asset condition/custody/location' })
+  @ApiBody({ type: CreateFinanceAssetVerificationDto })
+  verifyAsset(@Req() req: any, @Param('id') id: string, @Body() dto: CreateFinanceAssetVerificationDto) {
+    return this.financeService.verifyAsset(id, dto, req.user?.id);
+  }
+
+  @Post('assets/:id/dispose')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Dispose asset and add disposal log record' })
+  @ApiBody({ type: CreateFinanceAssetDisposalDto })
+  disposeAsset(@Req() req: any, @Param('id') id: string, @Body() dto: CreateFinanceAssetDisposalDto) {
+    return this.financeService.disposeAsset(id, dto, req.user?.id);
   }
 
   @Post('requests/:id/disburse')
