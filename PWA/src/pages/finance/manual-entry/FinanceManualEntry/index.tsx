@@ -344,17 +344,17 @@ function FinanceManualEntryPage() {
           listFinanceGrants({ status: "active" }).catch(() => []),
         ]);
         setStaffOptions(
-          users.data.map((u) => ({
+          users.data.map((u: any) => ({
             id: u.id,
             name: `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username || u.email,
           }))
         );
-        const financeGroup = groups.find((g) => g.code?.toLowerCase() === "fin" || g.name?.toLowerCase() === "finance");
+        const financeGroup = groups.find((g: any) => g.code?.toLowerCase() === "fin" || g.name?.toLowerCase() === "finance");
         const requestTypes = await listRequestTypes(financeGroup ? { group_id: financeGroup.id } : undefined);
         setTypeOptions(requestTypes.map((t) => ({ id: t.id, name: t.name, categoryKey: t.category_key })));
-        setTeamOptions(teams.map((t) => ({ id: t.id, name: t.name })));
-        setOrganizationOptions(orgs.map((o) => ({ id: o.id, name: o.name })));
-        setProjectOptions(projects.map((p) => ({ id: p.id, name: p.name })));
+        setTeamOptions(teams.map((t: any) => ({ id: t.id, name: t.name })));
+        setOrganizationOptions(orgs.map((o: any) => ({ id: o.id, name: o.name })));
+        setProjectOptions(projects.map((p: any) => ({ id: p.id, name: p.name })));
         setTaxonomyOptions(taxonomies);
         setFinanceAccounts(accounts);
         setFundOptions((funds || []).map((fund: any) => ({ id: String(fund.id), code: String(fund.code || ""), name: String(fund.name || "") })));
