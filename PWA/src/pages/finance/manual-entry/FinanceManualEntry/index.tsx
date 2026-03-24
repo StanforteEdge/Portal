@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
+import Table from "@/components/Base/Table";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
+import { Dialog } from "@/components/Base/Headless";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { useAppSelector } from "@/stores/hooks";
 import { listUsers } from "@/services/users";
@@ -14,9 +17,23 @@ import { listManagedTaxonomies, type ManagedTaxonomy } from "@/services/taxonomy
 import { formatMoney } from "@/utils/formatting";
 import { uploadFileAsset } from "@/services/files";
 import { listFinanceAccounts, listFinanceRequestPaymentVouchers, type FinanceAccountRecord } from "@/services/finance";
+import { listFinanceFunds, listFinanceGrants } from "@/services/financeAccounting";
 
 type Option = { id: string; name: string };
 type RequestTypeOption = Option & { categoryKey?: string | null };
+type ImportAction = "create" | "update" | "skip";
+type ImportPreviewRow = {
+  rowKey: string;
+  requestIdText: string;
+  requestTypeText: string;
+  staffText: string;
+  action: ImportAction;
+  actionOptions: ImportAction[];
+  existingRequestId: string | null;
+  issues: string[];
+  payload: Parameters<typeof createManualRequestEntry>[0] | null;
+  ready: boolean;
+};
 
 type ManualItem = RequestItemInput;
 type ManualDisbursement = {
@@ -46,8 +63,37 @@ const downloadBase64File = (fileName: string, mimeType: string, contentBase64: s
   URL.revokeObjectURL(url);
 };
 
+const normalizeText = (value: unknown) => String(value ?? "").trim();
+const normalizeKey = (value: unknown) => normalizeText(value).toLowerCase();
+const normalizeRequestIdValue = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  const text = normalizeText(value);
+  if (/^\d+\.0+$/.test(text)) {
+    return text.replace(/\.0+$/, "");
+  }
+  return text;
+};
+
+const parseSpreadsheetDate = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number") {
+    const date = XLSX.SSF.parse_date_code(value);
+    if (date) {
+      const jsDate = new Date(Date.UTC(date.y, date.m - 1, date.d));
+      return jsDate.toISOString().slice(0, 10);
+    }
+  }
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+};
+
 function FinanceManualEntryPage() {
   const navigate = useNavigate();
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const auth = useAppSelector((s) => s.auth);
   const roles = (auth.user?.roles ?? []).map((r) => String(r).toLowerCase());
   const allowed = roles.some((r) => ["finance_manager", "finance-manager", "admin", "super-admin", "accountant"].includes(r));
@@ -67,6 +113,10 @@ function FinanceManualEntryPage() {
   });
   const [checkingVoucherIndex, setCheckingVoucherIndex] = useState<number | null>(null);
   const [voucherExistsByIndex, setVoucherExistsByIndex] = useState<Record<number, string | null>>({});
+  const [importingPreview, setImportingPreview] = useState(false);
+  const [importingCommit, setImportingCommit] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importRows, setImportRows] = useState<ImportPreviewRow[]>([]);
 
   const [staffOptions, setStaffOptions] = useState<Option[]>([]);
   const [typeOptions, setTypeOptions] = useState<RequestTypeOption[]>([]);
@@ -76,6 +126,8 @@ function FinanceManualEntryPage() {
   const [categoryOptions, setCategoryOptions] = useState<Option[]>([]);
   const [taxonomyOptions, setTaxonomyOptions] = useState<ManagedTaxonomy[]>([]);
   const [financeAccounts, setFinanceAccounts] = useState<FinanceAccountRecord[]>([]);
+  const [fundOptions, setFundOptions] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [grantOptions, setGrantOptions] = useState<Array<{ id: string; code: string; name: string; fundId: string | null }>>([]);
 
   const [form, setForm] = useState({
     request_type_id: "",
@@ -84,6 +136,8 @@ function FinanceManualEntryPage() {
     team_id: "",
     organization_id: "",
     project_id: "",
+    fund_id: "",
+    grant_id: "",
     category_id: "",
     status: "completed",
     created_at: "",
@@ -135,6 +189,8 @@ function FinanceManualEntryPage() {
       team_id: "",
       organization_id: "",
       project_id: "",
+      fund_id: "",
+      grant_id: "",
       category_id: "",
       status: "completed",
       created_at: "",
@@ -186,12 +242,97 @@ function FinanceManualEntryPage() {
       ).sort((a, b) => a.localeCompare(b)),
     [staffOptions]
   );
+  const filteredGrantOptions = useMemo(
+    () => (form.fund_id ? grantOptions.filter((grant) => grant.fundId === form.fund_id) : grantOptions),
+    [grantOptions, form.fund_id]
+  );
+  const staffLookup = useMemo(() => {
+    const map = new Map<string, Option>();
+    staffOptions.forEach((item) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [staffOptions]);
+  const requestTypeLookup = useMemo(() => {
+    const map = new Map<string, RequestTypeOption>();
+    typeOptions.forEach((item) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [typeOptions]);
+  const teamLookup = useMemo(() => {
+    const map = new Map<string, Option>();
+    teamOptions.forEach((item) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [teamOptions]);
+  const organizationLookup = useMemo(() => {
+    const map = new Map<string, Option>();
+    organizationOptions.forEach((item) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [organizationOptions]);
+  const projectLookup = useMemo(() => {
+    const map = new Map<string, Option>();
+    projectOptions.forEach((item) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [projectOptions]);
+  const fundLookup = useMemo(() => {
+    const map = new Map<string, { id: string; code: string; name: string }>();
+    fundOptions.forEach((item) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+      map.set(normalizeKey(item.code), item);
+      map.set(normalizeKey(`${item.code} ${item.name}`), item);
+    });
+    return map;
+  }, [fundOptions]);
+  const grantLookup = useMemo(() => {
+    const map = new Map<string, { id: string; code: string; name: string; fundId: string | null }>();
+    grantOptions.forEach((item) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+      map.set(normalizeKey(item.code), item);
+      map.set(normalizeKey(`${item.code} ${item.name}`), item);
+    });
+    return map;
+  }, [grantOptions]);
+  const accountLookup = useMemo(() => {
+    const map = new Map<string, FinanceAccountRecord>();
+    financeAccounts.forEach((item) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+      if (item.code) map.set(normalizeKey(item.code), item);
+      map.set(normalizeKey(`${item.code || ""} ${item.name}`), item);
+    });
+    return map;
+  }, [financeAccounts]);
+  const taxonomyTermLookup = useMemo(() => {
+    const map = new Map<string, { id: string; taxonomyKey: string }>();
+    taxonomyOptions.forEach((taxonomy) => {
+      (taxonomy.terms || []).forEach((term) => {
+        map.set(normalizeKey(term.id), { id: term.id, taxonomyKey: taxonomy.key });
+        map.set(normalizeKey(term.label), { id: term.id, taxonomyKey: taxonomy.key });
+        map.set(normalizeKey(term.value), { id: term.id, taxonomyKey: taxonomy.key });
+      });
+    });
+    return map;
+  }, [taxonomyOptions]);
 
   useEffect(() => {
     const load = async () => {
       try {
         setLoading(true);
-        const [users, groups, teams, orgs, projects, taxonomies, accounts] = await Promise.all([
+        const [users, groups, teams, orgs, projects, taxonomies, accounts, funds, grants] = await Promise.all([
           listUsers({ page: 1, per_page: 200 }),
           listRequestGroups(),
           listTeams({ active_only: false }),
@@ -199,6 +340,8 @@ function FinanceManualEntryPage() {
           listProjects({ active_only: false }),
           listManagedTaxonomies({ module: "finance", include_inactive: false }),
           listFinanceAccounts({ is_active: true }).catch(() => []),
+          listFinanceFunds({ is_active: true }).catch(() => []),
+          listFinanceGrants({ status: "active" }).catch(() => []),
         ]);
         setStaffOptions(
           users.data.map((u) => ({
@@ -214,6 +357,15 @@ function FinanceManualEntryPage() {
         setProjectOptions(projects.map((p) => ({ id: p.id, name: p.name })));
         setTaxonomyOptions(taxonomies);
         setFinanceAccounts(accounts);
+        setFundOptions((funds || []).map((fund: any) => ({ id: String(fund.id), code: String(fund.code || ""), name: String(fund.name || "") })));
+        setGrantOptions(
+          (grants || []).map((grant: any) => ({
+            id: String(grant.id),
+            code: String(grant.code || ""),
+            name: String(grant.name || ""),
+            fundId: grant.fund ? String(grant.fund.id) : null,
+          }))
+        );
       } catch (error: any) {
         setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load manual entry options." });
       } finally {
@@ -264,6 +416,364 @@ function FinanceManualEntryPage() {
       setForm((prev) => ({ ...prev, category_id: "" }));
     }
   }, [form.request_type_id, form.category_id, typeOptions, taxonomyOptions]);
+
+  useEffect(() => {
+    setForm((prev) => {
+      if (!prev.grant_id) return prev;
+      const exists = filteredGrantOptions.some((grant) => grant.id === prev.grant_id);
+      return exists ? prev : { ...prev, grant_id: "" };
+    });
+  }, [filteredGrantOptions]);
+
+  const buildManualPayload = (input: {
+    requestTypeId: string;
+    staffId: string;
+    requestId?: string;
+    teamId?: string;
+    organizationId?: string;
+    status?: string;
+    createdAt?: string;
+    currency?: string;
+    purpose?: string;
+    dueDate?: string;
+    categoryId?: string;
+    projectId?: string;
+    projectName?: string;
+    fundId?: string;
+    grantId?: string;
+    approvals?: Array<{ role: string; name?: string; date?: string; done?: boolean }>;
+    items?: ManualItem[];
+    disbursements?: ManualDisbursement[];
+  }) => ({
+    request_type_id: input.requestTypeId,
+    staff_id: input.staffId,
+    request_id: input.requestId || undefined,
+    team_id: input.teamId || undefined,
+    organization_id: input.organizationId || undefined,
+    status: input.status || "completed",
+    created_at: input.createdAt || undefined,
+    currency: input.currency || "NGN",
+    total_amount: (input.items || []).reduce(
+      (sum, item) => sum + Number(item.amount || 0) * Number(item.quantity || 1),
+      0
+    ),
+    data: {
+      purpose: input.purpose || undefined,
+      due_date: input.dueDate || undefined,
+      category_id: input.categoryId || undefined,
+      project_name: input.projectName || undefined,
+      project_id: input.projectId || undefined,
+      fund_id: input.fundId || undefined,
+      grant_id: input.grantId || undefined,
+      team_id: input.teamId || undefined,
+      organization_id: input.organizationId || undefined,
+    },
+    approvals: input.approvals || [],
+    items: (input.items || []).map((item) => ({
+      description: item.description,
+      amount: Number(item.amount || 0),
+      quantity: Number(item.quantity || 1),
+      notes: item.notes,
+      file_id: item.file_id || undefined,
+    })),
+    disbursements: (input.disbursements || [])
+      .filter((entry) => entry.voucher_number && Number(entry.amount) > 0)
+      .map((entry) => ({
+        voucher_number: entry.voucher_number,
+        amount: Number(entry.amount),
+        paid_from_account_id: entry.paid_from_account_id || undefined,
+        method: entry.method || undefined,
+        transaction_ref: entry.transaction_ref || undefined,
+        note: entry.note || undefined,
+        disbursed_at: entry.disbursed_at || undefined,
+        evidence_file_id: entry.evidence_file_id || undefined,
+        retired_amount: Number(entry.retired_amount || 0),
+        retirement_status: entry.retirement_status || undefined,
+        retirement_file_ids: (entry.retirement_file_ids_text || "")
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+      })),
+  });
+
+  const downloadBatchTemplate = () => {
+    const workbook = XLSX.utils.book_new();
+    const requestSheet = XLSX.utils.json_to_sheet([
+      {
+        request_id: 3001,
+        request_type: "Operational Request",
+        staff_email_or_name: "staff@stanforteedge.com",
+        team: "Finance",
+        organization: "Stanforte Edge",
+        status: "completed",
+        created_at: "2026-03-24",
+        currency: "NGN",
+        purpose: "Legacy expense import",
+        due_date: "2026-03-24",
+        category: "Operations",
+        project: "",
+        fund: "",
+        grant: "",
+      },
+    ]);
+    const itemSheet = XLSX.utils.json_to_sheet([
+      { request_id: 3001, description: "Internet subscription", amount: 50000, quantity: 1, notes: "" },
+    ]);
+    const approvalSheet = XLSX.utils.json_to_sheet([
+      { request_id: 3001, role: "team_lead", name: "Jane Doe", date: "2026-03-24", done: true },
+      { request_id: 3001, role: "accountant", name: "John Doe", date: "2026-03-24", done: true },
+    ]);
+    const voucherSheet = XLSX.utils.json_to_sheet([
+      {
+        request_id: 3001,
+        voucher_number: 3001,
+        amount: 50000,
+        paid_from_account: "GESP",
+        method: "bank_transfer",
+        transaction_ref: "",
+        note: "",
+        disbursed_at: "2026-03-24",
+        retired_amount: 0,
+        retirement_status: "not_retired",
+      },
+    ]);
+    XLSX.utils.book_append_sheet(workbook, requestSheet, "Requests");
+    XLSX.utils.book_append_sheet(workbook, itemSheet, "Items");
+    XLSX.utils.book_append_sheet(workbook, approvalSheet, "Approvals");
+    XLSX.utils.book_append_sheet(workbook, voucherSheet, "Vouchers");
+    XLSX.writeFile(workbook, "manual-request-import-template.xlsx");
+  };
+
+  const buildImportPreviewRows = async (workbook: XLSX.WorkBook) => {
+    const requestSheet = workbook.Sheets.Requests || workbook.Sheets[workbook.SheetNames[0]];
+    const requests = XLSX.utils.sheet_to_json<Record<string, unknown>>(requestSheet, { defval: "" });
+    const itemsSheet = workbook.Sheets.Items
+      ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Items, { defval: "" })
+      : [];
+    const approvalsSheet = workbook.Sheets.Approvals
+      ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Approvals, { defval: "" })
+      : [];
+    const vouchersSheet = workbook.Sheets.Vouchers
+      ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Vouchers, { defval: "" })
+      : [];
+
+    const itemsByRequest = new Map<string, Record<string, unknown>[]>();
+    const approvalsByRequest = new Map<string, Record<string, unknown>[]>();
+    const vouchersByRequest = new Map<string, Record<string, unknown>[]>();
+    itemsSheet.forEach((row) => {
+      const key = normalizeRequestIdValue(row.request_id);
+      if (!key) return;
+      itemsByRequest.set(key, [...(itemsByRequest.get(key) || []), row]);
+    });
+    approvalsSheet.forEach((row) => {
+      const key = normalizeRequestIdValue(row.request_id);
+      if (!key) return;
+      approvalsByRequest.set(key, [...(approvalsByRequest.get(key) || []), row]);
+    });
+    vouchersSheet.forEach((row) => {
+      const key = normalizeRequestIdValue(row.request_id);
+      if (!key) return;
+      vouchersByRequest.set(key, [...(vouchersByRequest.get(key) || []), row]);
+    });
+
+    const previewRows = await Promise.all(
+      requests
+        .filter((row) => normalizeRequestIdValue(row.request_id))
+        .map(async (row) => {
+          const requestIdText = normalizeRequestIdValue(row.request_id);
+          const requestTypeText = normalizeText(row.request_type);
+          const staffText = normalizeText(row.staff_email_or_name || row.staff || row.staff_email);
+          const issues: string[] = [];
+
+          const requestType = requestTypeLookup.get(normalizeKey(requestTypeText));
+          if (!requestType) issues.push(`Unknown request type: ${requestTypeText}`);
+          const staff = staffLookup.get(normalizeKey(staffText));
+          if (!staff) issues.push(`Unknown staff: ${staffText}`);
+          const team = normalizeText(row.team) ? teamLookup.get(normalizeKey(row.team)) : undefined;
+          if (normalizeText(row.team) && !team) issues.push(`Unknown team: ${normalizeText(row.team)}`);
+          const organization = normalizeText(row.organization)
+            ? organizationLookup.get(normalizeKey(row.organization))
+            : undefined;
+          if (normalizeText(row.organization) && !organization) {
+            issues.push(`Unknown organization: ${normalizeText(row.organization)}`);
+          }
+          const project = normalizeText(row.project) ? projectLookup.get(normalizeKey(row.project)) : undefined;
+          if (normalizeText(row.project) && !project) issues.push(`Unknown project: ${normalizeText(row.project)}`);
+          const fund = normalizeText(row.fund) ? fundLookup.get(normalizeKey(row.fund)) : undefined;
+          if (normalizeText(row.fund) && !fund) issues.push(`Unknown fund: ${normalizeText(row.fund)}`);
+          const grant = normalizeText(row.grant) ? grantLookup.get(normalizeKey(row.grant)) : undefined;
+          if (normalizeText(row.grant) && !grant) issues.push(`Unknown grant: ${normalizeText(row.grant)}`);
+
+          const taxonomyTerm = normalizeText(row.category)
+            ? taxonomyTermLookup.get(normalizeKey(row.category))
+            : undefined;
+          if (normalizeText(row.category) && !taxonomyTerm) issues.push(`Unknown category: ${normalizeText(row.category)}`);
+
+          let existingRequestId: string | null = null;
+          if (/^\d+$/.test(requestIdText) && requestType?.id) {
+            const check = await checkManualRequestNumber(requestIdText, { request_type_id: requestType.id });
+            existingRequestId = check.exists ? check.request_id : null;
+          } else {
+            issues.push("request_id must be digits only");
+          }
+
+          const voucherRows = (vouchersByRequest.get(requestIdText) || []).map((entry) => {
+            const voucherNumber = normalizeText(entry.voucher_number);
+            return {
+              voucher_number: voucherNumber,
+              amount: Number(entry.amount || 0),
+              paid_from_account_id: normalizeText(entry.paid_from_account)
+                ? accountLookup.get(normalizeKey(entry.paid_from_account))?.id
+                : undefined,
+              method: normalizeText(entry.method) || "bank_transfer",
+              transaction_ref: normalizeText(entry.transaction_ref) || "",
+              note: normalizeText(entry.note) || "",
+              disbursed_at: parseSpreadsheetDate(entry.disbursed_at),
+              retired_amount: Number(entry.retired_amount || 0),
+              retirement_status: normalizeText(entry.retirement_status) || "not_retired",
+              retirement_file_ids_text: "",
+            } as ManualDisbursement;
+          });
+
+          for (const voucherRow of vouchersByRequest.get(requestIdText) || []) {
+            const voucherNumber = normalizeText(voucherRow.voucher_number);
+            if (!voucherNumber) continue;
+            if (!/^\d+$/.test(voucherNumber)) {
+              issues.push(`Invalid voucher_number: ${voucherNumber}`);
+              continue;
+            }
+            const voucherCheck = await checkManualVoucherNumber(voucherNumber);
+            if (voucherCheck.exists && voucherCheck.request_id !== existingRequestId) {
+              issues.push(`Voucher ${voucherNumber} already exists on request ${voucherCheck.request_id}`);
+            }
+          }
+
+          if ((vouchersByRequest.get(requestIdText) || []).some((entry) => normalizeText(entry.paid_from_account) && !accountLookup.get(normalizeKey(entry.paid_from_account)))) {
+            issues.push("One or more paid_from_account values could not be matched");
+          }
+
+          const payload =
+            requestType && staff
+              ? buildManualPayload({
+                  requestTypeId: requestType.id,
+                  staffId: staff.id,
+                  requestId: requestIdText,
+                  teamId: team?.id,
+                  organizationId: organization?.id,
+                  status: normalizeText(row.status) || "completed",
+                  createdAt: parseSpreadsheetDate(row.created_at),
+                  currency: normalizeText(row.currency) || "NGN",
+                  purpose: normalizeText(row.purpose),
+                  dueDate: parseSpreadsheetDate(row.due_date),
+                  categoryId: taxonomyTerm?.id,
+                  projectId: project?.id,
+                  projectName: project?.name,
+                  fundId: fund?.id,
+                  grantId: grant?.id,
+                  approvals: (approvalsByRequest.get(requestIdText) || []).map((entry) => ({
+                    role: normalizeText(entry.role),
+                    name: normalizeText(entry.name) || undefined,
+                    date: parseSpreadsheetDate(entry.date) || undefined,
+                    done: ["true", "1", "yes"].includes(normalizeKey(entry.done)),
+                  })),
+                  items: (itemsByRequest.get(requestIdText) || []).map((entry) => ({
+                    description: normalizeText(entry.description),
+                    amount: Number(entry.amount || 0),
+                    quantity: Number(entry.quantity || 1),
+                    notes: normalizeText(entry.notes) || "",
+                    file_id: "",
+                  })),
+                  disbursements: voucherRows,
+                })
+              : null;
+
+          const actionOptions: ImportAction[] = existingRequestId ? ["update", "skip"] : ["create", "skip"];
+          return {
+            rowKey: requestIdText,
+            requestIdText,
+            requestTypeText,
+            staffText,
+            action: existingRequestId ? "update" : "create",
+            actionOptions,
+            existingRequestId,
+            issues,
+            payload,
+            ready: issues.length === 0 && Boolean(payload),
+          } satisfies ImportPreviewRow;
+        })
+    );
+
+    return previewRows;
+  };
+
+  const handleBatchImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      setImportingPreview(true);
+      setNotice(null);
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      if (!workbook.SheetNames.length) {
+        throw new Error("The import file does not contain any worksheet.");
+      }
+      const previewRows = await buildImportPreviewRows(workbook);
+      setImportRows(previewRows);
+      setShowImportDialog(true);
+      setNotice({
+        tone: previewRows.some((row) => row.ready) ? "success" : "warning",
+        message: `Loaded ${previewRows.length} import row(s). Review actions before commit.`,
+      });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.message || "Unable to parse import file." });
+    } finally {
+      setImportingPreview(false);
+      event.target.value = "";
+    }
+  };
+
+  const commitBatchImport = async () => {
+    const actionableRows = importRows.filter((row) => row.action !== "skip");
+    if (!actionableRows.length) {
+      setNotice({ tone: "warning", message: "No rows selected for import." });
+      return;
+    }
+    try {
+      setImportingCommit(true);
+      const results: string[] = [];
+      let successCount = 0;
+      for (const row of actionableRows) {
+        if (!row.payload) {
+          results.push(`Request ${row.requestIdText}: missing payload`);
+          continue;
+        }
+        try {
+          if (row.action === "update" && row.existingRequestId) {
+            await updateManualRequestEntry(row.existingRequestId, row.payload);
+          } else {
+            await createManualRequestEntry(row.payload);
+          }
+          successCount += 1;
+        } catch (error: any) {
+          results.push(
+            `Request ${row.requestIdText}: ${
+              error?.response?.data?.error?.message || error?.message || "Import failed"
+            }`
+          );
+        }
+      }
+      setShowImportDialog(false);
+      setImportRows([]);
+      setNotice({
+        tone: results.length ? "warning" : "success",
+        message: results.length
+          ? `Imported ${successCount} row(s). ${results.slice(0, 3).join(" | ")}${results.length > 3 ? " ..." : ""}`
+          : `Imported ${successCount} row(s) successfully.`,
+      });
+    } finally {
+      setImportingCommit(false);
+    }
+  };
 
   const saveManualRequest = async () => {
     if (!form.request_type_id || !form.staff_id) {
@@ -328,6 +838,8 @@ function FinanceManualEntryPage() {
           category_id: form.category_id || undefined,
           project_name: selectedProjectName,
           project_id: form.project_id || undefined,
+          fund_id: form.fund_id || undefined,
+          grant_id: form.grant_id || undefined,
           team_id: form.team_id || undefined,
           organization_id: form.organization_id || undefined,
         },
@@ -421,6 +933,8 @@ function FinanceManualEntryPage() {
         team_id: String(data.team_id || ""),
         organization_id: String(data.organization_id || ""),
         project_id: String(data.project_id || ""),
+        fund_id: String(data.fund_id || ""),
+        grant_id: String(data.grant_id || ""),
         category_id: String(data.category_id || ""),
         status: req.status || "completed",
         created_at: req.created_at ? String(req.created_at).slice(0, 10) : "",
@@ -551,12 +1065,29 @@ function FinanceManualEntryPage() {
 
   return (
     <>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={(e) => void handleBatchImportFile(e)}
+      />
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Finance Legacy Manual Entry</h2>
-        <Button variant="outline-secondary" onClick={() => navigate("/app/finance")}>
-          <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" />
-          Back
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline-primary" onClick={downloadBatchTemplate}>
+            <Lucide icon="FileText" className="w-4 h-4 mr-1" />
+            Template
+          </Button>
+          <Button variant="outline-primary" onClick={() => importInputRef.current?.click()} disabled={importingPreview}>
+            <Lucide icon="FileText" className="w-4 h-4 mr-1" />
+            {importingPreview ? "Reading..." : "Batch Import"}
+          </Button>
+          <Button variant="outline-secondary" onClick={() => navigate("/app/finance")}>
+            <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" />
+            Back
+          </Button>
+        </div>
       </div>
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
@@ -610,6 +1141,8 @@ function FinanceManualEntryPage() {
           <div className="col-span-12 md:col-span-4"><FormLabel>Organization</FormLabel><FormSelect value={form.organization_id} onChange={(e) => setForm((p) => ({ ...p, organization_id: e.target.value }))}><option value="">Select</option>{organizationOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</FormSelect></div>
           <div className="col-span-12 md:col-span-4"><FormLabel>Department / Team</FormLabel><FormSelect value={form.team_id} onChange={(e) => setForm((p) => ({ ...p, team_id: e.target.value }))}><option value="">Select</option>{teamOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</FormSelect></div>
           <div className="col-span-12 md:col-span-4"><FormLabel>Project</FormLabel><FormSelect value={form.project_id} onChange={(e) => setForm((p) => ({ ...p, project_id: e.target.value }))}><option value="">Select</option>{projectOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</FormSelect></div>
+          <div className="col-span-12 md:col-span-4"><FormLabel>Fund</FormLabel><FormSelect value={form.fund_id} onChange={(e) => setForm((p) => ({ ...p, fund_id: e.target.value, grant_id: "" }))}><option value="">No specific fund</option>{fundOptions.map((x) => <option key={x.id} value={x.id}>{x.code ? `${x.code} - ` : ""}{x.name}</option>)}</FormSelect></div>
+          <div className="col-span-12 md:col-span-4"><FormLabel>Grant / Donor Line</FormLabel><FormSelect value={form.grant_id} onChange={(e) => setForm((p) => ({ ...p, grant_id: e.target.value }))}><option value="">No specific grant</option>{filteredGrantOptions.map((x) => <option key={x.id} value={x.id}>{x.code ? `${x.code} - ` : ""}{x.name}</option>)}</FormSelect></div>
           <div className="col-span-12 md:col-span-4"><FormLabel>Category</FormLabel><FormSelect value={form.category_id} onChange={(e) => setForm((p) => ({ ...p, category_id: e.target.value }))}><option value="">Select</option>{categoryOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</FormSelect></div>
           <div className="col-span-12 md:col-span-8"><FormLabel>Purpose</FormLabel><FormTextarea rows={2} value={form.purpose} onChange={(e) => setForm((p) => ({ ...p, purpose: e.target.value }))} /></div>
         </div>
@@ -757,6 +1290,81 @@ function FinanceManualEntryPage() {
           </div>
         ) : null}
       </div>
+
+      <Dialog open={showImportDialog} onClose={() => setShowImportDialog(false)} size="xl">
+        <Dialog.Panel>
+          <Dialog.Title>
+            <h2 className="mr-auto text-base font-medium">Batch Manual Import</h2>
+          </Dialog.Title>
+          <Dialog.Description>
+            <div className="mb-4 text-sm text-slate-500">
+              Review each row before import. Existing request IDs default to <strong>Update</strong>. New ones default to <strong>Create</strong>. Conflict rows should be set to <strong>Skip</strong>.
+            </div>
+            <div className="max-h-[60vh] overflow-auto">
+              <Table>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Request ID</Table.Th>
+                    <Table.Th>Type</Table.Th>
+                    <Table.Th>Staff</Table.Th>
+                    <Table.Th>Existing</Table.Th>
+                    <Table.Th>Action</Table.Th>
+                    <Table.Th>Issues</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {importRows.map((row, index) => (
+                    <Table.Tr key={`${row.rowKey}-${index}`}>
+                      <Table.Td>{row.requestIdText}</Table.Td>
+                      <Table.Td>{row.requestTypeText || "-"}</Table.Td>
+                      <Table.Td>{row.staffText || "-"}</Table.Td>
+                      <Table.Td>{row.existingRequestId || "-"}</Table.Td>
+                      <Table.Td>
+                        <FormSelect
+                          value={row.action}
+                          onChange={(e) =>
+                            setImportRows((prev) =>
+                              prev.map((entry, entryIndex) =>
+                                entryIndex === index ? { ...entry, action: e.target.value as ImportAction } : entry
+                              )
+                            )
+                          }
+                        >
+                          {row.actionOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option === "create" ? "Create" : option === "update" ? "Update" : "Skip"}
+                            </option>
+                          ))}
+                        </FormSelect>
+                      </Table.Td>
+                      <Table.Td>
+                        {row.issues.length ? (
+                          <div className="text-xs text-danger">
+                            {row.issues.map((issue, issueIndex) => (
+                              <div key={`${row.rowKey}-issue-${issueIndex}`}>{issue}</div>
+                            ))}
+                          </div>
+                        ) : (
+                          <div className="text-xs text-success">Ready</div>
+                        )}
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </div>
+          </Dialog.Description>
+          <Dialog.Footer>
+            <Button variant="outline-secondary" onClick={() => setShowImportDialog(false)} className="mr-2">
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={() => void commitBatchImport()} disabled={importingCommit}>
+              <Lucide icon="FileText" className="w-4 h-4 mr-1" />
+              {importingCommit ? "Importing..." : "Commit Import"}
+            </Button>
+          </Dialog.Footer>
+        </Dialog.Panel>
+      </Dialog>
     </>
   );
 }

@@ -126,6 +126,12 @@ const menu: Array<Menu | "divider"> = [
         matchSubPaths: true,
       },
       {
+        icon: "Clipboard",
+        pathname: "/app/finance/assets",
+        title: "Assets",
+        matchSubPaths: true,
+      },
+      {
         icon: "List",
         pathname: "/app/finance/ledger",
         title: "Ledger",

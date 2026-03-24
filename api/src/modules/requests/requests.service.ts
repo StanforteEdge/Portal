@@ -86,6 +86,23 @@ export class RequestsService {
 
   async createType(dto: CreateTypeDto, actorId?: string) {
     await this.assertRequestTypeGroupAccess(dto.group_id, actorId);
+    const group = await this.prisma.requestGroup.findUnique({
+      where: { id: dto.group_id },
+      select: { code: true, name: true }
+    });
+    const requiresCooApproval = this.requestTypeRequiresCooApproval({
+      groupCode: group?.code ?? null,
+      groupName: group?.name ?? null,
+      name: dto.name,
+      codePrefix: dto.code_prefix,
+      categoryKey: dto.category_key,
+      formSchema: dto.form_schema
+    });
+
+    const approvalFlowJson = requiresCooApproval
+      ? this.ensureApproverInApprovalFlow(dto.approval_flow_json, 'coo')
+      : dto.approval_flow_json;
+
     return this.prisma.requestType.create({
       data: {
         groupId: dto.group_id,
@@ -96,7 +113,7 @@ export class RequestsService {
         description: dto.description,
         storageType: dto.storage_type ?? 'json',
         formId: dto.form_id,
-        approvalFlowJson: dto.approval_flow_json as Prisma.InputJsonValue | undefined,
+        approvalFlowJson: approvalFlowJson as Prisma.InputJsonValue | undefined,
         approvalLimit: dto.approval_limit,
         isActive: dto.is_active ?? true
       }
@@ -106,10 +123,40 @@ export class RequestsService {
   async updateType(id: string, dto: UpdateTypeDto, actorId?: string) {
     const existing = await this.prisma.requestType.findUnique({
       where: { id },
-      select: { groupId: true }
+      select: {
+        groupId: true,
+        name: true,
+        codePrefix: true,
+        categoryKey: true,
+        formSchema: true,
+        approvalFlowJson: true
+      }
     });
     if (!existing) throw new NotFoundException('Request type not found');
     await this.assertRequestTypeGroupAccess(existing.groupId, actorId);
+
+    const group = await this.prisma.requestGroup.findUnique({
+      where: { id: existing.groupId },
+      select: { code: true, name: true }
+    });
+
+    const mergedName = dto.name ?? existing.name;
+    const mergedCodePrefix = dto.code_prefix ?? existing.codePrefix;
+    const mergedCategoryKey = dto.category_key ?? existing.categoryKey ?? undefined;
+    const mergedFormSchema = dto.form_schema ?? (existing.formSchema as Record<string, unknown> | undefined);
+    const mergedApprovalFlow = dto.approval_flow_json ?? (existing.approvalFlowJson as Record<string, unknown> | undefined);
+    const requiresCooApproval = this.requestTypeRequiresCooApproval({
+      groupCode: group?.code ?? null,
+      groupName: group?.name ?? null,
+      name: mergedName,
+      codePrefix: mergedCodePrefix,
+      categoryKey: mergedCategoryKey,
+      formSchema: mergedFormSchema
+    });
+
+    const normalizedApprovalFlow = requiresCooApproval
+      ? this.ensureApproverInApprovalFlow(mergedApprovalFlow, 'coo')
+      : dto.approval_flow_json;
 
     return this.prisma.requestType.update({
       where: { id },
@@ -125,8 +172,8 @@ export class RequestsService {
         storageType: dto.storage_type,
         formId: dto.form_id,
         approvalFlowJson:
-          dto.approval_flow_json !== undefined
-            ? (dto.approval_flow_json as Prisma.InputJsonValue)
+          normalizedApprovalFlow !== undefined
+            ? (normalizedApprovalFlow as Prisma.InputJsonValue)
             : undefined,
         approvalLimit: dto.approval_limit,
         isActive: dto.is_active
@@ -177,6 +224,59 @@ export class RequestsService {
     if (isHrGroup && !hasHrRole) {
       throw new BadRequestException('Only HR admins can manage HR request types');
     }
+  }
+
+  private requestTypeRequiresCooApproval(input: {
+    groupCode?: string | null;
+    groupName?: string | null;
+    name?: string | null;
+    codePrefix?: string | null;
+    categoryKey?: string | null;
+    formSchema?: Record<string, unknown> | null;
+  }) {
+    const marker = `${String(input.groupCode ?? '').toLowerCase()} ${String(input.groupName ?? '').toLowerCase()}`;
+    const isFinanceOrHrGroup = /(^|[\s_-])(fin|finance|financial|hr|human\s*resources|people)([\s_-]|$)/.test(marker);
+    if (!isFinanceOrHrGroup) return false;
+
+    const text = [
+      String(input.name ?? '').toLowerCase(),
+      String(input.codePrefix ?? '').toLowerCase(),
+      String(input.categoryKey ?? '').toLowerCase(),
+      String(input.formSchema?.workflow_kind ?? '').toLowerCase(),
+      String(input.formSchema?.request_kind ?? '').toLowerCase()
+    ].join(' ');
+
+    const isSalary = /(salary|payroll|wages|compensation|pay_run|payrun)/.test(text);
+    const isTransfer = /(transfer|treasury|cash_move|internal_transfer|fund_move|xfer|trf)/.test(text);
+    return isSalary || isTransfer;
+  }
+
+  private ensureApproverInApprovalFlow(
+    approvalFlowJson: Record<string, unknown> | null | undefined,
+    requiredRoleSlug: string
+  ) {
+    const base =
+      approvalFlowJson && typeof approvalFlowJson === 'object' && !Array.isArray(approvalFlowJson)
+        ? { ...(approvalFlowJson as Record<string, unknown>) }
+        : {};
+
+    const rawSteps = Array.isArray(base.steps) ? base.steps : [];
+    const normalizedSteps = rawSteps
+      .filter((step) => step && typeof step === 'object' && !Array.isArray(step))
+      .map((step) => ({ ...(step as Record<string, unknown>) }));
+
+    const hasRequiredRole = normalizedSteps.some((step) => {
+      const role = String(step.role ?? '').trim().toLowerCase();
+      return role === requiredRoleSlug.toLowerCase();
+    });
+    if (!hasRequiredRole) {
+      normalizedSteps.push({ role: requiredRoleSlug });
+    }
+
+    return {
+      ...base,
+      steps: normalizedSteps
+    };
   }
 
   private async getActorRoleSlugs(actorId: string) {

@@ -275,9 +275,206 @@ export type FinancePaymentVoucherListRecord = {
 
 export async function listFinancePaymentVouchers(params?: Record<string, unknown>) {
   const response = await apiClient.get("/finance/payment-vouchers", { params });
-  const payload = response.data?.data ?? { data: [], meta: {} };
-  return payload as {
+  const raw = response.data?.data;
+  const payload = Array.isArray(raw)
+    ? { data: raw, meta: response.data?.meta ?? {} }
+    : raw && typeof raw === "object"
+      ? (raw as { data?: FinancePaymentVoucherListRecord[]; meta?: { page: number; per_page: number; total: number; last_page: number } })
+      : { data: [], meta: response.data?.meta ?? {} };
+  return {
+    data: (payload.data ?? []) as FinancePaymentVoucherListRecord[],
+    meta: (payload.meta ?? {
+      page: Number((params as any)?.page ?? 1),
+      per_page: Number((params as any)?.per_page ?? 20),
+      total: 0,
+      last_page: 1,
+    }) as { page: number; per_page: number; total: number; last_page: number },
+  } as {
     data: FinancePaymentVoucherListRecord[];
     meta: { page: number; per_page: number; total: number; last_page: number };
   };
+}
+
+export type FinanceAssetPerson = {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  email: string;
+  name: string;
+};
+
+export type FinanceAssetRecord = {
+  id: string;
+  asset_id: string;
+  organization: { id: string; name: string; code: string } | null;
+  team: { id: string; name: string; type: string } | null;
+  asset_description: string;
+  category: string;
+  serial_tag_no: string | null;
+  location_project: string | null;
+  assigned_to: FinanceAssetPerson | null;
+  purchase_date: string;
+  supplier: string | null;
+  purchase_cost: number;
+  useful_life_years: number;
+  salvage_value: number;
+  depreciation_rate: number;
+  depreciation_per_annum: number;
+  accumulated_depreciation: number;
+  net_book_value: number;
+  condition: string;
+  status: string;
+  last_verified_date: string | null;
+  last_verified_by: FinanceAssetPerson | null;
+  notes: string | null;
+  created_by: FinanceAssetPerson | null;
+  updated_by: FinanceAssetPerson | null;
+  created_at: string;
+  updated_at: string;
+  verifications: Array<{
+    id: string;
+    verified_at: string;
+    condition: string;
+    location_project: string | null;
+    assigned_to: FinanceAssetPerson | null;
+    verified_by: FinanceAssetPerson | null;
+    notes: string | null;
+    created_at: string;
+  }>;
+  disposal: {
+    id: string;
+    disposal_date: string;
+    disposal_method: string;
+    proceeds: number;
+    book_value_at_disposal: number;
+    gain_loss: number;
+    donor_asset: boolean;
+    approved_by: FinanceAssetPerson | null;
+    created_by: FinanceAssetPerson | null;
+    notes: string | null;
+    created_at: string;
+  } | null;
+};
+
+export type FinanceAssetDisposalRecord = {
+  id: string;
+  asset_id: string;
+  asset_record_id: string;
+  asset_description: string;
+  category: string;
+  original_cost: number;
+  book_value_at_disposal: number;
+  disposal_date: string;
+  disposal_method: string;
+  proceeds: number;
+  gain_loss: number;
+  donor_asset: boolean;
+  approved_by: FinanceAssetPerson | null;
+  created_by: FinanceAssetPerson | null;
+  notes: string | null;
+};
+
+export async function listFinanceAssets(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/finance/assets", { params });
+  const raw = response.data?.data;
+  const payload = Array.isArray(raw)
+    ? { data: raw, meta: response.data?.meta ?? {} }
+    : raw && typeof raw === "object"
+      ? (raw as { data?: FinanceAssetRecord[]; meta?: { page: number; per_page: number; total: number; last_page: number } })
+      : { data: [], meta: response.data?.meta ?? {} };
+  return {
+    data: (payload.data ?? []) as FinanceAssetRecord[],
+    meta: (payload.meta ?? {
+      page: Number((params as any)?.page ?? 1),
+      per_page: Number((params as any)?.per_page ?? 20),
+      total: 0,
+      last_page: 1,
+    }) as { page: number; per_page: number; total: number; last_page: number },
+  };
+}
+
+export async function getFinanceAsset(id: string) {
+  const response = await apiClient.get(`/finance/assets/${id}`);
+  return response.data?.data as FinanceAssetRecord;
+}
+
+export async function createFinanceAsset(payload: {
+  asset_id?: string;
+  organization_id?: string;
+  team_id?: string;
+  asset_description: string;
+  category: string;
+  serial_tag_no?: string;
+  location_project?: string;
+  assigned_to_user_id?: string;
+  purchase_date: string;
+  supplier?: string;
+  purchase_cost: number;
+  useful_life_years: number;
+  salvage_value?: number;
+  condition?: string;
+  status?: string;
+  notes?: string;
+}) {
+  const response = await apiClient.post("/finance/assets", payload);
+  return response.data?.data as FinanceAssetRecord;
+}
+
+export async function updateFinanceAsset(
+  id: string,
+  payload: {
+    asset_id?: string;
+    organization_id?: string;
+    team_id?: string;
+    asset_description: string;
+    category: string;
+    serial_tag_no?: string;
+    location_project?: string;
+    assigned_to_user_id?: string;
+    purchase_date: string;
+    supplier?: string;
+    purchase_cost: number;
+    useful_life_years: number;
+    salvage_value?: number;
+    condition?: string;
+    status?: string;
+    notes?: string;
+  }
+) {
+  const response = await apiClient.post(`/finance/assets/${id}`, payload);
+  return response.data?.data as FinanceAssetRecord;
+}
+
+export async function verifyFinanceAsset(
+  id: string,
+  payload: {
+    verified_at: string;
+    condition: string;
+    location_project?: string;
+    assigned_to_user_id?: string;
+    notes?: string;
+  }
+) {
+  const response = await apiClient.post(`/finance/assets/${id}/verify`, payload);
+  return response.data?.data as FinanceAssetRecord;
+}
+
+export async function disposeFinanceAsset(
+  id: string,
+  payload: {
+    disposal_date: string;
+    disposal_method: string;
+    proceeds?: number;
+    approved_by?: string;
+    donor_asset?: boolean;
+    notes?: string;
+  }
+) {
+  const response = await apiClient.post(`/finance/assets/${id}/dispose`, payload);
+  return response.data?.data as FinanceAssetRecord;
+}
+
+export async function listFinanceAssetDisposals(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/finance/assets/disposals", { params });
+  return (response.data?.data ?? []) as FinanceAssetDisposalRecord[];
 }

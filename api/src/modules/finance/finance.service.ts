@@ -8,6 +8,9 @@ import { Prisma } from '@prisma/client';
 import { UpsertFinanceAccountDto } from './dto/upsert-finance-account.dto';
 import { CreateFinanceIncomeDto } from './dto/create-finance-income.dto';
 import { CreateTransferDto } from './dto/create-transfer.dto';
+import { UpsertFinanceAssetDto } from './dto/upsert-finance-asset.dto';
+import { CreateFinanceAssetVerificationDto } from './dto/create-finance-asset-verification.dto';
+import { CreateFinanceAssetDisposalDto } from './dto/create-finance-asset-disposal.dto';
 
 @Injectable()
 export class FinanceService {
@@ -905,6 +908,281 @@ export class FinanceService {
     }));
   }
 
+  async listAssets(query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
+    const where: Prisma.FinanceAssetWhereInput = {};
+
+    if (query.organization_id) where.organizationId = this.parseId(String(query.organization_id), 'organization_id');
+    if (query.team_id) where.teamId = this.parseId(String(query.team_id), 'team_id');
+    if (query.assigned_to_user_id) where.assignedToUserId = this.parseId(String(query.assigned_to_user_id), 'assigned_to_user_id');
+    if (query.category) where.category = String(query.category);
+    if (query.status) where.status = String(query.status);
+    if (query.condition) where.condition = String(query.condition);
+    if (query.asset_id) where.assetId = { contains: String(query.asset_id), mode: 'insensitive' };
+    if (query.q) {
+      const term = String(query.q);
+      where.OR = [
+        { assetId: { contains: term, mode: 'insensitive' } },
+        { assetDescription: { contains: term, mode: 'insensitive' } },
+        { serialTagNo: { contains: term, mode: 'insensitive' } },
+        { supplier: { contains: term, mode: 'insensitive' } },
+        { locationProject: { contains: term, mode: 'insensitive' } }
+      ];
+    }
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.financeAsset.findMany({
+        where,
+        include: this.getAssetInclude(),
+        orderBy: [{ purchaseDate: 'desc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * perPage,
+        take: perPage
+      }),
+      this.prisma.financeAsset.count({ where })
+    ]);
+
+    return {
+      data: rows.map((row) => this.serializeAsset(row)),
+      meta: {
+        page,
+        per_page: perPage,
+        total,
+        last_page: Math.max(1, Math.ceil(total / perPage))
+      }
+    };
+  }
+
+  async listAssetDisposals(query: Record<string, any>) {
+    const where: Prisma.FinanceAssetDisposalWhereInput = {};
+    if (query.from || query.to) {
+      where.disposalDate = {
+        ...(query.from ? { gte: new Date(String(query.from)) } : {}),
+        ...(query.to ? { lte: new Date(String(query.to)) } : {})
+      };
+    }
+
+    const rows = await this.prisma.financeAssetDisposal.findMany({
+      where,
+      include: {
+        asset: {
+          select: {
+            id: true,
+            assetId: true,
+            assetDescription: true,
+            category: true,
+            purchaseCost: true
+          }
+        },
+        approvedByUser: {
+          select: { id: true, firstName: true, lastName: true, email: true }
+        },
+        createdByUser: {
+          select: { id: true, firstName: true, lastName: true, email: true }
+        }
+      },
+      orderBy: [{ disposalDate: 'desc' }, { createdAt: 'desc' }]
+    });
+
+    return rows.map((row) => ({
+      id: row.id,
+      asset_id: row.asset.assetId,
+      asset_record_id: row.assetRecordId,
+      asset_description: row.asset.assetDescription,
+      category: row.asset.category,
+      original_cost: Number(row.asset.purchaseCost),
+      book_value_at_disposal: Number(row.bookValueAtDisposal),
+      disposal_date: row.disposalDate,
+      disposal_method: row.disposalMethod,
+      proceeds: Number(row.proceeds),
+      gain_loss: Number(row.gainLoss),
+      donor_asset: row.donorAsset,
+      approved_by: this.serializeSimpleProfile(row.approvedByUser),
+      created_by: this.serializeSimpleProfile(row.createdByUser),
+      notes: row.notes
+    }));
+  }
+
+  async getAsset(id: string) {
+    const asset = await this.prisma.financeAsset.findUnique({
+      where: { id },
+      include: this.getAssetInclude()
+    });
+    if (!asset) throw new NotFoundException('Asset not found');
+    return this.serializeAsset(asset);
+  }
+
+  async createAsset(dto: UpsertFinanceAssetDto, actorId?: string) {
+    this.validateAssetPayload(dto);
+
+    const assetId = dto.asset_id?.trim() || (await this.generateNextAssetId());
+    const purchaseDate = new Date(dto.purchase_date);
+    if (Number.isNaN(purchaseDate.getTime())) throw new BadRequestException('Invalid purchase_date');
+
+    const created = await this.prisma.financeAsset.create({
+      data: {
+        assetId,
+        organizationId: dto.organization_id ? this.parseId(dto.organization_id, 'organization_id') : null,
+        teamId: dto.team_id ? this.parseId(dto.team_id, 'team_id') : null,
+        assetDescription: dto.asset_description.trim(),
+        category: dto.category.trim(),
+        serialTagNo: dto.serial_tag_no?.trim() || null,
+        locationProject: dto.location_project?.trim() || null,
+        assignedToUserId: dto.assigned_to_user_id ? this.parseId(dto.assigned_to_user_id, 'assigned_to_user_id') : null,
+        purchaseDate,
+        supplier: dto.supplier?.trim() || null,
+        purchaseCost: dto.purchase_cost,
+        usefulLifeYears: Math.trunc(dto.useful_life_years),
+        salvageValue: dto.salvage_value ?? 0,
+        condition: (dto.condition ?? 'good').trim(),
+        status: (dto.status ?? 'active').trim(),
+        notes: dto.notes?.trim() || null,
+        createdBy: actorId ? toBigInt(actorId) : null,
+        updatedBy: actorId ? toBigInt(actorId) : null
+      },
+      include: this.getAssetInclude()
+    }).catch((error) => {
+      this.handleAssetConstraintErrors(error, assetId);
+      throw error;
+    });
+
+    return this.serializeAsset(created);
+  }
+
+  async updateAsset(id: string, dto: UpsertFinanceAssetDto, actorId?: string) {
+    const existing = await this.prisma.financeAsset.findUnique({
+      where: { id },
+      include: { disposal: true }
+    });
+    if (!existing) throw new NotFoundException('Asset not found');
+    if (existing.disposal) {
+      throw new BadRequestException('Disposed assets cannot be updated');
+    }
+
+    this.validateAssetPayload(dto);
+    const purchaseDate = new Date(dto.purchase_date);
+    if (Number.isNaN(purchaseDate.getTime())) throw new BadRequestException('Invalid purchase_date');
+    const assetId = dto.asset_id?.trim() || existing.assetId;
+
+    const updated = await this.prisma.financeAsset.update({
+      where: { id },
+      data: {
+        assetId,
+        organizationId: dto.organization_id ? this.parseId(dto.organization_id, 'organization_id') : null,
+        teamId: dto.team_id ? this.parseId(dto.team_id, 'team_id') : null,
+        assetDescription: dto.asset_description.trim(),
+        category: dto.category.trim(),
+        serialTagNo: dto.serial_tag_no?.trim() || null,
+        locationProject: dto.location_project?.trim() || null,
+        assignedToUserId: dto.assigned_to_user_id ? this.parseId(dto.assigned_to_user_id, 'assigned_to_user_id') : null,
+        purchaseDate,
+        supplier: dto.supplier?.trim() || null,
+        purchaseCost: dto.purchase_cost,
+        usefulLifeYears: Math.trunc(dto.useful_life_years),
+        salvageValue: dto.salvage_value ?? 0,
+        condition: (dto.condition ?? existing.condition).trim(),
+        status: (dto.status ?? existing.status).trim(),
+        notes: dto.notes?.trim() || null,
+        updatedBy: actorId ? toBigInt(actorId) : null
+      },
+      include: this.getAssetInclude()
+    }).catch((error) => {
+      this.handleAssetConstraintErrors(error, assetId);
+      throw error;
+    });
+
+    return this.serializeAsset(updated);
+  }
+
+  async verifyAsset(id: string, dto: CreateFinanceAssetVerificationDto, actorId?: string) {
+    if (!actorId) throw new BadRequestException('Actor is required');
+    const asset = await this.prisma.financeAsset.findUnique({
+      where: { id },
+      select: { id: true, disposal: true }
+    });
+    if (!asset) throw new NotFoundException('Asset not found');
+    if (asset.disposal) throw new BadRequestException('Disposed asset cannot be verified');
+
+    const verifiedAt = new Date(dto.verified_at);
+    if (Number.isNaN(verifiedAt.getTime())) throw new BadRequestException('Invalid verified_at');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financeAssetVerification.create({
+        data: {
+          assetRecordId: id,
+          verifiedAt,
+          condition: dto.condition.trim(),
+          locationProject: dto.location_project?.trim() || null,
+          assignedToUserId: dto.assigned_to_user_id ? this.parseId(dto.assigned_to_user_id, 'assigned_to_user_id') : null,
+          verifiedBy: toBigInt(actorId),
+          notes: dto.notes?.trim() || null
+        }
+      });
+
+      await tx.financeAsset.update({
+        where: { id },
+        data: {
+          condition: dto.condition.trim(),
+          locationProject: dto.location_project?.trim() || undefined,
+          assignedToUserId: dto.assigned_to_user_id ? this.parseId(dto.assigned_to_user_id, 'assigned_to_user_id') : undefined,
+          lastVerifiedDate: verifiedAt,
+          lastVerifiedBy: toBigInt(actorId),
+          updatedBy: toBigInt(actorId)
+        }
+      });
+    });
+
+    return this.getAsset(id);
+  }
+
+  async disposeAsset(id: string, dto: CreateFinanceAssetDisposalDto, actorId?: string) {
+    const asset = await this.prisma.financeAsset.findUnique({
+      where: { id },
+      include: { disposal: true }
+    });
+    if (!asset) throw new NotFoundException('Asset not found');
+    if (asset.disposal) throw new BadRequestException('Asset has already been disposed');
+
+    const disposalDate = new Date(dto.disposal_date);
+    if (Number.isNaN(disposalDate.getTime())) throw new BadRequestException('Invalid disposal_date');
+    const metrics = this.computeAssetMetrics({
+      purchaseDate: asset.purchaseDate,
+      purchaseCost: Number(asset.purchaseCost),
+      usefulLifeYears: asset.usefulLifeYears,
+      salvageValue: Number(asset.salvageValue),
+      asOfDate: disposalDate
+    });
+    const proceeds = Number(dto.proceeds ?? 0);
+    const gainLoss = proceeds - metrics.netBookValue;
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financeAssetDisposal.create({
+        data: {
+          assetRecordId: asset.id,
+          disposalDate,
+          disposalMethod: dto.disposal_method.trim(),
+          proceeds,
+          bookValueAtDisposal: metrics.netBookValue,
+          gainLoss,
+          approvedBy: dto.approved_by ? this.parseId(dto.approved_by, 'approved_by') : null,
+          donorAsset: dto.donor_asset ?? false,
+          notes: dto.notes?.trim() || null,
+          createdBy: actorId ? toBigInt(actorId) : null
+        }
+      });
+
+      await tx.financeAsset.update({
+        where: { id: asset.id },
+        data: {
+          status: 'disposed',
+          updatedBy: actorId ? toBigInt(actorId) : null
+        }
+      });
+    });
+
+    return this.getAsset(id);
+  }
+
   private parseId(value: string, label: string): bigint {
     try {
       return toBigInt(value);
@@ -966,5 +1244,180 @@ export class FinanceService {
       },
       meta: base?.meta ?? {}
     };
+  }
+
+  private getAssetInclude() {
+    return {
+      organization: { select: { id: true, name: true, code: true } },
+      team: { select: { id: true, name: true, type: true } },
+      assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
+      verifiedBy: { select: { id: true, firstName: true, lastName: true, email: true } },
+      createdByProfile: { select: { id: true, firstName: true, lastName: true, email: true } },
+      updatedByProfile: { select: { id: true, firstName: true, lastName: true, email: true } },
+      verifications: {
+        include: {
+          assignedTo: { select: { id: true, firstName: true, lastName: true, email: true } },
+          verifiedByUser: { select: { id: true, firstName: true, lastName: true, email: true } }
+        },
+        orderBy: [{ verifiedAt: 'desc' }, { createdAt: 'desc' }]
+      },
+      disposal: {
+        include: {
+          approvedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+          createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } }
+        }
+      }
+    } satisfies Prisma.FinanceAssetInclude;
+  }
+
+  private serializeAsset(asset: Prisma.FinanceAssetGetPayload<{ include: ReturnType<FinanceService['getAssetInclude']> }>) {
+    const asOfDate = asset.disposal?.disposalDate ?? new Date();
+    const metrics = this.computeAssetMetrics({
+      purchaseDate: asset.purchaseDate,
+      purchaseCost: Number(asset.purchaseCost),
+      usefulLifeYears: asset.usefulLifeYears,
+      salvageValue: Number(asset.salvageValue),
+      asOfDate
+    });
+
+    return {
+      id: asset.id,
+      asset_id: asset.assetId,
+      organization: asset.organization
+        ? { id: asset.organization.id.toString(), name: asset.organization.name, code: asset.organization.code }
+        : null,
+      team: asset.team ? { id: asset.team.id.toString(), name: asset.team.name, type: asset.team.type } : null,
+      asset_description: asset.assetDescription,
+      category: asset.category,
+      serial_tag_no: asset.serialTagNo,
+      location_project: asset.locationProject,
+      assigned_to: this.serializeSimpleProfile(asset.assignedTo),
+      purchase_date: asset.purchaseDate,
+      supplier: asset.supplier,
+      purchase_cost: Number(asset.purchaseCost),
+      useful_life_years: asset.usefulLifeYears,
+      salvage_value: Number(asset.salvageValue),
+      depreciation_rate: metrics.depreciationRate,
+      depreciation_per_annum: metrics.annualDepreciation,
+      accumulated_depreciation: metrics.accumulatedDepreciation,
+      net_book_value: metrics.netBookValue,
+      condition: asset.condition,
+      status: asset.status,
+      last_verified_date: asset.lastVerifiedDate,
+      last_verified_by: this.serializeSimpleProfile(asset.verifiedBy),
+      notes: asset.notes,
+      created_by: this.serializeSimpleProfile(asset.createdByProfile),
+      updated_by: this.serializeSimpleProfile(asset.updatedByProfile),
+      created_at: asset.createdAt,
+      updated_at: asset.updatedAt,
+      verifications: asset.verifications.map((row) => ({
+        id: row.id,
+        verified_at: row.verifiedAt,
+        condition: row.condition,
+        location_project: row.locationProject,
+        assigned_to: this.serializeSimpleProfile(row.assignedTo),
+        verified_by: this.serializeSimpleProfile(row.verifiedByUser),
+        notes: row.notes,
+        created_at: row.createdAt
+      })),
+      disposal: asset.disposal
+        ? {
+            id: asset.disposal.id,
+            disposal_date: asset.disposal.disposalDate,
+            disposal_method: asset.disposal.disposalMethod,
+            proceeds: Number(asset.disposal.proceeds),
+            book_value_at_disposal: Number(asset.disposal.bookValueAtDisposal),
+            gain_loss: Number(asset.disposal.gainLoss),
+            donor_asset: asset.disposal.donorAsset,
+            approved_by: this.serializeSimpleProfile(asset.disposal.approvedByUser),
+            created_by: this.serializeSimpleProfile(asset.disposal.createdByUser),
+            notes: asset.disposal.notes,
+            created_at: asset.disposal.createdAt
+          }
+        : null
+    };
+  }
+
+  private serializeSimpleProfile(
+    profile:
+      | { id: bigint; firstName: string | null; lastName: string | null; email: string }
+      | null
+      | undefined
+  ) {
+    if (!profile) return null;
+    return {
+      id: profile.id.toString(),
+      first_name: profile.firstName,
+      last_name: profile.lastName,
+      email: profile.email,
+      name: [profile.firstName, profile.lastName].filter(Boolean).join(' ').trim() || profile.email
+    };
+  }
+
+  private validateAssetPayload(dto: UpsertFinanceAssetDto) {
+    if (dto.purchase_cost < 50000) {
+      throw new BadRequestException('purchase_cost must be at least 50000 to qualify for the asset register');
+    }
+    if (dto.useful_life_years <= 1) {
+      throw new BadRequestException('useful_life_years must be greater than 1');
+    }
+  }
+
+  private computeAssetMetrics(input: {
+    purchaseDate: Date;
+    purchaseCost: number;
+    usefulLifeYears: number;
+    salvageValue: number;
+    asOfDate: Date;
+  }) {
+    const depreciableBase = Math.max(0, input.purchaseCost - input.salvageValue);
+    const depreciationRate = input.usefulLifeYears > 0 ? 1 / input.usefulLifeYears : 0;
+    const annualDepreciation = input.usefulLifeYears > 0 ? depreciableBase / input.usefulLifeYears : 0;
+    const elapsedYears = Math.max(
+      0,
+      Math.min(input.usefulLifeYears, this.fullYearsBetween(input.purchaseDate, input.asOfDate))
+    );
+    const accumulatedDepreciation = Math.min(depreciableBase, annualDepreciation * elapsedYears);
+    const netBookValue = Math.max(input.salvageValue, input.purchaseCost - accumulatedDepreciation);
+    return {
+      depreciationRate,
+      annualDepreciation,
+      accumulatedDepreciation,
+      netBookValue
+    };
+  }
+
+  private fullYearsBetween(start: Date, end: Date) {
+    let years = end.getFullYear() - start.getFullYear();
+    const endMonth = end.getMonth();
+    const startMonth = start.getMonth();
+    if (endMonth < startMonth || (endMonth === startMonth && end.getDate() < start.getDate())) {
+      years -= 1;
+    }
+    return Math.max(0, years);
+  }
+
+  private async generateNextAssetId() {
+    const count = await this.prisma.financeAsset.count();
+    let candidateNumber = count + 1;
+    while (candidateNumber < 1000000) {
+      const candidate = `SEA-${String(candidateNumber).padStart(3, '0')}`;
+      const exists = await this.prisma.financeAsset.findUnique({
+        where: { assetId: candidate },
+        select: { id: true }
+      });
+      if (!exists) return candidate;
+      candidateNumber += 1;
+    }
+    throw new BadRequestException('Unable to generate asset_id');
+  }
+
+  private handleAssetConstraintErrors(error: unknown, assetId: string) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === 'P2002'
+    ) {
+      throw new BadRequestException(`asset_id "${assetId}" already exists`);
+    }
   }
 }

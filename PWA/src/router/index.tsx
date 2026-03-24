@@ -64,6 +64,18 @@ const FinanceLedgerPage = lazy(
 const FinancePaymentVouchersPage = lazy(
   () => import("../pages/finance/payment-vouchers/FinancePaymentVouchers")
 );
+const FinanceAssetsPage = lazy(
+  () => import("../pages/finance/assets/FinanceAssets")
+);
+const FinanceAssetEditorPage = lazy(
+  () => import("../pages/finance/assets/FinanceAssetEditor")
+);
+const FinanceAssetDetailPage = lazy(
+  () => import("../pages/finance/assets/FinanceAssetDetail")
+);
+const FinanceAssetDisposalsPage = lazy(
+  () => import("../pages/finance/assets/FinanceAssetDisposals")
+);
 const AdminFilesPage = lazy(() => import("../pages/admin/files/AdminFiles"));
 const AdminProjectsPage = lazy(
   () => import("../pages/admin/projects/AdminProjects")
@@ -396,6 +408,56 @@ function Router() {
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
                 {page(<FinancePaymentVouchersPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/assets",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceAssetsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/assets/new",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["requests.manage"]}>
+                {page(<FinanceAssetEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/assets/disposals",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceAssetDisposalsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/assets/:id",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceAssetDetailPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/assets/:id/edit",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["requests.manage"]}>
+                {page(<FinanceAssetEditorPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),

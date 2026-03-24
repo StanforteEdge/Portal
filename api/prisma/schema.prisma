@@ -117,6 +117,14 @@ model Profile {
   leaveBalanceLedger LeaveBalanceLedger[]
   acknowledgements Acknowledgement[]
   documentAcknowledgements DocumentAcknowledgement[]
+  assignedFinanceAssets FinanceAsset[] @relation("FinanceAssetAssignedTo")
+  verifiedFinanceAssets FinanceAsset[] @relation("FinanceAssetVerifiedBy")
+  createdFinanceAssets FinanceAsset[] @relation("FinanceAssetCreatedBy")
+  updatedFinanceAssets FinanceAsset[] @relation("FinanceAssetUpdatedBy")
+  assetVerificationsPerformed FinanceAssetVerification[] @relation("FinanceAssetVerificationPerformedBy")
+  assetVerificationAssignees FinanceAssetVerification[] @relation("FinanceAssetVerificationAssignedTo")
+  assetDisposalsApproved FinanceAssetDisposal[] @relation("FinanceAssetDisposalApprovedBy")
+  assetDisposalsCreated FinanceAssetDisposal[] @relation("FinanceAssetDisposalCreatedBy")
 
   @@map("sta_profiles")
 }
@@ -272,6 +280,7 @@ model Organization {
   requestGroups RequestGroup[]
   fileAssets FileAsset[]
   financeAccounts FinanceAccount[]
+  financeAssets FinanceAsset[]
   employeeProfiles EmployeeProfile[]
   documents Document[]
 
@@ -444,6 +453,7 @@ model Group {
 
   members GroupUser[]
   employeeProfiles EmployeeProfile[]
+  financeAssets FinanceAsset[]
 
   @@map("sta_groups")
 }
@@ -650,6 +660,93 @@ model FinanceIncomeEntry {
   @@index([receivedAt])
   @@index([categoryId])
   @@map("sta_finance_income_entries")
+}
+
+model FinanceAsset {
+  id                 String    @id @default(uuid()) @db.Uuid
+  assetId            String    @unique @map("asset_id") @db.VarChar(50)
+  organizationId     BigInt?   @map("organization_id")
+  teamId             BigInt?   @map("team_id")
+  assetDescription   String    @map("asset_description") @db.VarChar(255)
+  category           String    @db.VarChar(100)
+  serialTagNo        String?   @map("serial_tag_no") @db.VarChar(120)
+  locationProject    String?   @map("location_project") @db.VarChar(150)
+  assignedToUserId   BigInt?   @map("assigned_to_user_id")
+  purchaseDate       DateTime  @map("purchase_date") @db.Date
+  supplier           String?   @db.VarChar(150)
+  purchaseCost       Decimal   @map("purchase_cost") @db.Decimal(15,2)
+  usefulLifeYears    Int       @map("useful_life_years")
+  salvageValue       Decimal   @default(0) @map("salvage_value") @db.Decimal(15,2)
+  condition          String    @default("good") @db.VarChar(40)
+  status             String    @default("active") @db.VarChar(40)
+  lastVerifiedDate   DateTime? @map("last_verified_date") @db.Date
+  lastVerifiedBy     BigInt?   @map("last_verified_by")
+  notes              String?
+  createdBy          BigInt?   @map("created_by")
+  updatedBy          BigInt?   @map("updated_by")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  organization       Organization?             @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  team               Group?                    @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  assignedTo         Profile?                  @relation("FinanceAssetAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  verifiedBy         Profile?                  @relation("FinanceAssetVerifiedBy", fields: [lastVerifiedBy], references: [id], onDelete: SetNull)
+  createdByProfile   Profile?                  @relation("FinanceAssetCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  updatedByProfile   Profile?                  @relation("FinanceAssetUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
+  verifications      FinanceAssetVerification[]
+  disposal           FinanceAssetDisposal?
+
+  @@index([organizationId])
+  @@index([teamId])
+  @@index([assignedToUserId])
+  @@index([category])
+  @@index([status])
+  @@index([purchaseDate])
+  @@map("sta_finance_assets")
+}
+
+model FinanceAssetVerification {
+  id               String    @id @default(uuid()) @db.Uuid
+  assetRecordId    String    @map("asset_record_id") @db.Uuid
+  verifiedAt       DateTime  @map("verified_at") @db.Date
+  condition        String    @db.VarChar(40)
+  locationProject  String?   @map("location_project") @db.VarChar(150)
+  assignedToUserId BigInt?   @map("assigned_to_user_id")
+  verifiedBy       BigInt    @map("verified_by")
+  notes            String?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  asset            FinanceAsset @relation(fields: [assetRecordId], references: [id], onDelete: Cascade)
+  assignedTo       Profile?     @relation("FinanceAssetVerificationAssignedTo", fields: [assignedToUserId], references: [id], onDelete: SetNull)
+  verifiedByUser   Profile      @relation("FinanceAssetVerificationPerformedBy", fields: [verifiedBy], references: [id], onDelete: Restrict)
+
+  @@index([assetRecordId])
+  @@index([verifiedAt])
+  @@map("sta_finance_asset_verifications")
+}
+
+model FinanceAssetDisposal {
+  id                String    @id @default(uuid()) @db.Uuid
+  assetRecordId     String    @unique @map("asset_record_id") @db.Uuid
+  disposalDate      DateTime  @map("disposal_date") @db.Date
+  disposalMethod    String    @map("disposal_method") @db.VarChar(100)
+  proceeds          Decimal   @default(0) @db.Decimal(15,2)
+  bookValueAtDisposal Decimal @default(0) @map("book_value_at_disposal") @db.Decimal(15,2)
+  gainLoss          Decimal   @default(0) @map("gain_loss") @db.Decimal(15,2)
+  approvedBy        BigInt?   @map("approved_by")
+  donorAsset        Boolean   @default(false) @map("donor_asset")
+  notes             String?
+  createdBy         BigInt?   @map("created_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  asset             FinanceAsset @relation(fields: [assetRecordId], references: [id], onDelete: Cascade)
+  approvedByUser    Profile?     @relation("FinanceAssetDisposalApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  createdByUser     Profile?     @relation("FinanceAssetDisposalCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([disposalDate])
+  @@map("sta_finance_asset_disposals")
 }
 
 model FileAsset {
