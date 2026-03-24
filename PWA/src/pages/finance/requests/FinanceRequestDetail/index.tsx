@@ -49,6 +49,17 @@ function downloadBase64File(fileName: string, mimeType: string, contentBase64: s
   window.URL.revokeObjectURL(url);
 }
 
+type PreviewFile = {
+  file_name: string;
+  mime_type: string | null;
+  public_url: string | null;
+};
+
+function canPreviewInline(file: PreviewFile | null) {
+  const mime = String(file?.mime_type || "").toLowerCase();
+  return mime.startsWith("image/") || mime === "application/pdf" || mime.startsWith("text/");
+}
+
 function FinanceRequestDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
@@ -106,6 +117,7 @@ function FinanceRequestDetailPage() {
 
   const [showDisburseModal, setShowDisburseModal] = useState(false);
   const [showEvidencePicker, setShowEvidencePicker] = useState(false);
+  const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
   const [disburseForm, setDisburseForm] = useState({
     method: "bank_transfer",
     custom_method: "",
@@ -333,6 +345,12 @@ function FinanceRequestDetailPage() {
     }
   };
 
+  const openPreview = (file?: PreviewFile | null, event?: { stopPropagation?: () => void }) => {
+    event?.stopPropagation?.();
+    if (!file?.public_url) return;
+    setPreviewFile(file);
+  };
+
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
@@ -472,6 +490,7 @@ function FinanceRequestDetailPage() {
                     <Table.Th>Qty</Table.Th>
                     <Table.Th>Price</Table.Th>
                     <Table.Th>Amount</Table.Th>
+                    <Table.Th>File</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -484,6 +503,25 @@ function FinanceRequestDetailPage() {
                       <Table.Td>{item.quantity}</Table.Td>
                       <Table.Td>{formatMoney(item.amount, "-", request.currency || "NGN")}</Table.Td>
                       <Table.Td>{formatMoney(Number(item.amount) * Number(item.quantity || 1), "-", request.currency || "NGN")}</Table.Td>
+                      <Table.Td>
+                        {item.file?.public_url ? (
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline-secondary" onClick={(event: any) => openPreview(item.file ?? null, event)}>
+                              View
+                            </Button>
+                            <a
+                              href={item.file.public_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="inline-flex items-center text-sm text-primary hover:underline"
+                            >
+                              Open
+                            </a>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>
@@ -507,6 +545,7 @@ function FinanceRequestDetailPage() {
                       <Table.Th>Retirement Status</Table.Th>
                       <Table.Th>Paid From</Table.Th>
                       <Table.Th>Staff Confirmed</Table.Th>
+                      <Table.Th>File</Table.Th>
                       <Table.Th className="text-right">PV</Table.Th>
                     </Table.Tr>
                   </Table.Thead>
@@ -523,6 +562,15 @@ function FinanceRequestDetailPage() {
                         <Table.Td>{retirementStatusLabel(pv.retirement_status)}</Table.Td>
                         <Table.Td>{pv.paid_from_account?.name || "-"}</Table.Td>
                         <Table.Td>{staffConfirmationLabel}</Table.Td>
+                        <Table.Td>
+                          {pv.evidence_file?.public_url ? (
+                            <Button size="sm" variant="outline-secondary" onClick={(event: any) => openPreview(pv.evidence_file, event)}>
+                              View
+                            </Button>
+                          ) : (
+                            <span className="text-slate-400">-</span>
+                          )}
+                        </Table.Td>
                         <Table.Td className="text-right">
                           <Button
                             size="sm"
@@ -692,14 +740,19 @@ function FinanceRequestDetailPage() {
                 <div className="text-sm"><span className="text-slate-500">Staff Confirmation:</span> {staffConfirmationLabel}</div>
                 <div className="text-sm"><span className="text-slate-500">Note:</span> {selectedVoucher.note || "-"}</div>
                 {selectedVoucher.evidence_file?.public_url ? (
-                  <a
-                    href={selectedVoucher.evidence_file.public_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    View Disbursement File
-                  </a>
+                  <div className="flex flex-wrap gap-3">
+                    <button type="button" className="text-sm text-primary hover:underline" onClick={() => openPreview(selectedVoucher.evidence_file)}>
+                      View Disbursement File
+                    </button>
+                    <a
+                      href={selectedVoucher.evidence_file.public_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Open in New Tab
+                    </a>
+                  </div>
                 ) : null}
                 {selectedVoucher.retirement_files.length > 0 ? (
                   <div className="pt-2 mt-2 border-t">
@@ -708,14 +761,19 @@ function FinanceRequestDetailPage() {
                       {selectedVoucher.retirement_files.map((file) => (
                         <div key={file.id}>
                           {file.public_url ? (
-                            <a
-                              href={file.public_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="text-sm text-primary hover:underline"
-                            >
-                              {file.file_name}
-                            </a>
+                            <div className="flex flex-wrap gap-3">
+                              <button type="button" className="text-sm text-primary hover:underline" onClick={() => openPreview(file)}>
+                                {file.file_name}
+                              </button>
+                              <a
+                                href={file.public_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-sm text-primary hover:underline"
+                              >
+                                Open
+                              </a>
+                            </div>
                           ) : (
                             <span className="text-sm">{file.file_name}</span>
                           )}
@@ -738,6 +796,44 @@ function FinanceRequestDetailPage() {
               {busyAction === "pv" ? "Downloading..." : "Download PV"}
             </Button>
             <Button variant="outline-secondary" onClick={() => setSelectedVoucher(null)}>
+              Close
+            </Button>
+          </div>
+        </Dialog.Panel>
+      </Dialog>
+
+      <Dialog open={Boolean(previewFile)} onClose={() => setPreviewFile(null)}>
+        <Dialog.Panel className="max-w-5xl">
+          <div className="p-5 space-y-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <div className="text-lg font-medium">File Preview</div>
+                <div className="text-sm text-slate-500">{previewFile?.file_name || "-"}</div>
+              </div>
+              {previewFile?.public_url ? (
+                <a href={previewFile.public_url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+                  Open in New Tab
+                </a>
+              ) : null}
+            </div>
+            <div className="rounded-md border bg-slate-50 p-3">
+              {previewFile?.public_url ? (
+                canPreviewInline(previewFile) ? (
+                  String(previewFile.mime_type || "").toLowerCase().startsWith("image/") ? (
+                    <img src={previewFile.public_url} alt={previewFile.file_name} className="mx-auto max-h-[70vh] rounded" />
+                  ) : (
+                    <iframe title={previewFile.file_name} src={previewFile.public_url} className="h-[70vh] w-full rounded bg-white" />
+                  )
+                ) : (
+                  <div className="text-sm text-slate-500">This file cannot be previewed inline. Use Open in New Tab.</div>
+                )
+              ) : (
+                <div className="text-sm text-slate-500">No preview available.</div>
+              )}
+            </div>
+          </div>
+          <div className="px-5 pb-5 flex justify-end">
+            <Button variant="outline-secondary" onClick={() => setPreviewFile(null)}>
               Close
             </Button>
           </div>

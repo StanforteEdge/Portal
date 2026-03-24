@@ -590,6 +590,8 @@ export class RequestsService {
       imported_at: new Date().toISOString(),
       imported_by: userId
     };
+    const fundId = typeof baseData.fund_id === 'string' && baseData.fund_id.trim() ? baseData.fund_id.trim() : null;
+    const grantId = typeof baseData.grant_id === 'string' && baseData.grant_id.trim() ? baseData.grant_id.trim() : null;
 
     const status = (dto.status ?? existing.status) as any;
     await this.prisma.$transaction(async (tx) => {
@@ -664,6 +666,8 @@ export class RequestsService {
               transactionRef: row.transaction_ref ?? null,
               note: row.note ?? null,
               paidFromAccountId: row.paid_from_account_id ?? null,
+              fundId,
+              grantId,
               evidenceFileId: row.evidence_file_id ?? null,
               disbursedAt,
               retiredAt: retiredAmount > 0 ? disbursedAt : null,
@@ -1218,7 +1222,8 @@ export class RequestsService {
       where: { requestId: request.id },
       orderBy: { disbursedAt: 'asc' }
     });
-    const fileName = `request-${request.id.toString()}-${this.compactDate(generatedAt)}.pdf`;
+    const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
+    const fileName = `${this.zipSafeName(requestNumber)}.pdf`;
 
     const pdfBuffer = await this.buildRequestPdfDocument({
       request,
@@ -1256,7 +1261,7 @@ export class RequestsService {
     const totalAmount = this.resolveTotalAmount(request);
     const voucherNo = `PV/${generatedAt.getFullYear()}/${request.id.toString()}`;
     const signatories = await this.getFinanceSignatories();
-    const fileName = `${voucherNo}.pdf`;
+    const fileName = `${this.zipSafeName(voucherNo)}.pdf`;
 
     const approvals = request.workflowInstanceId
       ? await this.getApprovalSummary(request.workflowInstanceId)
@@ -1306,7 +1311,7 @@ export class RequestsService {
     const amount = Number(voucher.amount);
     const voucherNo = voucher.voucherNumber;
     const signatories = await this.getFinanceSignatories();
-    const fileName = `${voucherNo}.pdf`;
+    const fileName = `${this.zipSafeName(voucherNo)}.pdf`;
 
     const approvals = request.workflowInstanceId
       ? await this.getApprovalSummary(request.workflowInstanceId)
@@ -1400,7 +1405,8 @@ export class RequestsService {
 
     const zip = new JSZip();
     const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
-    zip.file(`request/${requestNumber}.pdf`, requestPdf);
+    const requestZipName = this.zipSafeName(requestNumber);
+    zip.file(`request/${requestZipName}.pdf`, requestPdf);
 
     const fileIdSet = new Set<string>();
     const addFileByAsset = async (asset: any, targetPath: string) => {
@@ -1416,34 +1422,29 @@ export class RequestsService {
 
     for (const item of request.items) {
       if (!item.file) continue;
-      await addFileByAsset(item.file, `request/attachments/invoices/${item.file.fileName}`);
+      await addFileByAsset(item.file, `request/attachments/${item.file.fileName}`);
     }
 
-    const retirementIds = new Set<string>();
     for (const pv of paymentVouchers) {
+      const voucherZipName = this.zipSafeName(pv.voucherNumber);
       if (pv.evidenceFile) {
-        await addFileByAsset(pv.evidenceFile, `vouchers/${pv.voucherNumber}/evidence/${pv.evidenceFile.fileName}`);
+        await addFileByAsset(pv.evidenceFile, `vouchers/${voucherZipName}/receipts/${pv.evidenceFile.fileName}`);
       }
       if (pv.metadata && typeof pv.metadata === 'object' && !Array.isArray(pv.metadata)) {
         const ids = (pv.metadata as Record<string, unknown>).retirement_file_ids;
         if (Array.isArray(ids)) {
-          ids.forEach((x) => {
-            if (typeof x === 'string') retirementIds.add(x);
+          const retirementFiles = await this.prisma.fileAsset.findMany({
+            where: { id: { in: ids.filter((x): x is string => typeof x === 'string') } }
           });
+          for (const file of retirementFiles) {
+            await addFileByAsset(file, `retirements/${voucherZipName}/${file.fileName}`);
+          }
         }
       }
     }
 
-    if (retirementIds.size > 0) {
-      const retirementFiles = await this.prisma.fileAsset.findMany({
-        where: { id: { in: Array.from(retirementIds) } }
-      });
-      for (const file of retirementFiles) {
-        await addFileByAsset(file, `retirements/attachments/${file.fileName}`);
-      }
-    }
-
     for (const pv of paymentVouchers) {
+      const voucherZipName = this.zipSafeName(pv.voucherNumber);
       const pvPdf = await this.buildPaymentVoucherDocument({
         request,
         voucherNo: pv.voucherNumber,
@@ -1458,11 +1459,11 @@ export class RequestsService {
         },
         signatories
       });
-      zip.file(`vouchers/${pv.voucherNumber}.pdf`, pvPdf);
+      zip.file(`vouchers/${voucherZipName}/${voucherZipName}.pdf`, pvPdf);
     }
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
-    const fileName = `${requestNumber}-full-package-${this.compactDate(generatedAt)}.zip`;
+    const fileName = `${requestZipName}-full-package-${this.compactDate(generatedAt)}.zip`;
 
     if ((options?.delivery ?? 'download') === 'email') {
       const recipient =
@@ -1529,18 +1530,19 @@ export class RequestsService {
     });
 
     const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
+    const requestZipName = this.zipSafeName(requestNumber);
     const zip = new JSZip();
-    zip.file(`request/${requestNumber}.pdf`, requestPdf);
+    zip.file(`request/${requestZipName}.pdf`, requestPdf);
     for (const item of request.items) {
       if (!item.file) continue;
       const buffer = await this.readAssetFileBuffer(item.file);
       if (buffer) {
-        zip.file(`request/attachments/invoices/${item.file.fileName}`, buffer);
+        zip.file(`request/attachments/${item.file.fileName}`, buffer);
       }
     }
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
     return {
-      file_name: `${requestNumber}-attachments-${this.compactDate(generatedAt)}.zip`,
+      file_name: `${requestZipName}-attachments-${this.compactDate(generatedAt)}.zip`,
       mime_type: 'application/zip',
       content_base64: zipBuffer.toString('base64'),
       generated_at: generatedAt.toISOString(),
@@ -1578,12 +1580,13 @@ export class RequestsService {
     });
 
     const zip = new JSZip();
-    zip.file(`voucher/${voucher.voucherNumber}.pdf`, pvPdf);
+    const voucherZipName = this.zipSafeName(voucher.voucherNumber);
+    zip.file(`voucher/${voucherZipName}.pdf`, pvPdf);
 
     if (voucher.evidenceFile) {
       const evidence = await this.readAssetFileBuffer(voucher.evidenceFile);
       if (evidence) {
-        zip.file(`voucher/attachments/pv/${voucher.evidenceFile.fileName}`, evidence);
+        zip.file(`voucher/receipts/${voucher.evidenceFile.fileName}`, evidence);
       }
     }
 
@@ -1597,14 +1600,14 @@ export class RequestsService {
       for (const file of files) {
         const buffer = await this.readAssetFileBuffer(file);
         if (buffer) {
-          zip.file(`voucher/attachments/retirement/${file.fileName}`, buffer);
+          zip.file(`retirements/${file.fileName}`, buffer);
         }
       }
     }
 
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
     return {
-      file_name: `${voucher.voucherNumber}-full-${this.compactDate(generatedAt)}.zip`,
+      file_name: `${voucherZipName}-full-${this.compactDate(generatedAt)}.zip`,
       mime_type: 'application/zip',
       content_base64: zipBuffer.toString('base64'),
       generated_at: generatedAt.toISOString(),
@@ -2253,6 +2256,13 @@ export class RequestsService {
     const mm = String(date.getMonth() + 1).padStart(2, '0');
     const dd = String(date.getDate()).padStart(2, '0');
     return `${yyyy}${mm}${dd}`;
+  }
+
+  private zipSafeName(value: string): string {
+    return String(value || '')
+      .replace(/[\\/]+/g, '-')
+      .replace(/[\u0000-\u001f\u007f]+/g, '')
+      .trim();
   }
 
   private formatMoney(amount: number, currency: string): string {
