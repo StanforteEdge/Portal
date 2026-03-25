@@ -76,6 +76,7 @@ export async function disburseFinanceRequest(
     transaction_ref?: string;
     amount?: number;
     evidence_file_id?: string;
+    evidence_file_ids?: string[];
     paid_from_account_id?: string;
   }
 ) {
@@ -250,6 +251,7 @@ export async function listFinanceRequestPaymentVouchers(id: string) {
     retired_at: string | null;
     verified_at: string | null;
     evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+    evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
     retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
   }>;
 }

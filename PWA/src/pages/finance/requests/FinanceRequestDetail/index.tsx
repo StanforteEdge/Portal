@@ -11,6 +11,7 @@ import { disburseFinanceRequest, listFinanceAccounts, listFinanceRequestPaymentV
 import {
   approveRequest,
   completeRequest,
+  generateFullRequestDocument,
   generateRequestPdf,
   generateRequestPvByVoucher,
   getRequest,
@@ -89,6 +90,7 @@ function FinanceRequestDetailPage() {
       retired_at: string | null;
       verified_at: string | null;
       evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+      evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
       retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
     }>
   >([]);
@@ -112,6 +114,7 @@ function FinanceRequestDetailPage() {
     retired_at: string | null;
     verified_at: string | null;
     evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+    evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
     retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
   } | null>(null);
 
@@ -125,7 +128,8 @@ function FinanceRequestDetailPage() {
     amount: "",
     note: "",
     evidence_file_id: "",
-    evidence_file_name: "",
+    evidence_file_ids: [] as string[],
+    evidence_file_names: [] as string[],
     paid_from_account_id: "",
   });
 
@@ -228,19 +232,20 @@ function FinanceRequestDetailPage() {
       amount: remainingRequestBalance > 0 ? String(remainingRequestBalance) : "",
       note: "",
       evidence_file_id: "",
-      evidence_file_name: "",
+      evidence_file_ids: [],
+      evidence_file_names: [],
       paid_from_account_id: financeAccounts[0]?.id || "",
     });
     setShowDisburseModal(true);
   };
 
   const applyEvidenceFile = (files: FileAssetRecord[]) => {
-    const picked = files[0];
-    if (!picked) return;
+    if (!files.length) return;
     setDisburseForm((prev) => ({
       ...prev,
-      evidence_file_id: picked.id,
-      evidence_file_name: picked.file_name,
+      evidence_file_id: files[0]?.id || "",
+      evidence_file_ids: files.map((file) => file.id),
+      evidence_file_names: files.map((file) => file.file_name),
     }));
   };
 
@@ -257,7 +262,8 @@ function FinanceRequestDetailPage() {
         method: method || undefined,
         transaction_ref: disburseForm.transaction_ref.trim() || undefined,
         amount: disburseForm.amount.trim() ? Number(disburseForm.amount) : undefined,
-        evidence_file_id: disburseForm.evidence_file_id || undefined,
+        evidence_file_id: disburseForm.evidence_file_ids[0] || disburseForm.evidence_file_id || undefined,
+        evidence_file_ids: disburseForm.evidence_file_ids,
         paid_from_account_id: disburseForm.paid_from_account_id || undefined,
       });
       setShowDisburseModal(false);
@@ -318,6 +324,18 @@ function FinanceRequestDetailPage() {
       downloadBase64File(file.file_name, file.mime_type, file.content_base64);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to generate PDF." });
+    } finally {
+      setBusyAction("");
+    }
+  };
+
+  const runFullDocument = async () => {
+    try {
+      setBusyAction("full_document");
+      const file = await generateFullRequestDocument(id);
+      downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to generate full document." });
     } finally {
       setBusyAction("");
     }
@@ -504,19 +522,18 @@ function FinanceRequestDetailPage() {
                       <Table.Td>{formatMoney(item.amount, "-", request.currency || "NGN")}</Table.Td>
                       <Table.Td>{formatMoney(Number(item.amount) * Number(item.quantity || 1), "-", request.currency || "NGN")}</Table.Td>
                       <Table.Td>
-                        {item.file?.public_url ? (
-                          <div className="flex flex-wrap gap-2">
-                            <Button size="sm" variant="outline-secondary" onClick={(event: any) => openPreview(item.file ?? null, event)}>
-                              View
-                            </Button>
-                            <a
-                              href={item.file.public_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="inline-flex items-center text-sm text-primary hover:underline"
-                            >
-                              Open
-                            </a>
+                        {item.files?.length ? (
+                          <div className="flex flex-col gap-2">
+                            {item.files.map((file) => (
+                              <div key={file.id} className="flex flex-wrap gap-2">
+                                <Button size="sm" variant="outline-secondary" onClick={(event: any) => openPreview(file, event)}>
+                                  View
+                                </Button>
+                                <a href={file.public_url || "#"} target="_blank" rel="noreferrer" className="inline-flex items-center text-sm text-primary hover:underline">
+                                  {file.file_name}
+                                </a>
+                              </div>
+                            ))}
                           </div>
                         ) : (
                           <span className="text-slate-400">-</span>
@@ -563,10 +580,14 @@ function FinanceRequestDetailPage() {
                         <Table.Td>{pv.paid_from_account?.name || "-"}</Table.Td>
                         <Table.Td>{staffConfirmationLabel}</Table.Td>
                         <Table.Td>
-                          {pv.evidence_file?.public_url ? (
-                            <Button size="sm" variant="outline-secondary" onClick={(event: any) => openPreview(pv.evidence_file, event)}>
-                              View
-                            </Button>
+                          {pv.evidence_files?.length ? (
+                            <div className="flex flex-wrap gap-2">
+                              {pv.evidence_files.map((file) => (
+                                <Button key={file.id} size="sm" variant="outline-secondary" onClick={(event: any) => openPreview(file, event)}>
+                                  View
+                                </Button>
+                              ))}
+                            </div>
                           ) : (
                             <span className="text-slate-400">-</span>
                           )}
@@ -615,6 +636,9 @@ function FinanceRequestDetailPage() {
                 ) : null}
                 <Button variant="outline-secondary" onClick={() => void runPdf()} disabled={busyAction === "pdf"}>
                   {busyAction === "pdf" ? "Generating..." : "Download Request PDF"}
+                </Button>
+                <Button variant="outline-secondary" onClick={() => void runFullDocument()} disabled={busyAction === "full_document"}>
+                  {busyAction === "full_document" ? "Generating..." : "Download Full Document"}
                 </Button>
               </div>
             </div>
@@ -683,10 +707,10 @@ function FinanceRequestDetailPage() {
               <div className="col-span-12">
                 <FormLabel>Evidence (receipt / transfer receipt)</FormLabel>
                 <Button variant="outline-secondary" onClick={() => setShowEvidencePicker(true)}>
-                  {disburseForm.evidence_file_name ? "Change Evidence File" : "Pick Evidence File"}
+                  {disburseForm.evidence_file_names.length ? "Change Evidence Files" : "Pick Evidence Files"}
                 </Button>
                 <div className="text-xs text-slate-500 mt-1">
-                  {disburseForm.evidence_file_name ? `Attached: ${disburseForm.evidence_file_name}` : "Optional"}
+                  {disburseForm.evidence_file_names.length ? `Attached: ${disburseForm.evidence_file_names.join(", ")}` : "Optional"}
                 </div>
               </div>
               <div className="col-span-12">
@@ -713,7 +737,8 @@ function FinanceRequestDetailPage() {
         open={showEvidencePicker}
         onClose={() => setShowEvidencePicker(false)}
         title="Select Disbursement Evidence"
-        selectedIds={disburseForm.evidence_file_id ? [disburseForm.evidence_file_id] : []}
+        multiple
+        selectedIds={disburseForm.evidence_file_ids.length ? disburseForm.evidence_file_ids : (disburseForm.evidence_file_id ? [disburseForm.evidence_file_id] : [])}
         onSelect={applyEvidenceFile}
       />
 
@@ -739,19 +764,18 @@ function FinanceRequestDetailPage() {
                 </div>
                 <div className="text-sm"><span className="text-slate-500">Staff Confirmation:</span> {staffConfirmationLabel}</div>
                 <div className="text-sm"><span className="text-slate-500">Note:</span> {selectedVoucher.note || "-"}</div>
-                {selectedVoucher.evidence_file?.public_url ? (
+                {selectedVoucher.evidence_files.length > 0 ? (
                   <div className="flex flex-wrap gap-3">
-                    <button type="button" className="text-sm text-primary hover:underline" onClick={() => openPreview(selectedVoucher.evidence_file)}>
-                      View Disbursement File
-                    </button>
-                    <a
-                      href={selectedVoucher.evidence_file.public_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-sm text-primary hover:underline"
-                    >
-                      Open in New Tab
-                    </a>
+                    {selectedVoucher.evidence_files.map((file) => (
+                      <div key={file.id} className="flex flex-wrap gap-3">
+                        <button type="button" className="text-sm text-primary hover:underline" onClick={() => openPreview(file)}>
+                          {file.file_name}
+                        </button>
+                        <a href={file.public_url || "#"} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+                          Open in New Tab
+                        </a>
+                      </div>
+                    ))}
                   </div>
                 ) : null}
                 {selectedVoucher.retirement_files.length > 0 ? (

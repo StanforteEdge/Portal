@@ -6,6 +6,7 @@ export type RequestItemInput = {
   quantity?: number;
   notes?: string;
   file_id?: string;
+  file_ids?: string[];
 };
 
 export type ManualDisbursementInput = {
@@ -17,6 +18,7 @@ export type ManualDisbursementInput = {
   note?: string;
   disbursed_at?: string;
   evidence_file_id?: string;
+  evidence_file_ids?: string[];
   retired_amount?: number;
   retirement_status?: string;
   retirement_file_ids?: string[];
@@ -48,6 +50,13 @@ export type RequestRecord = {
     quantity: number;
     notes: string | null;
     file_id: string | null;
+    files: Array<{
+      id: string;
+      file_name: string;
+      mime_type: string | null;
+      public_url: string | null;
+      storage_path?: string | null;
+    }>;
     file?: {
       id: string;
       file_name: string;
@@ -301,6 +310,11 @@ export async function retireRequest(
 
 export async function generateRequestPdf(id: string) {
   const response = await apiClient.post(`/requests/${id}/download`, { action: "request_pdf" });
+  return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
+}
+
+export async function generateFullRequestDocument(id: string) {
+  const response = await apiClient.post(`/requests/${id}/download`, { action: "full_document" });
   return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
 }
 

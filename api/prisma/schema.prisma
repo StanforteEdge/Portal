@@ -588,12 +588,29 @@ model RequestItem {
 
   request RequestInstance @relation(fields: [requestId], references: [id], onDelete: Cascade)
   file    FileAsset?      @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  files   RequestItemFile[]
 
   @@index([requestId])
   @@index([fileId])
   @@index([categoryId])
   @@index([subcategoryId])
   @@map("sta_request_items")
+}
+
+model RequestItemFile {
+  id            String   @id @default(uuid()) @db.Uuid
+  requestItemId String   @map("request_item_id") @db.Uuid
+  fileId        String   @map("file_id") @db.Uuid
+  sortOrder     Int      @default(0) @map("sort_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+
+  requestItem RequestItem @relation(fields: [requestItemId], references: [id], onDelete: Cascade)
+  file        FileAsset   @relation("RequestItemAttachmentFile", fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([requestItemId, fileId], name: "unique_request_item_file")
+  @@index([requestItemId, sortOrder])
+  @@index([fileId])
+  @@map("sta_request_item_files")
 }
 
 model FinanceSetting {
@@ -1318,7 +1335,9 @@ model FileAsset {
   organization           Organization?           @relation(fields: [organizationId], references: [id])
   uploader               Profile?                @relation("FileUploadedBy", fields: [uploadedBy], references: [id])
   requestItems           RequestItem[]
+  requestItemAttachments RequestItemFile[]           @relation("RequestItemAttachmentFile")
   financePaymentVouchers FinancePaymentVoucher[]
+  financeVoucherFiles    FinancePaymentVoucherFile[] @relation("FinancePaymentVoucherAttachmentFile")
   financeIncomeEntries   FinanceIncomeEntry[]
   documents              Document[]
 
@@ -1429,6 +1448,7 @@ model FinancePaymentVoucher {
   expenseAccount  FinanceChartAccount? @relation(fields: [expenseAccountId], references: [id], onDelete: SetNull)
   fund            FinanceFund?         @relation(fields: [fundId], references: [id], onDelete: SetNull)
   grant           FinanceGrant?        @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  attachments     FinancePaymentVoucherFile[]
 
   @@index([requestId])
   @@index([paidFromAccountId])
@@ -1438,6 +1458,23 @@ model FinancePaymentVoucher {
   @@index([voucherNumber])
   @@index([retirementStatus])
   @@map("sta_finance_payment_vouchers")
+}
+
+model FinancePaymentVoucherFile {
+  id         String   @id @default(uuid()) @db.Uuid
+  voucherId  String   @map("voucher_id") @db.Uuid
+  fileId     String   @map("file_id") @db.Uuid
+  fileKind   String   @default("evidence") @map("file_kind") @db.VarChar(30)
+  sortOrder  Int      @default(0) @map("sort_order")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  voucher FinancePaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  file    FileAsset             @relation("FinancePaymentVoucherAttachmentFile", fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@unique([voucherId, fileId, fileKind], name: "unique_finance_payment_voucher_file")
+  @@index([voucherId, fileKind, sortOrder])
+  @@index([fileId])
+  @@map("sta_finance_payment_voucher_files")
 }
 
 model Taxonomy {

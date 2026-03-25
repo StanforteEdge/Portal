@@ -201,9 +201,12 @@ export class FinanceService {
     if (disburseAmount > balanceBefore) {
       throw new BadRequestException('Disbursement amount cannot exceed request balance');
     }
-    if (dto.evidence_file_id) {
-      const fileExists = await this.prisma.fileAsset.count({ where: { id: dto.evidence_file_id } });
-      if (!fileExists) throw new BadRequestException('Invalid disbursement evidence file');
+    const evidenceFileIds = Array.from(
+      new Set([dto.evidence_file_id ?? null, ...(dto.evidence_file_ids ?? [])].filter((id): id is string => Boolean(id)))
+    );
+    if (evidenceFileIds.length > 0) {
+      const fileExists = await this.prisma.fileAsset.count({ where: { id: { in: evidenceFileIds } } });
+      if (fileExists !== evidenceFileIds.length) throw new BadRequestException('Invalid disbursement evidence file');
     }
     const activeAccountCount = await this.prisma.financeAccount.count({ where: { isActive: true } });
     if (activeAccountCount > 0 && !dto.paid_from_account_id) {
@@ -238,7 +241,8 @@ export class FinanceService {
       method: dto.method ?? null,
       transaction_ref: dto.transaction_ref ?? null,
       amount: disburseAmount,
-      evidence_file_id: dto.evidence_file_id ?? null,
+      evidence_file_id: evidenceFileIds[0] ?? null,
+      evidence_file_ids: evidenceFileIds,
       disbursed_at: now.toISOString()
     };
 
@@ -253,10 +257,20 @@ export class FinanceService {
         method: dto.method ?? null,
         transactionRef: dto.transaction_ref ?? null,
         note: dto.note ?? null,
-        evidenceFileId: dto.evidence_file_id ?? null,
+        evidenceFileId: evidenceFileIds[0] ?? null,
         disbursedAt: now
       }
     });
+    if (evidenceFileIds.length > 0) {
+      await this.prisma.financePaymentVoucherFile.createMany({
+        data: evidenceFileIds.map((fileId, index) => ({
+          voucherId: voucher.id,
+          fileId,
+          fileKind: 'evidence',
+          sortOrder: index
+        }))
+      });
+    }
     if (paidFromAccount) {
       await this.prisma.financeLedgerEntry.create({
         data: {
@@ -353,6 +367,15 @@ export class FinanceService {
         evidenceFile: {
           select: { id: true, fileName: true, mimeType: true, publicUrl: true }
         },
+        attachments: {
+          where: { fileKind: 'evidence' },
+          include: {
+            file: {
+              select: { id: true, fileName: true, mimeType: true, publicUrl: true }
+            }
+          },
+          orderBy: { sortOrder: 'asc' }
+        },
         paidFromAccount: {
           select: { id: true, name: true, code: true, accountType: true }
         },
@@ -389,6 +412,24 @@ export class FinanceService {
       cumulativeDisbursed += amount;
       const requestBalance = Math.max(0, requestTotal - cumulativeDisbursed);
       const voucherBalance = Math.max(0, amount - retiredAmount);
+      const evidenceFiles = Array.from(
+        new Map(
+          [
+            ...(voucher.attachments ?? []).map((attachment) => attachment.file).filter(Boolean),
+            voucher.evidenceFile ?? null
+          ]
+            .filter((file): file is NonNullable<typeof voucher.evidenceFile> => Boolean(file))
+            .map((file) => [
+              file.id,
+              {
+                id: file.id,
+                file_name: file.fileName,
+                mime_type: file.mimeType,
+                public_url: file.publicUrl
+              }
+            ])
+        ).values()
+      );
       return {
         id: voucher.id,
         voucher_number: voucher.voucherNumber,
@@ -403,14 +444,8 @@ export class FinanceService {
         disbursed_at: voucher.disbursedAt,
         retired_at: voucher.retiredAt,
         verified_at: voucher.verifiedAt,
-        evidence_file: voucher.evidenceFile
-          ? {
-              id: voucher.evidenceFile.id,
-              file_name: voucher.evidenceFile.fileName,
-              mime_type: voucher.evidenceFile.mimeType,
-              public_url: voucher.evidenceFile.publicUrl
-            }
-          : null,
+        evidence_file: evidenceFiles[0] ?? null,
+        evidence_files: evidenceFiles,
         paid_from_account: voucher.paidFromAccount
           ? {
               id: voucher.paidFromAccount.id,
@@ -475,6 +510,15 @@ export class FinanceService {
           },
           evidenceFile: {
             select: { id: true, fileName: true, mimeType: true, publicUrl: true }
+          },
+          attachments: {
+            where: { fileKind: 'evidence' },
+            include: {
+              file: {
+                select: { id: true, fileName: true, mimeType: true, publicUrl: true }
+              }
+            },
+            orderBy: { sortOrder: 'asc' }
           }
         },
         orderBy: [{ disbursedAt: 'desc' }, { createdAt: 'desc' }],
@@ -492,6 +536,24 @@ export class FinanceService {
       const requestNumber = `${(row.request.requestType?.codePrefix || 'REQ').toUpperCase()}/${row.request.createdAt.getFullYear()}/${row.request.id.toString()}`;
       const amount = Number(row.amount);
       const retiredAmount = Number(row.retiredAmount);
+      const evidenceFiles = Array.from(
+        new Map(
+          [
+            ...(row.attachments ?? []).map((attachment) => attachment.file).filter(Boolean),
+            row.evidenceFile ?? null
+          ]
+            .filter((file): file is NonNullable<typeof row.evidenceFile> => Boolean(file))
+            .map((file) => [
+              file.id,
+              {
+                id: file.id,
+                file_name: file.fileName,
+                mime_type: file.mimeType,
+                public_url: file.publicUrl
+              }
+            ])
+        ).values()
+      );
       return {
         id: row.id,
         request_id: row.request.id.toString(),
@@ -519,14 +581,8 @@ export class FinanceService {
               account_type: row.paidFromAccount.accountType
             }
           : null,
-        evidence_file: row.evidenceFile
-          ? {
-              id: row.evidenceFile.id,
-              file_name: row.evidenceFile.fileName,
-              mime_type: row.evidenceFile.mimeType,
-              public_url: row.evidenceFile.publicUrl
-            }
-          : null
+        evidence_file: evidenceFiles[0] ?? null,
+        evidence_files: evidenceFiles
       };
     });
 

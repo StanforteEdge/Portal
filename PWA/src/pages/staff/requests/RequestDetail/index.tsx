@@ -14,6 +14,7 @@ import {
   completeRequest,
   confirmRequestVoucher,
   deleteRequest as deleteRequestApi,
+  generateFullRequestDocument,
   generateRequestPdf,
   generateRequestPvByVoucher,
   getRequest,
@@ -72,6 +73,7 @@ function RequestDetailPage() {
       retired_at: string | null;
       verified_at: string | null;
       evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+      evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
       retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
     }>
   >([]);
@@ -93,6 +95,7 @@ function RequestDetailPage() {
     retired_at: string | null;
     verified_at: string | null;
     evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+    evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
     retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
   } | null>(null);
   const [showRetireModal, setShowRetireModal] = useState(false);
@@ -111,6 +114,7 @@ function RequestDetailPage() {
     retired_at: string | null;
     verified_at: string | null;
     evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+    evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
     retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
   } | null>(null);
   const [retireForm, setRetireForm] = useState({
@@ -193,6 +197,18 @@ function RequestDetailPage() {
       downloadBase64File(file.file_name, file.mime_type, file.content_base64);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to generate request PDF." });
+    } finally {
+      setBusyAction("");
+    }
+  };
+
+  const runFullDocument = async () => {
+    try {
+      setBusyAction("full_document");
+      const file = await generateFullRequestDocument(id);
+      downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to generate full request document." });
     } finally {
       setBusyAction("");
     }
@@ -428,6 +444,7 @@ function RequestDetailPage() {
                     <Table.Th>Qty</Table.Th>
                     <Table.Th>Price</Table.Th>
                     <Table.Th>Amount</Table.Th>
+                    <Table.Th>Files</Table.Th>
                   </Table.Tr>
                 </Table.Thead>
                 <Table.Tbody>
@@ -437,6 +454,19 @@ function RequestDetailPage() {
                       <Table.Td>{item.quantity}</Table.Td>
                       <Table.Td>{formatMoney(item.amount)}</Table.Td>
                       <Table.Td>{formatMoney(Number(item.amount) * Number(item.quantity || 1))}</Table.Td>
+                      <Table.Td>
+                        {item.files?.length ? (
+                          <div className="flex flex-col gap-1">
+                            {item.files.map((file) => (
+                              <a key={file.id} href={file.public_url || "#"} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+                                {file.file_name}
+                              </a>
+                            ))}
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">-</span>
+                        )}
+                      </Table.Td>
                     </Table.Tr>
                   ))}
                 </Table.Tbody>
@@ -568,6 +598,9 @@ function RequestDetailPage() {
               <Button variant="outline-secondary" onClick={() => void runPdf()} disabled={busyAction === "pdf"}>
                 {busyAction === "pdf" ? "Generating..." : "Download Request"}
               </Button>
+              <Button variant="outline-secondary" onClick={() => void runFullDocument()} disabled={busyAction === "full_document"}>
+                {busyAction === "full_document" ? "Generating..." : "Download Full Document"}
+              </Button>
             </div>
           </div>
         )}
@@ -669,15 +702,20 @@ function RequestDetailPage() {
                 <div className="text-sm"><span className="text-slate-500">Retirement Status:</span> {selectedVoucher.retirement_status.replaceAll("_", " ")}</div>
                 <div className="text-sm"><span className="text-slate-500">Retired At:</span> {formatDisplayDate(selectedVoucher.retired_at)}</div>
                 <div className="text-sm"><span className="text-slate-500">Verified At:</span> {formatDisplayDate(selectedVoucher.verified_at)}</div>
-                {selectedVoucher.evidence_file?.public_url ? (
-                  <a
-                    href={selectedVoucher.evidence_file.public_url}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    View Evidence
-                  </a>
+                {selectedVoucher.evidence_files?.length ? (
+                  <div className="flex flex-col gap-1">
+                    {selectedVoucher.evidence_files.map((file) => (
+                      <a
+                        key={file.id}
+                        href={file.public_url || "#"}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm text-primary hover:underline"
+                      >
+                        {file.file_name}
+                      </a>
+                    ))}
+                  </div>
                 ) : null}
                 {selectedVoucher.retirement_files.length > 0 ? (
                   <div className="pt-2 mt-2 border-t">

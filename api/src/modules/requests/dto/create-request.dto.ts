@@ -40,6 +40,12 @@ class RequestItemDto {
   @IsOptional()
   @IsUUID()
   file_id?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  file_ids?: string[];
 }
 
 export class CreateRequestDto {

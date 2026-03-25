@@ -34,6 +34,8 @@ export class RequestItemResponseDto {
   file_id!: string | null;
   @ApiProperty({ type: RequestItemFileResponseDto, nullable: true })
   file!: RequestItemFileResponseDto | null;
+  @ApiProperty({ type: RequestItemFileResponseDto, isArray: true })
+  files!: RequestItemFileResponseDto[];
 }
 
 export class RequestResponseDto {

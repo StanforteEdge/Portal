@@ -30,7 +30,7 @@ type CategoryTermOption = { id: string; value: string; label: string };
 type CreateItemState = RequestItemInput & {
   unit_price?: number;
   category?: string;
-  file_name?: string;
+  file_names?: string[];
 };
 
 type CreateFormState = {
@@ -59,7 +59,8 @@ const defaultItem: CreateItemState = {
   quantity: 1,
   notes: "",
   file_id: undefined,
-  file_name: "",
+  file_ids: [],
+  file_names: [],
 };
 
 const defaultForm: CreateFormState = {
@@ -338,7 +339,8 @@ function RequestsCreatePage() {
                 quantity: Number(item.quantity || 1),
                 notes: item.notes || "",
                 file_id: item.file_id || undefined,
-                file_name: "",
+                file_ids: Array.isArray(item.files) ? item.files.map((file) => file.id) : item.file_id ? [item.file_id] : [],
+                file_names: Array.isArray(item.files) ? item.files.map((file) => file.file_name) : item.file?.file_name ? [item.file.file_name] : [],
               }))
             : [{ ...defaultItem }];
 
@@ -468,14 +470,14 @@ function RequestsCreatePage() {
     setForm((prev) => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
 
   const applyPickedFile = (index: number, files: FileAssetRecord[]) => {
-    const picked = files[0];
-    if (!picked) return;
+    if (!files.length) return;
     setForm((prev) => {
       const items = [...prev.items];
       items[index] = {
         ...items[index],
-        file_id: picked.id,
-        file_name: picked.file_name,
+        file_id: files[0]?.id,
+        file_ids: files.map((file) => file.id),
+        file_names: files.map((file) => file.file_name),
       };
       return { ...prev, items };
     });
@@ -528,7 +530,8 @@ function RequestsCreatePage() {
       amount: Number(item.unit_price || 0),
       quantity: Number(item.quantity || 1),
       notes: item.notes,
-      file_id: item.file_id,
+      file_id: item.file_ids?.[0] || item.file_id,
+      file_ids: item.file_ids,
     }));
 
     const payload = {
@@ -894,10 +897,10 @@ function RequestsCreatePage() {
                   <FormLabel>Invoice File</FormLabel>
                   <Button variant="outline-secondary" className="w-full justify-center" onClick={() => setPickerIndex(index)}>
                     <Lucide icon="FileText" className="w-4 h-4 mr-1" />
-                    {item.file_name ? "Change File" : "Pick File"}
+                    {(item.file_names || []).length ? "Change Files" : "Pick Files"}
                   </Button>
                   <div className="text-xs text-slate-500 mt-1">
-                    {item.file_name ? `Attached: ${item.file_name}` : "Attach invoice per item"}
+                    {(item.file_names || []).length ? `Attached: ${(item.file_names || []).join(", ")}` : "Attach invoice per item"}
                   </div>
                 </div>
               </div>
@@ -928,8 +931,9 @@ function RequestsCreatePage() {
       <MediaPickerModal
         open={pickerIndex !== null}
         onClose={() => setPickerIndex(null)}
-        title="Select Invoice File"
-        selectedIds={pickerIndex !== null ? (form.items[pickerIndex]?.file_id ? [String(form.items[pickerIndex].file_id)] : []) : []}
+        title="Select Invoice Files"
+        multiple
+        selectedIds={pickerIndex !== null ? (form.items[pickerIndex]?.file_ids || (form.items[pickerIndex]?.file_id ? [String(form.items[pickerIndex].file_id)] : [])) : []}
         onSelect={(files) => {
           if (pickerIndex === null) return;
           applyPickedFile(pickerIndex, files);
