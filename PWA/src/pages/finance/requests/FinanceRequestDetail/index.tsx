@@ -803,39 +803,47 @@ function FinanceRequestDetailPage() {
       </Dialog>
 
       <Dialog open={Boolean(previewFile)} onClose={() => setPreviewFile(null)}>
-        <Dialog.Panel className="max-w-5xl">
-          <div className="p-5 space-y-4">
-            <div className="flex items-start justify-between gap-4">
+        <Dialog.Panel className="h-screen w-screen max-w-none rounded-none bg-black/95 shadow-none">
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between gap-4 px-6 py-4 text-white">
               <div>
                 <div className="text-lg font-medium">File Preview</div>
-                <div className="text-sm text-slate-500">{previewFile?.file_name || "-"}</div>
+                <div className="text-sm text-slate-300">{previewFile?.file_name || "-"}</div>
               </div>
-              {previewFile?.public_url ? (
-                <a href={previewFile.public_url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
-                  Open in New Tab
-                </a>
-              ) : null}
+              <div className="flex items-center gap-4">
+                {previewFile?.public_url ? (
+                  <a href={previewFile.public_url} target="_blank" rel="noreferrer" className="text-sm text-white/90 hover:text-white hover:underline">
+                    Open in New Tab
+                  </a>
+                ) : null}
+                <button
+                  type="button"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/20 bg-white/10 text-white transition hover:bg-white/20"
+                  onClick={() => setPreviewFile(null)}
+                >
+                  <Lucide icon="XCircle" className="h-5 w-5" />
+                </button>
+              </div>
             </div>
-            <div className="rounded-md border bg-slate-50 p-3">
+            <div className="flex-1 px-4 pb-4 pt-2">
               {previewFile?.public_url ? (
                 canPreviewInline(previewFile) ? (
                   String(previewFile.mime_type || "").toLowerCase().startsWith("image/") ? (
-                    <img src={previewFile.public_url} alt={previewFile.file_name} className="mx-auto max-h-[70vh] rounded" />
+                    <div className="flex h-full items-center justify-center">
+                      <img src={previewFile.public_url} alt={previewFile.file_name} className="max-h-full max-w-full object-contain" />
+                    </div>
                   ) : (
-                    <iframe title={previewFile.file_name} src={previewFile.public_url} className="h-[70vh] w-full rounded bg-white" />
+                    <iframe title={previewFile.file_name} src={previewFile.public_url} className="h-full w-full bg-white" />
                   )
                 ) : (
-                  <div className="text-sm text-slate-500">This file cannot be previewed inline. Use Open in New Tab.</div>
+                  <div className="flex h-full items-center justify-center text-sm text-slate-300">
+                    This file cannot be previewed inline. Use Open in New Tab.
+                  </div>
                 )
               ) : (
-                <div className="text-sm text-slate-500">No preview available.</div>
+                <div className="flex h-full items-center justify-center text-sm text-slate-300">No preview available.</div>
               )}
             </div>
-          </div>
-          <div className="px-5 pb-5 flex justify-end">
-            <Button variant="outline-secondary" onClick={() => setPreviewFile(null)}>
-              Close
-            </Button>
           </div>
         </Dialog.Panel>
       </Dialog>
