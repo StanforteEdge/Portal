@@ -12,6 +12,19 @@ import { CreateTransferDto } from './dto/create-transfer.dto';
 import { UpsertFinanceAssetDto } from './dto/upsert-finance-asset.dto';
 import { CreateFinanceAssetVerificationDto } from './dto/create-finance-asset-verification.dto';
 import { CreateFinanceAssetDisposalDto } from './dto/create-finance-asset-disposal.dto';
+import { UpsertFinanceChartAccountDto } from './dto/upsert-finance-chart-account.dto';
+import { UpsertFinanceReportingPeriodDto } from './dto/upsert-finance-reporting-period.dto';
+import { UpsertFinanceCustomerDto } from './dto/upsert-finance-customer.dto';
+import { UpsertFinanceVendorDto } from './dto/upsert-finance-vendor.dto';
+import { CreateFinanceSalesInvoiceDto } from './dto/create-finance-sales-invoice.dto';
+import { CreateFinanceBillDto } from './dto/create-finance-bill.dto';
+import { CreateFinanceReceiptDto } from './dto/create-finance-receipt.dto';
+import { CreateFinanceVendorPaymentDto } from './dto/create-finance-vendor-payment.dto';
+import { UpsertFinanceReportNoteDto } from './dto/upsert-finance-report-note.dto';
+import { UpsertFinanceDonorDto } from './dto/upsert-finance-donor.dto';
+import { UpsertFinanceFundDto } from './dto/upsert-finance-fund.dto';
+import { UpsertFinanceGrantDto } from './dto/upsert-finance-grant.dto';
+import { UpsertFinanceBudgetDto } from './dto/upsert-finance-budget.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -67,6 +80,202 @@ export class FinanceController {
     return this.financeService.listAccounts(query);
   }
 
+  @Get('chart-accounts')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance chart of accounts' })
+  listChartAccounts(@Query() query: Record<string, any>) {
+    return this.financeService.listChartAccounts(query);
+  }
+
+  @Get('chart-accounts/:id')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance chart account' })
+  getChartAccount(@Param('id') id: string) {
+    return this.financeService.getChartAccount(id);
+  }
+
+  @Post('chart-accounts')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Create finance chart account' })
+  createChartAccount(@Req() req: any, @Body() dto: UpsertFinanceChartAccountDto) {
+    return this.financeService.createChartAccount(dto, req.user?.id);
+  }
+
+  @Post('chart-accounts/:id')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Update finance chart account' })
+  updateChartAccount(@Param('id') id: string, @Body() dto: UpsertFinanceChartAccountDto) {
+    return this.financeService.updateChartAccount(id, dto);
+  }
+
+  @Get('reporting-periods')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance reporting periods' })
+  listReportingPeriods(@Query() query: Record<string, any>) {
+    return this.financeService.listReportingPeriods(query);
+  }
+
+  @Post('reporting-periods')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Create or upsert finance reporting period' })
+  createReportingPeriod(@Req() req: any, @Body() dto: UpsertFinanceReportingPeriodDto) {
+    return this.financeService.createReportingPeriod(dto, req.user?.id);
+  }
+
+  @Post('reporting-periods/:id')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Update finance reporting period' })
+  updateReportingPeriod(@Param('id') id: string, @Body() dto: UpsertFinanceReportingPeriodDto) {
+    return this.financeService.updateReportingPeriod(id, dto);
+  }
+
+  @Post('reporting-periods/:id/close')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Close finance reporting period' })
+  closeReportingPeriod(@Param('id') id: string) {
+    return this.financeService.closeReportingPeriod(id);
+  }
+
+  @Post('reporting-periods/:id/reopen')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Reopen finance reporting period' })
+  reopenReportingPeriod(@Param('id') id: string) {
+    return this.financeService.reopenReportingPeriod(id);
+  }
+
+  @Get('customers')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance customers' })
+  listCustomers(@Query() query: Record<string, any>) {
+    return this.financeService.listCustomers(query);
+  }
+
+  @Post('customers')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Create finance customer' })
+  createCustomer(@Req() req: any, @Body() dto: UpsertFinanceCustomerDto) {
+    return this.financeService.createCustomer(dto, req.user?.id);
+  }
+
+  @Post('customers/:id')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Update finance customer' })
+  updateCustomer(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceCustomerDto) {
+    return this.financeService.updateCustomer(id, dto, req.user?.id);
+  }
+
+  @Get('vendors')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance vendors' })
+  listVendors(@Query() query: Record<string, any>) {
+    return this.financeService.listVendors(query);
+  }
+
+  @Post('vendors')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Create finance vendor' })
+  createVendor(@Req() req: any, @Body() dto: UpsertFinanceVendorDto) {
+    return this.financeService.createVendor(dto, req.user?.id);
+  }
+
+  @Post('vendors/:id')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Update finance vendor' })
+  updateVendor(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceVendorDto) {
+    return this.financeService.updateVendor(id, dto, req.user?.id);
+  }
+
+  @Get('donors')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance donors' })
+  listDonors(@Query() query: Record<string, any>) {
+    return this.financeService.listDonors(query);
+  }
+
+  @Post('donors')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Create finance donor' })
+  createDonor(@Req() req: any, @Body() dto: UpsertFinanceDonorDto) {
+    return this.financeService.createDonor(dto, req.user?.id);
+  }
+
+  @Post('donors/:id')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Update finance donor' })
+  updateDonor(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceDonorDto) {
+    return this.financeService.updateDonor(id, dto, req.user?.id);
+  }
+
+  @Get('funds')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance funds' })
+  listFunds(@Query() query: Record<string, any>) {
+    return this.financeService.listFunds(query);
+  }
+
+  @Post('funds')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Create finance fund' })
+  createFund(@Req() req: any, @Body() dto: UpsertFinanceFundDto) {
+    return this.financeService.createFund(dto, req.user?.id);
+  }
+
+  @Post('funds/:id')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Update finance fund' })
+  updateFund(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceFundDto) {
+    return this.financeService.updateFund(id, dto, req.user?.id);
+  }
+
+  @Get('grants')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance grants' })
+  listGrants(@Query() query: Record<string, any>) {
+    return this.financeService.listGrants(query);
+  }
+
+  @Post('grants')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Create finance grant' })
+  createGrant(@Req() req: any, @Body() dto: UpsertFinanceGrantDto) {
+    return this.financeService.createGrant(dto, req.user?.id);
+  }
+
+  @Post('grants/:id')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Update finance grant' })
+  updateGrant(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceGrantDto) {
+    return this.financeService.updateGrant(id, dto, req.user?.id);
+  }
+
+  @Get('budgets')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance budgets' })
+  listBudgets(@Query() query: Record<string, any>) {
+    return this.financeService.listBudgets(query);
+  }
+
+  @Get('budgets/:id')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance budget detail' })
+  getBudget(@Param('id') id: string) {
+    return this.financeService.getBudget(id);
+  }
+
+  @Post('budgets')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Create finance budget' })
+  createBudget(@Req() req: any, @Body() dto: UpsertFinanceBudgetDto) {
+    return this.financeService.createBudget(dto, req.user?.id);
+  }
+
+  @Post('budgets/:id')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Update finance budget' })
+  updateBudget(@Param('id') id: string, @Req() req: any, @Body() dto: UpsertFinanceBudgetDto) {
+    return this.financeService.updateBudget(id, dto, req.user?.id);
+  }
+
   @Get('accounts/:id')
   @Permissions('requests.view')
   @ApiOperation({ summary: 'Get single finance account details' })
@@ -110,6 +319,62 @@ export class FinanceController {
   @ApiOperation({ summary: 'List income entries' })
   listIncome(@Query() query: Record<string, any>) {
     return this.financeService.listIncome(query);
+  }
+
+  @Get('sales-invoices')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance sales invoices' })
+  listSalesInvoices(@Query() query: Record<string, any>) {
+    return this.financeService.listSalesInvoices(query);
+  }
+
+  @Get('sales-invoices/:id')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance sales invoice detail' })
+  getSalesInvoice(@Param('id') id: string) {
+    return this.financeService.getSalesInvoice(id);
+  }
+
+  @Post('sales-invoices')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Create finance sales invoice and post AR journal' })
+  createSalesInvoice(@Req() req: any, @Body() dto: CreateFinanceSalesInvoiceDto) {
+    return this.financeService.createSalesInvoice(dto, req.user?.id);
+  }
+
+  @Get('bills')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance vendor bills' })
+  listBills(@Query() query: Record<string, any>) {
+    return this.financeService.listBills(query);
+  }
+
+  @Get('bills/:id')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance vendor bill detail' })
+  getBill(@Param('id') id: string) {
+    return this.financeService.getBill(id);
+  }
+
+  @Post('bills')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Create finance vendor bill and post AP journal' })
+  createBill(@Req() req: any, @Body() dto: CreateFinanceBillDto) {
+    return this.financeService.createBill(dto, req.user?.id);
+  }
+
+  @Post('receipts')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Create customer receipt and settle receivables' })
+  createReceipt(@Req() req: any, @Body() dto: CreateFinanceReceiptDto) {
+    return this.financeService.createReceipt(dto, req.user?.id);
+  }
+
+  @Post('vendor-payments')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Create vendor payment and settle payables' })
+  createVendorPayment(@Req() req: any, @Body() dto: CreateFinanceVendorPaymentDto) {
+    return this.financeService.createVendorPayment(dto, req.user?.id);
   }
 
   @Post('transfers')
@@ -200,5 +465,89 @@ export class FinanceController {
   @ApiOperation({ summary: 'List payment vouchers/disbursements across requests' })
   listAllPaymentVouchers(@Query() query: Record<string, any>) {
     return this.financeService.listAllPaymentVouchers(query);
+  }
+
+  @Get('report-notes')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List saved finance report notes' })
+  listReportNotes(@Query() query: Record<string, any>) {
+    return this.financeService.listReportNotes(query);
+  }
+
+  @Post('report-notes')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Create finance report note override' })
+  upsertReportNote(@Req() req: any, @Body() dto: UpsertFinanceReportNoteDto) {
+    return this.financeService.upsertReportNote(dto, req.user?.id);
+  }
+
+  @Get('reports/executive-summary')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance executive summary report' })
+  executiveSummary(@Query() query: Record<string, any>) {
+    return this.financeService.executiveSummary(query);
+  }
+
+  @Get('reports/income-summary')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance income summary report' })
+  incomeSummary(@Query() query: Record<string, any>) {
+    return this.financeService.incomeSummary(query);
+  }
+
+  @Get('reports/expense-summary')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance expense summary report' })
+  expenseSummary(@Query() query: Record<string, any>) {
+    return this.financeService.expenseSummary(query);
+  }
+
+  @Get('reports/profit-loss')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance profit and loss report' })
+  profitLoss(@Query() query: Record<string, any>) {
+    return this.financeService.profitLoss(query);
+  }
+
+  @Get('reports/balances')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance balances report' })
+  balances(@Query() query: Record<string, any>) {
+    return this.financeService.balances(query);
+  }
+
+  @Get('reports/receivables')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance receivables aging report' })
+  receivables(@Query() query: Record<string, any>) {
+    return this.financeService.receivables(query);
+  }
+
+  @Get('reports/payables')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance payables aging report' })
+  payables(@Query() query: Record<string, any>) {
+    return this.financeService.payables(query);
+  }
+
+  @Get('reports/budget-vs-actual')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get budget versus actual report' })
+  budgetVsActual(@Query() query: Record<string, any>) {
+    return this.financeService.budgetVsActual(query);
+  }
+
+  @Get('reports/grant-utilization')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get grant utilization report' })
+  grantUtilization(@Query() query: Record<string, any>) {
+    return this.financeService.grantUtilization(query);
+  }
+
+  @Post('accounting/backfill')
+  @Permissions('settings.manage')
+  @ApiOperation({ summary: 'Backfill accounting journals from historical finance records' })
+  backfillAccounting(@Req() req: any) {
+    return this.financeService.backfillAccounting(req.user?.id);
   }
 }

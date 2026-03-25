@@ -14,6 +14,7 @@ import {
   type RequestItemInput,
   type RequestTypeOption,
 } from "@/services/requests";
+import { listFinanceFunds, listFinanceGrants } from "@/services/financeAccounting";
 import { listProjects } from "@/services/projects";
 import { listMyOrganizations } from "@/services/organizations";
 import type { FileAssetRecord } from "@/services/files";
@@ -29,7 +30,7 @@ type CategoryTermOption = { id: string; value: string; label: string };
 type CreateItemState = RequestItemInput & {
   unit_price?: number;
   category?: string;
-  file_name?: string;
+  file_names?: string[];
 };
 
 type CreateFormState = {
@@ -45,6 +46,8 @@ type CreateFormState = {
   project_id: string;
   team_id: string;
   organization_id: string;
+  fund_id: string;
+  grant_id: string;
   due_date: string;
   items: CreateItemState[];
 };
@@ -56,7 +59,8 @@ const defaultItem: CreateItemState = {
   quantity: 1,
   notes: "",
   file_id: undefined,
-  file_name: "",
+  file_ids: [],
+  file_names: [],
 };
 
 const defaultForm: CreateFormState = {
@@ -72,6 +76,8 @@ const defaultForm: CreateFormState = {
   project_id: "",
   team_id: "",
   organization_id: "",
+  fund_id: "",
+  grant_id: "",
   due_date: "",
   items: [{ ...defaultItem }],
 };
@@ -102,6 +108,8 @@ function RequestsCreatePage() {
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [organizationOptions, setOrganizationOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
+  const [fundOptions, setFundOptions] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [grantOptions, setGrantOptions] = useState<Array<{ id: string; code: string; name: string; fund?: { id: string } | null }>>([]);
   const [taxonomyMap, setTaxonomyMap] = useState<Record<string, CategoryTermOption[]>>({});
   const [categoryOptions, setCategoryOptions] = useState<CategoryTermOption[]>([]);
 
@@ -194,6 +202,10 @@ function RequestsCreatePage() {
 
   const shouldShowTeamSelect = useMemo(() => teamOptions.length > 1, [teamOptions]);
   const shouldShowOrganizationSelect = useMemo(() => organizationOptions.length > 1, [organizationOptions]);
+  const filteredGrantOptions = useMemo(
+    () => (form.fund_id ? grantOptions.filter((grant) => String(grant.fund?.id || "") === form.fund_id) : grantOptions),
+    [grantOptions, form.fund_id]
+  );
 
   const grandTotal = useMemo(
     () => form.items.reduce((sum, item) => sum + Number(item.amount || 0), 0),
@@ -203,12 +215,14 @@ function RequestsCreatePage() {
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [typeData, projects, orgs, teams, taxonomies] = await Promise.all([
+        const [typeData, projects, orgs, teams, taxonomies, funds, grants] = await Promise.all([
           listRequestTypes(),
           listProjects().catch(() => []),
           listMyOrganizations().catch(() => []),
           listTeams({ active_only: false }).catch(() => []),
           listManagedTaxonomies({ include_inactive: false }).catch(() => []),
+          listFinanceFunds({ is_active: true }).catch(() => []),
+          listFinanceGrants({ status: "active" }).catch(() => []),
         ]);
 
         const onlyMatching = kind === "all"
@@ -253,6 +267,21 @@ function RequestsCreatePage() {
           if (taxonomyId) nextTaxonomyMap[taxonomyId] = options;
         }
         setTaxonomyMap(nextTaxonomyMap);
+        setFundOptions(
+          (funds || []).map((fund: any) => ({
+            id: String(fund.id),
+            code: String(fund.code || ""),
+            name: String(fund.name || ""),
+          }))
+        );
+        setGrantOptions(
+          (grants || []).map((grant: any) => ({
+            id: String(grant.id),
+            code: String(grant.code || ""),
+            name: String(grant.name || ""),
+            fund: grant.fund ? { id: String(grant.fund.id) } : null,
+          }))
+        );
 
         setForm((prev) => {
           const selectedStillValid = onlyMatching.some((type) => type.id === prev.request_type_id);
@@ -268,6 +297,10 @@ function RequestsCreatePage() {
                     : "",
             organization_id: myOrgOptions.length === 1 ? myOrgOptions[0].id : prev.organization_id,
             team_id: myTeams.length === 1 ? myTeams[0].id : prev.team_id,
+            grant_id:
+              prev.grant_id && (grants || []).some((grant: any) => String(grant.id) === prev.grant_id)
+                ? prev.grant_id
+                : "",
           };
         });
       } catch (error: any) {
@@ -279,7 +312,7 @@ function RequestsCreatePage() {
     };
 
     void loadOptions();
-    }, [kind]);
+  }, [kind]);
 
   useEffect(() => {
     const loadDraftForEdit = async () => {
@@ -306,7 +339,8 @@ function RequestsCreatePage() {
                 quantity: Number(item.quantity || 1),
                 notes: item.notes || "",
                 file_id: item.file_id || undefined,
-                file_name: "",
+                file_ids: Array.isArray(item.files) ? item.files.map((file) => file.id) : item.file_id ? [item.file_id] : [],
+                file_names: Array.isArray(item.files) ? item.files.map((file) => file.file_name) : item.file?.file_name ? [item.file.file_name] : [],
               }))
             : [{ ...defaultItem }];
 
@@ -323,6 +357,8 @@ function RequestsCreatePage() {
           project_id: String(data.project_id || ""),
           team_id: String(data.team_id || ""),
           organization_id: String(data.organization_id || ""),
+          fund_id: String(data.fund_id || ""),
+          grant_id: String(data.grant_id || ""),
           due_date: String(data.due_date || ""),
           items: draftItems,
         };
@@ -371,6 +407,14 @@ function RequestsCreatePage() {
       return exists ? prev : { ...prev, category_id: "" };
     });
   }, [selectedRequestType?.category_key, taxonomyMap]);
+
+  useEffect(() => {
+    setForm((prev) => {
+      if (!prev.grant_id) return prev;
+      const isValid = filteredGrantOptions.some((grant) => grant.id === prev.grant_id);
+      return isValid ? prev : { ...prev, grant_id: "" };
+    });
+  }, [filteredGrantOptions]);
 
   useEffect(() => {
     const loadLeaveBalance = async () => {
@@ -426,14 +470,14 @@ function RequestsCreatePage() {
     setForm((prev) => ({ ...prev, items: prev.items.filter((_, i) => i !== index) }));
 
   const applyPickedFile = (index: number, files: FileAssetRecord[]) => {
-    const picked = files[0];
-    if (!picked) return;
+    if (!files.length) return;
     setForm((prev) => {
       const items = [...prev.items];
       items[index] = {
         ...items[index],
-        file_id: picked.id,
-        file_name: picked.file_name,
+        file_id: files[0]?.id,
+        file_ids: files.map((file) => file.id),
+        file_names: files.map((file) => file.file_name),
       };
       return { ...prev, items };
     });
@@ -486,7 +530,8 @@ function RequestsCreatePage() {
       amount: Number(item.unit_price || 0),
       quantity: Number(item.quantity || 1),
       notes: item.notes,
-      file_id: item.file_id,
+      file_id: item.file_ids?.[0] || item.file_id,
+      file_ids: item.file_ids,
     }));
 
     const payload = {
@@ -506,6 +551,8 @@ function RequestsCreatePage() {
         project_name: selectedProjectName || undefined,
         team_id: form.team_id || undefined,
         organization_id: form.organization_id || undefined,
+        fund_id: form.fund_id || undefined,
+        grant_id: form.grant_id || undefined,
         due_date: form.due_date || undefined,
       },
       items: payloadItems,
@@ -745,6 +792,38 @@ function RequestsCreatePage() {
             </div>
           ) : null}
           {!isLeaveRequest ? (
+            <div className="col-span-12 md:col-span-4">
+              <FormLabel>Fund</FormLabel>
+              <FormSelect
+                value={form.fund_id}
+                onChange={(e) => setForm((prev) => ({ ...prev, fund_id: e.target.value, grant_id: "" }))}
+              >
+                <option value="">No specific fund</option>
+                {fundOptions.map((fund) => (
+                  <option key={fund.id} value={fund.id}>
+                    {fund.code ? `${fund.code} - ` : ""}{fund.name}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+          ) : null}
+          {!isLeaveRequest ? (
+            <div className="col-span-12 md:col-span-4">
+              <FormLabel>Grant / Donor Line</FormLabel>
+              <FormSelect
+                value={form.grant_id}
+                onChange={(e) => setForm((prev) => ({ ...prev, grant_id: e.target.value }))}
+              >
+                <option value="">No specific grant</option>
+                {filteredGrantOptions.map((grant) => (
+                  <option key={grant.id} value={grant.id}>
+                    {grant.code ? `${grant.code} - ` : ""}{grant.name}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+          ) : null}
+          {!isLeaveRequest ? (
             <div className="col-span-12">
               <FormLabel>Purpose</FormLabel>
               <FormTextarea rows={4} value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
@@ -818,10 +897,10 @@ function RequestsCreatePage() {
                   <FormLabel>Invoice File</FormLabel>
                   <Button variant="outline-secondary" className="w-full justify-center" onClick={() => setPickerIndex(index)}>
                     <Lucide icon="FileText" className="w-4 h-4 mr-1" />
-                    {item.file_name ? "Change File" : "Pick File"}
+                    {(item.file_names || []).length ? "Change Files" : "Pick Files"}
                   </Button>
                   <div className="text-xs text-slate-500 mt-1">
-                    {item.file_name ? `Attached: ${item.file_name}` : "Attach invoice per item"}
+                    {(item.file_names || []).length ? `Attached: ${(item.file_names || []).join(", ")}` : "Attach invoice per item"}
                   </div>
                 </div>
               </div>
@@ -852,8 +931,9 @@ function RequestsCreatePage() {
       <MediaPickerModal
         open={pickerIndex !== null}
         onClose={() => setPickerIndex(null)}
-        title="Select Invoice File"
-        selectedIds={pickerIndex !== null ? (form.items[pickerIndex]?.file_id ? [String(form.items[pickerIndex].file_id)] : []) : []}
+        title="Select Invoice Files"
+        multiple
+        selectedIds={pickerIndex !== null ? (form.items[pickerIndex]?.file_ids || (form.items[pickerIndex]?.file_id ? [String(form.items[pickerIndex].file_id)] : [])) : []}
         onSelect={(files) => {
           if (pickerIndex === null) return;
           applyPickedFile(pickerIndex, files);

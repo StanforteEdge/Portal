@@ -14,11 +14,12 @@ function Pagination({ className, children }: PaginationProps) {
 
 interface LinkProps
   extends React.PropsWithChildren,
-    React.ComponentPropsWithoutRef<"li"> {
+    Omit<React.ComponentPropsWithoutRef<"a">, "className"> {
   active?: boolean;
+  className?: string;
 }
 
-Pagination.Link = ({ className, active, children }: LinkProps) => {
+Pagination.Link = ({ className, active, children, ...props }: LinkProps) => {
   return (
     <li className="flex-1 sm:flex-initial">
       <Button
@@ -28,6 +29,7 @@ Pagination.Link = ({ className, active, children }: LinkProps) => {
           active && "!box font-medium dark:bg-darkmode-400",
           className,
         ])}
+        {...props}
       >
         {children}
       </Button>

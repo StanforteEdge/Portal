@@ -132,6 +132,52 @@ const menu: Array<Menu | "divider"> = [
         matchSubPaths: true,
       },
       {
+        icon: "Wallet",
+        pathname: "/app/finance/budgets",
+        title: "Budgets",
+      },
+      {
+        icon: "BarChart2",
+        title: "Reports",
+        subMenu: [
+          {
+            icon: "LayoutDashboard",
+            pathname: "/app/finance/reports",
+            title: "Dashboard",
+          },
+          {
+            icon: "TrendingUp",
+            pathname: "/app/finance/reports/activities",
+            title: "Statement of Activities",
+          },
+          {
+            icon: "Wallet",
+            pathname: "/app/finance/reports/position",
+            title: "Financial Position",
+          },
+          {
+            icon: "BarChart2",
+            pathname: "/app/finance/reports/budget-vs-actual",
+            title: "Budget vs Actual",
+          },
+          {
+            icon: "CircleDollarSign",
+            pathname: "/app/finance/reports/grant-utilization",
+            title: "Grant Utilization",
+          },
+        ],
+      },
+      {
+        icon: "FileText",
+        pathname: "/app/finance/receivables",
+        title: "Receivables",
+      },
+      {
+        icon: "ListChecks",
+        pathname: "/app/finance/payables",
+        title: "Payables",
+      },
+      {
         icon: "List",
         pathname: "/app/finance/ledger",
         title: "Ledger",
@@ -140,6 +186,32 @@ const menu: Array<Menu | "divider"> = [
         icon: "FileText",
         pathname: "/app/finance/payment-vouchers",
         title: "Payment Vouchers",
+      },
+      {
+        icon: "Settings2",
+        title: "Accounting",
+        subMenu: [
+          {
+            icon: "BookOpen",
+            pathname: "/app/finance/settings/chart-accounts",
+            title: "Chart Accounts",
+          },
+          {
+            icon: "Clock3",
+            pathname: "/app/finance/settings/reporting-periods",
+            title: "Reporting Periods",
+          },
+          {
+            icon: "UsersRound",
+            pathname: "/app/finance/settings/parties",
+            title: "Customers & Vendors",
+          },
+          {
+            icon: "BookOpen",
+            pathname: "/app/finance/settings/nonprofit",
+            title: "Funds & Grants",
+          },
+        ],
       },
     ],
   },

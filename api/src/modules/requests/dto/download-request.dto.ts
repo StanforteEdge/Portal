@@ -3,12 +3,12 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class DownloadRequestDto {
   @ApiPropertyOptional({
-    enum: ['request_pdf', 'pv_pdf', 'request_with_attachments', 'pv_with_attachments', 'full_package'],
+    enum: ['request_pdf', 'pv_pdf', 'request_with_attachments', 'pv_with_attachments', 'full_package', 'full_document'],
     default: 'request_pdf'
   })
   @IsOptional()
-  @IsIn(['request_pdf', 'pv_pdf', 'request_with_attachments', 'pv_with_attachments', 'full_package'])
-  action?: 'request_pdf' | 'pv_pdf' | 'request_with_attachments' | 'pv_with_attachments' | 'full_package';
+  @IsIn(['request_pdf', 'pv_pdf', 'request_with_attachments', 'pv_with_attachments', 'full_package', 'full_document'])
+  action?: 'request_pdf' | 'pv_pdf' | 'request_with_attachments' | 'pv_with_attachments' | 'full_package' | 'full_document';
 
   @ApiPropertyOptional({ description: 'Required for pv_pdf (specific voucher) and pv_with_attachments' })
   @IsOptional()
@@ -25,4 +25,3 @@ export class DownloadRequestDto {
   @IsString()
   email_to?: string;
 }
-

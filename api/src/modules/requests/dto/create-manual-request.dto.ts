@@ -35,6 +35,12 @@ class ManualItemDto {
   @IsOptional()
   @IsUUID()
   file_id?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  file_ids?: string[];
 }
 
 class ManualApprovalDto {
@@ -90,6 +96,12 @@ class ManualVoucherDto {
   @IsOptional()
   @IsUUID()
   evidence_file_id?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  evidence_file_ids?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

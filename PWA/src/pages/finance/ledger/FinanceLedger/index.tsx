@@ -4,6 +4,7 @@ import Table from "@/components/Base/Table";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
 import { Dialog } from "@/components/Base/Headless";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import { listFinanceFunds, listFinanceGrants } from "@/services/financeAccounting";
 import {
   createFinanceIncome,
   createFinanceTransfer,
@@ -17,6 +18,8 @@ import { formatDisplayDate, formatMoney } from "@/utils/formatting";
 function FinanceLedgerPage() {
   const [accounts, setAccounts] = useState<FinanceAccountRecord[]>([]);
   const [rows, setRows] = useState<FinanceLedgerRecord[]>([]);
+  const [fundOptions, setFundOptions] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [grantOptions, setGrantOptions] = useState<Array<{ id: string; code: string; name: string; fundId: string | null }>>([]);
   const [loading, setLoading] = useState(false);
   const [savingIncome, setSavingIncome] = useState(false);
   const [savingTransfer, setSavingTransfer] = useState(false);
@@ -36,6 +39,8 @@ function FinanceLedgerPage() {
     payer: "",
     notes: "",
     received_at: "",
+    fund_id: "",
+    grant_id: "",
   });
   const [transferForm, setTransferForm] = useState({
     from_account_id: "",
@@ -45,12 +50,20 @@ function FinanceLedgerPage() {
     reference: "",
     note: "",
     transfer_at: "",
+    fund_id: "",
+    grant_id: "",
   });
+  const filteredIncomeGrants = incomeForm.fund_id
+    ? grantOptions.filter((grant) => grant.fundId === incomeForm.fund_id)
+    : grantOptions;
+  const filteredTransferGrants = transferForm.fund_id
+    ? grantOptions.filter((grant) => grant.fundId === transferForm.fund_id)
+    : grantOptions;
 
   const load = async () => {
     try {
       setLoading(true);
-      const [accountRows, ledgerRows] = await Promise.all([
+      const [accountRows, ledgerRows, funds, grants] = await Promise.all([
         listFinanceAccounts({ is_active: true }),
         listFinanceLedger({
           ...(filters.account_id ? { account_id: filters.account_id } : {}),
@@ -58,9 +71,13 @@ function FinanceLedgerPage() {
           ...(filters.source_type ? { source_type: filters.source_type } : {}),
           limit: 300,
         }),
+        listFinanceFunds({ is_active: true }).catch(() => []),
+        listFinanceGrants({ status: "active" }).catch(() => []),
       ]);
       setAccounts(accountRows);
       setRows(ledgerRows);
+      setFundOptions((funds || []).map((fund: any) => ({ id: String(fund.id), code: String(fund.code || ""), name: String(fund.name || "") })));
+      setGrantOptions((grants || []).map((grant: any) => ({ id: String(grant.id), code: String(grant.code || ""), name: String(grant.name || ""), fundId: grant.fund ? String(grant.fund.id) : null })));
       if (!incomeForm.account_id && accountRows[0]?.id) {
         setIncomeForm((prev) => ({ ...prev, account_id: accountRows[0].id }));
       }
@@ -97,9 +114,11 @@ function FinanceLedgerPage() {
         payer: incomeForm.payer.trim() || undefined,
         notes: incomeForm.notes.trim() || undefined,
         received_at: incomeForm.received_at || undefined,
+        fund_id: incomeForm.fund_id || undefined,
+        grant_id: incomeForm.grant_id || undefined,
       });
       setShowIncomeModal(false);
-      setIncomeForm((prev) => ({ ...prev, amount: "", reference: "", payer: "", notes: "", received_at: "" }));
+      setIncomeForm((prev) => ({ ...prev, amount: "", reference: "", payer: "", notes: "", received_at: "", fund_id: "", grant_id: "" }));
       setNotice({ tone: "success", message: "Income posted to ledger." });
       await load();
     } catch (error: any) {
@@ -124,9 +143,11 @@ function FinanceLedgerPage() {
         reference: transferForm.reference.trim() || undefined,
         note: transferForm.note.trim() || undefined,
         transfer_at: transferForm.transfer_at || undefined,
+        fund_id: transferForm.fund_id || undefined,
+        grant_id: transferForm.grant_id || undefined,
       });
       setShowTransferModal(false);
-      setTransferForm((prev) => ({ ...prev, amount: "", reference: "", note: "", transfer_at: "" }));
+      setTransferForm((prev) => ({ ...prev, amount: "", reference: "", note: "", transfer_at: "", fund_id: "", grant_id: "" }));
       setNotice({ tone: "success", message: "Transfer posted to ledger." });
       await load();
     } catch (error: any) {
@@ -256,6 +277,26 @@ function FinanceLedgerPage() {
               <FormLabel>Received Date</FormLabel>
               <FormInput type="date" value={incomeForm.received_at} onChange={(e) => setIncomeForm((prev) => ({ ...prev, received_at: e.target.value }))} />
             </div>
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-6">
+                <FormLabel>Fund</FormLabel>
+                <FormSelect value={incomeForm.fund_id} onChange={(e) => setIncomeForm((prev) => ({ ...prev, fund_id: e.target.value, grant_id: "" }))}>
+                  <option value="">No specific fund</option>
+                  {fundOptions.map((fund) => (
+                    <option key={fund.id} value={fund.id}>{fund.code ? `${fund.code} - ` : ""}{fund.name}</option>
+                  ))}
+                </FormSelect>
+              </div>
+              <div className="col-span-6">
+                <FormLabel>Grant / Donor Line</FormLabel>
+                <FormSelect value={incomeForm.grant_id} onChange={(e) => setIncomeForm((prev) => ({ ...prev, grant_id: e.target.value }))}>
+                  <option value="">No specific grant</option>
+                  {filteredIncomeGrants.map((grant) => (
+                    <option key={grant.id} value={grant.id}>{grant.code ? `${grant.code} - ` : ""}{grant.name}</option>
+                  ))}
+                </FormSelect>
+              </div>
+            </div>
             <div>
               <FormLabel>Notes</FormLabel>
               <FormTextarea rows={2} value={incomeForm.notes} onChange={(e) => setIncomeForm((prev) => ({ ...prev, notes: e.target.value }))} />
@@ -314,6 +355,26 @@ function FinanceLedgerPage() {
                 <FormInput type="date" value={transferForm.transfer_at} onChange={(e) => setTransferForm((prev) => ({ ...prev, transfer_at: e.target.value }))} />
               </div>
             </div>
+            <div className="grid grid-cols-12 gap-3">
+              <div className="col-span-6">
+                <FormLabel>Fund</FormLabel>
+                <FormSelect value={transferForm.fund_id} onChange={(e) => setTransferForm((prev) => ({ ...prev, fund_id: e.target.value, grant_id: "" }))}>
+                  <option value="">No specific fund</option>
+                  {fundOptions.map((fund) => (
+                    <option key={fund.id} value={fund.id}>{fund.code ? `${fund.code} - ` : ""}{fund.name}</option>
+                  ))}
+                </FormSelect>
+              </div>
+              <div className="col-span-6">
+                <FormLabel>Grant / Donor Line</FormLabel>
+                <FormSelect value={transferForm.grant_id} onChange={(e) => setTransferForm((prev) => ({ ...prev, grant_id: e.target.value }))}>
+                  <option value="">No specific grant</option>
+                  {filteredTransferGrants.map((grant) => (
+                    <option key={grant.id} value={grant.id}>{grant.code ? `${grant.code} - ` : ""}{grant.name}</option>
+                  ))}
+                </FormSelect>
+              </div>
+            </div>
             <div>
               <FormLabel>Note</FormLabel>
               <FormTextarea rows={2} value={transferForm.note} onChange={(e) => setTransferForm((prev) => ({ ...prev, note: e.target.value }))} />
@@ -332,4 +393,3 @@ function FinanceLedgerPage() {
 }
 
 export default FinanceLedgerPage;
-

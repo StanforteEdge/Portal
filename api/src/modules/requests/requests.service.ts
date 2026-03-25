@@ -22,6 +22,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { extname, resolve } from 'node:path';
 import JSZip from 'jszip';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { MailService } from '../../common/mail/mail.service';
 
 const MANUAL_REQUEST_ID_MIN = BigInt(1);
@@ -287,6 +288,18 @@ export class RequestsService {
     return new Set(roles.map((item) => String(item.role.slug || '').toLowerCase()));
   }
 
+  private normalizeItemFileIds(item: { file_id?: string | null; file_ids?: string[] | null }) {
+    return Array.from(
+      new Set([item.file_id ?? null, ...(item.file_ids ?? [])].filter((id): id is string => Boolean(id)))
+    );
+  }
+
+  private normalizeVoucherEvidenceFileIds(voucher: { evidence_file_id?: string | null; evidence_file_ids?: string[] | null }) {
+    return Array.from(
+      new Set([voucher.evidence_file_id ?? null, ...(voucher.evidence_file_ids ?? [])].filter((id): id is string => Boolean(id)))
+    );
+  }
+
   async createRequest(userId: string, dto: CreateRequestDto) {
     const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id } });
     if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
@@ -313,7 +326,7 @@ export class RequestsService {
         : dto.total_amount;
 
       const fileIds = dto.items
-        ? Array.from(new Set(dto.items.map((item) => item.file_id).filter((id): id is string => Boolean(id))))
+        ? Array.from(new Set(dto.items.flatMap((item) => this.normalizeItemFileIds(item))))
         : [];
       if (fileIds.length > 0) {
         await this.ensureFileAssetsExist(tx, fileIds);
@@ -339,10 +352,11 @@ export class RequestsService {
 
       if (dto.items && dto.items.length > 0) {
         for (const item of dto.items) {
-          await tx.requestItem.create({
+          const fileIds = this.normalizeItemFileIds(item);
+          const createdItem = await tx.requestItem.create({
             data: {
               requestId: request.id,
-              fileId: item.file_id ?? null,
+              fileId: fileIds[0] ?? null,
               description: item.description,
               amount: item.amount,
               quantity: item.quantity ?? 1,
@@ -352,7 +366,15 @@ export class RequestsService {
               notes: item.notes ?? null
             }
           });
-
+          if (fileIds.length > 0) {
+            await tx.requestItemFile.createMany({
+              data: fileIds.map((fileId, index) => ({
+                requestItemId: createdItem.id,
+                fileId,
+                sortOrder: index
+              }))
+            });
+          }
         }
       }
 
@@ -384,8 +406,8 @@ export class RequestsService {
       if (!organization) throw new BadRequestException('Invalid organization_id');
     }
 
-    const itemFileIds = (dto.items ?? []).map((i) => i.file_id).filter((x): x is string => Boolean(x));
-    const voucherEvidenceIds = (dto.disbursements ?? []).map((x) => x.evidence_file_id).filter((x): x is string => Boolean(x));
+    const itemFileIds = (dto.items ?? []).flatMap((i) => this.normalizeItemFileIds(i));
+    const voucherEvidenceIds = (dto.disbursements ?? []).flatMap((x) => this.normalizeVoucherEvidenceFileIds(x));
     const retirementIds = (dto.disbursements ?? [])
       .flatMap((x) => x.retirement_file_ids ?? [])
       .filter((x): x is string => Boolean(x));
@@ -452,16 +474,26 @@ export class RequestsService {
 
       if (dto.items?.length) {
         for (const item of dto.items) {
-          await tx.requestItem.create({
+          const fileIds = this.normalizeItemFileIds(item);
+          const createdItem = await tx.requestItem.create({
             data: {
               requestId: request.id,
               description: item.description,
               amount: item.amount,
               quantity: item.quantity ?? 1,
               notes: item.notes ?? null,
-              fileId: item.file_id ?? null
+              fileId: fileIds[0] ?? null
             }
           });
+          if (fileIds.length > 0) {
+            await tx.requestItemFile.createMany({
+              data: fileIds.map((fileId, index) => ({
+                requestItemId: createdItem.id,
+                fileId,
+                sortOrder: index
+              }))
+            });
+          }
         }
       }
 
@@ -471,7 +503,8 @@ export class RequestsService {
           const retiredAmount = Number(row.retired_amount ?? 0);
           const disbursedAt = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
           if (Number.isNaN(disbursedAt.getTime())) throw new BadRequestException('Invalid disbursement date');
-          await tx.financePaymentVoucher.create({
+          const evidenceFileIds = this.normalizeVoucherEvidenceFileIds(row);
+          const createdVoucher = await tx.financePaymentVoucher.create({
             data: {
               requestId: request.id,
               voucherNumber: row.voucher_number,
@@ -482,7 +515,7 @@ export class RequestsService {
               transactionRef: row.transaction_ref ?? null,
               note: row.note ?? null,
               paidFromAccountId: row.paid_from_account_id ?? null,
-              evidenceFileId: row.evidence_file_id ?? null,
+              evidenceFileId: evidenceFileIds[0] ?? null,
               disbursedAt,
               retiredAt: retiredAmount > 0 ? disbursedAt : null,
               verifiedAt: row.retirement_status === 'verified' ? disbursedAt : null,
@@ -491,6 +524,16 @@ export class RequestsService {
               } as Prisma.InputJsonValue
             }
           });
+          if (evidenceFileIds.length > 0) {
+            await tx.financePaymentVoucherFile.createMany({
+              data: evidenceFileIds.map((fileId, index) => ({
+                voucherId: createdVoucher.id,
+                fileId,
+                fileKind: 'evidence',
+                sortOrder: index
+              }))
+            });
+          }
         }
       }
 
@@ -537,8 +580,8 @@ export class RequestsService {
       if (!organization) throw new BadRequestException('Invalid organization_id');
     }
 
-    const itemFileIds = (dto.items ?? []).map((i) => i.file_id).filter((x): x is string => Boolean(x));
-    const voucherEvidenceIds = (dto.disbursements ?? []).map((x) => x.evidence_file_id).filter((x): x is string => Boolean(x));
+    const itemFileIds = (dto.items ?? []).flatMap((i) => this.normalizeItemFileIds(i));
+    const voucherEvidenceIds = (dto.disbursements ?? []).flatMap((x) => this.normalizeVoucherEvidenceFileIds(x));
     const retirementIds = (dto.disbursements ?? [])
       .flatMap((x) => x.retirement_file_ids ?? [])
       .filter((x): x is string => Boolean(x));
@@ -629,16 +672,26 @@ export class RequestsService {
       await tx.requestItem.deleteMany({ where: { requestId: existing.id } });
       if (dto.items?.length) {
         for (const item of dto.items) {
-          await tx.requestItem.create({
+          const fileIds = this.normalizeItemFileIds(item);
+          const createdItem = await tx.requestItem.create({
             data: {
               requestId: desiredRequestId,
               description: item.description,
               amount: item.amount,
               quantity: item.quantity ?? 1,
               notes: item.notes ?? null,
-              fileId: item.file_id ?? null
+              fileId: fileIds[0] ?? null
             }
           });
+          if (fileIds.length > 0) {
+            await tx.requestItemFile.createMany({
+              data: fileIds.map((fileId, index) => ({
+                requestItemId: createdItem.id,
+                fileId,
+                sortOrder: index
+              }))
+            });
+          }
         }
       }
 
@@ -649,7 +702,8 @@ export class RequestsService {
           const retiredAmount = Number(row.retired_amount ?? 0);
           const disbursedAt = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
           if (Number.isNaN(disbursedAt.getTime())) throw new BadRequestException('Invalid disbursement date');
-          await tx.financePaymentVoucher.create({
+          const evidenceFileIds = this.normalizeVoucherEvidenceFileIds(row);
+          const createdVoucher = await tx.financePaymentVoucher.create({
             data: {
               requestId: desiredRequestId,
               voucherNumber: row.voucher_number,
@@ -660,7 +714,7 @@ export class RequestsService {
               transactionRef: row.transaction_ref ?? null,
               note: row.note ?? null,
               paidFromAccountId: row.paid_from_account_id ?? null,
-              evidenceFileId: row.evidence_file_id ?? null,
+              evidenceFileId: evidenceFileIds[0] ?? null,
               disbursedAt,
               retiredAt: retiredAmount > 0 ? disbursedAt : null,
               verifiedAt: row.retirement_status === 'verified' ? disbursedAt : null,
@@ -669,6 +723,16 @@ export class RequestsService {
               } as Prisma.InputJsonValue
             }
           });
+          if (evidenceFileIds.length > 0) {
+            await tx.financePaymentVoucherFile.createMany({
+              data: evidenceFileIds.map((fileId, index) => ({
+                voucherId: createdVoucher.id,
+                fileId,
+                fileKind: 'evidence',
+                sortOrder: index
+              }))
+            });
+          }
         }
       }
 
@@ -982,7 +1046,7 @@ export class RequestsService {
         : undefined;
 
       const fileIds = dto.items
-        ? Array.from(new Set(dto.items.map((item) => item.file_id).filter((id): id is string => Boolean(id))))
+        ? Array.from(new Set(dto.items.flatMap((item) => this.normalizeItemFileIds(item))))
         : [];
       if (fileIds.length > 0) {
         await this.ensureFileAssetsExist(tx, fileIds);
@@ -1005,10 +1069,11 @@ export class RequestsService {
         await tx.requestItem.deleteMany({ where: { requestId: request.id } });
         if (dto.items.length > 0) {
           for (const item of dto.items) {
-            await tx.requestItem.create({
+            const fileIds = this.normalizeItemFileIds(item);
+            const createdItem = await tx.requestItem.create({
               data: {
                 requestId: request.id,
-                fileId: item.file_id ?? null,
+                fileId: fileIds[0] ?? null,
                 description: item.description,
                 amount: item.amount,
                 quantity: item.quantity ?? 1,
@@ -1018,7 +1083,15 @@ export class RequestsService {
                 notes: item.notes ?? null
               }
             });
-
+            if (fileIds.length > 0) {
+              await tx.requestItemFile.createMany({
+                data: fileIds.map((fileId, index) => ({
+                  requestItemId: createdItem.id,
+                  fileId,
+                  sortOrder: index
+                }))
+              });
+            }
           }
         }
       }
@@ -1365,6 +1438,9 @@ export class RequestsService {
         email_to: dto.email_to
       });
     }
+    if (action === 'full_document') {
+      return this.generateFullRequestDocument(id, userId);
+    }
     throw new BadRequestException('Invalid download action');
   }
 
@@ -1382,7 +1458,14 @@ export class RequestsService {
       : { done: [], pending: [] };
     const paymentVouchers = await this.prisma.financePaymentVoucher.findMany({
       where: { requestId: request.id },
-      include: { evidenceFile: true },
+      include: {
+        evidenceFile: true,
+        attachments: {
+          where: { fileKind: 'evidence' },
+          include: { file: true },
+          orderBy: { sortOrder: 'asc' }
+        }
+      },
       orderBy: { disbursedAt: 'asc' }
     });
 
@@ -1413,14 +1496,35 @@ export class RequestsService {
     };
 
     for (const item of request.items) {
-      if (!item.file) continue;
-      await addFileByAsset(item.file, `request/attachments/${item.file.fileName}`);
+      const files = Array.from(
+        new Map(
+          [
+            ...(item.files ?? []).map((attachment: any) => attachment.file).filter(Boolean),
+            item.file ?? null
+          ]
+            .filter(Boolean)
+            .map((file: any) => [file.id, file])
+        ).values()
+      );
+      for (const file of files) {
+        await addFileByAsset(file, `request/attachments/${file.fileName}`);
+      }
     }
 
     for (const pv of paymentVouchers) {
       const voucherZipName = this.zipSafeName(pv.voucherNumber);
-      if (pv.evidenceFile) {
-        await addFileByAsset(pv.evidenceFile, `vouchers/${voucherZipName}/receipts/${pv.evidenceFile.fileName}`);
+      const evidenceFiles = Array.from(
+        new Map(
+          [
+            ...(pv.attachments ?? []).map((attachment: any) => attachment.file).filter(Boolean),
+            pv.evidenceFile ?? null
+          ]
+            .filter(Boolean)
+            .map((file: any) => [file.id, file])
+        ).values()
+      );
+      for (const file of evidenceFiles) {
+        await addFileByAsset(file, `vouchers/${voucherZipName}/receipts/${file.fileName}`);
       }
       if (pv.metadata && typeof pv.metadata === 'object' && !Array.isArray(pv.metadata)) {
         const ids = (pv.metadata as Record<string, unknown>).retirement_file_ids;
@@ -1526,10 +1630,21 @@ export class RequestsService {
     const zip = new JSZip();
     zip.file(`request/${requestZipName}.pdf`, requestPdf);
     for (const item of request.items) {
-      if (!item.file) continue;
-      const buffer = await this.readAssetFileBuffer(item.file);
-      if (buffer) {
-        zip.file(`request/attachments/${item.file.fileName}`, buffer);
+      const files = Array.from(
+        new Map(
+          [
+            ...(item.files ?? []).map((attachment: any) => attachment.file).filter(Boolean),
+            item.file ?? null
+          ]
+            .filter(Boolean)
+            .map((file: any) => [file.id, file])
+        ).values()
+      );
+      for (const file of files) {
+        const buffer = await this.readAssetFileBuffer(file);
+        if (buffer) {
+          zip.file(`request/attachments/${file.fileName}`, buffer);
+        }
       }
     }
     const zipBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
@@ -1542,11 +1657,146 @@ export class RequestsService {
     };
   }
 
+  async generateFullRequestDocument(id: string, userId: string) {
+    const request = await this.getRequestForDocument(id);
+    const generatedAt = new Date();
+    const totalAmount = this.resolveTotalAmount(request);
+    const signatories = await this.getFinanceSignatories();
+    const approvals = request.workflowInstanceId
+      ? await this.getApprovalSummary(request.workflowInstanceId)
+      : { done: [], pending: [] };
+    const paymentVouchers = await this.prisma.financePaymentVoucher.findMany({
+      where: { requestId: request.id },
+      include: {
+        evidenceFile: true,
+        attachments: {
+          where: { fileKind: 'evidence' },
+          include: { file: true },
+          orderBy: { sortOrder: 'asc' }
+        }
+      },
+      orderBy: { disbursedAt: 'asc' }
+    });
+
+    const requestPdf = await this.buildRequestPdfDocument({
+      request,
+      totalAmount,
+      generatedAt,
+      signatories,
+      approvals,
+      paymentVouchers
+    });
+
+    const mergedPdf = await PDFDocument.create();
+    await this.appendPdfBuffer(mergedPdf, requestPdf);
+
+    const skippedFiles: string[] = [];
+
+    for (const item of request.items) {
+      const files = Array.from(
+        new Map(
+          [
+            ...(item.files ?? []).map((attachment: any) => attachment.file).filter(Boolean),
+            item.file ?? null
+          ]
+            .filter(Boolean)
+            .map((file: any) => [file.id, file])
+        ).values()
+      );
+      for (const file of files) {
+        const buffer = await this.readAssetFileBuffer(file);
+        await this.appendAssetToPdf(mergedPdf, buffer, file.fileName, file.mimeType, skippedFiles);
+      }
+    }
+
+    for (const pv of paymentVouchers) {
+      const pvPdf = await this.buildPaymentVoucherDocument({
+        request,
+        voucherNo: pv.voucherNumber,
+        totalAmount: Number(pv.amount),
+        generatedAt,
+        approvals,
+        voucher: {
+          method: pv.method,
+          transactionRef: pv.transactionRef,
+          notes: pv.note,
+          disbursedAt: pv.disbursedAt
+        },
+        signatories
+      });
+      await this.appendPdfBuffer(mergedPdf, pvPdf);
+
+      const evidenceFiles = Array.from(
+        new Map(
+          [
+            ...(pv.attachments ?? []).map((attachment: any) => attachment.file).filter(Boolean),
+            pv.evidenceFile ?? null
+          ]
+            .filter(Boolean)
+            .map((file: any) => [file.id, file])
+        ).values()
+      );
+      for (const file of evidenceFiles) {
+        const buffer = await this.readAssetFileBuffer(file);
+        await this.appendAssetToPdf(mergedPdf, buffer, file.fileName, file.mimeType, skippedFiles);
+      }
+
+      if (pv.metadata && typeof pv.metadata === 'object' && !Array.isArray(pv.metadata)) {
+        const ids = (pv.metadata as Record<string, unknown>).retirement_file_ids;
+        if (Array.isArray(ids)) {
+          const retirementFiles = await this.prisma.fileAsset.findMany({
+            where: { id: { in: ids.filter((x): x is string => typeof x === 'string') } }
+          });
+          for (const file of retirementFiles) {
+            const buffer = await this.readAssetFileBuffer(file);
+            await this.appendAssetToPdf(mergedPdf, buffer, file.fileName, file.mimeType, skippedFiles);
+          }
+        }
+      }
+    }
+
+    if (skippedFiles.length > 0) {
+      await this.appendTextPage(
+        mergedPdf,
+        'Attachments not embedded',
+        skippedFiles.map((name) => `- ${name}`)
+      );
+    }
+
+    const requestZipName = this.zipSafeName(
+      this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id)
+    );
+    const fileName = `${requestZipName}-full-document-${this.compactDate(generatedAt)}.pdf`;
+    const pdfBuffer = Buffer.from(await mergedPdf.save());
+
+    await this.recordGeneratedArtifact(request.id, {
+      type: 'full_document',
+      file_name: fileName,
+      generated_by: userId,
+      generated_at: generatedAt.toISOString()
+    });
+
+    return {
+      file_name: fileName,
+      mime_type: 'application/pdf',
+      content_base64: pdfBuffer.toString('base64'),
+      generated_at: generatedAt.toISOString(),
+      request_id: request.id.toString()
+    };
+  }
+
   async generateVoucherWithAttachmentsPackage(id: string, voucherId: string, userId: string) {
     const request = await this.getRequestForDocument(id);
     const voucher = await this.prisma.financePaymentVoucher.findFirst({
       where: { requestId: request.id, id: voucherId },
-      include: { evidenceFile: true }
+      include: {
+        evidenceFile: true,
+        attachments: {
+          where: { fileKind: 'evidence' },
+          include: { file: true },
+          orderBy: { sortOrder: 'asc' }
+        }
+      }
     });
     if (!voucher) throw new NotFoundException('Payment voucher not found');
 
@@ -1575,10 +1825,20 @@ export class RequestsService {
     const voucherZipName = this.zipSafeName(voucher.voucherNumber);
     zip.file(`voucher/${voucherZipName}.pdf`, pvPdf);
 
-    if (voucher.evidenceFile) {
-      const evidence = await this.readAssetFileBuffer(voucher.evidenceFile);
+    const evidenceFiles = Array.from(
+      new Map(
+        [
+          ...(voucher.attachments ?? []).map((attachment: any) => attachment.file).filter(Boolean),
+          voucher.evidenceFile ?? null
+        ]
+          .filter(Boolean)
+          .map((file: any) => [file.id, file])
+      ).values()
+    );
+    for (const file of evidenceFiles) {
+      const evidence = await this.readAssetFileBuffer(file);
       if (evidence) {
-        zip.file(`voucher/receipts/${voucher.evidenceFile.fileName}`, evidence);
+        zip.file(`voucher/receipts/${file.fileName}`, evidence);
       }
     }
 
@@ -2398,6 +2658,97 @@ export class RequestsService {
     return null;
   }
 
+  private async appendPdfBuffer(target: PDFDocument, pdfBuffer: Buffer) {
+    const source = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+    const pages = await target.copyPages(source, source.getPageIndices());
+    for (const page of pages) target.addPage(page);
+  }
+
+  private async appendAssetToPdf(
+    target: PDFDocument,
+    fileBuffer: Buffer | null,
+    fileName: string,
+    mimeType: string | null | undefined,
+    skippedFiles: string[]
+  ) {
+    if (!fileBuffer) {
+      skippedFiles.push(`${fileName} (missing file)`);
+      return;
+    }
+
+    const mime = String(mimeType || '').toLowerCase();
+    const extension = extname(fileName).toLowerCase();
+
+    if (mime === 'application/pdf' || extension === '.pdf') {
+      await this.appendPdfBuffer(target, fileBuffer);
+      return;
+    }
+
+    if (mime === 'image/png' || extension === '.png') {
+      const image = await target.embedPng(fileBuffer);
+      await this.appendImagePage(target, image, fileName);
+      return;
+    }
+
+    if (mime === 'image/jpeg' || mime === 'image/jpg' || extension === '.jpg' || extension === '.jpeg') {
+      const image = await target.embedJpg(fileBuffer);
+      await this.appendImagePage(target, image, fileName);
+      return;
+    }
+
+    skippedFiles.push(fileName);
+  }
+
+  private async appendImagePage(
+    target: PDFDocument,
+    image: { width: number; height: number; scale: (factor: number) => { width: number; height: number }; },
+    label: string
+  ) {
+    const page = target.addPage([595.28, 841.89]);
+    const margin = 36;
+    const headerSpace = 32;
+    const availableWidth = page.getWidth() - margin * 2;
+    const availableHeight = page.getHeight() - margin * 2 - headerSpace;
+    const ratio = Math.min(availableWidth / image.width, availableHeight / image.height, 1);
+    const dims = image.scale(ratio);
+    page.drawImage(image as any, {
+      x: (page.getWidth() - dims.width) / 2,
+      y: margin,
+      width: dims.width,
+      height: dims.height
+    });
+    const font = await target.embedFont(StandardFonts.Helvetica);
+    page.drawText(label, {
+      x: margin,
+      y: page.getHeight() - margin + 4,
+      size: 10,
+      font
+    });
+  }
+
+  private async appendTextPage(target: PDFDocument, title: string, lines: string[]) {
+    const page = target.addPage([595.28, 841.89]);
+    const font = await target.embedFont(StandardFonts.Helvetica);
+    const bold = await target.embedFont(StandardFonts.HelveticaBold);
+    page.drawText(title, {
+      x: 40,
+      y: 800,
+      size: 16,
+      font: bold
+    });
+    let y = 772;
+    for (const line of lines) {
+      page.drawText(line, {
+        x: 40,
+        y,
+        size: 11,
+        font
+      });
+      y -= 16;
+      if (y < 50) break;
+    }
+  }
+
   private amountToWords(amount: number): string {
     const units = [
       'Zero', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
@@ -3053,7 +3404,13 @@ export class RequestsService {
     return {
       items: {
         include: {
-          file: true
+          file: true,
+          files: {
+            include: {
+              file: true
+            },
+            orderBy: { sortOrder: 'asc' as const }
+          }
         }
       },
       requestType: true,
@@ -3119,26 +3476,41 @@ export class RequestsService {
             code: request.organization.code
           }
         : null,
-      items: (request.items ?? []).map((item: any) => ({
-        id: item.id,
-        description: item.description,
-        amount: Number(item.amount),
-        quantity: item.quantity,
-        file_id: item.fileId ?? null,
-        category_id: item.categoryId ?? null,
-        subcategory_id: item.subcategoryId ?? null,
-        due_date: item.dueDate ?? null,
-        notes: item.notes ?? null,
-        file: item.file
-          ? {
-              id: item.file.id,
-              file_name: item.file.fileName,
-              mime_type: item.file.mimeType ?? null,
-              public_url: item.file.publicUrl ?? null,
-              storage_path: item.file.storagePath ?? null
-            }
-          : null
-      }))
+      items: (request.items ?? []).map((item: any) => {
+        const files = Array.from(
+          new Map(
+            [
+              ...(item.files ?? []).map((attachment: any) => attachment.file).filter(Boolean),
+              item.file ?? null
+            ]
+              .filter(Boolean)
+              .map((file: any) => [
+                file.id,
+                {
+                  id: file.id,
+                  file_name: file.fileName,
+                  mime_type: file.mimeType ?? null,
+                  public_url: file.publicUrl ?? null,
+                  storage_path: file.storagePath ?? null
+                }
+              ])
+          ).values()
+        );
+
+        return {
+          id: item.id,
+          description: item.description,
+          amount: Number(item.amount),
+          quantity: item.quantity,
+          file_id: item.fileId ?? null,
+          category_id: item.categoryId ?? null,
+          subcategory_id: item.subcategoryId ?? null,
+          due_date: item.dueDate ?? null,
+          notes: item.notes ?? null,
+          file: files[0] ?? null,
+          files
+        };
+      })
     };
   }
 

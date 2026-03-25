@@ -76,6 +76,42 @@ const FinanceAssetDetailPage = lazy(
 const FinanceAssetDisposalsPage = lazy(
   () => import("../pages/finance/assets/FinanceAssetDisposals")
 );
+const FinanceBudgetsPage = lazy(
+  () => import("../pages/finance/budgets/FinanceBudgets")
+);
+const FinanceReportsDashboardPage = lazy(
+  () => import("../pages/finance/reports/FinanceReportsDashboard")
+);
+const FinanceStatementActivitiesPage = lazy(
+  () => import("../pages/finance/reports/FinanceStatementActivities")
+);
+const FinanceStatementPositionPage = lazy(
+  () => import("../pages/finance/reports/FinanceStatementPosition")
+);
+const FinanceBudgetVsActualPage = lazy(
+  () => import("../pages/finance/reports/FinanceBudgetVsActual")
+);
+const FinanceGrantUtilizationPage = lazy(
+  () => import("../pages/finance/reports/FinanceGrantUtilization")
+);
+const FinanceChartAccountsPage = lazy(
+  () => import("../pages/finance/settings/FinanceChartAccounts")
+);
+const FinanceReportingPeriodsPage = lazy(
+  () => import("../pages/finance/settings/FinanceReportingPeriods")
+);
+const FinancePartiesPage = lazy(
+  () => import("../pages/finance/settings/FinanceParties")
+);
+const FinanceNonprofitSettingsPage = lazy(
+  () => import("../pages/finance/settings/FinanceNonprofitSettings")
+);
+const FinanceReceivablesPage = lazy(
+  () => import("../pages/finance/receivables/FinanceReceivables")
+);
+const FinancePayablesPage = lazy(
+  () => import("../pages/finance/payables/FinancePayables")
+);
 const AdminFilesPage = lazy(() => import("../pages/admin/files/AdminFiles"));
 const AdminProjectsPage = lazy(
   () => import("../pages/admin/projects/AdminProjects")
@@ -458,6 +494,126 @@ function Router() {
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["requests.manage"]}>
                 {page(<FinanceAssetEditorPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/budgets",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceBudgetsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/reports",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceReportsDashboardPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/reports/activities",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceStatementActivitiesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/reports/position",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceStatementPositionPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/reports/budget-vs-actual",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceBudgetVsActualPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/reports/grant-utilization",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceGrantUtilizationPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/receivables",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceReceivablesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payables",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinancePayablesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/settings/chart-accounts",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceChartAccountsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/settings/reporting-periods",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceReportingPeriodsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/settings/parties",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinancePartiesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/settings/nonprofit",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceNonprofitSettingsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),

@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class DisburseRequestDto {
@@ -26,6 +26,12 @@ export class DisburseRequestDto {
   @IsOptional()
   @IsUUID()
   evidence_file_id?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  evidence_file_ids?: string[];
 
   @ApiPropertyOptional({ example: '3fef7e86-cf6a-4df7-b0b3-e350adf55e33' })
   @IsOptional()
