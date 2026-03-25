@@ -404,6 +404,21 @@ export class RequestsService {
       });
       if (count !== paidFromAccountIds.length) throw new BadRequestException('Invalid paid_from_account_id');
     }
+    const rawFundId =
+      dto.data && typeof dto.data === 'object' && !Array.isArray(dto.data) && typeof (dto.data as any).fund_id === 'string'
+        ? String((dto.data as any).fund_id).trim()
+        : '';
+    const rawGrantId =
+      dto.data && typeof dto.data === 'object' && !Array.isArray(dto.data) && typeof (dto.data as any).grant_id === 'string'
+        ? String((dto.data as any).grant_id).trim()
+        : '';
+    const fund = rawFundId ? await this.prisma.financeFund.findUnique({ where: { id: rawFundId } }) : null;
+    const grant = rawGrantId ? await this.prisma.financeGrant.findUnique({ where: { id: rawGrantId } }) : null;
+    if (rawFundId && !fund) throw new BadRequestException('Invalid fund_id');
+    if (rawGrantId && !grant) throw new BadRequestException('Invalid grant_id');
+    if (fund && grant && grant.fundId && grant.fundId !== fund.id) {
+      throw new BadRequestException('grant_id does not belong to fund_id');
+    }
 
     const itemsTotal = (dto.items ?? []).reduce(
       (sum, item) => sum + Number(item.amount) * Number(item.quantity ?? 1),
@@ -432,6 +447,8 @@ export class RequestsService {
       imported_at: new Date().toISOString(),
       imported_by: userId
     };
+    const fundId = typeof baseData.fund_id === 'string' && baseData.fund_id.trim() ? baseData.fund_id.trim() : null;
+    const grantId = typeof baseData.grant_id === 'string' && baseData.grant_id.trim() ? baseData.grant_id.trim() : null;
 
     const status = (dto.status ?? 'completed') as any;
     const created = await this.prisma.$transaction(async (tx) => {
@@ -559,6 +576,21 @@ export class RequestsService {
       });
       if (count !== paidFromAccountIds.length) throw new BadRequestException('Invalid paid_from_account_id');
     }
+    const rawFundId =
+      dto.data && typeof dto.data === 'object' && !Array.isArray(dto.data) && typeof (dto.data as any).fund_id === 'string'
+        ? String((dto.data as any).fund_id).trim()
+        : '';
+    const rawGrantId =
+      dto.data && typeof dto.data === 'object' && !Array.isArray(dto.data) && typeof (dto.data as any).grant_id === 'string'
+        ? String((dto.data as any).grant_id).trim()
+        : '';
+    const fund = rawFundId ? await this.prisma.financeFund.findUnique({ where: { id: rawFundId } }) : null;
+    const grant = rawGrantId ? await this.prisma.financeGrant.findUnique({ where: { id: rawGrantId } }) : null;
+    if (rawFundId && !fund) throw new BadRequestException('Invalid fund_id');
+    if (rawGrantId && !grant) throw new BadRequestException('Invalid grant_id');
+    if (fund && grant && grant.fundId && grant.fundId !== fund.id) {
+      throw new BadRequestException('grant_id does not belong to fund_id');
+    }
 
     const itemsTotal = (dto.items ?? []).reduce(
       (sum, item) => sum + Number(item.amount) * Number(item.quantity ?? 1),
@@ -666,8 +698,6 @@ export class RequestsService {
               transactionRef: row.transaction_ref ?? null,
               note: row.note ?? null,
               paidFromAccountId: row.paid_from_account_id ?? null,
-              fundId,
-              grantId,
               evidenceFileId: row.evidence_file_id ?? null,
               disbursedAt,
               retiredAt: retiredAmount > 0 ? disbursedAt : null,
