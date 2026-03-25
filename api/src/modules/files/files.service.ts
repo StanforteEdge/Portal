@@ -10,7 +10,7 @@ export class FilesService {
   constructor(private readonly prisma: PrismaService) {}
 
   private buildPublicUrl(storagePath: string) {
-    const base = (process.env.APP_BASE_URL || '').replace(/\/+$/, '');
+    const base = (process.env.FILE_BASE_URL || process.env.APP_URL || process.env.APP_BASE_URL || '').replace(/\/+$/, '');
     if (!base) return null;
     return `${base}/${storagePath.replace(/^\/+/, '')}`;
   }
