@@ -48,6 +48,13 @@ export type RequestRecord = {
     quantity: number;
     notes: string | null;
     file_id: string | null;
+    file?: {
+      id: string;
+      file_name: string;
+      mime_type: string | null;
+      public_url: string | null;
+      storage_path?: string | null;
+    } | null;
   }>;
   approvals?: {
     done: Array<{ action: string; step: string; comment: string | null; at: string }>;

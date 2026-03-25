@@ -10,6 +10,7 @@ import { listFinanceRequests } from "@/services/finance";
 import { listProjects } from "@/services/projects";
 import { listOrganizations } from "@/services/organizations";
 import { listTeams } from "@/services/teams";
+import { listUsers } from "@/services/users";
 import type { RequestRecord } from "@/services/requests";
 import { formatDisplayDate, formatMoney, formatPersonName, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
 
@@ -22,6 +23,7 @@ function FinanceRequestsPage() {
   const [project, setProject] = useState("");
   const [team, setTeam] = useState("");
   const [organization, setOrganization] = useState("");
+  const [staff, setStaff] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [dueDate, setDueDate] = useState("");
@@ -33,6 +35,7 @@ function FinanceRequestsPage() {
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [teamOptions, setTeamOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [organizationOptions, setOrganizationOptions] = useState<Array<{ id: string; name: string }>>([]);
+  const [staffOptions, setStaffOptions] = useState<Array<{ id: string; name: string }>>([]);
 
   const filteredRequests = useMemo(() => {
     const searchText = search.trim().toLowerCase();
@@ -43,6 +46,7 @@ function FinanceRequestsPage() {
       const requestTeam = String(data.team_id || data.team || "").trim();
       const requestOrganization = String(data.organization_id || data.organization || "").trim();
       const requestPurpose = String(data.purpose || "");
+      const requestCreatorId = String(req.creator?.id || "");
 
       const searchOk =
         !searchText ||
@@ -55,10 +59,11 @@ function FinanceRequestsPage() {
       const projectOk = !project || requestProject === project;
       const teamOk = !team || requestTeam === team;
       const orgOk = !organization || requestOrganization === organization;
+      const staffOk = !staff || requestCreatorId === staff;
 
-      return searchOk && statusOk && dueDateOk && projectOk && teamOk && orgOk;
+      return searchOk && statusOk && dueDateOk && projectOk && teamOk && orgOk && staffOk;
     });
-  }, [allRequests, search, status, dueDate, project, team, organization]);
+  }, [allRequests, search, status, dueDate, project, team, organization, staff]);
 
   const sortedRequests = useMemo(() => {
     const rows = [...filteredRequests];
@@ -96,20 +101,34 @@ function FinanceRequestsPage() {
   }, [sortedRequests, currentPage, perPage]);
 
   const totalPages = Math.max(1, Math.ceil(sortedRequests.length / perPage));
+  const visiblePages = useMemo(() => {
+    if (totalPages <= 7) return Array.from({ length: totalPages }, (_, index) => index + 1);
+    const pages = new Set<number>([1, totalPages, currentPage - 1, currentPage, currentPage + 1]);
+    return Array.from(pages)
+      .filter((page) => page >= 1 && page <= totalPages)
+      .sort((first, second) => first - second);
+  }, [currentPage, totalPages]);
 
   const load = async () => {
     try {
       setLoading(true);
-      const [response, projects, teams, orgs] = await Promise.all([
-        listFinanceRequests({ per_page: 100 }),
+      const [response, projects, teams, orgs, usersResponse] = await Promise.all([
+        listFinanceRequests({ per_page: 500 }),
         listProjects().catch(() => []),
         listTeams({ active_only: false }).catch(() => []),
         listOrganizations({ is_active: true }).catch(() => []),
+        listUsers({ page: 1, per_page: 500 }).catch(() => ({ data: [], meta: { page: 1, per_page: 500, total: 0, last_page: 1 } })),
       ]);
       setAllRequests(Array.isArray(response.data) ? response.data : []);
       setProjectOptions(projects.map((project) => ({ id: project.id, name: project.name })));
       setTeamOptions(teams.map((row) => ({ id: row.id, name: row.name })));
       setOrganizationOptions(orgs.map((row) => ({ id: row.id, name: row.name })));
+      setStaffOptions(
+        usersResponse.data.map((user) => ({
+          id: user.id,
+          name: `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.username || user.email,
+        }))
+      );
     } catch (error: any) {
       setNotice({
         tone: "error",
@@ -126,7 +145,7 @@ function FinanceRequestsPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, status, dueDate, project, team, organization, sortBy, sortOrder, perPage]);
+  }, [search, status, dueDate, project, team, organization, staff, sortBy, sortOrder, perPage]);
 
   return (
     <>
@@ -223,6 +242,17 @@ function FinanceRequestsPage() {
               </FormSelect>
             </div>
             <div className="w-auto">
+              <FormLabel>Staff</FormLabel>
+              <FormSelect value={staff} onChange={(e) => setStaff(e.target.value)}>
+                <option value="">All staff</option>
+                {staffOptions.map((option) => (
+                  <option key={option.id} value={option.id}>
+                    {option.name}
+                  </option>
+                ))}
+              </FormSelect>
+            </div>
+            <div className="w-auto">
               <FormLabel>Order By</FormLabel>
               <FormSelect value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
                 <option value="created_at">Created Date</option>
@@ -309,7 +339,16 @@ function FinanceRequestsPage() {
             <Pagination.Link onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}>
               <Lucide icon="ChevronLeft" className="w-4 h-4" />
             </Pagination.Link>
-            <Pagination.Link active>{currentPage}</Pagination.Link>
+            {visiblePages.map((page, index) => (
+              <span key={page} className="flex items-center">
+                {index > 0 && page - visiblePages[index - 1] > 1 ? (
+                  <span className="px-2 text-slate-400">...</span>
+                ) : null}
+                <Pagination.Link active={page === currentPage} onClick={() => setCurrentPage(page)}>
+                  {page}
+                </Pagination.Link>
+              </span>
+            ))}
             <Pagination.Link onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}>
               <Lucide icon="ChevronRight" className="w-4 h-4" />
             </Pagination.Link>
