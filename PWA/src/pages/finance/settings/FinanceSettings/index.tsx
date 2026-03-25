@@ -132,6 +132,11 @@ function Main() {
                     Request Types
                   </Tab.Button>
                 </Tab>
+                <Tab>
+                  <Tab.Button className="w-full py-2" as="button">
+                    Accounting
+                  </Tab.Button>
+                </Tab>
               </Tab.List>
 
               <Tab.Panels className="border-b border-l border-r">
@@ -268,6 +273,55 @@ function Main() {
                       </div>
                     </div>
                   )}
+                </Tab.Panel>
+
+                <Tab.Panel className="p-5">
+                  <div className="grid grid-cols-12 gap-4">
+                    <div className="col-span-12 md:col-span-4">
+                      <div className="border rounded-md p-4 h-full">
+                        <div className="font-medium">Chart of Accounts</div>
+                        <div className="text-sm text-slate-500 mt-2">
+                          Manage account codes, account types, and control accounts used by journals and reports.
+                        </div>
+                        <Link to="/app/finance/settings/chart-accounts" className="inline-block mt-4">
+                          <Button variant="primary">Open Chart Accounts</Button>
+                        </Link>
+                      </div>
+                    </div>
+                    <div className="col-span-12 md:col-span-4">
+                      <div className="border rounded-md p-4 h-full">
+                        <div className="font-medium">Reporting Periods</div>
+                        <div className="text-sm text-slate-500 mt-2">
+                          Define monthly periods, close them, and control when finance can post accounting entries.
+                        </div>
+                        <Link to="/app/finance/settings/reporting-periods" className="inline-block mt-4">
+                          <Button variant="primary">Open Reporting Periods</Button>
+                        </Link>
+                      </div>
+                    </div>
+                    <div className="col-span-12 md:col-span-4">
+                      <div className="border rounded-md p-4 h-full">
+                        <div className="font-medium">Customers &amp; Vendors</div>
+                        <div className="text-sm text-slate-500 mt-2">
+                          Maintain receivable and payable master data for invoices, bills, receipts, and settlements.
+                        </div>
+                        <Link to="/app/finance/settings/parties" className="inline-block mt-4">
+                          <Button variant="primary">Open Parties</Button>
+                        </Link>
+                      </div>
+                    </div>
+                    <div className="col-span-12 md:col-span-4">
+                      <div className="border rounded-md p-4 h-full">
+                        <div className="font-medium">Funds &amp; Grants</div>
+                        <div className="text-sm text-slate-500 mt-2">
+                          Set up donors, restricted and unrestricted funds, and grant records used for non-profit reporting.
+                        </div>
+                        <Link to="/app/finance/settings/nonprofit" className="inline-block mt-4">
+                          <Button variant="primary">Open Funds &amp; Grants</Button>
+                        </Link>
+                      </div>
+                    </div>
+                  </div>
                 </Tab.Panel>
               </Tab.Panels>
             </Tab.Group>

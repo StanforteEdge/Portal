@@ -191,6 +191,8 @@ export async function createFinanceIncome(payload: {
   payer?: string;
   notes?: string;
   file_id?: string;
+  fund_id?: string;
+  grant_id?: string;
 }) {
   const response = await apiClient.post("/finance/income", payload);
   return response.data?.data as FinanceIncomeRecord;
@@ -215,6 +217,8 @@ export async function createFinanceTransfer(payload: {
   reference?: string;
   note?: string;
   transfer_at?: string;
+  fund_id?: string;
+  grant_id?: string;
 }) {
   const response = await apiClient.post("/finance/transfers", payload);
   return response.data?.data as {

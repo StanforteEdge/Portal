@@ -31,6 +31,21 @@ export class CreateFinanceIncomeDto {
   @IsString()
   payer?: string;
 
+  @ApiPropertyOptional({ example: 'f3e8b369-0eca-454f-a8f8-46b780bc6264' })
+  @IsOptional()
+  @IsUUID()
+  revenue_account_id?: string;
+
+  @ApiPropertyOptional({ example: 'f3e8b369-0eca-454f-a8f8-46b780bc6264' })
+  @IsOptional()
+  @IsUUID()
+  fund_id?: string;
+
+  @ApiPropertyOptional({ example: 'f3e8b369-0eca-454f-a8f8-46b780bc6264' })
+  @IsOptional()
+  @IsUUID()
+  grant_id?: string;
+
   @ApiPropertyOptional({ example: 'Consulting fee for January' })
   @IsOptional()
   @IsString()
@@ -41,4 +56,3 @@ export class CreateFinanceIncomeDto {
   @IsUUID()
   file_id?: string;
 }
-

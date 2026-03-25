@@ -30,9 +30,18 @@ export class CreateTransferDto {
   @IsString()
   note?: string;
 
+  @ApiPropertyOptional({ example: 'a4c5ad31-9200-4701-a019-b5ca8f9c6167' })
+  @IsOptional()
+  @IsUUID()
+  fund_id?: string;
+
+  @ApiPropertyOptional({ example: '5d28da17-d0ef-4d00-bf6c-efc5e9efbb62' })
+  @IsOptional()
+  @IsUUID()
+  grant_id?: string;
+
   @ApiPropertyOptional({ example: '2026-02-20T10:00:00.000Z' })
   @IsOptional()
   @IsDateString()
   transfer_at?: string;
 }
-
