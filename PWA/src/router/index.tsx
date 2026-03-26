@@ -7,6 +7,7 @@ import ProtectedRoute from "@/components/Auth/ProtectedRoute";
 import PublicOnlyRoute from "@/components/Auth/PublicOnlyRoute";
 import PermissionRoute from "@/components/Auth/PermissionRoute";
 import ModuleRoute from "@/components/Auth/ModuleRoute";
+import PageGuide from "@/components/Help/PageGuide";
 
 const Login = lazy(() => import("../pages/auth/Login"));
 const Register = lazy(() => import("../pages/auth/Register"));
@@ -19,6 +20,8 @@ const PortalDashboardPage = lazy(
 );
 const UpdateProfile = lazy(() => import("../pages/staff/profile/UpdateProfile"));
 const ChangePassword = lazy(() => import("../pages/staff/security/ChangePassword"));
+const HelpHomePage = lazy(() => import("../pages/help/HelpHome"));
+const FinanceHelpPage = lazy(() => import("../pages/help/FinanceHelp"));
 const FinanceSettings = lazy(
   () => import("../pages/finance/settings/FinanceSettings")
 );
@@ -174,6 +177,15 @@ function page(element: JSX.Element) {
   );
 }
 
+function financePage(pageKey: string, element: JSX.Element) {
+  return page(
+    <>
+      <PageGuide pageKey={pageKey} />
+      {element}
+    </>
+  );
+}
+
 function Router() {
   const routes = [
     {
@@ -225,6 +237,18 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="documents">
               {page(<DocumentsPage />)}
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "help",
+          element: page(<HelpHomePage />),
+        },
+        {
+          path: "help/finance",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<FinanceHelpPage />)}
             </ModuleRoute>
           ),
         },
@@ -329,7 +353,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceDashboardPage />)}
+                {financePage("dashboard", <FinanceDashboardPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -339,7 +363,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceRequestsPage />)}
+                {financePage("requests", <FinanceRequestsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -349,7 +373,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["requests.manage"]}>
-                {page(<FinanceManualEntryPage />)}
+                {financePage("manual-entry", <FinanceManualEntryPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -359,7 +383,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceRequestDetailPage />)}
+                {financePage("requests", <FinanceRequestDetailPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -369,7 +393,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceRequestDetailPage />)}
+                {financePage("requests", <FinanceRequestDetailPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -379,7 +403,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceSettings />)}
+                {financePage("settings", <FinanceSettings />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -389,7 +413,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceRequestTypeEditor />)}
+                {financePage("settings", <FinanceRequestTypeEditor />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -399,7 +423,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceRequestTypeEditor />)}
+                {financePage("settings", <FinanceRequestTypeEditor />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -409,7 +433,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["requests.manage"]}>
-                {page(<FinanceManualEntryPage />)}
+                {financePage("manual-entry", <FinanceManualEntryPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -419,7 +443,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceAccountsPage />)}
+                {financePage("accounts", <FinanceAccountsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -429,7 +453,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceAccountDetailPage />)}
+                {financePage("accounts", <FinanceAccountDetailPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -439,7 +463,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceLedgerPage />)}
+                {financePage("ledger", <FinanceLedgerPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -449,7 +473,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinancePaymentVouchersPage />)}
+                {financePage("payment-vouchers", <FinancePaymentVouchersPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -459,7 +483,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceAssetsPage />)}
+                {financePage("assets", <FinanceAssetsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -469,7 +493,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["requests.manage"]}>
-                {page(<FinanceAssetEditorPage />)}
+                {financePage("assets", <FinanceAssetEditorPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -479,7 +503,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceAssetDisposalsPage />)}
+                {financePage("assets", <FinanceAssetDisposalsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -489,7 +513,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceAssetDetailPage />)}
+                {financePage("assets", <FinanceAssetDetailPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -499,7 +523,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["requests.manage"]}>
-                {page(<FinanceAssetEditorPage />)}
+                {financePage("assets", <FinanceAssetEditorPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -509,7 +533,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceBudgetsPage />)}
+                {financePage("budgets", <FinanceBudgetsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -519,7 +543,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceReportsDashboardPage />)}
+                {financePage("reports", <FinanceReportsDashboardPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -529,7 +553,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceStatementActivitiesPage />)}
+                {financePage("reports", <FinanceStatementActivitiesPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -539,7 +563,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceStatementPositionPage />)}
+                {financePage("reports", <FinanceStatementPositionPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -549,7 +573,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceBudgetVsActualPage />)}
+                {financePage("reports", <FinanceBudgetVsActualPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -559,7 +583,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceGrantUtilizationPage />)}
+                {financePage("reports", <FinanceGrantUtilizationPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -569,7 +593,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceAgedReceivablesPage />)}
+                {financePage("reports", <FinanceAgedReceivablesPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -579,7 +603,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceReceivablesPage />)}
+                {financePage("receivables", <FinanceReceivablesPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -589,7 +613,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceInvoiceDetailPage />)}
+                {financePage("receivables", <FinanceInvoiceDetailPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -599,7 +623,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinancePayablesPage />)}
+                {financePage("payables", <FinancePayablesPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -609,7 +633,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceChartAccountsPage />)}
+                {financePage("settings", <FinanceChartAccountsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -619,7 +643,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceReportingPeriodsPage />)}
+                {financePage("settings", <FinanceReportingPeriodsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -629,7 +653,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinancePartiesPage />)}
+                {financePage("settings", <FinancePartiesPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
@@ -639,7 +663,7 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
-                {page(<FinanceNonprofitSettingsPage />)}
+                {financePage("settings", <FinanceNonprofitSettingsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
