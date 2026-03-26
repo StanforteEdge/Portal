@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "@/components/Base/Button";
+import Lucide from "@/components/Base/Lucide";
 import Table from "@/components/Base/Table";
 import { FormInput, FormSelect } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
@@ -78,10 +79,11 @@ function AdminDocumentsPage() {
               <Table.Tr>
                 <Table.Th>Title</Table.Th>
                 <Table.Th>Category</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Version</Table.Th>
-                <Table.Th>Ack Required</Table.Th>
-                <Table.Th className="text-right">Action</Table.Th>
+              <Table.Th>Status</Table.Th>
+              <Table.Th>Version</Table.Th>
+              <Table.Th>Attachment</Table.Th>
+              <Table.Th>Ack Required</Table.Th>
+              <Table.Th className="text-right">Action</Table.Th>
               </Table.Tr>
             </Table.Thead>
             <Table.Tbody>
@@ -94,6 +96,18 @@ function AdminDocumentsPage() {
                   <Table.Td>{humanize(doc.category)}</Table.Td>
                   <Table.Td>{humanize(doc.status)}</Table.Td>
                   <Table.Td>{doc.version}</Table.Td>
+                  <Table.Td>
+                    {doc.file?.public_url ? (
+                      <a href={doc.file.public_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                        <Lucide icon="Eye" className="w-4 h-4" />
+                        View File
+                      </a>
+                    ) : doc.file?.file_name ? (
+                      <span className="text-slate-500">{doc.file.file_name}</span>
+                    ) : (
+                      <span className="text-slate-400">-</span>
+                    )}
+                  </Table.Td>
                   <Table.Td>{doc.require_acknowledgement ? "Yes" : "No"}</Table.Td>
                   <Table.Td className="text-right">
                     <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/admin/documents/${doc.id}`)}>
@@ -104,7 +118,7 @@ function AdminDocumentsPage() {
               ))}
               {!loading && documents.length === 0 ? (
                 <Table.Tr>
-                  <Table.Td colSpan={6} className="text-center text-slate-500">No documents found.</Table.Td>
+                  <Table.Td colSpan={7} className="text-center text-slate-500">No documents found.</Table.Td>
                 </Table.Tr>
               ) : null}
             </Table.Tbody>

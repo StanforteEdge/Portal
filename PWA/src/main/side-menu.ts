@@ -99,42 +99,77 @@ const menu: Array<Menu | "divider"> = [
       },
       {
         icon: "List",
-        pathname: "/app/finance/requests",
-        title: "Requests",
-      },
-      {
-        icon: "FileText",
-        pathname: "/app/finance/requests/request/:id",
-        title: "Request",
-      },
-      {
-        icon: "Settings",
-        pathname: "/app/finance/settings",
-        title: "Settings",
-        permissions: ["settings.manage"],
-      },
-      {
-        icon: "Clipboard",
-        pathname: "/app/finance/manual-entry",
-        title: "Manual Entry",
-        permissions: ["requests.manage"],
+        title: "Operations",
+        subMenu: [
+          {
+            icon: "List",
+            pathname: "/app/finance/requests",
+            title: "Requests",
+            matchSubPaths: true,
+          },
+          {
+            icon: "CheckCheck",
+            pathname: "/app/requests/approvals",
+            title: "Approvals",
+            permissions: ["requests.approve"],
+          },
+          {
+            icon: "Clipboard",
+            pathname: "/app/finance/manual-entry",
+            title: "Manual Entry",
+            permissions: ["requests.manage"],
+          },
+          {
+            icon: "FileText",
+            pathname: "/app/finance/payment-vouchers",
+            title: "Payment Vouchers",
+          },
+        ],
       },
       {
         icon: "CircleDollarSign",
-        pathname: "/app/finance/accounts",
-        title: "Accounts",
-        matchSubPaths: true,
-      },
-      {
-        icon: "Clipboard",
-        pathname: "/app/finance/assets",
-        title: "Assets",
-        matchSubPaths: true,
+        title: "Money Flow",
+        subMenu: [
+          {
+            icon: "CircleDollarSign",
+            pathname: "/app/finance/accounts",
+            title: "Accounts",
+            matchSubPaths: true,
+          },
+          {
+            icon: "List",
+            pathname: "/app/finance/ledger",
+            title: "Ledger",
+          },
+          {
+            icon: "FileText",
+            pathname: "/app/finance/receivables",
+            title: "Receivables",
+            matchSubPaths: true,
+          },
+          {
+            icon: "ListChecks",
+            pathname: "/app/finance/payables",
+            title: "Payables",
+          },
+        ],
       },
       {
         icon: "Wallet",
-        pathname: "/app/finance/budgets",
-        title: "Budgets",
+        title: "Planning",
+        subMenu: [
+          {
+            icon: "Wallet",
+            pathname: "/app/finance/budgets",
+            title: "Budgets",
+          },
+          {
+            icon: "Clipboard",
+            pathname: "/app/finance/assets",
+            title: "Assets",
+            matchSubPaths: true,
+          },
+        ],
       },
       {
         icon: "BarChart2",
@@ -165,32 +200,23 @@ const menu: Array<Menu | "divider"> = [
             pathname: "/app/finance/reports/grant-utilization",
             title: "Grant Utilization",
           },
+          {
+            icon: "FileText",
+            pathname: "/app/finance/reports/aged-receivables",
+            title: "Aged Receivables",
+          },
         ],
       },
       {
-        icon: "FileText",
-        pathname: "/app/finance/receivables",
-        title: "Receivables",
-      },
-      {
-        icon: "ListChecks",
-        pathname: "/app/finance/payables",
-        title: "Payables",
-      },
-      {
-        icon: "List",
-        pathname: "/app/finance/ledger",
-        title: "Ledger",
-      },
-      {
-        icon: "FileText",
-        pathname: "/app/finance/payment-vouchers",
-        title: "Payment Vouchers",
-      },
-      {
         icon: "Settings2",
-        title: "Accounting",
+        title: "Setup",
         subMenu: [
+          {
+            icon: "Settings",
+            pathname: "/app/finance/settings",
+            title: "Finance Settings",
+            permissions: ["settings.manage"],
+          },
           {
             icon: "BookOpen",
             pathname: "/app/finance/settings/chart-accounts",
