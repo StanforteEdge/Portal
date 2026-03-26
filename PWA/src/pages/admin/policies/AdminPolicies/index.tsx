@@ -52,6 +52,11 @@ function AdminPoliciesPage() {
     return rows.filter((row) => row.module.toLowerCase().includes(q) || row.policy_key.toLowerCase().includes(q));
   }, [rows, search]);
 
+  const selectedDocument = useMemo(
+    () => documents.find((doc) => doc.id === form.document_id) || null,
+    [documents, form.document_id]
+  );
+
   const load = async () => {
     try {
       setLoading(true);
@@ -229,7 +234,19 @@ function AdminPoliciesPage() {
                 <Table.Td>{row.policy_key}</Table.Td>
                 <Table.Td>{row.scope_type}{row.scope_id ? `:${row.scope_id}` : ""}</Table.Td>
                 <Table.Td>{row.priority}</Table.Td>
-                <Table.Td>{row.document?.title || "-"}</Table.Td>
+                <Table.Td>
+                  <div>{row.document?.title || "-"}</div>
+                  {documents.find((doc) => doc.id === row.document?.id)?.file?.public_url ? (
+                    <a
+                      href={documents.find((doc) => doc.id === row.document?.id)?.file?.public_url || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-primary hover:underline"
+                    >
+                      View file
+                    </a>
+                  ) : null}
+                </Table.Td>
                 <Table.Td className={row.is_active ? "text-success" : "text-slate-500"}>{row.is_active ? "Active" : "Inactive"}</Table.Td>
                 <Table.Td>{formatDisplayDate(row.updated_at)}</Table.Td>
                 <Table.Td className="text-right">
@@ -298,6 +315,29 @@ function AdminPoliciesPage() {
                     </option>
                   ))}
                 </FormSelect>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedDocument ? (
+                    <>
+                      <Button size="sm" variant="outline-secondary" onClick={() => window.open(`/app/admin/documents/${selectedDocument.id}`, "_blank")}>
+                        Open Document
+                      </Button>
+                      {selectedDocument.file?.public_url ? (
+                        <a
+                          href={selectedDocument.file.public_url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center text-sm text-primary hover:underline"
+                        >
+                          View Attached File
+                        </a>
+                      ) : null}
+                    </>
+                  ) : (
+                    <Button size="sm" variant="outline-primary" onClick={() => window.open("/app/admin/documents/new", "_blank")}>
+                      Create Document
+                    </Button>
+                  )}
+                </div>
               </div>
               <div className="col-span-12 md:col-span-4">
                 <FormLabel>Document Version</FormLabel>

@@ -142,9 +142,34 @@ export async function listFinanceSalesInvoices(params?: Record<string, unknown>)
   return (response.data?.data ?? []) as any[];
 }
 
+export async function getFinanceSalesInvoice(id: string) {
+  const response = await apiClient.get(`/finance/sales-invoices/${id}`);
+  return response.data?.data;
+}
+
 export async function createFinanceSalesInvoice(payload: Record<string, unknown>) {
   const response = await apiClient.post("/finance/sales-invoices", payload);
   return response.data?.data;
+}
+
+export async function sendFinanceSalesInvoice(id: string) {
+  const response = await apiClient.post(`/finance/sales-invoices/${id}/send`);
+  return response.data?.data;
+}
+
+export async function remindFinanceSalesInvoice(id: string) {
+  const response = await apiClient.post(`/finance/sales-invoices/${id}/remind`);
+  return response.data?.data;
+}
+
+export async function voidFinanceSalesInvoice(id: string) {
+  const response = await apiClient.post(`/finance/sales-invoices/${id}/void`);
+  return response.data?.data;
+}
+
+export async function generateFinanceSalesInvoicePdf(id: string) {
+  const response = await apiClient.post(`/finance/sales-invoices/${id}/pdf`);
+  return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
 }
 
 export async function listFinanceBills(params?: Record<string, unknown>) {
@@ -159,6 +184,11 @@ export async function createFinanceBill(payload: Record<string, unknown>) {
 
 export async function createFinanceReceipt(payload: Record<string, unknown>) {
   const response = await apiClient.post("/finance/receipts", payload);
+  return response.data?.data;
+}
+
+export async function getFinanceCustomerStatement(id: string, params?: Record<string, unknown>) {
+  const response = await apiClient.get(`/finance/customers/${id}/statement`, { params });
   return response.data?.data;
 }
 

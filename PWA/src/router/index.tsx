@@ -94,6 +94,9 @@ const FinanceBudgetVsActualPage = lazy(
 const FinanceGrantUtilizationPage = lazy(
   () => import("../pages/finance/reports/FinanceGrantUtilization")
 );
+const FinanceAgedReceivablesPage = lazy(
+  () => import("../pages/finance/reports/FinanceAgedReceivables")
+);
 const FinanceChartAccountsPage = lazy(
   () => import("../pages/finance/settings/FinanceChartAccounts")
 );
@@ -108,6 +111,9 @@ const FinanceNonprofitSettingsPage = lazy(
 );
 const FinanceReceivablesPage = lazy(
   () => import("../pages/finance/receivables/FinanceReceivables")
+);
+const FinanceInvoiceDetailPage = lazy(
+  () => import("../pages/finance/receivables/FinanceInvoiceDetail")
 );
 const FinancePayablesPage = lazy(
   () => import("../pages/finance/payables/FinancePayables")
@@ -559,11 +565,31 @@ function Router() {
           ),
         },
         {
+          path: "finance/reports/aged-receivables",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceAgedReceivablesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
           path: "finance/receivables",
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
                 {page(<FinanceReceivablesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/receivables/:id",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {page(<FinanceInvoiceDetailPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),

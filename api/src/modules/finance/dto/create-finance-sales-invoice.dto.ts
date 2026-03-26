@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsArray, IsDateString, IsNumber, IsOptional, IsString, IsUUID, Matches, Min, ValidateNested } from 'class-validator';
+import { IsArray, IsDateString, IsIn, IsNumber, IsOptional, IsString, IsUUID, Matches, Min, ValidateNested } from 'class-validator';
 
 class FinanceSalesInvoiceLineDto {
   @ApiProperty({ example: '3fef7e86-cf6a-4df7-b0b3-e350adf55e33' })
@@ -69,6 +69,11 @@ export class CreateFinanceSalesInvoiceDto {
   @IsString()
   @Matches(/^[A-Z]{3}$/)
   currency?: string;
+
+  @ApiPropertyOptional({ enum: ['draft', 'sent'] })
+  @IsOptional()
+  @IsIn(['draft', 'sent'])
+  status?: 'draft' | 'sent';
 
   @ApiPropertyOptional({ example: 0 })
   @Type(() => Number)

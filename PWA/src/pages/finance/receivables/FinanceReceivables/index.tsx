@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import Table from "@/components/Base/Table";
 import Lucide from "@/components/Base/Lucide";
@@ -8,10 +9,15 @@ import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
   createFinanceReceipt,
   createFinanceSalesInvoice,
+  generateFinanceSalesInvoicePdf,
+  getFinanceCustomerStatement,
   listFinanceChartAccounts,
   listFinanceCustomers,
   listFinanceFunds,
   listFinanceGrants,
+  remindFinanceSalesInvoice,
+  sendFinanceSalesInvoice,
+  voidFinanceSalesInvoice,
 } from "@/services/financeAccounting";
 import { getFinanceReceivables } from "@/services/financeReporting";
 import { listFinanceAccounts } from "@/services/finance";
@@ -24,6 +30,11 @@ type InvoiceLine = {
   description: string;
   quantity: string;
   unit_price: string;
+};
+
+type ReceiptAllocationLine = {
+  sales_invoice_id: string;
+  amount: string;
 };
 
 const emptyInvoiceLine: InvoiceLine = {
@@ -43,24 +54,25 @@ const emptyInvoiceForm = {
   invoice_date: new Date().toISOString().slice(0, 10),
   due_date: "",
   currency: "NGN",
+  status: "draft",
   tax_amount: "0",
   notes: "",
   lines: [{ ...emptyInvoiceLine }],
 };
 
 const emptyReceiptForm = {
-  sales_invoice_id: "",
   customer_id: "",
   account_id: "",
-  amount: "",
   received_at: new Date().toISOString().slice(0, 10),
   currency: "NGN",
   receipt_number: "",
   reference: "",
   notes: "",
+  allocations: [{ sales_invoice_id: "", amount: "" }] as ReceiptAllocationLine[],
 };
 
 function FinanceReceivablesPage() {
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [report, setReport] = useState<any>(null);
@@ -76,11 +88,34 @@ function FinanceReceivablesPage() {
   const [showReceiptModal, setShowReceiptModal] = useState(false);
   const [savingInvoice, setSavingInvoice] = useState(false);
   const [savingReceipt, setSavingReceipt] = useState(false);
+  const [invoiceActionId, setInvoiceActionId] = useState("");
   const [invoiceForm, setInvoiceForm] = useState(emptyInvoiceForm);
   const [receiptForm, setReceiptForm] = useState(emptyReceiptForm);
+  const [statementCustomer, setStatementCustomer] = useState<any | null>(null);
+  const [statementData, setStatementData] = useState<any | null>(null);
+  const [statementLoading, setStatementLoading] = useState(false);
   const filteredGrantOptions = invoiceForm.fund_id
     ? grants.filter((grant) => String(grant.fund?.id || "") === invoiceForm.fund_id)
     : grants;
+  const receiptTotal = useMemo(
+    () => receiptForm.allocations.reduce((sum, row) => sum + Number(row.amount || 0), 0),
+    [receiptForm.allocations]
+  );
+
+  function downloadBase64File(fileName: string, mimeType: string, contentBase64: string) {
+    const bytes = atob(contentBase64);
+    const arr = new Uint8Array(bytes.length);
+    for (let i = 0; i < bytes.length; i += 1) arr[i] = bytes.charCodeAt(i);
+    const blob = new Blob([arr], { type: mimeType });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.URL.revokeObjectURL(url);
+  }
 
   const load = async () => {
     try {
@@ -148,11 +183,38 @@ function FinanceReceivablesPage() {
   const openReceiptModal = (item?: any) => {
     setReceiptForm({
       ...emptyReceiptForm,
-      sales_invoice_id: item?.id || "",
       customer_id: "",
-      amount: item?.outstanding_amount ? String(item.outstanding_amount) : "",
+      allocations: item?.id
+        ? [{ sales_invoice_id: item.id, amount: item?.outstanding_amount ? String(item.outstanding_amount) : "" }]
+        : [{ sales_invoice_id: "", amount: "" }],
     });
     setShowReceiptModal(true);
+  };
+
+  const updateReceiptAllocation = (index: number, key: keyof ReceiptAllocationLine, value: string) => {
+    setReceiptForm((prev) => ({
+      ...prev,
+      allocations: prev.allocations.map((row, rowIndex) =>
+        rowIndex === index ? { ...row, [key]: value } : row
+      ),
+    }));
+  };
+
+  const addReceiptAllocation = () => {
+    setReceiptForm((prev) => ({
+      ...prev,
+      allocations: [...prev.allocations, { sales_invoice_id: "", amount: "" }],
+    }));
+  };
+
+  const removeReceiptAllocation = (index: number) => {
+    setReceiptForm((prev) => ({
+      ...prev,
+      allocations:
+        prev.allocations.length === 1
+          ? prev.allocations
+          : prev.allocations.filter((_, rowIndex) => rowIndex !== index),
+    }));
   };
 
   const saveInvoice = async () => {
@@ -160,6 +222,7 @@ function FinanceReceivablesPage() {
       setSavingInvoice(true);
       await createFinanceSalesInvoice({
         ...invoiceForm,
+        status: invoiceForm.status || "draft",
         organization_id: invoiceForm.organization_id || undefined,
         team_id: invoiceForm.team_id || undefined,
         fund_id: invoiceForm.fund_id || undefined,
@@ -188,9 +251,11 @@ function FinanceReceivablesPage() {
       setSavingReceipt(true);
       await createFinanceReceipt({
         ...receiptForm,
-        sales_invoice_id: receiptForm.sales_invoice_id || undefined,
         customer_id: receiptForm.customer_id || undefined,
-        amount: Number(receiptForm.amount || 0),
+        amount: receiptTotal,
+        allocations: receiptForm.allocations
+          .filter((row) => row.sales_invoice_id && Number(row.amount || 0) > 0)
+          .map((row) => ({ sales_invoice_id: row.sales_invoice_id, amount: Number(row.amount || 0) })),
         reference: receiptForm.reference || undefined,
         notes: receiptForm.notes || undefined,
         receipt_number: receiptForm.receipt_number || undefined,
@@ -203,6 +268,75 @@ function FinanceReceivablesPage() {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to record receipt." });
     } finally {
       setSavingReceipt(false);
+    }
+  };
+
+  const handleSendInvoice = async (invoiceId: string) => {
+    try {
+      setInvoiceActionId(`send:${invoiceId}`);
+      await sendFinanceSalesInvoice(invoiceId);
+      setNotice({ tone: "success", message: "Invoice sent." });
+      await load();
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to send invoice." });
+    } finally {
+      setInvoiceActionId("");
+    }
+  };
+
+  const handleDownloadInvoice = async (invoiceId: string) => {
+    try {
+      setInvoiceActionId(`pdf:${invoiceId}`);
+      const file = await generateFinanceSalesInvoicePdf(invoiceId);
+      downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to download invoice PDF." });
+    } finally {
+      setInvoiceActionId("");
+    }
+  };
+
+  const handleRemindInvoice = async (invoiceId: string) => {
+    try {
+      setInvoiceActionId(`remind:${invoiceId}`);
+      await remindFinanceSalesInvoice(invoiceId);
+      setNotice({ tone: "success", message: "Invoice reminder sent." });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to send invoice reminder." });
+    } finally {
+      setInvoiceActionId("");
+    }
+  };
+
+  const handleVoidInvoice = async (invoiceId: string) => {
+    try {
+      setInvoiceActionId(`void:${invoiceId}`);
+      await voidFinanceSalesInvoice(invoiceId);
+      setNotice({ tone: "success", message: "Invoice voided." });
+      await load();
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to void invoice." });
+    } finally {
+      setInvoiceActionId("");
+    }
+  };
+
+  const openStatement = async (customerId: string) => {
+    const customer = customers.find((row) => row.id === customerId) || null;
+    setStatementCustomer(customer);
+    setStatementData(null);
+    try {
+      setStatementLoading(true);
+      const data = await getFinanceCustomerStatement(customerId, {
+        ...(filters.from ? { from: filters.from } : {}),
+        ...(filters.to ? { to: filters.to } : {}),
+      });
+      setStatementData(data);
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load customer statement." });
+      setStatementCustomer(null);
+    } finally {
+      setStatementLoading(false);
     }
   };
 
@@ -286,17 +420,32 @@ function FinanceReceivablesPage() {
               <Table.Th>Due Date</Table.Th>
               <Table.Th>Status</Table.Th>
               <Table.Th className="text-right">Outstanding</Table.Th>
-              <Table.Th className="text-right">Action</Table.Th>
+              <Table.Th className="text-right">Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
             {(report?.items || []).map((item: any) => (
               <Table.Tr key={item.id}>
                 <Table.Td>
-                  <div className="font-medium">{item.document_number}</div>
+                  <button
+                    type="button"
+                    className="font-medium text-primary"
+                    onClick={() => navigate(`/app/finance/receivables/${item.id}`)}
+                  >
+                    {item.document_number}
+                  </button>
                   <div className="text-xs text-slate-500">{item.organization || "-"} {item.team ? `• ${item.team}` : ""}</div>
                 </Table.Td>
-                <Table.Td>{item.party_name}</Table.Td>
+                <Table.Td>
+                  <div className="font-medium">{item.party_name}</div>
+                  <button
+                    type="button"
+                    className="text-xs text-primary mt-1"
+                    onClick={() => void openStatement(item.customer_id)}
+                  >
+                    View statement
+                  </button>
+                </Table.Td>
                 <Table.Td>{formatDisplayDate(item.issue_date)}</Table.Td>
                 <Table.Td>{formatDisplayDate(item.due_date)}</Table.Td>
                 <Table.Td>
@@ -305,14 +454,53 @@ function FinanceReceivablesPage() {
                 </Table.Td>
                 <Table.Td className="text-right">{formatMoney(item.outstanding_amount, "-", item.currency)}</Table.Td>
                 <Table.Td className="text-right">
-                  <Button
-                    size="sm"
-                    variant="outline-primary"
-                    onClick={() => openReceiptModal(item)}
-                    disabled={Number(item.outstanding_amount || 0) <= 0}
-                  >
-                    <Lucide icon="CircleDollarSign" className="w-4 h-4 mr-1" /> Receipt
-                  </Button>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline-primary"
+                      onClick={() => openReceiptModal(item)}
+                      disabled={Number(item.outstanding_amount || 0) <= 0}
+                    >
+                      <Lucide icon="CircleDollarSign" className="w-4 h-4 mr-1" /> Receipt
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline-secondary"
+                      onClick={() => void handleDownloadInvoice(item.id)}
+                      disabled={invoiceActionId === `pdf:${item.id}`}
+                    >
+                      <Lucide icon="FileText" className="w-4 h-4 mr-1" /> PDF
+                    </Button>
+                    {item.status === "draft" ? (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="primary"
+                          onClick={() => void handleSendInvoice(item.id)}
+                          disabled={invoiceActionId === `send:${item.id}`}
+                        >
+                          <Lucide icon="Send" className="w-4 h-4 mr-1" /> Send
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="soft-danger"
+                          onClick={() => void handleVoidInvoice(item.id)}
+                          disabled={invoiceActionId === `void:${item.id}`}
+                        >
+                          <Lucide icon="XCircle" className="w-4 h-4 mr-1" /> Void
+                        </Button>
+                      </>
+                    ) : item.status !== "void" ? (
+                      <Button
+                        size="sm"
+                        variant="outline-secondary"
+                        onClick={() => void handleRemindInvoice(item.id)}
+                        disabled={invoiceActionId === `remind:${item.id}`}
+                      >
+                        <Lucide icon="Bell" className="w-4 h-4 mr-1" /> Remind
+                      </Button>
+                    ) : null}
+                  </div>
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -345,6 +533,13 @@ function FinanceReceivablesPage() {
             <div className="col-span-12 md:col-span-4">
               <FormLabel>Currency</FormLabel>
               <FormInput value={invoiceForm.currency} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, currency: e.target.value.toUpperCase() }))} />
+            </div>
+            <div className="col-span-12 md:col-span-4">
+              <FormLabel>Save As</FormLabel>
+              <FormSelect value={invoiceForm.status} onChange={(e) => setInvoiceForm((prev) => ({ ...prev, status: e.target.value }))}>
+                <option value="draft">Draft</option>
+                <option value="sent">Send immediately</option>
+              </FormSelect>
             </div>
             <div className="col-span-12 md:col-span-3">
               <FormLabel>Invoice Date</FormLabel>
@@ -448,13 +643,6 @@ function FinanceReceivablesPage() {
           <div className="text-lg font-medium">Record Receipt</div>
           <div className="grid grid-cols-12 gap-4 mt-5">
             <div className="col-span-12 md:col-span-6">
-              <FormLabel>Invoice</FormLabel>
-              <FormSelect value={receiptForm.sales_invoice_id} onChange={(e) => setReceiptForm((prev) => ({ ...prev, sales_invoice_id: e.target.value }))}>
-                <option value="">Select invoice</option>
-                {(report?.items || []).map((item: any) => <option key={item.id} value={item.id}>{item.document_number} - {item.party_name}</option>)}
-              </FormSelect>
-            </div>
-            <div className="col-span-12 md:col-span-6">
               <FormLabel>Customer</FormLabel>
               <FormSelect value={receiptForm.customer_id} onChange={(e) => setReceiptForm((prev) => ({ ...prev, customer_id: e.target.value }))}>
                 <option value="">Optional customer</option>
@@ -469,12 +657,12 @@ function FinanceReceivablesPage() {
               </FormSelect>
             </div>
             <div className="col-span-12 md:col-span-3">
-              <FormLabel>Amount</FormLabel>
-              <FormInput type="number" min="0" value={receiptForm.amount} onChange={(e) => setReceiptForm((prev) => ({ ...prev, amount: e.target.value }))} />
-            </div>
-            <div className="col-span-12 md:col-span-3">
               <FormLabel>Received At</FormLabel>
               <FormInput type="date" value={receiptForm.received_at} onChange={(e) => setReceiptForm((prev) => ({ ...prev, received_at: e.target.value }))} />
+            </div>
+            <div className="col-span-12 md:col-span-3">
+              <FormLabel>Total Amount</FormLabel>
+              <FormInput readOnly value={String(receiptTotal || 0)} />
             </div>
             <div className="col-span-12 md:col-span-4">
               <FormLabel>Receipt Number</FormLabel>
@@ -492,6 +680,48 @@ function FinanceReceivablesPage() {
               <FormLabel>Notes</FormLabel>
               <FormTextarea rows={3} value={receiptForm.notes} onChange={(e) => setReceiptForm((prev) => ({ ...prev, notes: e.target.value }))} />
             </div>
+            <div className="col-span-12">
+              <div className="border rounded-md p-4 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="font-medium">Allocations</div>
+                  <Button size="sm" variant="outline-secondary" onClick={addReceiptAllocation}>
+                    <Lucide icon="Plus" className="w-4 h-4 mr-1" /> Add Invoice
+                  </Button>
+                </div>
+                {receiptForm.allocations.map((allocation, index) => (
+                  <div key={`${index}-${allocation.sales_invoice_id}`} className="grid grid-cols-12 gap-3 items-end">
+                    <div className="col-span-12 md:col-span-8">
+                      <FormLabel>Invoice</FormLabel>
+                      <FormSelect
+                        value={allocation.sales_invoice_id}
+                        onChange={(e) => updateReceiptAllocation(index, "sales_invoice_id", e.target.value)}
+                      >
+                        <option value="">Select invoice</option>
+                        {(report?.items || []).map((item: any) => (
+                          <option key={item.id} value={item.id}>
+                            {item.document_number} - {item.party_name} ({formatMoney(item.outstanding_amount, "-", item.currency)})
+                          </option>
+                        ))}
+                      </FormSelect>
+                    </div>
+                    <div className="col-span-10 md:col-span-3">
+                      <FormLabel>Allocated Amount</FormLabel>
+                      <FormInput
+                        type="number"
+                        min="0"
+                        value={allocation.amount}
+                        onChange={(e) => updateReceiptAllocation(index, "amount", e.target.value)}
+                      />
+                    </div>
+                    <div className="col-span-2 md:col-span-1 flex md:justify-end">
+                      <Button size="sm" variant="soft-danger" onClick={() => removeReceiptAllocation(index)}>
+                        <Lucide icon="Trash2" className="w-4 h-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
           <div className="flex justify-end gap-2 mt-6">
             <Button variant="outline-secondary" onClick={() => setShowReceiptModal(false)}>Cancel</Button>
@@ -499,6 +729,77 @@ function FinanceReceivablesPage() {
               {savingReceipt ? "Saving..." : "Record Receipt"}
             </Button>
           </div>
+        </Dialog.Panel>
+      </Dialog>
+
+      <Dialog open={Boolean(statementCustomer)} onClose={() => !statementLoading && setStatementCustomer(null)}>
+        <Dialog.Panel className="p-5 max-w-4xl">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <div className="text-lg font-medium">Customer Statement</div>
+              <div className="text-slate-500">{statementCustomer?.name || "-"}</div>
+            </div>
+            <Button variant="outline-secondary" onClick={() => setStatementCustomer(null)}>
+              Close
+            </Button>
+          </div>
+
+          {statementLoading ? (
+            <div className="mt-6 text-slate-500">Loading statement...</div>
+          ) : (
+            <>
+              <div className="grid grid-cols-12 gap-4 mt-5">
+                <div className="col-span-12 md:col-span-4">
+                  <div className="text-slate-500 text-xs uppercase">Opening Balance</div>
+                  <div className="mt-1 text-lg font-medium">{formatMoney(statementData?.opening_balance || 0)}</div>
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <div className="text-slate-500 text-xs uppercase">Closing Balance</div>
+                  <div className="mt-1 text-lg font-medium">{formatMoney(statementData?.closing_balance || 0)}</div>
+                </div>
+                <div className="col-span-12 md:col-span-4">
+                  <div className="text-slate-500 text-xs uppercase">Period</div>
+                  <div className="mt-1 text-sm font-medium">
+                    {statementData?.from ? formatDisplayDate(statementData.from) : "Start"} - {statementData?.to ? formatDisplayDate(statementData.to) : "Today"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="box p-0 mt-5 overflow-x-auto">
+                <Table>
+                  <Table.Thead>
+                    <Table.Tr>
+                      <Table.Th>Date</Table.Th>
+                      <Table.Th>Document</Table.Th>
+                      <Table.Th>Description</Table.Th>
+                      <Table.Th className="text-right">Debit</Table.Th>
+                      <Table.Th className="text-right">Credit</Table.Th>
+                      <Table.Th className="text-right">Balance</Table.Th>
+                    </Table.Tr>
+                  </Table.Thead>
+                  <Table.Tbody>
+                    {(statementData?.items || []).map((row: any, index: number) => (
+                      <Table.Tr key={`${row.type}-${row.document_number}-${index}`}>
+                        <Table.Td>{formatDisplayDate(row.date)}</Table.Td>
+                        <Table.Td>{row.document_number}</Table.Td>
+                        <Table.Td>{row.description}</Table.Td>
+                        <Table.Td className="text-right">{row.debit ? formatMoney(row.debit) : "-"}</Table.Td>
+                        <Table.Td className="text-right">{row.credit ? formatMoney(row.credit) : "-"}</Table.Td>
+                        <Table.Td className="text-right">{formatMoney(row.running_balance)}</Table.Td>
+                      </Table.Tr>
+                    ))}
+                    {!statementData?.items?.length ? (
+                      <Table.Tr>
+                        <Table.Td colSpan={6} className="text-center text-slate-500">
+                          No statement activity found.
+                        </Table.Td>
+                      </Table.Tr>
+                    ) : null}
+                  </Table.Tbody>
+                </Table>
+              </div>
+            </>
+          )}
         </Dialog.Panel>
       </Dialog>
     </>
