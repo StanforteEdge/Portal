@@ -65,6 +65,11 @@ const menu: Array<Menu | "divider"> = [
     moduleKey: "documents",
   },
   {
+    icon: "HelpCircle",
+    title: "Help",
+    pathname: "/app/help",
+  },
+  {
     icon: "Trello",
     title: "Profile",
     subMenu: [
