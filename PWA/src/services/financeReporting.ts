@@ -140,6 +140,7 @@ export async function getFinanceReceivables(params?: FinanceReportFilter) {
     items: Array<{
       id: string;
       document_number: string;
+      customer_id: string;
       party_name: string;
       organization: string | null;
       team: string | null;

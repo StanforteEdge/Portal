@@ -1073,6 +1073,8 @@ model FinanceSalesInvoice {
   invoiceDate    DateTime  @map("invoice_date") @db.Date
   dueDate        DateTime? @map("due_date") @db.Date
   status         String    @default("draft") @db.VarChar(30)
+  sentAt         DateTime? @map("sent_at")
+  voidedAt       DateTime? @map("voided_at")
   currency       String    @default("NGN") @db.VarChar(3)
   subtotal       Decimal   @default(0) @db.Decimal(15, 2)
   taxAmount      Decimal   @default(0) @map("tax_amount") @db.Decimal(15, 2)
@@ -1093,6 +1095,7 @@ model FinanceSalesInvoice {
   updatedByUser Profile?                  @relation("FinanceSalesInvoiceUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
   lines         FinanceSalesInvoiceLine[]
   receipts      FinanceReceipt[]
+  allocations   FinanceReceiptAllocation[]
 
   @@index([customerId])
   @@index([organizationId])
@@ -1145,12 +1148,30 @@ model FinanceReceipt {
   salesInvoice  FinanceSalesInvoice? @relation(fields: [salesInvoiceId], references: [id], onDelete: SetNull)
   account       FinanceAccount       @relation(fields: [accountId], references: [id], onDelete: Restrict)
   createdByUser Profile?             @relation("FinanceReceiptCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+  allocations   FinanceReceiptAllocation[]
 
   @@index([customerId])
   @@index([salesInvoiceId])
   @@index([accountId])
   @@index([receivedAt])
   @@map("sta_finance_receipts")
+}
+
+model FinanceReceiptAllocation {
+  id             String   @id @default(uuid()) @db.Uuid
+  receiptId      String   @map("receipt_id") @db.Uuid
+  salesInvoiceId String   @map("sales_invoice_id") @db.Uuid
+  amount         Decimal  @db.Decimal(15, 2)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  receipt      FinanceReceipt      @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+  salesInvoice FinanceSalesInvoice @relation(fields: [salesInvoiceId], references: [id], onDelete: Cascade)
+
+  @@index([receiptId])
+  @@index([salesInvoiceId])
+  @@unique([receiptId, salesInvoiceId], name: "unique_receipt_invoice_allocation")
+  @@map("sta_finance_receipt_allocations")
 }
 
 model FinanceBillHeader {

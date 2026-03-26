@@ -20,12 +20,15 @@ import { CreateFinanceBillDto } from './dto/create-finance-bill.dto';
 import { CreateFinanceReceiptDto } from './dto/create-finance-receipt.dto';
 import { CreateFinanceVendorPaymentDto } from './dto/create-finance-vendor-payment.dto';
 import { UpsertFinanceReportNoteDto } from './dto/upsert-finance-report-note.dto';
+import { MailService } from '../../common/mail/mail.service';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 @Injectable()
 export class FinanceService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly notificationsService: NotificationsService
+    private readonly notificationsService: NotificationsService,
+    private readonly mailService: MailService
   ) {}
 
   async summary(query: Record<string, any>) {
@@ -1954,7 +1957,6 @@ export class FinanceService {
     if (query.customer_id) where.customerId = String(query.customer_id);
     if (query.organization_id) where.organizationId = this.parseId(String(query.organization_id), 'organization_id');
     if (query.team_id) where.teamId = this.parseId(String(query.team_id), 'team_id');
-    if (query.status) where.status = String(query.status).toLowerCase();
     if (query.from || query.to) {
       where.invoiceDate = {
         ...(query.from ? { gte: new Date(String(query.from)) } : {}),
@@ -1970,11 +1972,25 @@ export class FinanceService {
         fund: true,
         grant: true,
         lines: { include: { chartAccount: true } },
-        receipts: true
+        receipts: true,
+        allocations: {
+          include: {
+            receipt: {
+              include: {
+                account: { select: { id: true, name: true, code: true, accountType: true } }
+              }
+            }
+          }
+        }
       },
       orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeSalesInvoice(row));
+    const items = rows.map((row) => this.serializeSalesInvoice(row));
+    if (query.status) {
+      const wanted = String(query.status).toLowerCase();
+      return items.filter((row) => String(row.status).toLowerCase() === wanted);
+    }
+    return items;
   }
 
   async getSalesInvoice(id: string) {
@@ -1987,7 +2003,16 @@ export class FinanceService {
         fund: true,
         grant: true,
         lines: { include: { chartAccount: true } },
-        receipts: true
+        receipts: true,
+        allocations: {
+          include: {
+            receipt: {
+              include: {
+                account: { select: { id: true, name: true, code: true, accountType: true } }
+              }
+            }
+          }
+        }
       }
     });
     if (!row) throw new NotFoundException('Sales invoice not found');
@@ -2025,10 +2050,11 @@ export class FinanceService {
     const taxAmount = Number(dto.tax_amount ?? 0);
     const totalAmount = subtotal + taxAmount;
     const currency = (dto.currency ?? 'NGN').toUpperCase();
-    const invoiceNumber = dto.invoice_number?.trim() || (await this.nextSequenceValue('INV', invoiceDate));
+    const invoiceNumber = dto.invoice_number?.trim() || (await this.nextDocumentSequenceValue('INV', invoiceDate, 'sales_invoice'));
     const period = await this.ensureReportingPeriod(invoiceDate, actorId);
     const arAccount = await this.getRequiredChartAccount('1100');
     const { fund, grant } = await this.validateFundGrant(dto.fund_id, dto.grant_id);
+    const desiredStatus = (dto.status ?? 'draft').toLowerCase();
 
     const created = await this.prisma.$transaction(async (tx) => {
       const invoice = await tx.financeSalesInvoice.create({
@@ -2041,7 +2067,8 @@ export class FinanceService {
           grantId: grant?.id ?? null,
           invoiceDate,
           dueDate,
-          status: 'posted',
+          status: desiredStatus === 'sent' ? 'sent' : 'draft',
+          sentAt: desiredStatus === 'sent' ? new Date() : null,
           currency,
           subtotal,
           taxAmount,
@@ -2066,45 +2093,56 @@ export class FinanceService {
           fund: true,
           grant: true,
           lines: { include: { chartAccount: true } },
-          receipts: true
+          receipts: true,
+          allocations: {
+            include: {
+              receipt: {
+                include: {
+                  account: { select: { id: true, name: true, code: true, accountType: true } }
+                }
+              }
+            }
+          }
         }
       });
 
-      const revenueByAccount = new Map<string, number>();
-      for (const line of lineInputs) {
-        revenueByAccount.set(line.chartAccountId, (revenueByAccount.get(line.chartAccountId) ?? 0) + line.lineTotal);
+      if (desiredStatus === 'sent') {
+        const revenueByAccount = new Map<string, number>();
+        for (const line of lineInputs) {
+          revenueByAccount.set(line.chartAccountId, (revenueByAccount.get(line.chartAccountId) ?? 0) + line.lineTotal);
+        }
+        await this.createJournalEntryTx(tx, {
+          entryDate: invoiceDate,
+          periodId: period.id,
+          sourceType: 'finance_sales_invoice',
+          sourceId: invoice.id,
+          memo: `Sales invoice ${invoice.invoiceNumber}`,
+          currency,
+          postedBy: actorId,
+          lines: [
+            {
+              chartAccountId: arAccount.id,
+              organizationId: invoice.organizationId,
+              teamId: invoice.teamId,
+              fundId: invoice.fundId,
+              grantId: invoice.grantId,
+              debit: totalAmount,
+              credit: 0,
+              description: `Receivable for ${invoice.invoiceNumber}`
+            },
+            ...Array.from(revenueByAccount.entries()).map(([chartAccountId, amount]) => ({
+              chartAccountId,
+              organizationId: invoice.organizationId,
+              teamId: invoice.teamId,
+              fundId: invoice.fundId,
+              grantId: invoice.grantId,
+              debit: 0,
+              credit: amount,
+              description: `Revenue for ${invoice.invoiceNumber}`
+            }))
+          ]
+        });
       }
-      await this.createJournalEntryTx(tx, {
-        entryDate: invoiceDate,
-        periodId: period.id,
-        sourceType: 'finance_sales_invoice',
-        sourceId: invoice.id,
-        memo: `Sales invoice ${invoice.invoiceNumber}`,
-        currency,
-        postedBy: actorId,
-        lines: [
-          {
-            chartAccountId: arAccount.id,
-            organizationId: invoice.organizationId,
-            teamId: invoice.teamId,
-            fundId: invoice.fundId,
-            grantId: invoice.grantId,
-            debit: totalAmount,
-            credit: 0,
-            description: `Receivable for ${invoice.invoiceNumber}`
-          },
-          ...Array.from(revenueByAccount.entries()).map(([chartAccountId, amount]) => ({
-            chartAccountId,
-            organizationId: invoice.organizationId,
-            teamId: invoice.teamId,
-            fundId: invoice.fundId,
-            grantId: invoice.grantId,
-            debit: 0,
-            credit: amount,
-            description: `Revenue for ${invoice.invoiceNumber}`
-          }))
-        ]
-      });
       return invoice;
     });
 
@@ -2187,7 +2225,7 @@ export class FinanceService {
     const taxAmount = Number(dto.tax_amount ?? 0);
     const totalAmount = subtotal + taxAmount;
     const currency = (dto.currency ?? 'NGN').toUpperCase();
-    const billNumber = dto.bill_number?.trim() || (await this.nextSequenceValue('BILL', billDate));
+    const billNumber = dto.bill_number?.trim() || (await this.nextDocumentSequenceValue('BILL', billDate, 'bill'));
     const period = await this.ensureReportingPeriod(billDate, actorId);
     const apAccount = await this.getRequiredChartAccount('2100');
     const { fund, grant } = await this.validateFundGrant(dto.fund_id, dto.grant_id);
@@ -2273,22 +2311,56 @@ export class FinanceService {
     await this.ensureDefaultChartAccounts();
     const account = await this.prisma.financeAccount.findUnique({ where: { id: dto.account_id } });
     if (!account || !account.isActive) throw new BadRequestException('Invalid account_id');
-    const salesInvoice = dto.sales_invoice_id
-      ? await this.prisma.financeSalesInvoice.findUnique({ where: { id: dto.sales_invoice_id }, include: { receipts: true, fund: true, grant: true } })
-      : null;
-    if (dto.sales_invoice_id && !salesInvoice) throw new BadRequestException('Invalid sales_invoice_id');
-    const customerId = dto.customer_id ?? salesInvoice?.customerId ?? null;
+    const requestedAllocationIds = Array.from(
+      new Set([
+        ...(dto.allocations ?? []).map((allocation) => allocation.sales_invoice_id),
+        dto.sales_invoice_id ?? null
+      ].filter((id): id is string => Boolean(id)))
+    );
+    if (requestedAllocationIds.length === 0) {
+      throw new BadRequestException('At least one invoice allocation is required');
+    }
+    const salesInvoices = await this.prisma.financeSalesInvoice.findMany({
+      where: { id: { in: requestedAllocationIds } },
+      include: { allocations: true, fund: true, grant: true }
+    });
+    if (salesInvoices.length !== requestedAllocationIds.length) {
+      throw new BadRequestException('Invalid sales_invoice_id');
+    }
+    const invoiceMap = new Map(salesInvoices.map((invoice) => [invoice.id, invoice]));
+    const allocationsInput = dto.allocations?.length
+      ? dto.allocations.map((allocation) => ({
+          salesInvoiceId: allocation.sales_invoice_id,
+          amount: Number(allocation.amount ?? 0)
+        }))
+      : dto.sales_invoice_id
+        ? [{ salesInvoiceId: dto.sales_invoice_id, amount: Number(dto.amount ?? 0) }]
+        : [];
     const amount = Number(dto.amount ?? 0);
     if (amount <= 0) throw new BadRequestException('Receipt amount must be greater than zero');
     const receivedAt = dto.received_at ? new Date(dto.received_at) : new Date();
-    const currency = (dto.currency ?? salesInvoice?.currency ?? account.currency ?? 'NGN').toUpperCase();
-    if (salesInvoice) {
-      const paid = salesInvoice.receipts.reduce((sum, row) => sum + Number(row.amount), 0);
-      const outstanding = Number(salesInvoice.totalAmount) - paid;
-      if (amount > outstanding) throw new BadRequestException('Receipt amount cannot exceed invoice outstanding balance');
+    const firstInvoice = invoiceMap.get(allocationsInput[0]?.salesInvoiceId || '') ?? null;
+    const currency = (dto.currency ?? firstInvoice?.currency ?? account.currency ?? 'NGN').toUpperCase();
+    const allocationsTotal = allocationsInput.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    if (Math.abs(allocationsTotal - amount) > 0.001) {
+      throw new BadRequestException('Receipt amount must equal the total allocated amount');
+    }
+    const customerId = dto.customer_id ?? firstInvoice?.customerId ?? null;
+    for (const allocation of allocationsInput) {
+      if (allocation.amount <= 0) throw new BadRequestException('Allocated amounts must be greater than zero');
+      const invoice = invoiceMap.get(allocation.salesInvoiceId);
+      if (!invoice) throw new BadRequestException('Invalid sales_invoice_id');
+      const allocated = invoice.allocations.reduce((sum, row) => sum + Number(row.amount), 0);
+      const outstanding = Number(invoice.totalAmount) - allocated;
+      if (allocation.amount - outstanding > 0.001) {
+        throw new BadRequestException(`Receipt allocation cannot exceed invoice outstanding balance for ${invoice.invoiceNumber}`);
+      }
+      if (!['sent', 'part_paid', 'overdue', 'posted'].includes(String(invoice.status).toLowerCase())) {
+        throw new BadRequestException(`Invoice ${invoice.invoiceNumber} is not ready for receipt posting`);
+      }
     }
     const period = await this.ensureReportingPeriod(receivedAt, actorId);
-    const receiptNumber = dto.receipt_number?.trim() || (await this.nextSequenceValue('RCPT', receivedAt));
+    const receiptNumber = dto.receipt_number?.trim() || (await this.nextDocumentSequenceValue('RCPT', receivedAt, 'receipt'));
     const arAccount = await this.getRequiredChartAccount('1100');
     const bankAccount = await this.ensureFinanceAccountChartAccount(account.id, actorId);
 
@@ -2297,7 +2369,7 @@ export class FinanceService {
         data: {
           receiptNumber,
           customerId,
-          salesInvoiceId: salesInvoice?.id ?? null,
+          salesInvoiceId: firstInvoice?.id ?? null,
           accountId: account.id,
           amount,
           currency,
@@ -2307,6 +2379,16 @@ export class FinanceService {
           createdBy: actorId ? toBigInt(actorId) : null
         }
       });
+
+      if (allocationsInput.length > 0) {
+        await tx.financeReceiptAllocation.createMany({
+          data: allocationsInput.map((allocation) => ({
+            receiptId: created.id,
+            salesInvoiceId: allocation.salesInvoiceId,
+            amount: allocation.amount
+          }))
+        });
+      }
 
       await this.createJournalEntryTx(tx, {
         entryDate: receivedAt,
@@ -2319,19 +2401,19 @@ export class FinanceService {
         lines: [
           {
             chartAccountId: bankAccount.id,
-            fundId: salesInvoice?.fundId ?? null,
-            grantId: salesInvoice?.grantId ?? null,
+            fundId: firstInvoice?.fundId ?? null,
+            grantId: firstInvoice?.grantId ?? null,
             debit: amount,
             credit: 0,
             description: `Receipt into ${account.name}`
           },
           {
             chartAccountId: arAccount.id,
-            fundId: salesInvoice?.fundId ?? null,
-            grantId: salesInvoice?.grantId ?? null,
+            fundId: firstInvoice?.fundId ?? null,
+            grantId: firstInvoice?.grantId ?? null,
             debit: 0,
             credit: amount,
-            description: salesInvoice ? `AR settlement for ${salesInvoice.invoiceNumber}` : 'Receivable settlement'
+            description: firstInvoice ? `AR settlement for ${firstInvoice.invoiceNumber}` : 'Receivable settlement'
           }
         ]
       });
@@ -2349,11 +2431,16 @@ export class FinanceService {
           createdBy: actorId ? toBigInt(actorId) : null,
           metadata: {
             customer_id: customerId,
-            sales_invoice_id: salesInvoice?.id ?? null,
+            sales_invoice_id: firstInvoice?.id ?? null,
+            allocation_invoice_ids: allocationsInput.map((row) => row.salesInvoiceId),
             reference: dto.reference ?? null
           } as Prisma.InputJsonValue
         }
       });
+
+      for (const allocation of allocationsInput) {
+        await this.refreshInvoiceStatusTx(tx, allocation.salesInvoiceId);
+      }
 
       return created;
     });
@@ -2380,7 +2467,7 @@ export class FinanceService {
       if (amount > outstanding) throw new BadRequestException('Payment amount cannot exceed bill outstanding balance');
     }
     const period = await this.ensureReportingPeriod(paidAt, actorId);
-    const paymentNumber = dto.payment_number?.trim() || (await this.nextSequenceValue('PAY', paidAt));
+    const paymentNumber = dto.payment_number?.trim() || (await this.nextDocumentSequenceValue('PAY', paidAt, 'vendor_payment'));
     const apAccount = await this.getRequiredChartAccount('2100');
     const bankAccount = await this.ensureFinanceAccountChartAccount(account.id, actorId);
 
@@ -2451,6 +2538,273 @@ export class FinanceService {
     });
 
     return payment;
+  }
+
+  async sendSalesInvoice(id: string, actorId?: string) {
+    const existing = await this.prisma.financeSalesInvoice.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        organization: { select: { id: true, name: true, code: true } },
+        team: { select: { id: true, name: true, type: true } },
+        fund: true,
+        grant: true,
+        lines: { include: { chartAccount: true } },
+        receipts: true,
+        allocations: { include: { receipt: { include: { account: true } } } }
+      }
+    });
+    if (!existing) throw new NotFoundException('Sales invoice not found');
+    if (String(existing.status).toLowerCase() === 'void') {
+      throw new BadRequestException('Voided invoice cannot be sent');
+    }
+    const journalExists = await this.prisma.financeJournalEntry.findFirst({
+      where: { sourceType: 'finance_sales_invoice', sourceId: existing.id },
+      select: { id: true }
+    });
+    const dueDate = existing.dueDate ?? existing.invoiceDate;
+    const paidAmount = existing.allocations.length
+      ? existing.allocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0)
+      : existing.receipts.reduce((sum, row) => sum + Number(row.amount), 0);
+    const effectiveStatus = this.resolveInvoiceStatus(existing.status, Number(existing.totalAmount), paidAmount, dueDate, existing.voidedAt);
+
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (!journalExists) {
+        const period = await this.ensureReportingPeriod(existing.invoiceDate, actorId);
+        const arAccount = await this.getRequiredChartAccount('1100');
+        const revenueByAccount = new Map<string, number>();
+        for (const line of existing.lines) {
+          revenueByAccount.set(line.chartAccountId, (revenueByAccount.get(line.chartAccountId) ?? 0) + Number(line.lineTotal));
+        }
+        await this.createJournalEntryTx(tx, {
+          entryDate: existing.invoiceDate,
+          periodId: period.id,
+          sourceType: 'finance_sales_invoice',
+          sourceId: existing.id,
+          memo: `Sales invoice ${existing.invoiceNumber}`,
+          currency: existing.currency,
+          postedBy: actorId,
+          lines: [
+            {
+              chartAccountId: arAccount.id,
+              organizationId: existing.organizationId,
+              teamId: existing.teamId,
+              fundId: existing.fundId,
+              grantId: existing.grantId,
+              debit: Number(existing.totalAmount),
+              credit: 0,
+              description: `Receivable for ${existing.invoiceNumber}`
+            },
+            ...Array.from(revenueByAccount.entries()).map(([chartAccountId, amount]) => ({
+              chartAccountId,
+              organizationId: existing.organizationId,
+              teamId: existing.teamId,
+              fundId: existing.fundId,
+              grantId: existing.grantId,
+              debit: 0,
+              credit: amount,
+              description: `Revenue for ${existing.invoiceNumber}`
+            }))
+          ]
+        });
+      }
+      return tx.financeSalesInvoice.update({
+        where: { id: existing.id },
+        data: {
+          status: effectiveStatus === 'paid' ? 'paid' : effectiveStatus === 'part_paid' ? 'part_paid' : 'sent',
+          sentAt: existing.sentAt ?? new Date(),
+          updatedBy: actorId ? toBigInt(actorId) : existing.updatedBy
+        },
+        include: {
+          customer: true,
+          organization: { select: { id: true, name: true, code: true } },
+          team: { select: { id: true, name: true, type: true } },
+          fund: true,
+          grant: true,
+          lines: { include: { chartAccount: true } },
+          receipts: true,
+          allocations: { include: { receipt: { include: { account: true } } } }
+        }
+      });
+    });
+
+    await this.sendInvoiceMail(existing.id, existing.invoiceNumber, actorId, 'Invoice', `Please find attached invoice ${existing.invoiceNumber}.`);
+
+    return this.serializeSalesInvoice(updated);
+  }
+
+  async remindSalesInvoice(id: string, actorId?: string) {
+    const existing = await this.prisma.financeSalesInvoice.findUnique({
+      where: { id },
+      include: {
+        customer: true,
+        allocations: true,
+        receipts: true
+      }
+    });
+    if (!existing) throw new NotFoundException('Sales invoice not found');
+    const status = this.resolveInvoiceStatus(
+      existing.status,
+      Number(existing.totalAmount),
+      existing.allocations.length
+        ? existing.allocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0)
+        : existing.receipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0),
+      existing.dueDate ?? existing.invoiceDate,
+      existing.voidedAt
+    );
+    if (status === 'draft') {
+      throw new BadRequestException('Draft invoice cannot be reminded. Send it first.');
+    }
+    if (status === 'void') {
+      throw new BadRequestException('Voided invoice cannot be reminded.');
+    }
+
+    await this.sendInvoiceMail(
+      existing.id,
+      existing.invoiceNumber,
+      actorId,
+      `Reminder: Invoice ${existing.invoiceNumber}`,
+      `This is a reminder for invoice ${existing.invoiceNumber}.`
+    );
+
+    return { success: true, id: existing.id, invoice_number: existing.invoiceNumber };
+  }
+
+  async voidSalesInvoice(id: string, actorId?: string) {
+    const existing = await this.prisma.financeSalesInvoice.findUnique({
+      where: { id },
+      include: {
+        lines: true,
+        receipts: true,
+        allocations: true
+      }
+    });
+    if (!existing) throw new NotFoundException('Sales invoice not found');
+    const paidAmount = existing.allocations.length
+      ? existing.allocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0)
+      : existing.receipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0);
+    if (paidAmount > 0) {
+      throw new BadRequestException('Paid or part-paid invoice cannot be voided');
+    }
+    const journal = await this.prisma.financeJournalEntry.findFirst({
+      where: { sourceType: 'finance_sales_invoice', sourceId: existing.id },
+      include: { lines: true }
+    });
+    const updated = await this.prisma.$transaction(async (tx) => {
+      if (journal) {
+        const period = await this.ensureReportingPeriod(new Date(), actorId);
+        await this.createJournalEntryTx(tx, {
+          entryDate: new Date(),
+          periodId: period.id,
+          sourceType: 'finance_sales_invoice_void',
+          sourceId: existing.id,
+          memo: `Void invoice ${existing.invoiceNumber}`,
+          currency: existing.currency,
+          postedBy: actorId,
+          lines: journal.lines.map((line) => ({
+            chartAccountId: line.chartAccountId,
+            organizationId: line.organizationId,
+            teamId: line.teamId,
+            fundId: line.fundId,
+            grantId: line.grantId,
+            debit: Number(line.credit),
+            credit: Number(line.debit),
+            description: `Reversal of ${existing.invoiceNumber}`
+          }))
+        });
+      }
+      return tx.financeSalesInvoice.update({
+        where: { id: existing.id },
+        data: {
+          status: 'void',
+          voidedAt: new Date(),
+          updatedBy: actorId ? toBigInt(actorId) : existing.updatedBy
+        },
+        include: {
+          customer: true,
+          organization: { select: { id: true, name: true, code: true } },
+          team: { select: { id: true, name: true, type: true } },
+          fund: true,
+          grant: true,
+          lines: { include: { chartAccount: true } },
+          receipts: true,
+          allocations: { include: { receipt: { include: { account: true } } } }
+        }
+      });
+    });
+    return this.serializeSalesInvoice(updated);
+  }
+
+  async customerStatement(customerId: string, query: Record<string, any>) {
+    const customer = await this.prisma.financeCustomer.findUnique({ where: { id: customerId } });
+    if (!customer) throw new NotFoundException('Customer not found');
+    const from = query.from ? new Date(String(query.from)) : null;
+    const to = query.to ? new Date(String(query.to)) : null;
+    const invoices = await this.prisma.financeSalesInvoice.findMany({
+      where: {
+        customerId,
+        ...(from || to
+          ? {
+              invoiceDate: {
+                ...(from ? { gte: from } : {}),
+                ...(to ? { lte: to } : {})
+              }
+            }
+          : {})
+      },
+      include: {
+        allocations: {
+          include: {
+            receipt: {
+              include: {
+                account: { select: { id: true, name: true, code: true } }
+              }
+            }
+          }
+        }
+      },
+      orderBy: [{ invoiceDate: 'asc' }, { createdAt: 'asc' }]
+    });
+
+    const rows: Array<{ date: Date; type: string; document_number: string; description: string; debit: number; credit: number }> = [];
+    for (const invoice of invoices) {
+      rows.push({
+        date: invoice.invoiceDate,
+        type: 'invoice',
+        document_number: invoice.invoiceNumber,
+        description: invoice.notes || 'Sales invoice',
+        debit: Number(invoice.totalAmount),
+        credit: 0
+      });
+      for (const allocation of invoice.allocations) {
+        rows.push({
+          date: allocation.receipt.receivedAt,
+          type: 'receipt',
+          document_number: allocation.receipt.receiptNumber,
+          description: allocation.receipt.reference || allocation.receipt.notes || 'Receipt allocation',
+          debit: 0,
+          credit: Number(allocation.amount)
+        });
+      }
+    }
+    rows.sort((a, b) => a.date.getTime() - b.date.getTime() || a.document_number.localeCompare(b.document_number));
+    let running = 0;
+    const items = rows.map((row) => {
+      running += row.debit - row.credit;
+      return {
+        ...row,
+        date: row.date,
+        balance: running
+      };
+    });
+    return {
+      customer: { id: customer.id, name: customer.name, email: customer.email },
+      from,
+      to,
+      opening_balance: 0,
+      closing_balance: running,
+      items
+    };
   }
 
   async listReportNotes(query: Record<string, any>) {
@@ -2753,6 +3107,7 @@ export class FinanceService {
       include: {
         customer: true,
         receipts: true,
+        allocations: true,
         organization: { select: { id: true, name: true, code: true } },
         team: { select: { id: true, name: true, type: true } },
         fund: true,
@@ -3179,12 +3534,16 @@ export class FinanceService {
         grant: true;
         lines: { include: { chartAccount: true } };
         receipts: true;
+        allocations: { include: { receipt: { include: { account: true } } } };
       };
     }>
   ) {
-    const paidAmount = row.receipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0);
+    const paidAmount = row.allocations.length
+      ? row.allocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0)
+      : row.receipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0);
     const totalAmount = Number(row.totalAmount);
     const outstandingAmount = Math.max(0, totalAmount - paidAmount);
+    const status = this.resolveInvoiceStatus(row.status, totalAmount, paidAmount, row.dueDate ?? row.invoiceDate, row.voidedAt);
     return {
       id: row.id,
       invoice_number: row.invoiceNumber,
@@ -3195,7 +3554,9 @@ export class FinanceService {
       grant: row.grant ? { id: row.grant.id, code: row.grant.code, name: row.grant.name, restriction_type: row.grant.restrictionType } : null,
       invoice_date: row.invoiceDate,
       due_date: row.dueDate,
-      status: row.status,
+      status,
+      sent_at: row.sentAt,
+      voided_at: row.voidedAt,
       currency: row.currency,
       subtotal: Number(row.subtotal),
       tax_amount: Number(row.taxAmount),
@@ -3211,16 +3572,73 @@ export class FinanceService {
         unit_price: Number(line.unitPrice),
         line_total: Number(line.lineTotal)
       })),
-      receipts: row.receipts.map((receipt) => ({
-        id: receipt.id,
-        receipt_number: receipt.receiptNumber,
-        amount: Number(receipt.amount),
-        received_at: receipt.receivedAt,
-        reference: receipt.reference
-      })),
+      receipts: (row.allocations.length
+        ? row.allocations.map((allocation) => ({
+            id: allocation.receipt.id,
+            receipt_number: allocation.receipt.receiptNumber,
+            amount: Number(allocation.receipt.amount),
+            allocated_amount: Number(allocation.amount),
+            received_at: allocation.receipt.receivedAt,
+            reference: allocation.receipt.reference,
+            account: {
+              id: allocation.receipt.account.id,
+              name: allocation.receipt.account.name,
+              code: allocation.receipt.account.code
+            }
+          }))
+        : row.receipts.map((receipt) => ({
+            id: receipt.id,
+            receipt_number: receipt.receiptNumber,
+            amount: Number(receipt.amount),
+            allocated_amount: Number(receipt.amount),
+            received_at: receipt.receivedAt,
+            reference: receipt.reference,
+            account: null
+          }))),
       created_at: row.createdAt,
       updated_at: row.updatedAt
     };
+  }
+
+  private resolveInvoiceStatus(
+    storedStatus: string,
+    totalAmount: number,
+    paidAmount: number,
+    dueDate: Date,
+    voidedAt?: Date | null
+  ) {
+    if (voidedAt || String(storedStatus).toLowerCase() === 'void') return 'void';
+    if (paidAmount >= totalAmount && totalAmount > 0) return 'paid';
+    if (paidAmount > 0) return 'part_paid';
+    const normalized = String(storedStatus || '').toLowerCase();
+    if (normalized === 'draft') return 'draft';
+    if (normalized === 'posted') return dueDate.getTime() < Date.now() ? 'overdue' : 'sent';
+    if (normalized === 'sent' || normalized === 'overdue') {
+      return dueDate.getTime() < Date.now() ? 'overdue' : 'sent';
+    }
+    return normalized || 'draft';
+  }
+
+  private async refreshInvoiceStatusTx(tx: Prisma.TransactionClient, invoiceId: string) {
+    const row = await tx.financeSalesInvoice.findUnique({
+      where: { id: invoiceId },
+      include: { allocations: true, receipts: true }
+    });
+    if (!row) return null;
+    const paidAmount = row.allocations.length
+      ? row.allocations.reduce((sum, allocation) => sum + Number(allocation.amount), 0)
+      : row.receipts.reduce((sum, receipt) => sum + Number(receipt.amount), 0);
+    const status = this.resolveInvoiceStatus(
+      row.status,
+      Number(row.totalAmount),
+      paidAmount,
+      row.dueDate ?? row.invoiceDate,
+      row.voidedAt
+    );
+    return tx.financeSalesInvoice.update({
+      where: { id: invoiceId },
+      data: { status }
+    });
   }
 
   private serializeBill(
@@ -3298,6 +3716,7 @@ export class FinanceService {
       include: {
         customer: true;
         receipts: true;
+        allocations: true;
         organization: { select: { id: true; name: true; code: true } };
         team: { select: { id: true; name: true; type: true } };
         fund: true;
@@ -3306,7 +3725,9 @@ export class FinanceService {
     }>,
     today: Date
   ) {
-    const paidAmount = row.receipts.reduce((sum, payment) => sum + Number(payment.amount), 0);
+    const paidAmount = row.allocations.length
+      ? row.allocations.reduce((sum, payment) => sum + Number(payment.amount), 0)
+      : row.receipts.reduce((sum, payment) => sum + Number(payment.amount), 0);
     const totalAmount = Number(row.totalAmount);
     const outstandingAmount = Math.max(0, totalAmount - paidAmount);
     const dueDate = row.dueDate ?? row.invoiceDate;
@@ -3314,6 +3735,7 @@ export class FinanceService {
     return {
       id: row.id,
       document_number: row.invoiceNumber,
+      customer_id: row.customerId,
       party_name: row.customer.name,
       organization: row.organization ? row.organization.name : null,
       team: row.team ? row.team.name : null,
@@ -3326,7 +3748,7 @@ export class FinanceService {
       outstanding_amount: outstandingAmount,
       age_days: ageDays,
       aging_bucket: this.getAgingBucket(ageDays),
-      status: row.status,
+      status: this.resolveInvoiceStatus(row.status, totalAmount, paidAmount, dueDate, row.voidedAt),
       currency: row.currency,
       type: 'receivable'
     };
@@ -3843,6 +4265,137 @@ export class FinanceService {
     const year = date.getFullYear();
     const count = await this.prisma.financeJournalEntry.count({ where: { entryNo: { startsWith: `${prefix}/${year}/` } } }).catch(() => 0);
     return `${prefix}/${year}/${String(count + 1).padStart(4, '0')}`;
+  }
+
+  private async nextDocumentSequenceValue(
+    prefix: string,
+    date: Date,
+    kind: 'sales_invoice' | 'bill' | 'receipt' | 'vendor_payment'
+  ) {
+    const year = date.getFullYear();
+    const startsWith = `${prefix}/${year}/`;
+    let count = 0;
+    if (kind === 'sales_invoice') {
+      count = await this.prisma.financeSalesInvoice.count({ where: { invoiceNumber: { startsWith } } });
+    } else if (kind === 'bill') {
+      count = await this.prisma.financeBillHeader.count({ where: { billNumber: { startsWith } } });
+    } else if (kind === 'receipt') {
+      count = await this.prisma.financeReceipt.count({ where: { receiptNumber: { startsWith } } });
+    } else {
+      count = await this.prisma.financeVendorPayment.count({ where: { paymentNumber: { startsWith } } });
+    }
+    return `${prefix}/${year}/${String(count + 1).padStart(4, '0')}`;
+  }
+
+  async generateSalesInvoicePdf(id: string) {
+    const invoice = await this.getSalesInvoice(id);
+    const pdf = await PDFDocument.create();
+    const regular = await pdf.embedFont(StandardFonts.Helvetica);
+    const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+    let page = pdf.addPage([595.28, 841.89]);
+    let y = 800;
+    const lineGap = 16;
+    const write = (text: string, size = 11, isBold = false, x = 40) => {
+      if (y < 60) {
+        page = pdf.addPage([595.28, 841.89]);
+        y = 800;
+      }
+      page.drawText(text, { x, y, size, font: isBold ? bold : regular });
+      y -= lineGap;
+    };
+
+    write('INVOICE', 20, true);
+    write(`Invoice No: ${invoice.invoice_number}`, 11, true);
+    write(`Status: ${String(invoice.status).replaceAll('_', ' ')}`);
+    write(`Issue Date: ${this.formatDate(invoice.invoice_date)}`);
+    write(`Due Date: ${this.formatDate(invoice.due_date)}`);
+    write(`Customer: ${invoice.customer.name}`);
+    write(`Email: ${invoice.customer.email || '-'}`);
+    if (invoice.organization?.name) write(`Organization: ${invoice.organization.name}`);
+    if (invoice.team?.name) write(`Team: ${invoice.team.name}`);
+    if (invoice.notes) write(`Notes: ${invoice.notes}`);
+    y -= 8;
+    write('Lines', 13, true);
+    invoice.lines.forEach((line: any, index: number) => {
+      write(`${index + 1}. ${line.description}`, 11, false, 48);
+      write(`Qty ${line.quantity} x ${this.formatMoney(line.unit_price, invoice.currency)} = ${this.formatMoney(line.line_total, invoice.currency)}`, 10, false, 60);
+    });
+    y -= 8;
+    write(`Subtotal: ${this.formatMoney(invoice.subtotal, invoice.currency)}`, 11, true);
+    write(`Tax: ${this.formatMoney(invoice.tax_amount, invoice.currency)}`);
+    write(`Total: ${this.formatMoney(invoice.total_amount, invoice.currency)}`, 12, true);
+    write(`Paid: ${this.formatMoney(invoice.paid_amount, invoice.currency)}`);
+    write(`Balance Due: ${this.formatMoney(invoice.outstanding_amount, invoice.currency)}`, 12, true);
+
+    if (invoice.receipts?.length) {
+      y -= 8;
+      write('Receipts', 13, true);
+      invoice.receipts.forEach((receipt: any) => {
+        write(
+          `${receipt.receipt_number} • ${this.formatDate(receipt.received_at)} • ${this.formatMoney(receipt.allocated_amount ?? receipt.amount, invoice.currency)}`,
+          10,
+          false,
+          48
+        );
+      });
+    }
+
+    const buffer = Buffer.from(await pdf.save());
+    return {
+      file_name: `${String(invoice.invoice_number).replace(/[\\/]+/g, '-')}.pdf`,
+      mime_type: 'application/pdf',
+      content_base64: buffer.toString('base64')
+    };
+  }
+
+  private async sendInvoiceMail(
+    invoiceId: string,
+    invoiceNumber: string,
+    actorId: string | undefined,
+    subject: string,
+    text: string
+  ) {
+    const invoice = await this.prisma.financeSalesInvoice.findUnique({
+      where: { id: invoiceId },
+      include: { customer: true }
+    });
+    const to = invoice?.customer.email?.trim();
+    if (!to) return;
+    const pdf = await this.generateSalesInvoicePdf(invoiceId);
+    await this.mailService.send({
+      to,
+      subject,
+      text,
+      threadKey: `invoice-${invoiceId}`,
+      userId: actorId,
+      notifiableType: 'finance_sales_invoice',
+      notifiableId: invoiceId,
+      attachments: [
+        {
+          filename: pdf.file_name,
+          content: Buffer.from(pdf.content_base64, 'base64'),
+          contentType: 'application/pdf'
+        }
+      ]
+    });
+  }
+
+  private formatDate(value?: Date | string | null) {
+    if (!value) return '-';
+    const date = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(date.getTime())) return '-';
+    return date.toISOString().slice(0, 10);
+  }
+
+  private formatMoney(value?: number | string | null, currency = 'NGN') {
+    const amount = Number(value ?? 0);
+    if (!Number.isFinite(amount)) return `${currency} 0.00`;
+    return new Intl.NumberFormat('en-NG', {
+      style: 'currency',
+      currency,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    }).format(amount);
   }
 
   private async postIncomeJournal(row: Prisma.FinanceIncomeEntryGetPayload<{}>, actorId?: string) {

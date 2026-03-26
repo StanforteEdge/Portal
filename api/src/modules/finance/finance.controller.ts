@@ -164,6 +164,13 @@ export class FinanceController {
     return this.financeService.updateCustomer(id, dto, req.user?.id);
   }
 
+  @Get('customers/:id/statement')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get customer statement' })
+  customerStatement(@Param('id') id: string, @Query() query: Record<string, any>) {
+    return this.financeService.customerStatement(id, query);
+  }
+
   @Get('vendors')
   @Permissions('finance.view')
   @ApiOperation({ summary: 'List finance vendors' })
@@ -340,6 +347,34 @@ export class FinanceController {
   @ApiOperation({ summary: 'Create finance sales invoice and post AR journal' })
   createSalesInvoice(@Req() req: any, @Body() dto: CreateFinanceSalesInvoiceDto) {
     return this.financeService.createSalesInvoice(dto, req.user?.id);
+  }
+
+  @Post('sales-invoices/:id/send')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Send finance sales invoice and post AR journal if needed' })
+  sendSalesInvoice(@Req() req: any, @Param('id') id: string) {
+    return this.financeService.sendSalesInvoice(id, req.user?.id);
+  }
+
+  @Post('sales-invoices/:id/remind')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Send finance sales invoice reminder email' })
+  remindSalesInvoice(@Req() req: any, @Param('id') id: string) {
+    return this.financeService.remindSalesInvoice(id, req.user?.id);
+  }
+
+  @Post('sales-invoices/:id/void')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Void finance sales invoice if unpaid' })
+  voidSalesInvoice(@Req() req: any, @Param('id') id: string) {
+    return this.financeService.voidSalesInvoice(id, req.user?.id);
+  }
+
+  @Post('sales-invoices/:id/pdf')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Generate finance sales invoice PDF' })
+  generateSalesInvoicePdf(@Param('id') id: string) {
+    return this.financeService.generateSalesInvoicePdf(id);
   }
 
   @Get('bills')
