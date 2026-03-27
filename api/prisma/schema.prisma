@@ -140,6 +140,16 @@ model Profile {
   createdFinanceVendorPayments   FinanceVendorPayment[]     @relation("FinanceVendorPaymentCreatedBy")
   createdFinanceReportNotes      FinanceReportNote[]        @relation("FinanceReportNoteCreatedBy")
   updatedFinanceReportNotes      FinanceReportNote[]        @relation("FinanceReportNoteUpdatedBy")
+  payrollWorkers                 PayrollWorker[]            @relation("PayrollWorkerProfile")
+  payrollRunsPrepared            PayrollRun[]               @relation("PayrollRunPreparedBy")
+  payrollRunsReviewed            PayrollRun[]               @relation("PayrollRunReviewedBy")
+  payrollRunsApproved            PayrollRun[]               @relation("PayrollRunApprovedBy")
+  payrollRunEvents              PayrollRunEvent[]          @relation("PayrollRunEventActor")
+  payrollPayslipDistributionsSent PayrollPayslipDistribution[] @relation("PayrollPayslipDistributionSentBy")
+  payrollNotificationPreference PayrollNotificationPreference?
+  payrollImportJobsUploaded      PayrollImportJob[]         @relation("PayrollImportJobUploadedBy")
+  payrollImportJobsRetried       PayrollImportJob[]         @relation("PayrollImportJobRetriedBy")
+  payrollSettingsUpdated         PayrollSetting[]           @relation("PayrollSettingUpdatedBy")
 
   @@map("sta_profiles")
 }
@@ -304,6 +314,11 @@ model Organization {
   financeBillHeaders   FinanceBillHeader[]
   employeeProfiles     EmployeeProfile[]
   documents            Document[]
+  payrollWorkers       PayrollWorker[]
+  payrollWorkerAllocations PayrollWorkerAllocation[]
+  payrollRunItems      PayrollRunItem[]
+  payrollRunItemAllocations PayrollRunItemAllocation[]
+  payrollSettings      PayrollSetting[]
 
   @@map("sta_organizations")
 }
@@ -649,6 +664,7 @@ model FinanceAccount {
   chartAccount    FinanceChartAccount?
   receipts        FinanceReceipt[]
   vendorPayments  FinanceVendorPayment[]
+  payrollRuns     PayrollRun[]
 
   @@unique([organizationId, name], name: "unique_finance_account_name_per_org")
   @@index([organizationId])
@@ -704,6 +720,10 @@ model FinanceFund {
   bills           FinanceBillHeader[]
   paymentVouchers FinancePaymentVoucher[]
   budgets         FinanceBudget[]
+  payrollWorkers  PayrollWorker[]
+  payrollRunItems PayrollRunItem[]
+  payrollWorkerAllocations PayrollWorkerAllocation[]
+  payrollRunItemAllocations PayrollRunItemAllocation[]
 
   @@unique([organizationId, code], name: "unique_finance_fund_code_per_org")
   @@index([organizationId])
@@ -742,6 +762,10 @@ model FinanceGrant {
   bills           FinanceBillHeader[]
   paymentVouchers FinancePaymentVoucher[]
   budgets         FinanceBudget[]
+  payrollWorkers  PayrollWorker[]
+  payrollRunItems PayrollRunItem[]
+  payrollWorkerAllocations PayrollWorkerAllocation[]
+  payrollRunItemAllocations PayrollRunItemAllocation[]
 
   @@unique([organizationId, code], name: "unique_finance_grant_code_per_org")
   @@index([organizationId])
@@ -775,6 +799,9 @@ model FinanceChartAccount {
   paymentVouchers   FinancePaymentVoucher[]
   salesInvoiceLines FinanceSalesInvoiceLine[]
   billLines         FinanceBillLine[]
+  payrollComponents PayrollComponent[]
+  payrollSettingsExpense PayrollSetting[] @relation("PayrollDefaultExpenseAccount")
+  payrollSettingsCash    PayrollSetting[] @relation("PayrollDefaultCashAccount")
 
   @@unique([organizationId, code], name: "unique_finance_chart_account_code_per_org")
   @@index([type])
@@ -827,6 +854,7 @@ model FinanceJournalEntry {
   period       FinanceReportingPeriod @relation(fields: [periodId], references: [id], onDelete: Restrict)
   postedByUser Profile?               @relation("FinanceJournalEntryPostedBy", fields: [postedBy], references: [id], onDelete: SetNull)
   lines        FinanceJournalLine[]
+  payrollPostings PayrollAccountingPosting[]
 
   @@index([periodId])
   @@index([entryDate])
@@ -1337,6 +1365,412 @@ model FinanceBudgetLine {
 
   @@index([budgetId, sortOrder])
   @@map("sta_finance_budget_lines")
+}
+
+model PayrollWorker {
+  id                String    @id @default(uuid()) @db.Uuid
+  profileId         BigInt?   @map("profile_id")
+  organizationId    BigInt?   @map("organization_id")
+  teamId            BigInt?   @map("team_id")
+  projectId         BigInt?   @map("project_id")
+  defaultFundId     String?   @map("default_fund_id") @db.Uuid
+  defaultGrantId    String?   @map("default_grant_id") @db.Uuid
+  workerType        String    @default("employee") @map("worker_type") @db.VarChar(20)
+  fullName          String    @map("full_name") @db.VarChar(180)
+  email             String?   @db.VarChar(255)
+  staffCode         String?   @map("staff_code") @db.VarChar(60)
+  currency          String    @default("NGN") @db.VarChar(3)
+  status            String    @default("active") @db.VarChar(30)
+  bankName          String?   @map("bank_name") @db.VarChar(150)
+  bankAccountName   String?   @map("bank_account_name") @db.VarChar(180)
+  bankAccountNumber String?   @map("bank_account_number") @db.VarChar(60)
+  taxIdentifier     String?   @map("tax_identifier") @db.VarChar(120)
+  pensionIdentifier String?   @map("pension_identifier") @db.VarChar(120)
+  startDate         DateTime? @map("start_date") @db.Date
+  endDate           DateTime? @map("end_date") @db.Date
+  notes             String?
+  metadata          Json?
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  profile              Profile?                    @relation("PayrollWorkerProfile", fields: [profileId], references: [id], onDelete: SetNull)
+  organization         Organization?               @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  defaultFund          FinanceFund?                @relation(fields: [defaultFundId], references: [id], onDelete: SetNull)
+  defaultGrant         FinanceGrant?               @relation(fields: [defaultGrantId], references: [id], onDelete: SetNull)
+  profiles             PayrollWorkerProfile[]
+  allocations          PayrollWorkerAllocation[]
+  runItems             PayrollRunItem[]
+  payslipDistributions PayrollPayslipDistribution[]
+
+  @@index([profileId])
+  @@index([organizationId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([defaultFundId])
+  @@index([defaultGrantId])
+  @@index([workerType, status])
+  @@map("sta_payroll_workers")
+}
+
+model PayrollComponent {
+  id              String   @id @default(uuid()) @db.Uuid
+  chartAccountId  String?  @map("chart_account_id") @db.Uuid
+  code            String   @unique @db.VarChar(60)
+  name            String   @db.VarChar(180)
+  componentType   String   @map("component_type") @db.VarChar(20)
+  calculationType String   @default("fixed") @map("calculation_type") @db.VarChar(20)
+  isTaxable       Boolean  @default(false) @map("is_taxable")
+  isStatutory     Boolean  @default(false) @map("is_statutory")
+  isActive        Boolean  @default(true) @map("is_active")
+  sortOrder       Int      @default(0) @map("sort_order")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  chartAccount      FinanceChartAccount?          @relation(fields: [chartAccountId], references: [id], onDelete: SetNull)
+  profileComponents PayrollWorkerProfileComponent[]
+  runLines          PayrollRunItemLine[]
+
+  @@index([chartAccountId])
+  @@index([componentType, isActive])
+  @@map("sta_payroll_components")
+}
+
+model PayrollWorkerProfile {
+  id            String    @id @default(uuid()) @db.Uuid
+  workerId      String    @map("worker_id") @db.Uuid
+  payFrequency  String    @default("monthly") @map("pay_frequency") @db.VarChar(20)
+  baseAmount    Decimal   @default(0) @map("base_amount") @db.Decimal(15, 2)
+  paymentMode   String?   @map("payment_mode") @db.VarChar(30)
+  effectiveFrom DateTime  @map("effective_from") @db.Date
+  effectiveTo   DateTime? @map("effective_to") @db.Date
+  notes         String?
+  metadata      Json?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  worker     PayrollWorker                  @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  components PayrollWorkerProfileComponent[]
+
+  @@index([workerId, effectiveFrom, effectiveTo])
+  @@map("sta_payroll_worker_profiles")
+}
+
+model PayrollWorkerProfileComponent {
+  id          String   @id @default(uuid()) @db.Uuid
+  profileId   String   @map("profile_id") @db.Uuid
+  componentId String   @map("component_id") @db.Uuid
+  amount      Decimal? @db.Decimal(15, 2)
+  rate        Decimal? @db.Decimal(8, 4)
+  formula     String?
+  isEnabled   Boolean  @default(true) @map("is_enabled")
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  profile   PayrollWorkerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  component PayrollComponent     @relation(fields: [componentId], references: [id], onDelete: Cascade)
+
+  @@unique([profileId, componentId], name: "unique_payroll_profile_component")
+  @@index([componentId])
+  @@map("sta_payroll_worker_profile_components")
+}
+
+model PayrollWorkerAllocation {
+  id                String   @id @default(uuid()) @db.Uuid
+  workerId          String   @map("worker_id") @db.Uuid
+  organizationId    BigInt?  @map("organization_id")
+  teamId            BigInt?  @map("team_id")
+  projectId         BigInt?  @map("project_id")
+  fundId            String?  @map("fund_id") @db.Uuid
+  grantId           String?  @map("grant_id") @db.Uuid
+  allocationPercent Decimal  @default(100) @map("allocation_percent") @db.Decimal(8, 4)
+  allocationAmount  Decimal? @map("allocation_amount") @db.Decimal(15, 2)
+  sortOrder         Int      @default(0) @map("sort_order")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  worker       PayrollWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  fund         FinanceFund?  @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant        FinanceGrant? @relation(fields: [grantId], references: [id], onDelete: SetNull)
+
+  @@index([workerId, sortOrder])
+  @@index([organizationId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@map("sta_payroll_worker_allocations")
+}
+
+model PayrollRun {
+  id                 String    @id @default(uuid()) @db.Uuid
+  paidFromAccountId  String?   @map("paid_from_account_id") @db.Uuid
+  workflowInstanceId String?   @map("workflow_instance_id") @db.Uuid
+  name               String    @db.VarChar(180)
+  year               Int
+  month              Int
+  periodStart        DateTime  @map("period_start") @db.Date
+  periodEnd          DateTime  @map("period_end") @db.Date
+  status             String    @default("draft") @db.VarChar(30)
+  currency           String    @default("NGN") @db.VarChar(3)
+  notes              String?
+  preparedById       BigInt?   @map("prepared_by")
+  reviewedById       BigInt?   @map("reviewed_by")
+  approvedById       BigInt?   @map("approved_by")
+  paidAt             DateTime? @map("paid_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  paidFromAccount      FinanceAccount?             @relation(fields: [paidFromAccountId], references: [id], onDelete: SetNull)
+  preparedBy           Profile?                    @relation("PayrollRunPreparedBy", fields: [preparedById], references: [id], onDelete: SetNull)
+  reviewedBy           Profile?                    @relation("PayrollRunReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+  approvedBy           Profile?                    @relation("PayrollRunApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  items                PayrollRunItem[]
+  postings             PayrollAccountingPosting[]
+  events               PayrollRunEvent[]
+  payslipDistributions PayrollPayslipDistribution[]
+
+  @@unique([year, month], name: "unique_payroll_run_period")
+  @@index([status])
+  @@index([workflowInstanceId])
+  @@index([paidFromAccountId])
+  @@map("sta_payroll_runs")
+}
+
+model PayrollRunItem {
+  id                String   @id @default(uuid()) @db.Uuid
+  runId             String   @map("run_id") @db.Uuid
+  workerId          String   @map("worker_id") @db.Uuid
+  organizationId    BigInt?  @map("organization_id")
+  teamId            BigInt?  @map("team_id")
+  projectId         BigInt?  @map("project_id")
+  fundId            String?  @map("fund_id") @db.Uuid
+  grantId           String?  @map("grant_id") @db.Uuid
+  workerType        String   @map("worker_type") @db.VarChar(20)
+  grossPay          Decimal  @default(0) @map("gross_pay") @db.Decimal(15, 2)
+  totalDeductions   Decimal  @default(0) @map("total_deductions") @db.Decimal(15, 2)
+  employerCostTotal Decimal  @default(0) @map("employer_cost_total") @db.Decimal(15, 2)
+  netPay            Decimal  @default(0) @map("net_pay") @db.Decimal(15, 2)
+  paymentStatus     String   @default("pending") @map("payment_status") @db.VarChar(30)
+  paymentReference  String?  @map("payment_reference") @db.VarChar(120)
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  run                  PayrollRun                   @relation(fields: [runId], references: [id], onDelete: Cascade)
+  worker               PayrollWorker                @relation(fields: [workerId], references: [id], onDelete: Restrict)
+  organization         Organization?                @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  fund                 FinanceFund?                 @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant                FinanceGrant?                @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  lines                PayrollRunItemLine[]
+  allocations          PayrollRunItemAllocation[]
+  payslipDistributions PayrollPayslipDistribution[]
+
+  @@unique([runId, workerId], name: "unique_payroll_run_worker")
+  @@index([runId, paymentStatus])
+  @@index([organizationId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@map("sta_payroll_run_items")
+}
+
+model PayrollRunItemLine {
+  id          String   @id @default(uuid()) @db.Uuid
+  runItemId   String   @map("run_item_id") @db.Uuid
+  componentId String   @map("component_id") @db.Uuid
+  lineType    String   @map("line_type") @db.VarChar(20)
+  amount      Decimal  @db.Decimal(15, 2)
+  quantity    Decimal? @db.Decimal(10, 2)
+  rate        Decimal? @db.Decimal(10, 4)
+  notes       String?
+  metadata    Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  runItem   PayrollRunItem   @relation(fields: [runItemId], references: [id], onDelete: Cascade)
+  component PayrollComponent @relation(fields: [componentId], references: [id], onDelete: Restrict)
+
+  @@index([runItemId])
+  @@index([componentId])
+  @@map("sta_payroll_run_item_lines")
+}
+
+model PayrollRunItemAllocation {
+  id                String   @id @default(uuid()) @db.Uuid
+  runItemId         String   @map("run_item_id") @db.Uuid
+  organizationId    BigInt?  @map("organization_id")
+  teamId            BigInt?  @map("team_id")
+  projectId         BigInt?  @map("project_id")
+  fundId            String?  @map("fund_id") @db.Uuid
+  grantId           String?  @map("grant_id") @db.Uuid
+  allocationPercent Decimal  @default(100) @map("allocation_percent") @db.Decimal(8, 4)
+  allocationAmount  Decimal? @map("allocation_amount") @db.Decimal(15, 2)
+  sortOrder         Int      @default(0) @map("sort_order")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  runItem      PayrollRunItem @relation(fields: [runItemId], references: [id], onDelete: Cascade)
+  organization Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  fund         FinanceFund?   @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant        FinanceGrant?  @relation(fields: [grantId], references: [id], onDelete: SetNull)
+
+  @@index([runItemId, sortOrder])
+  @@index([organizationId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@map("sta_payroll_run_item_allocations")
+}
+
+model PayrollAccountingPosting {
+  id             String   @id @default(uuid()) @db.Uuid
+  runId          String   @map("run_id") @db.Uuid
+  journalEntryId String   @map("journal_entry_id") @db.Uuid
+  postedBy       BigInt?  @map("posted_by")
+  postedAt       DateTime @default(now()) @map("posted_at")
+
+  run          PayrollRun          @relation(fields: [runId], references: [id], onDelete: Cascade)
+  journalEntry FinanceJournalEntry @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, journalEntryId], name: "unique_payroll_posting")
+  @@index([journalEntryId])
+  @@map("sta_payroll_accounting_postings")
+}
+
+model PayrollImportJob {
+  id            String    @id @default(uuid()) @db.Uuid
+  retryOfJobId  String?   @map("retry_of_job_id") @db.Uuid
+  uploadedBy    BigInt?   @map("uploaded_by")
+  retriedBy     BigInt?   @map("retried_by")
+  fileName      String    @map("file_name") @db.VarChar(255)
+  status        String    @default("processing") @db.VarChar(30)
+  updateExisting Boolean  @default(false) @map("update_existing")
+  summary       Json?
+  createdAt     DateTime  @default(now()) @map("created_at")
+  completedAt   DateTime? @map("completed_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  uploadedByUser Profile?           @relation("PayrollImportJobUploadedBy", fields: [uploadedBy], references: [id], onDelete: SetNull)
+  retriedByUser  Profile?           @relation("PayrollImportJobRetriedBy", fields: [retriedBy], references: [id], onDelete: SetNull)
+  retryOfJob     PayrollImportJob?  @relation("PayrollImportJobRetry", fields: [retryOfJobId], references: [id], onDelete: SetNull)
+  retries        PayrollImportJob[] @relation("PayrollImportJobRetry")
+  rows           PayrollImportRow[]
+
+  @@index([status, createdAt])
+  @@index([uploadedBy])
+  @@index([retryOfJobId])
+  @@map("sta_payroll_import_jobs")
+}
+
+model PayrollImportRow {
+  id            String   @id @default(uuid()) @db.Uuid
+  jobId         String   @map("job_id") @db.Uuid
+  sheetName     String   @map("sheet_name") @db.VarChar(30)
+  rowNumber     Int?     @map("row_number")
+  rowKey        String?  @map("row_key") @db.VarChar(255)
+  action        String   @default("create") @db.VarChar(20)
+  status        String   @default("pending") @db.VarChar(20)
+  errorMessage  String?  @map("error_message")
+  payload       Json
+  linkedRunId   String?  @map("linked_run_id") @db.Uuid
+  linkedRunItemId String? @map("linked_run_item_id") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  job PayrollImportJob @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([jobId, sheetName])
+  @@index([status])
+  @@index([linkedRunId])
+  @@index([linkedRunItemId])
+  @@map("sta_payroll_import_rows")
+}
+
+model PayrollRunEvent {
+  id        String   @id @default(uuid()) @db.Uuid
+  runId      String   @map("run_id") @db.Uuid
+  actorId    BigInt?  @map("actor_id")
+  eventType  String   @map("event_type") @db.VarChar(40)
+  note       String?
+  metadata   Json?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  run   PayrollRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  actor Profile?   @relation("PayrollRunEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([runId, createdAt])
+  @@index([eventType])
+  @@index([actorId])
+  @@map("sta_payroll_run_events")
+}
+
+model PayrollPayslipDistribution {
+  id             String    @id @default(uuid()) @db.Uuid
+  runId          String    @map("run_id") @db.Uuid
+  runItemId      String?   @map("run_item_id") @db.Uuid
+  workerId       String?   @map("worker_id") @db.Uuid
+  recipientEmail String    @map("recipient_email") @db.VarChar(255)
+  status         String    @default("pending") @db.VarChar(20)
+  errorMessage   String?   @map("error_message")
+  sentBy         BigInt?   @map("sent_by")
+  sentAt         DateTime? @map("sent_at")
+  metadata       Json?
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  run        PayrollRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  runItem    PayrollRunItem? @relation(fields: [runItemId], references: [id], onDelete: SetNull)
+  worker     PayrollWorker? @relation(fields: [workerId], references: [id], onDelete: SetNull)
+  sentByUser Profile?       @relation("PayrollPayslipDistributionSentBy", fields: [sentBy], references: [id], onDelete: SetNull)
+
+  @@index([runId, createdAt])
+  @@index([runItemId])
+  @@index([workerId])
+  @@index([status])
+  @@index([sentBy])
+  @@map("sta_payroll_payslip_distributions")
+}
+
+model PayrollSetting {
+  id                     String   @id @default(uuid()) @db.Uuid
+  organizationId         BigInt?  @map("organization_id")
+  defaultExpenseAccountId String? @map("default_expense_account_id") @db.Uuid
+  defaultCashAccountId   String?  @map("default_cash_account_id") @db.Uuid
+  config                 Json?
+  updatedBy              BigInt?  @map("updated_by")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  organization          Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  defaultExpenseAccount FinanceChartAccount? @relation("PayrollDefaultExpenseAccount", fields: [defaultExpenseAccountId], references: [id], onDelete: SetNull)
+  defaultCashAccount    FinanceChartAccount? @relation("PayrollDefaultCashAccount", fields: [defaultCashAccountId], references: [id], onDelete: SetNull)
+  updatedByUser         Profile?            @relation("PayrollSettingUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
+
+  @@unique([organizationId], name: "unique_payroll_setting_org")
+  @@index([defaultExpenseAccountId])
+  @@index([defaultCashAccountId])
+  @@map("sta_payroll_settings")
+}
+
+model PayrollNotificationPreference {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    BigInt   @unique @map("user_id")
+  config    Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sta_payroll_notification_preferences")
 }
 
 model FileAsset {

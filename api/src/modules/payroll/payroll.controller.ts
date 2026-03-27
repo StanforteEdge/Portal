@@ -1,0 +1,273 @@
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { Permissions } from '../../common/auth/permissions.decorator';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { CreatePayrollRunDto } from './dto/create-payroll-run.dto';
+import { PayPayrollRunDto } from './dto/pay-payroll-run.dto';
+import { GeneratePayrollPayslipTemplateDto, GeneratePayrollSummaryTemplateDto } from './dto/generate-payroll-template.dto';
+import { PayrollImportDto } from './dto/payroll-import.dto';
+import { UpdatePayrollRunAllocationsDto } from './dto/update-payroll-run-allocations.dto';
+import { UpdatePayrollRunItemDto } from './dto/update-payroll-run-item.dto';
+import { ReviewPayrollRunDto } from './dto/review-payroll-run.dto';
+import { UpsertPayrollComponentDto } from './dto/upsert-payroll-component.dto';
+import { UpsertPayrollSettingDto } from './dto/upsert-payroll-setting.dto';
+import { UpsertPayrollWorkerDto } from './dto/upsert-payroll-worker.dto';
+import { PayrollService } from './payroll.service';
+
+@Controller('payroll')
+@UseGuards(JwtAuthGuard, PermissionsGuard)
+@ApiTags('Payroll')
+@ApiBearerAuth('bearer')
+export class PayrollController {
+  constructor(private readonly payrollService: PayrollService) {}
+
+  @Get('summary')
+  @Permissions('finance.view')
+  summary() {
+    return this.payrollService.summary();
+  }
+
+  @Get('my/payslips')
+  myPayslips(@Req() req: any, @Query() query: Record<string, any>) {
+    return this.payrollService.listMyPayslips(req.user?.id, query);
+  }
+
+  @Post('my/payslips/:runId/:itemId')
+  downloadMyPayslip(@Req() req: any, @Param('runId') runId: string, @Param('itemId') itemId: string) {
+    return this.payrollService.generateMyPayslip(req.user?.id, runId, itemId);
+  }
+
+  @Get('inbox')
+  @Permissions('finance.view')
+  inbox(@Req() req: any) {
+    return this.payrollService.getInbox(req.user?.id, req.user?.permissions ?? []);
+  }
+
+  @Get('settings')
+  @Permissions('settings.manage')
+  settings(@Query() query: Record<string, any>) {
+    return this.payrollService.getSettings(query);
+  }
+
+  @Get('notification-preferences')
+  @Permissions('finance.view')
+  notificationPreferences(@Req() req: any) {
+    return this.payrollService.getNotificationPreferences(req.user?.id);
+  }
+
+  @Post('notification-preferences')
+  @Permissions('finance.view')
+  upsertNotificationPreferences(@Req() req: any, @Body() body: Record<string, any>) {
+    return this.payrollService.upsertNotificationPreferences(req.user?.id, body);
+  }
+
+  @Post('settings')
+  @Permissions('settings.manage')
+  upsertSettings(@Req() req: any, @Body() dto: UpsertPayrollSettingDto) {
+    return this.payrollService.upsertSettings(dto, req.user?.id);
+  }
+
+  @Get('workers')
+  @Permissions('finance.view')
+  listWorkers(@Query() query: Record<string, any>) {
+    return this.payrollService.listWorkers(query);
+  }
+
+  @Get('workers/:id')
+  @Permissions('finance.view')
+  getWorker(@Param('id') id: string) {
+    return this.payrollService.getWorker(id);
+  }
+
+  @Post('workers')
+  @Permissions('settings.manage')
+  createWorker(@Req() req: any, @Body() dto: UpsertPayrollWorkerDto) {
+    return this.payrollService.createWorker(dto, req.user?.id);
+  }
+
+  @Post('workers/:id')
+  @Permissions('settings.manage')
+  updateWorker(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertPayrollWorkerDto) {
+    return this.payrollService.updateWorker(id, dto, req.user?.id);
+  }
+
+  @Get('components')
+  @Permissions('finance.view')
+  listComponents(@Query() query: Record<string, any>) {
+    return this.payrollService.listComponents(query);
+  }
+
+  @Post('components')
+  @Permissions('settings.manage')
+  createComponent(@Body() dto: UpsertPayrollComponentDto) {
+    return this.payrollService.createComponent(dto);
+  }
+
+  @Post('components/:id')
+  @Permissions('settings.manage')
+  updateComponent(@Param('id') id: string, @Body() dto: UpsertPayrollComponentDto) {
+    return this.payrollService.updateComponent(id, dto);
+  }
+
+  @Get('runs')
+  @Permissions('finance.view')
+  listRuns(@Query() query: Record<string, any>) {
+    return this.payrollService.listRuns(query);
+  }
+
+  @Get('runs/:id')
+  @Permissions('finance.view')
+  getRun(@Param('id') id: string) {
+    return this.payrollService.getRun(id);
+  }
+
+  @Post('runs')
+  @Permissions('settings.manage')
+  createRun(@Req() req: any, @Body() dto: CreatePayrollRunDto) {
+    return this.payrollService.createRun(dto, req.user?.id);
+  }
+
+  @Post('runs/:id')
+  @Permissions('settings.manage')
+  updateRun(@Req() req: any, @Param('id') id: string, @Body() dto: CreatePayrollRunDto) {
+    return this.payrollService.updateRun(id, dto, req.user?.id);
+  }
+
+  @Post('runs/:id/generate')
+  @Permissions('settings.manage')
+  generateRun(@Req() req: any, @Param('id') id: string) {
+    return this.payrollService.generateRun(id, req.user?.id);
+  }
+
+  @Post('runs/:id/submit')
+  @Permissions('settings.manage')
+  submitRun(@Req() req: any, @Param('id') id: string) {
+    return this.payrollService.submitRun(id, req.user?.id);
+  }
+
+  @Post('runs/:id/review')
+  @Permissions('settings.manage')
+  reviewRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
+    return this.payrollService.reviewRun(id, dto, req.user?.id);
+  }
+
+  @Post('runs/:id/approve')
+  @Permissions('settings.manage')
+  approveRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
+    return this.payrollService.approveRun(id, dto, req.user?.id);
+  }
+
+  @Post('runs/:id/reject')
+  @Permissions('settings.manage')
+  rejectRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
+    return this.payrollService.rejectRun(id, dto, req.user?.id);
+  }
+
+  @Post('runs/:id/reopen')
+  @Permissions('settings.manage')
+  reopenRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
+    return this.payrollService.reopenRun(id, dto, req.user?.id);
+  }
+
+  @Post('runs/:id/close')
+  @Permissions('settings.manage')
+  closeRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
+    return this.payrollService.closeRun(id, dto, req.user?.id);
+  }
+
+  @Post('runs/:id/pay')
+  @Permissions('settings.manage')
+  payRun(@Req() req: any, @Param('id') id: string, @Body() dto: PayPayrollRunDto) {
+    return this.payrollService.payRun(id, dto, req.user?.id);
+  }
+
+  @Post('runs/:id/payslips/:itemId')
+  @Permissions('finance.view')
+  generateRunItemPayslip(@Param('id') id: string, @Param('itemId') itemId: string) {
+    return this.payrollService.generateRunItemPayslip(id, itemId);
+  }
+
+  @Post('runs/:id/payslips-package')
+  @Permissions('finance.view')
+  generateRunPayslipsPackage(@Param('id') id: string) {
+    return this.payrollService.generateRunPayslipsPackage(id);
+  }
+
+  @Post('runs/:id/distribute-payslips')
+  @Permissions('finance.view')
+  distributeRunPayslips(@Req() req: any, @Param('id') id: string) {
+    return this.payrollService.distributeRunPayslips(id, req.user?.id);
+  }
+
+  @Post('runs/:id/bank-schedule')
+  @Permissions('finance.view')
+  generateBankSchedule(@Param('id') id: string) {
+    return this.payrollService.generateBankSchedule(id);
+  }
+
+  @Get('reports/overview')
+  @Permissions('finance.view')
+  reportsOverview(@Query() query: Record<string, any>) {
+    return this.payrollService.reportsOverview(query);
+  }
+
+  @Post('runs/:id/items/:itemId')
+  @Permissions('settings.manage')
+  updateRunItem(@Req() req: any, @Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdatePayrollRunItemDto) {
+    return this.payrollService.updateRunItem(id, itemId, dto, req.user?.id);
+  }
+
+  @Post('runs/:id/items/:itemId/allocations')
+  @Permissions('settings.manage')
+  updateRunItemAllocations(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('itemId') itemId: string,
+    @Body() dto: UpdatePayrollRunAllocationsDto
+  ) {
+    return this.payrollService.updateRunItemAllocations(id, itemId, dto, req.user?.id);
+  }
+
+  @Post('import/validate')
+  @Permissions('settings.manage')
+  validateImport(@Body() dto: PayrollImportDto) {
+    return this.payrollService.validateImport(dto);
+  }
+
+  @Get('import/jobs')
+  @Permissions('settings.manage')
+  listImportJobs(@Query() query: Record<string, any>) {
+    return this.payrollService.listImportJobs(query);
+  }
+
+  @Get('import/jobs/:id')
+  @Permissions('settings.manage')
+  getImportJob(@Param('id') id: string) {
+    return this.payrollService.getImportJob(id);
+  }
+
+  @Post('import/commit')
+  @Permissions('settings.manage')
+  commitImport(@Req() req: any, @Body() dto: PayrollImportDto) {
+    return this.payrollService.commitImport(dto, req.user?.id);
+  }
+
+  @Post('import/jobs/:id/retry-failed')
+  @Permissions('settings.manage')
+  retryFailedImport(@Req() req: any, @Param('id') id: string) {
+    return this.payrollService.retryFailedImport(id, req.user?.id);
+  }
+
+  @Post('templates/payslip')
+  @Permissions('finance.view')
+  generatePayslipTemplate(@Body() dto: GeneratePayrollPayslipTemplateDto) {
+    return this.payrollService.generatePayslipTemplate(dto);
+  }
+
+  @Post('templates/summary')
+  @Permissions('finance.view')
+  generateSummaryTemplate(@Body() dto: GeneratePayrollSummaryTemplateDto) {
+    return this.payrollService.generateSummaryTemplate(dto);
+  }
+}

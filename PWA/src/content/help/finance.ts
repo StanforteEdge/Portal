@@ -88,6 +88,19 @@ export const financeHelpEntries: FinanceHelpEntry[] = [
     ]
   },
   {
+    key: "payroll",
+    title: "Payroll",
+    summary: "Payroll manages workers, salary components, payroll runs, and the accounting split of payroll cost across organization, team, project, fund, and grant.",
+    actions: [
+      "Set up payroll workers first, including whether each person is an employee or consultant and how their cost should be allocated.",
+      "Create payroll components for earnings, deductions, and employer costs before generating runs.",
+      "Generate a run only after worker setup is complete so payroll figures and accounting splits stay consistent."
+    ],
+    tips: [
+      "Treat payroll runs as controlled period records. After approval and payment, they should be corrected through explicit adjustments, not silent edits."
+    ]
+  },
+  {
     key: "budgets",
     title: "Budgets",
     summary: "Budgets define planned amounts by project, fund, or grant so actual spending can be compared against plan.",
