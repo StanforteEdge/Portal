@@ -22,6 +22,7 @@ import { TeamsModule } from './modules/teams/teams.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { AcknowledgementsModule } from './modules/acknowledgements/acknowledgements.module';
 import { PoliciesModule } from './modules/policies/policies.module';
+import { PayrollModule } from './modules/payroll/payroll.module';
 
 @Module({
   imports: [
@@ -47,7 +48,8 @@ import { PoliciesModule } from './modules/policies/policies.module';
     TeamsModule,
     OnboardingModule,
     AcknowledgementsModule,
-    PoliciesModule
+    PoliciesModule,
+    PayrollModule
   ]
 })
 export class AppModule {}

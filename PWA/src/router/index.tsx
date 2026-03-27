@@ -6,6 +6,7 @@ import Layout from "../themes";
 import ProtectedRoute from "@/components/Auth/ProtectedRoute";
 import PublicOnlyRoute from "@/components/Auth/PublicOnlyRoute";
 import PermissionRoute from "@/components/Auth/PermissionRoute";
+import AnyPermissionRoute from "@/components/Auth/AnyPermissionRoute";
 import ModuleRoute from "@/components/Auth/ModuleRoute";
 import PageGuide from "@/components/Help/PageGuide";
 
@@ -20,6 +21,7 @@ const PortalDashboardPage = lazy(
 );
 const UpdateProfile = lazy(() => import("../pages/staff/profile/UpdateProfile"));
 const ChangePassword = lazy(() => import("../pages/staff/security/ChangePassword"));
+const MyPayslipsPage = lazy(() => import("../pages/profile/MyPayslips"));
 const HelpHomePage = lazy(() => import("../pages/help/HelpHome"));
 const FinanceHelpPage = lazy(() => import("../pages/help/FinanceHelp"));
 const FinanceSettings = lazy(
@@ -121,6 +123,39 @@ const FinanceInvoiceDetailPage = lazy(
 const FinancePayablesPage = lazy(
   () => import("../pages/finance/payables/FinancePayables")
 );
+const FinancePayrollDashboardPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollDashboard")
+);
+const FinancePayrollInboxPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollInbox")
+);
+const FinancePayrollNotificationPreferencesPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollNotificationPreferences")
+);
+const FinancePayrollWorkersPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollWorkers")
+);
+const FinancePayrollComponentsPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollComponents")
+);
+const FinancePayrollRunsPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollRuns")
+);
+const FinancePayrollApprovalsPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollApprovals")
+);
+const FinancePayrollSettingsPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollSettings")
+);
+const FinancePayrollImportPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollImport")
+);
+const FinancePayrollReportsPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollReports")
+);
+const FinancePayrollTemplatesPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollTemplates")
+);
 const AdminFilesPage = lazy(() => import("../pages/admin/files/AdminFiles"));
 const AdminProjectsPage = lazy(
   () => import("../pages/admin/projects/AdminProjects")
@@ -215,6 +250,22 @@ function Router() {
         {
           path: "settings/security",
           element: page(<ChangePassword />),
+        },
+        {
+          path: "profile/payslips",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<MyPayslipsPage />)}
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "profile/payroll-notifications",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<FinancePayrollNotificationPreferencesPage />)}
+            </ModuleRoute>
+          ),
         },
         {
           path: "onboarding",
@@ -624,6 +675,116 @@ function Router() {
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["finance.view"]}>
                 {financePage("payables", <FinancePayablesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {financePage("payroll", <FinancePayrollDashboardPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/workers",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {financePage("payroll", <FinancePayrollWorkersPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/inbox",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <AnyPermissionRoute requiredPermissions={["requests.approve", "settings.manage"]}>
+                {financePage("payroll", <FinancePayrollInboxPage />)}
+              </AnyPermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/notification-preferences",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {financePage("payroll", <FinancePayrollNotificationPreferencesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/components",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {financePage("payroll", <FinancePayrollComponentsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/runs",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {financePage("payroll", <FinancePayrollRunsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/approvals",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <AnyPermissionRoute requiredPermissions={["requests.approve", "settings.manage"]}>
+                {financePage("payroll", <FinancePayrollApprovalsPage />)}
+              </AnyPermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/settings",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {financePage("payroll", <FinancePayrollSettingsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/reports",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {financePage("payroll", <FinancePayrollReportsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/import",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {financePage("payroll", <FinancePayrollImportPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/templates",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["finance.view"]}>
+                {financePage("payroll", <FinancePayrollTemplatesPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),
