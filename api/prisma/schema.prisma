@@ -150,6 +150,8 @@ model Profile {
   payrollImportJobsUploaded      PayrollImportJob[]         @relation("PayrollImportJobUploadedBy")
   payrollImportJobsRetried       PayrollImportJob[]         @relation("PayrollImportJobRetriedBy")
   payrollSettingsUpdated         PayrollSetting[]           @relation("PayrollSettingUpdatedBy")
+  projectTimesheetsApproved      ProjectTimesheetEntry[]    @relation("ProjectTimesheetApprovedBy")
+  projectTimesheetsCreated       ProjectTimesheetEntry[]    @relation("ProjectTimesheetCreatedBy")
 
   @@map("sta_profiles")
 }
@@ -318,6 +320,8 @@ model Organization {
   payrollWorkerAllocations PayrollWorkerAllocation[]
   payrollRunItems      PayrollRunItem[]
   payrollRunItemAllocations PayrollRunItemAllocation[]
+  payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
+  projectTimesheetEntries ProjectTimesheetEntry[]
   payrollSettings      PayrollSetting[]
 
   @@map("sta_organizations")
@@ -724,6 +728,8 @@ model FinanceFund {
   payrollRunItems PayrollRunItem[]
   payrollWorkerAllocations PayrollWorkerAllocation[]
   payrollRunItemAllocations PayrollRunItemAllocation[]
+  payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
+  projectTimesheetEntries ProjectTimesheetEntry[]
 
   @@unique([organizationId, code], name: "unique_finance_fund_code_per_org")
   @@index([organizationId])
@@ -766,6 +772,8 @@ model FinanceGrant {
   payrollRunItems PayrollRunItem[]
   payrollWorkerAllocations PayrollWorkerAllocation[]
   payrollRunItemAllocations PayrollRunItemAllocation[]
+  payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
+  projectTimesheetEntries ProjectTimesheetEntry[]
 
   @@unique([organizationId, code], name: "unique_finance_grant_code_per_org")
   @@index([organizationId])
@@ -1375,7 +1383,12 @@ model PayrollWorker {
   projectId         BigInt?   @map("project_id")
   defaultFundId     String?   @map("default_fund_id") @db.Uuid
   defaultGrantId    String?   @map("default_grant_id") @db.Uuid
+  taxTableId        String?   @map("tax_table_id") @db.Uuid
   workerType        String    @default("employee") @map("worker_type") @db.VarChar(20)
+  payBasis          String    @default("monthly_fixed") @map("pay_basis") @db.VarChar(30)
+  allocationMode    String    @default("fixed") @map("allocation_mode") @db.VarChar(20)
+  hybridFixedPercent Decimal  @default(0) @map("hybrid_fixed_percent") @db.Decimal(8, 4)
+  standardHoursPerDay Decimal @default(8) @map("standard_hours_per_day") @db.Decimal(8, 2)
   fullName          String    @map("full_name") @db.VarChar(180)
   email             String?   @db.VarChar(255)
   staffCode         String?   @map("staff_code") @db.VarChar(60)
@@ -1397,9 +1410,13 @@ model PayrollWorker {
   organization         Organization?               @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   defaultFund          FinanceFund?                @relation(fields: [defaultFundId], references: [id], onDelete: SetNull)
   defaultGrant         FinanceGrant?               @relation(fields: [defaultGrantId], references: [id], onDelete: SetNull)
+  taxTable             PayrollTaxTable?            @relation(fields: [taxTableId], references: [id], onDelete: SetNull)
   profiles             PayrollWorkerProfile[]
   allocations          PayrollWorkerAllocation[]
   runItems             PayrollRunItem[]
+  timesheetAllocations PayrollRunTimesheetAllocation[]
+  loans                PayrollLoan[]
+  projectTimesheets    ProjectTimesheetEntry[]
   payslipDistributions PayrollPayslipDistribution[]
 
   @@index([profileId])
@@ -1408,6 +1425,7 @@ model PayrollWorker {
   @@index([projectId])
   @@index([defaultFundId])
   @@index([defaultGrantId])
+  @@index([taxTableId])
   @@index([workerType, status])
   @@map("sta_payroll_workers")
 }
@@ -1419,7 +1437,10 @@ model PayrollComponent {
   name            String   @db.VarChar(180)
   componentType   String   @map("component_type") @db.VarChar(20)
   calculationType String   @default("fixed") @map("calculation_type") @db.VarChar(20)
+  paidBy          String   @default("employee") @map("paid_by") @db.VarChar(20)
+  employerSharePercent Decimal @default(0) @map("employer_share_percent") @db.Decimal(8, 4)
   isTaxable       Boolean  @default(false) @map("is_taxable")
+  affectsNetPay   Boolean  @default(true) @map("affects_net_pay")
   isStatutory     Boolean  @default(false) @map("is_statutory")
   isActive        Boolean  @default(true) @map("is_active")
   sortOrder       Int      @default(0) @map("sort_order")
@@ -1430,6 +1451,8 @@ model PayrollComponent {
   chartAccount      FinanceChartAccount?          @relation(fields: [chartAccountId], references: [id], onDelete: SetNull)
   profileComponents PayrollWorkerProfileComponent[]
   runLines          PayrollRunItemLine[]
+  loans             PayrollLoan[]
+  projectTimesheets ProjectTimesheetEntry[]
 
   @@index([chartAccountId])
   @@index([componentType, isActive])
@@ -1531,6 +1554,9 @@ model PayrollRun {
   items                PayrollRunItem[]
   postings             PayrollAccountingPosting[]
   events               PayrollRunEvent[]
+  timesheetAllocations PayrollRunTimesheetAllocation[]
+  loanRepayments       PayrollLoanRepayment[]
+  syncedProjectTimesheets ProjectTimesheetEntry[] @relation("ProjectTimesheetSyncedRun")
   payslipDistributions PayrollPayslipDistribution[]
 
   @@unique([year, month], name: "unique_payroll_run_period")
@@ -1550,9 +1576,15 @@ model PayrollRunItem {
   fundId            String?  @map("fund_id") @db.Uuid
   grantId           String?  @map("grant_id") @db.Uuid
   workerType        String   @map("worker_type") @db.VarChar(20)
+  payBasis          String   @default("monthly_fixed") @map("pay_basis") @db.VarChar(30)
+  allocationSource  String   @default("fixed") @map("allocation_source") @db.VarChar(30)
   grossPay          Decimal  @default(0) @map("gross_pay") @db.Decimal(15, 2)
   totalDeductions   Decimal  @default(0) @map("total_deductions") @db.Decimal(15, 2)
   employerCostTotal Decimal  @default(0) @map("employer_cost_total") @db.Decimal(15, 2)
+  computedNetPay    Decimal  @default(0) @map("computed_net_pay") @db.Decimal(15, 2)
+  actualNetPay      Decimal  @default(0) @map("actual_net_pay") @db.Decimal(15, 2)
+  netAdjustmentAmount Decimal @default(0) @map("net_adjustment_amount") @db.Decimal(15, 2)
+  netAdjustmentReason String? @map("net_adjustment_reason")
   netPay            Decimal  @default(0) @map("net_pay") @db.Decimal(15, 2)
   paymentStatus     String   @default("pending") @map("payment_status") @db.VarChar(30)
   paymentReference  String?  @map("payment_reference") @db.VarChar(120)
@@ -1567,6 +1599,7 @@ model PayrollRunItem {
   grant                FinanceGrant?                @relation(fields: [grantId], references: [id], onDelete: SetNull)
   lines                PayrollRunItemLine[]
   allocations          PayrollRunItemAllocation[]
+  loanRepayments       PayrollLoanRepayment[]
   payslipDistributions PayrollPayslipDistribution[]
 
   @@unique([runId, workerId], name: "unique_payroll_run_worker")
@@ -1577,6 +1610,40 @@ model PayrollRunItem {
   @@index([fundId])
   @@index([grantId])
   @@map("sta_payroll_run_items")
+}
+
+model PayrollRunTimesheetAllocation {
+  id                String   @id @default(uuid()) @db.Uuid
+  runId             String   @map("run_id") @db.Uuid
+  workerId          String   @map("worker_id") @db.Uuid
+  organizationId    BigInt?  @map("organization_id")
+  teamId            BigInt?  @map("team_id")
+  projectId         BigInt?  @map("project_id")
+  fundId            String?  @map("fund_id") @db.Uuid
+  grantId           String?  @map("grant_id") @db.Uuid
+  hours             Decimal  @default(0) @db.Decimal(10, 2)
+  allocationPercent Decimal  @default(0) @map("allocation_percent") @db.Decimal(8, 4)
+  source            String   @default("manual") @db.VarChar(20)
+  notes             String?
+  sortOrder         Int      @default(0) @map("sort_order")
+  metadata          Json?
+  approvedAt        DateTime? @map("approved_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  run          PayrollRun    @relation(fields: [runId], references: [id], onDelete: Cascade)
+  worker       PayrollWorker @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  fund         FinanceFund?  @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant        FinanceGrant? @relation(fields: [grantId], references: [id], onDelete: SetNull)
+
+  @@index([runId, workerId, sortOrder])
+  @@index([organizationId])
+  @@index([teamId])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@map("sta_payroll_run_timesheet_allocations")
 }
 
 model PayrollRunItemLine {
@@ -1642,6 +1709,136 @@ model PayrollAccountingPosting {
   @@unique([runId, journalEntryId], name: "unique_payroll_posting")
   @@index([journalEntryId])
   @@map("sta_payroll_accounting_postings")
+}
+
+model PayrollLoan {
+  id                    String    @id @default(uuid()) @db.Uuid
+  workerId              String    @map("worker_id") @db.Uuid
+  componentId           String?   @map("component_id") @db.Uuid
+  loanType              String    @default("loan") @map("loan_type") @db.VarChar(20)
+  title                 String    @db.VarChar(180)
+  principalAmount       Decimal   @map("principal_amount") @db.Decimal(15, 2)
+  outstandingAmount     Decimal   @map("outstanding_amount") @db.Decimal(15, 2)
+  issuedDate            DateTime  @map("issued_date") @db.Date
+  startRecoveryDate     DateTime  @map("start_recovery_date") @db.Date
+  monthlyRecoveryAmount Decimal?  @map("monthly_recovery_amount") @db.Decimal(15, 2)
+  recoveryRate          Decimal?  @map("recovery_rate") @db.Decimal(8, 4)
+  status                String    @default("active") @db.VarChar(20)
+  notes                 String?
+  metadata              Json?
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  worker     PayrollWorker           @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  component  PayrollComponent?       @relation(fields: [componentId], references: [id], onDelete: SetNull)
+  repayments PayrollLoanRepayment[]
+
+  @@index([workerId, status])
+  @@index([componentId])
+  @@map("sta_payroll_loans")
+}
+
+model PayrollLoanRepayment {
+  id         String   @id @default(uuid()) @db.Uuid
+  loanId     String   @map("loan_id") @db.Uuid
+  runId      String?  @map("run_id") @db.Uuid
+  runItemId  String?  @map("run_item_id") @db.Uuid
+  amount     Decimal  @db.Decimal(15, 2)
+  status     String   @default("posted") @db.VarChar(20)
+  notes      String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  loan    PayrollLoan    @relation(fields: [loanId], references: [id], onDelete: Cascade)
+  run     PayrollRun?    @relation(fields: [runId], references: [id], onDelete: SetNull)
+  runItem PayrollRunItem? @relation(fields: [runItemId], references: [id], onDelete: SetNull)
+
+  @@index([loanId])
+  @@index([runId])
+  @@index([runItemId])
+  @@map("sta_payroll_loan_repayments")
+}
+
+model ProjectTimesheetEntry {
+  id                 String    @id @default(uuid()) @db.Uuid
+  workerId           String    @map("worker_id") @db.Uuid
+  componentId        String?   @map("component_id") @db.Uuid
+  organizationId     BigInt?   @map("organization_id")
+  teamId             BigInt?   @map("team_id")
+  projectId          BigInt?   @map("project_id")
+  fundId             String?   @map("fund_id") @db.Uuid
+  grantId            String?   @map("grant_id") @db.Uuid
+  syncedRunId        String?   @map("synced_run_id") @db.Uuid
+  workDate           DateTime  @map("work_date") @db.Date
+  hours              Decimal   @db.Decimal(10, 2)
+  description        String?
+  status             String    @default("draft") @db.VarChar(20)
+  approvedBy         BigInt?   @map("approved_by")
+  approvedAt         DateTime? @map("approved_at")
+  createdBy          BigInt?   @map("created_by")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  worker       PayrollWorker     @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  component    PayrollComponent? @relation(fields: [componentId], references: [id], onDelete: SetNull)
+  organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  fund         FinanceFund?      @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant        FinanceGrant?     @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  syncedRun    PayrollRun?       @relation("ProjectTimesheetSyncedRun", fields: [syncedRunId], references: [id], onDelete: SetNull)
+  approvedByUser Profile?        @relation("ProjectTimesheetApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+  createdByUser  Profile?        @relation("ProjectTimesheetCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
+
+  @@index([workerId, workDate])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@index([status])
+  @@index([syncedRunId])
+  @@map("sta_project_timesheet_entries")
+}
+
+model PayrollTaxTable {
+  id                   String    @id @default(uuid()) @db.Uuid
+  organizationId       BigInt?   @map("organization_id")
+  name                 String    @db.VarChar(180)
+  code                 String    @unique @db.VarChar(60)
+  workerType           String    @default("employee") @map("worker_type") @db.VarChar(20)
+  periodicity          String    @default("monthly") @db.VarChar(20)
+  status               String    @default("active") @db.VarChar(20)
+  effectiveFrom        DateTime  @map("effective_from") @db.Date
+  effectiveTo          DateTime? @map("effective_to") @db.Date
+  fixedReliefAmount    Decimal   @default(0) @map("fixed_relief_amount") @db.Decimal(15, 2)
+  grossReliefRate      Decimal   @default(0) @map("gross_relief_rate") @db.Decimal(8, 4)
+  minimumReliefAmount  Decimal   @default(0) @map("minimum_relief_amount") @db.Decimal(15, 2)
+  pensionReliefEnabled Boolean   @default(true) @map("pension_relief_enabled")
+  metadata             Json?
+  createdAt            DateTime  @default(now()) @map("created_at")
+  updatedAt            DateTime  @updatedAt @map("updated_at")
+
+  bands    PayrollTaxBand[]
+  workers  PayrollWorker[]
+  settings PayrollSetting[] @relation("PayrollSettingEmployeeTaxTable")
+
+  @@index([organizationId, workerType, status])
+  @@index([effectiveFrom, effectiveTo])
+  @@map("sta_payroll_tax_tables")
+}
+
+model PayrollTaxBand {
+  id         String    @id @default(uuid()) @db.Uuid
+  tableId    String    @map("table_id") @db.Uuid
+  lowerBound Decimal   @default(0) @map("lower_bound") @db.Decimal(15, 2)
+  upperBound Decimal?  @map("upper_bound") @db.Decimal(15, 2)
+  rate       Decimal   @db.Decimal(8, 4)
+  sortOrder  Int       @default(0) @map("sort_order")
+  metadata   Json?
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  table PayrollTaxTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@index([tableId, sortOrder])
+  @@map("sta_payroll_tax_bands")
 }
 
 model PayrollImportJob {
@@ -1744,6 +1941,7 @@ model PayrollSetting {
   organizationId         BigInt?  @map("organization_id")
   defaultExpenseAccountId String? @map("default_expense_account_id") @db.Uuid
   defaultCashAccountId   String?  @map("default_cash_account_id") @db.Uuid
+  employeeTaxTableId     String?  @map("employee_tax_table_id") @db.Uuid
   config                 Json?
   updatedBy              BigInt?  @map("updated_by")
   createdAt              DateTime @default(now()) @map("created_at")
@@ -1752,11 +1950,13 @@ model PayrollSetting {
   organization          Organization?       @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   defaultExpenseAccount FinanceChartAccount? @relation("PayrollDefaultExpenseAccount", fields: [defaultExpenseAccountId], references: [id], onDelete: SetNull)
   defaultCashAccount    FinanceChartAccount? @relation("PayrollDefaultCashAccount", fields: [defaultCashAccountId], references: [id], onDelete: SetNull)
+  employeeTaxTable      PayrollTaxTable?    @relation("PayrollSettingEmployeeTaxTable", fields: [employeeTaxTableId], references: [id], onDelete: SetNull)
   updatedByUser         Profile?            @relation("PayrollSettingUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
 
   @@unique([organizationId], name: "unique_payroll_setting_org")
   @@index([defaultExpenseAccountId])
   @@index([defaultCashAccountId])
+  @@index([employeeTaxTableId])
   @@map("sta_payroll_settings")
 }
 

@@ -26,6 +26,26 @@ export async function listMyPayrollPayslips(params?: Record<string, unknown>) {
   return response.data?.data as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
 }
 
+export async function listMyProjectTimesheets(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/payroll/my/timesheets", { params });
+  return (response.data?.data ?? []) as any[];
+}
+
+export async function createMyProjectTimesheet(payload: Record<string, unknown>) {
+  const response = await apiClient.post("/payroll/my/timesheets", payload);
+  return response.data?.data;
+}
+
+export async function updateMyProjectTimesheet(id: string, payload: Record<string, unknown>) {
+  const response = await apiClient.post(`/payroll/my/timesheets/${id}`, payload);
+  return response.data?.data;
+}
+
+export async function submitMyProjectTimesheet(id: string) {
+  const response = await apiClient.post(`/payroll/my/timesheets/${id}/submit`);
+  return response.data?.data;
+}
+
 export async function downloadMyPayrollPayslip(runId: string, itemId: string) {
   const response = await apiClient.post(`/payroll/my/payslips/${runId}/${itemId}`);
   return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
@@ -61,6 +81,21 @@ export async function updatePayrollSettings(payload: Record<string, unknown>) {
   return response.data?.data;
 }
 
+export async function listPayrollTaxTables(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/payroll/tax-tables", { params });
+  return (response.data?.data ?? []) as any[];
+}
+
+export async function createPayrollTaxTable(payload: Record<string, unknown>) {
+  const response = await apiClient.post("/payroll/tax-tables", payload);
+  return response.data?.data;
+}
+
+export async function updatePayrollTaxTable(id: string, payload: Record<string, unknown>) {
+  const response = await apiClient.post(`/payroll/tax-tables/${id}`, payload);
+  return response.data?.data;
+}
+
 export async function listPayrollWorkers(params?: Record<string, unknown>) {
   const response = await apiClient.get("/payroll/workers", { params });
   return response.data?.data as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
@@ -93,6 +128,51 @@ export async function createPayrollComponent(payload: Record<string, unknown>) {
 
 export async function updatePayrollComponent(id: string, payload: Record<string, unknown>) {
   const response = await apiClient.post(`/payroll/components/${id}`, payload);
+  return response.data?.data;
+}
+
+export async function listPayrollLoans(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/payroll/loans", { params });
+  return (response.data?.data ?? []) as any[];
+}
+
+export async function createPayrollLoan(payload: Record<string, unknown>) {
+  const response = await apiClient.post("/payroll/loans", payload);
+  return response.data?.data;
+}
+
+export async function updatePayrollLoan(id: string, payload: Record<string, unknown>) {
+  const response = await apiClient.post(`/payroll/loans/${id}`, payload);
+  return response.data?.data;
+}
+
+export async function listProjectTimesheets(params?: Record<string, unknown>) {
+  const response = await apiClient.get("/payroll/timesheets", { params });
+  return (response.data?.data ?? []) as any[];
+}
+
+export async function createProjectTimesheet(payload: Record<string, unknown>) {
+  const response = await apiClient.post("/payroll/timesheets", payload);
+  return response.data?.data;
+}
+
+export async function updateProjectTimesheet(id: string, payload: Record<string, unknown>) {
+  const response = await apiClient.post(`/payroll/timesheets/${id}`, payload);
+  return response.data?.data;
+}
+
+export async function submitProjectTimesheet(id: string) {
+  const response = await apiClient.post(`/payroll/timesheets/${id}/submit`);
+  return response.data?.data;
+}
+
+export async function approveProjectTimesheet(id: string) {
+  const response = await apiClient.post(`/payroll/timesheets/${id}/approve`);
+  return response.data?.data;
+}
+
+export async function rejectProjectTimesheet(id: string) {
+  const response = await apiClient.post(`/payroll/timesheets/${id}/reject`);
   return response.data?.data;
 }
 
@@ -190,6 +270,11 @@ export async function updatePayrollRunItem(id: string, itemId: string, payload: 
 
 export async function updatePayrollRunAllocations(id: string, itemId: string, payload: Record<string, unknown>) {
   const response = await apiClient.post(`/payroll/runs/${id}/items/${itemId}/allocations`, payload);
+  return response.data?.data;
+}
+
+export async function updatePayrollRunWorkerTimesheetAllocations(id: string, workerId: string, payload: Record<string, unknown>) {
+  const response = await apiClient.post(`/payroll/runs/${id}/workers/${workerId}/timesheet-allocations`, payload);
   return response.data?.data;
 }
 

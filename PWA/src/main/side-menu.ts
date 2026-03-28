@@ -95,6 +95,12 @@ const menu: Array<Menu | "divider"> = [
         moduleKey: "finance",
       },
       {
+        icon: "Clock3",
+        title: "My Timesheets",
+        pathname: "/app/profile/timesheets",
+        moduleKey: "finance",
+      },
+      {
         icon: "Bell",
         title: "Payroll Notifications",
         pathname: "/app/profile/payroll-notifications",
@@ -218,6 +224,18 @@ const menu: Array<Menu | "divider"> = [
             icon: "ListChecks",
             pathname: "/app/finance/payroll/components",
             title: "Components",
+            permissions: ["settings.manage"],
+          },
+          {
+            icon: "Clock3",
+            pathname: "/app/finance/payroll/timesheets",
+            title: "Timesheets",
+            permissions: ["settings.manage"],
+          },
+          {
+            icon: "CircleDollarSign",
+            pathname: "/app/finance/payroll/loans",
+            title: "Advances & Loans",
             permissions: ["settings.manage"],
           },
           {

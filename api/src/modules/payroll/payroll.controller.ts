@@ -9,6 +9,10 @@ import { GeneratePayrollPayslipTemplateDto, GeneratePayrollSummaryTemplateDto } 
 import { PayrollImportDto } from './dto/payroll-import.dto';
 import { UpdatePayrollRunAllocationsDto } from './dto/update-payroll-run-allocations.dto';
 import { UpdatePayrollRunItemDto } from './dto/update-payroll-run-item.dto';
+import { UpdatePayrollRunTimesheetAllocationsDto } from './dto/update-payroll-run-timesheet-allocations.dto';
+import { UpsertPayrollLoanDto } from './dto/upsert-payroll-loan.dto';
+import { UpsertProjectTimesheetEntryDto } from './dto/upsert-project-timesheet-entry.dto';
+import { UpsertPayrollTaxTableDto } from './dto/upsert-payroll-tax-table.dto';
 import { ReviewPayrollRunDto } from './dto/review-payroll-run.dto';
 import { UpsertPayrollComponentDto } from './dto/upsert-payroll-component.dto';
 import { UpsertPayrollSettingDto } from './dto/upsert-payroll-setting.dto';
@@ -36,6 +40,26 @@ export class PayrollController {
   @Post('my/payslips/:runId/:itemId')
   downloadMyPayslip(@Req() req: any, @Param('runId') runId: string, @Param('itemId') itemId: string) {
     return this.payrollService.generateMyPayslip(req.user?.id, runId, itemId);
+  }
+
+  @Get('my/timesheets')
+  myTimesheets(@Req() req: any, @Query() query: Record<string, any>) {
+    return this.payrollService.listMyProjectTimesheets(req.user?.id, query);
+  }
+
+  @Post('my/timesheets')
+  createMyTimesheet(@Req() req: any, @Body() dto: UpsertProjectTimesheetEntryDto) {
+    return this.payrollService.createMyProjectTimesheet(req.user?.id, dto);
+  }
+
+  @Post('my/timesheets/:id')
+  updateMyTimesheet(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertProjectTimesheetEntryDto) {
+    return this.payrollService.updateMyProjectTimesheet(req.user?.id, id, dto);
+  }
+
+  @Post('my/timesheets/:id/submit')
+  submitMyTimesheet(@Req() req: any, @Param('id') id: string) {
+    return this.payrollService.submitMyProjectTimesheet(req.user?.id, id);
   }
 
   @Get('inbox')
@@ -90,6 +114,78 @@ export class PayrollController {
   @Permissions('settings.manage')
   updateWorker(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertPayrollWorkerDto) {
     return this.payrollService.updateWorker(id, dto, req.user?.id);
+  }
+
+  @Get('loans')
+  @Permissions('finance.view')
+  listLoans(@Query() query: Record<string, any>) {
+    return this.payrollService.listLoans(query);
+  }
+
+  @Post('loans')
+  @Permissions('settings.manage')
+  createLoan(@Body() dto: UpsertPayrollLoanDto) {
+    return this.payrollService.createLoan(dto);
+  }
+
+  @Post('loans/:id')
+  @Permissions('settings.manage')
+  updateLoan(@Param('id') id: string, @Body() dto: UpsertPayrollLoanDto) {
+    return this.payrollService.updateLoan(id, dto);
+  }
+
+  @Get('timesheets')
+  @Permissions('finance.view')
+  listTimesheets(@Query() query: Record<string, any>) {
+    return this.payrollService.listProjectTimesheets(query);
+  }
+
+  @Post('timesheets')
+  @Permissions('settings.manage')
+  createTimesheet(@Req() req: any, @Body() dto: UpsertProjectTimesheetEntryDto) {
+    return this.payrollService.createProjectTimesheet(dto, req.user?.id);
+  }
+
+  @Post('timesheets/:id')
+  @Permissions('settings.manage')
+  updateTimesheet(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertProjectTimesheetEntryDto) {
+    return this.payrollService.updateProjectTimesheet(id, dto, req.user?.id);
+  }
+
+  @Post('timesheets/:id/submit')
+  @Permissions('settings.manage')
+  submitTimesheet(@Param('id') id: string) {
+    return this.payrollService.submitProjectTimesheet(id);
+  }
+
+  @Post('timesheets/:id/approve')
+  @Permissions('settings.manage')
+  approveTimesheet(@Req() req: any, @Param('id') id: string) {
+    return this.payrollService.approveProjectTimesheet(id, req.user?.id);
+  }
+
+  @Post('timesheets/:id/reject')
+  @Permissions('settings.manage')
+  rejectTimesheet(@Param('id') id: string) {
+    return this.payrollService.rejectProjectTimesheet(id);
+  }
+
+  @Get('tax-tables')
+  @Permissions('finance.view')
+  listTaxTables(@Query() query: Record<string, any>) {
+    return this.payrollService.listTaxTables(query);
+  }
+
+  @Post('tax-tables')
+  @Permissions('settings.manage')
+  createTaxTable(@Body() dto: UpsertPayrollTaxTableDto) {
+    return this.payrollService.createTaxTable(dto);
+  }
+
+  @Post('tax-tables/:id')
+  @Permissions('settings.manage')
+  updateTaxTable(@Param('id') id: string, @Body() dto: UpsertPayrollTaxTableDto) {
+    return this.payrollService.updateTaxTable(id, dto);
   }
 
   @Get('components')
@@ -227,6 +323,17 @@ export class PayrollController {
     @Body() dto: UpdatePayrollRunAllocationsDto
   ) {
     return this.payrollService.updateRunItemAllocations(id, itemId, dto, req.user?.id);
+  }
+
+  @Post('runs/:id/workers/:workerId/timesheet-allocations')
+  @Permissions('settings.manage')
+  updateRunWorkerTimesheetAllocations(
+    @Req() req: any,
+    @Param('id') id: string,
+    @Param('workerId') workerId: string,
+    @Body() dto: UpdatePayrollRunTimesheetAllocationsDto
+  ) {
+    return this.payrollService.updateRunWorkerTimesheetAllocations(id, workerId, dto, req.user?.id);
   }
 
   @Post('import/validate')
