@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsIn, IsOptional, IsString, MaxLength } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsIn, IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
 
 export class UpsertPayrollComponentDto {
   @ApiPropertyOptional()
@@ -26,10 +27,27 @@ export class UpsertPayrollComponentDto {
   @IsIn(['fixed', 'formula', 'percentage'])
   calculation_type?: 'fixed' | 'formula' | 'percentage';
 
+  @ApiPropertyOptional({ enum: ['employee', 'employer', 'shared'], default: 'employee' })
+  @IsOptional()
+  @IsIn(['employee', 'employer', 'shared'])
+  paid_by?: 'employee' | 'employer' | 'shared';
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  employer_share_percent?: number;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()
   is_taxable?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  affects_net_pay?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()

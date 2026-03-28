@@ -22,6 +22,7 @@ const PortalDashboardPage = lazy(
 const UpdateProfile = lazy(() => import("../pages/staff/profile/UpdateProfile"));
 const ChangePassword = lazy(() => import("../pages/staff/security/ChangePassword"));
 const MyPayslipsPage = lazy(() => import("../pages/profile/MyPayslips"));
+const MyTimesheetsPage = lazy(() => import("../pages/profile/MyTimesheets"));
 const HelpHomePage = lazy(() => import("../pages/help/HelpHome"));
 const FinanceHelpPage = lazy(() => import("../pages/help/FinanceHelp"));
 const FinanceSettings = lazy(
@@ -137,6 +138,12 @@ const FinancePayrollWorkersPage = lazy(
 );
 const FinancePayrollComponentsPage = lazy(
   () => import("../pages/finance/payroll/FinancePayrollComponents")
+);
+const FinancePayrollLoansPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollLoans")
+);
+const FinancePayrollTimesheetsPage = lazy(
+  () => import("../pages/finance/payroll/FinancePayrollTimesheets")
 );
 const FinancePayrollRunsPage = lazy(
   () => import("../pages/finance/payroll/FinancePayrollRuns")
@@ -256,6 +263,14 @@ function Router() {
           element: (
             <ModuleRoute moduleKey="finance">
               {page(<MyPayslipsPage />)}
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "profile/timesheets",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              {page(<MyTimesheetsPage />)}
             </ModuleRoute>
           ),
         },
@@ -725,6 +740,26 @@ function Router() {
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["settings.manage"]}>
                 {financePage("payroll", <FinancePayrollComponentsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/timesheets",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {financePage("payroll", <FinancePayrollTimesheetsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "finance/payroll/loans",
+          element: (
+            <ModuleRoute moduleKey="finance">
+              <PermissionRoute requiredPermissions={["settings.manage"]}>
+                {financePage("payroll", <FinancePayrollLoansPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),

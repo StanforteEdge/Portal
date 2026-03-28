@@ -44,6 +44,12 @@ class PayrollWorkerProfileComponentDto {
 }
 
 class PayrollWorkerProfileDto {
+  @ApiPropertyOptional({ default: 'monthly_fixed' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(30)
+  pay_basis?: string;
+
   @ApiPropertyOptional({ default: 'monthly' })
   @IsOptional()
   @IsString()
@@ -148,10 +154,41 @@ export class UpsertPayrollWorkerDto {
   @IsString()
   default_grant_id?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  tax_table_id?: string;
+
   @ApiProperty({ enum: ['employee', 'consultant'] })
   @IsString()
   @IsIn(['employee', 'consultant'])
   worker_type!: 'employee' | 'consultant';
+
+  @ApiPropertyOptional({ enum: ['monthly_fixed', 'hourly_timesheet', 'daily_rate', 'retainer', 'manual'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['monthly_fixed', 'hourly_timesheet', 'daily_rate', 'retainer', 'manual'])
+  pay_basis?: string;
+
+  @ApiPropertyOptional({ enum: ['fixed', 'timesheet', 'hybrid'] })
+  @IsOptional()
+  @IsString()
+  @IsIn(['fixed', 'timesheet', 'hybrid'])
+  allocation_mode?: string;
+
+  @ApiPropertyOptional({ default: 0 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  hybrid_fixed_percent?: number;
+
+  @ApiPropertyOptional({ default: 8 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  standard_hours_per_day?: number;
 
   @ApiProperty()
   @IsString()

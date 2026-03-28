@@ -14,7 +14,10 @@ const emptyForm = {
   name: "",
   component_type: "earning",
   calculation_type: "fixed",
+  paid_by: "employee",
+  employer_share_percent: "0",
   is_taxable: "false",
+  affects_net_pay: "true",
   is_statutory: "false",
   is_active: "true",
 };
@@ -58,7 +61,10 @@ function FinancePayrollComponentsPage() {
         name: form.name,
         component_type: form.component_type,
         calculation_type: form.calculation_type,
+        paid_by: form.paid_by,
+        employer_share_percent: Number(form.employer_share_percent || 0),
         is_taxable: form.is_taxable === "true",
+        affects_net_pay: form.affects_net_pay === "true",
         is_statutory: form.is_statutory === "true",
         is_active: form.is_active === "true",
       };
@@ -122,7 +128,7 @@ function FinancePayrollComponentsPage() {
                 <Table.Td>
                   <div className="font-medium">{row.name}</div>
                   <div className="text-xs text-slate-500">
-                    {row.is_statutory ? "Statutory" : "Operational"} • {row.is_taxable ? "Taxable" : "Non-taxable"}
+                    {row.is_statutory ? "Statutory" : "Operational"} • {row.is_taxable ? "Taxable" : "Non-taxable"} • Paid by {row.paid_by || "employee"}
                   </div>
                 </Table.Td>
                 <Table.Td className="capitalize">{row.component_type.replaceAll("_", " ")}</Table.Td>
@@ -139,7 +145,10 @@ function FinancePayrollComponentsPage() {
                         name: row.name || "",
                         component_type: row.component_type || "earning",
                         calculation_type: row.calculation_type || "fixed",
+                        paid_by: row.paid_by || "employee",
+                        employer_share_percent: String(row.employer_share_percent ?? 0),
                         is_taxable: String(Boolean(row.is_taxable)),
+                        affects_net_pay: String(Boolean(row.affects_net_pay ?? true)),
                         is_statutory: String(Boolean(row.is_statutory)),
                         is_active: String(Boolean(row.is_active)),
                       });
@@ -193,6 +202,14 @@ function FinancePayrollComponentsPage() {
               </FormSelect>
             </div>
             <div className="col-span-12 md:col-span-4">
+              <FormLabel>Paid By</FormLabel>
+              <FormSelect value={form.paid_by} onChange={(e) => setForm((prev) => ({ ...prev, paid_by: e.target.value }))}>
+                <option value="employee">Employee</option>
+                <option value="employer">Employer</option>
+                <option value="shared">Shared</option>
+              </FormSelect>
+            </div>
+            <div className="col-span-12 md:col-span-4">
               <FormLabel>Chart Account</FormLabel>
               <FormSelect value={form.chart_account_id} onChange={(e) => setForm((prev) => ({ ...prev, chart_account_id: e.target.value }))}>
                 <option value="">Select chart account</option>
@@ -207,6 +224,17 @@ function FinancePayrollComponentsPage() {
                 <option value="false">No</option>
                 <option value="true">Yes</option>
               </FormSelect>
+            </div>
+            <div className="col-span-12 md:col-span-4">
+              <FormLabel>Affects Net Pay</FormLabel>
+              <FormSelect value={form.affects_net_pay} onChange={(e) => setForm((prev) => ({ ...prev, affects_net_pay: e.target.value }))}>
+                <option value="true">Yes</option>
+                <option value="false">No</option>
+              </FormSelect>
+            </div>
+            <div className="col-span-12 md:col-span-4">
+              <FormLabel>Employer Share %</FormLabel>
+              <FormInput type="number" value={form.employer_share_percent} onChange={(e) => setForm((prev) => ({ ...prev, employer_share_percent: e.target.value }))} />
             </div>
             <div className="col-span-12 md:col-span-4">
               <FormLabel>Statutory</FormLabel>

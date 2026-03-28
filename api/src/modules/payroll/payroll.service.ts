@@ -12,8 +12,10 @@ import { PayPayrollRunDto } from './dto/pay-payroll-run.dto';
 import { PayrollImportDto } from './dto/payroll-import.dto';
 import { UpdatePayrollRunAllocationsDto } from './dto/update-payroll-run-allocations.dto';
 import { UpdatePayrollRunItemDto } from './dto/update-payroll-run-item.dto';
+import { UpdatePayrollRunTimesheetAllocationsDto } from './dto/update-payroll-run-timesheet-allocations.dto';
 import { UpsertPayrollComponentDto } from './dto/upsert-payroll-component.dto';
 import { UpsertPayrollSettingDto } from './dto/upsert-payroll-setting.dto';
+import { UpsertPayrollTaxTableDto } from './dto/upsert-payroll-tax-table.dto';
 import { UpsertPayrollWorkerDto } from './dto/upsert-payroll-worker.dto';
 
 @Injectable()
@@ -106,6 +108,36 @@ export class PayrollService {
     });
     if (!row) throw new NotFoundException('Payslip not found');
     return this.generateRunItemPayslip(runId, itemId);
+  }
+
+  async listMyProjectTimesheets(userId: string, query: Record<string, any>) {
+    const worker = await this.resolveWorkerForUser(userId);
+    return this.listProjectTimesheets({ ...query, worker_id: worker.id });
+  }
+
+  async createMyProjectTimesheet(userId: string, dto: any) {
+    const worker = await this.resolveWorkerForUser(userId);
+    return this.createProjectTimesheet({ ...dto, worker_id: worker.id }, userId);
+  }
+
+  async updateMyProjectTimesheet(userId: string, id: string, dto: any) {
+    const worker = await this.resolveWorkerForUser(userId);
+    const row = await this.prisma.projectTimesheetEntry.findUnique({ where: { id } });
+    if (!row || row.workerId !== worker.id) throw new NotFoundException('Project timesheet entry not found');
+    if (!['draft', 'rejected'].includes(row.status)) {
+      throw new BadRequestException('Only draft or rejected timesheets can be edited');
+    }
+    return this.updateProjectTimesheet(id, { ...dto, worker_id: worker.id, status: row.status }, userId);
+  }
+
+  async submitMyProjectTimesheet(userId: string, id: string) {
+    const worker = await this.resolveWorkerForUser(userId);
+    const row = await this.prisma.projectTimesheetEntry.findUnique({ where: { id } });
+    if (!row || row.workerId !== worker.id) throw new NotFoundException('Project timesheet entry not found');
+    if (!['draft', 'rejected'].includes(row.status)) {
+      throw new BadRequestException('Only draft or rejected timesheets can be submitted');
+    }
+    return this.submitProjectTimesheet(id);
   }
 
   async getInbox(userId: string, permissions: string[] = []) {
@@ -213,6 +245,7 @@ export class PayrollService {
         organization: { select: { id: true, name: true } },
         defaultExpenseAccount: { select: { id: true, code: true, name: true } },
         defaultCashAccount: { select: { id: true, code: true, name: true } },
+        employeeTaxTable: { include: { bands: { orderBy: { sortOrder: 'asc' } } } },
       }
     });
     return row ? this.serializeSetting(row) : null;
@@ -242,6 +275,7 @@ export class PayrollService {
       organizationId,
       defaultExpenseAccountId: dto.default_expense_account_id || null,
       defaultCashAccountId: dto.default_cash_account_id || null,
+      employeeTaxTableId: dto.employee_tax_table_id || null,
       config: (dto.config || {}) as Prisma.InputJsonValue,
       updatedBy: actorId ? toBigInt(actorId) : null,
     };
@@ -253,6 +287,7 @@ export class PayrollService {
             organization: { select: { id: true, name: true } },
             defaultExpenseAccount: { select: { id: true, code: true, name: true } },
             defaultCashAccount: { select: { id: true, code: true, name: true } },
+            employeeTaxTable: { include: { bands: { orderBy: { sortOrder: 'asc' } } } },
           }
         })
       : await this.prisma.payrollSetting.create({
@@ -261,9 +296,58 @@ export class PayrollService {
             organization: { select: { id: true, name: true } },
             defaultExpenseAccount: { select: { id: true, code: true, name: true } },
             defaultCashAccount: { select: { id: true, code: true, name: true } },
+            employeeTaxTable: { include: { bands: { orderBy: { sortOrder: 'asc' } } } },
           }
         });
     return this.serializeSetting(row);
+  }
+
+  async listTaxTables(query: Record<string, any>) {
+    const organizationId = query.organization_id ? this.parseBigInt(query.organization_id, 'organization id') : null;
+    const rows = await this.prisma.payrollTaxTable.findMany({
+      where: {
+        ...(organizationId ? { OR: [{ organizationId }, { organizationId: null }] } : {}),
+        ...(query.status ? { status: String(query.status) } : {}),
+        ...(query.worker_type ? { workerType: String(query.worker_type) } : {}),
+      },
+      include: {
+        bands: { orderBy: { sortOrder: 'asc' } },
+      },
+      orderBy: [{ status: 'asc' }, { effectiveFrom: 'desc' }, { name: 'asc' }],
+    });
+    return rows.map((row) => this.serializeTaxTable(row));
+  }
+
+  async createTaxTable(dto: UpsertPayrollTaxTableDto) {
+    const row = await this.prisma.payrollTaxTable.create({
+      data: {
+        ...this.mapTaxTableDto(dto),
+        bands: {
+          create: this.mapTaxBandDtos(dto.bands || []),
+        },
+      },
+      include: { bands: { orderBy: { sortOrder: 'asc' } } },
+    });
+    return this.serializeTaxTable(row);
+  }
+
+  async updateTaxTable(id: string, dto: UpsertPayrollTaxTableDto) {
+    const existing = await this.prisma.payrollTaxTable.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Payroll tax table not found');
+    const row = await this.prisma.$transaction(async (tx) => {
+      await tx.payrollTaxBand.deleteMany({ where: { tableId: id } });
+      return tx.payrollTaxTable.update({
+        where: { id },
+        data: {
+          ...this.mapTaxTableDto(dto),
+          bands: {
+            create: this.mapTaxBandDtos(dto.bands || []),
+          },
+        },
+        include: { bands: { orderBy: { sortOrder: 'asc' } } },
+      });
+    });
+    return this.serializeTaxTable(row);
   }
 
   async listWorkers(query: Record<string, any>) {
@@ -324,6 +408,191 @@ export class PayrollService {
       const row = await tx.payrollWorker.findUnique({ where: { id }, include: this.workerInclude() });
       return this.serializeWorker(row!);
     });
+  }
+
+  async listLoans(query: Record<string, any>) {
+    const rows = await this.prisma.payrollLoan.findMany({
+      where: {
+        ...(query.worker_id ? { workerId: String(query.worker_id) } : {}),
+        ...(query.status ? { status: String(query.status) } : {}),
+        ...(query.loan_type ? { loanType: String(query.loan_type) } : {}),
+      },
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        repayments: { orderBy: { createdAt: 'desc' }, take: 24 },
+      },
+      orderBy: [{ status: 'asc' }, { issuedDate: 'desc' }]
+    });
+    return rows.map((row) => this.serializeLoan(row));
+  }
+
+  async createLoan(dto: any) {
+    const row = await this.prisma.payrollLoan.create({
+      data: {
+        workerId: dto.worker_id,
+        componentId: dto.component_id || null,
+        loanType: dto.loan_type,
+        title: dto.title,
+        principalAmount: dto.principal_amount,
+        outstandingAmount: dto.principal_amount,
+        issuedDate: new Date(dto.issued_date),
+        startRecoveryDate: new Date(dto.start_recovery_date),
+        monthlyRecoveryAmount: dto.monthly_recovery_amount ?? null,
+        recoveryRate: dto.recovery_rate ?? null,
+        status: dto.status || 'active',
+        notes: dto.notes || null,
+      },
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        repayments: { orderBy: { createdAt: 'desc' }, take: 24 },
+      }
+    });
+    return this.serializeLoan(row);
+  }
+
+  async updateLoan(id: string, dto: any) {
+    const existing = await this.prisma.payrollLoan.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Payroll loan not found');
+    const row = await this.prisma.payrollLoan.update({
+      where: { id },
+      data: {
+        workerId: dto.worker_id,
+        componentId: dto.component_id || null,
+        loanType: dto.loan_type,
+        title: dto.title,
+        principalAmount: dto.principal_amount,
+        issuedDate: new Date(dto.issued_date),
+        startRecoveryDate: new Date(dto.start_recovery_date),
+        monthlyRecoveryAmount: dto.monthly_recovery_amount ?? null,
+        recoveryRate: dto.recovery_rate ?? null,
+        status: dto.status || existing.status,
+        notes: dto.notes || null,
+      },
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        repayments: { orderBy: { createdAt: 'desc' }, take: 24 },
+      }
+    });
+    return this.serializeLoan(row);
+  }
+
+  async listProjectTimesheets(query: Record<string, any>) {
+    const rows = await this.prisma.projectTimesheetEntry.findMany({
+      where: {
+        ...(query.worker_id ? { workerId: String(query.worker_id) } : {}),
+        ...(query.status ? { status: String(query.status) } : {}),
+        ...(query.project_id ? { projectId: this.parseBigInt(String(query.project_id), 'project id') } : {}),
+      },
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        fund: { select: { id: true, code: true, name: true } },
+        grant: { select: { id: true, code: true, name: true } },
+        syncedRun: { select: { id: true, name: true, year: true, month: true, status: true } },
+      },
+      orderBy: [{ workDate: 'desc' }, { createdAt: 'desc' }]
+    });
+    return rows.map((row) => this.serializeProjectTimesheet(row));
+  }
+
+  async createProjectTimesheet(dto: any, actorId?: string) {
+    const row = await this.prisma.projectTimesheetEntry.create({
+      data: this.mapProjectTimesheetDto(dto, actorId),
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        fund: { select: { id: true, code: true, name: true } },
+        grant: { select: { id: true, code: true, name: true } },
+        syncedRun: { select: { id: true, name: true, year: true, month: true, status: true } },
+      }
+    });
+    return this.serializeProjectTimesheet(row);
+  }
+
+  async updateProjectTimesheet(id: string, dto: any, actorId?: string) {
+    const existing = await this.prisma.projectTimesheetEntry.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Project timesheet entry not found');
+    const row = await this.prisma.projectTimesheetEntry.update({
+      where: { id },
+      data: this.mapProjectTimesheetDto(dto, actorId, true),
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        fund: { select: { id: true, code: true, name: true } },
+        grant: { select: { id: true, code: true, name: true } },
+        syncedRun: { select: { id: true, name: true, year: true, month: true, status: true } },
+      }
+    });
+    return this.serializeProjectTimesheet(row);
+  }
+
+  async submitProjectTimesheet(id: string) {
+    const row = await this.prisma.projectTimesheetEntry.update({
+      where: { id },
+      data: { status: 'submitted' },
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        fund: { select: { id: true, code: true, name: true } },
+        grant: { select: { id: true, code: true, name: true } },
+        syncedRun: { select: { id: true, name: true, year: true, month: true, status: true } },
+      }
+    });
+    return this.serializeProjectTimesheet(row);
+  }
+
+  async approveProjectTimesheet(id: string, actorId?: string) {
+    const row = await this.prisma.projectTimesheetEntry.update({
+      where: { id },
+      data: { status: 'approved', approvedBy: actorId ? toBigInt(actorId) : null, approvedAt: new Date() },
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        fund: { select: { id: true, code: true, name: true } },
+        grant: { select: { id: true, code: true, name: true } },
+        syncedRun: { select: { id: true, name: true, year: true, month: true, status: true } },
+      }
+    });
+    await this.syncApprovedTimesheetsToPayrollRun(row.workerId, row.workDate);
+    const refreshed = await this.prisma.projectTimesheetEntry.findUnique({
+      where: { id },
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        fund: { select: { id: true, code: true, name: true } },
+        grant: { select: { id: true, code: true, name: true } },
+        syncedRun: { select: { id: true, name: true, year: true, month: true, status: true } },
+      }
+    });
+    return this.serializeProjectTimesheet(refreshed!);
+  }
+
+  async rejectProjectTimesheet(id: string) {
+    const existing = await this.prisma.projectTimesheetEntry.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Project timesheet entry not found');
+    const row = await this.prisma.projectTimesheetEntry.update({
+      where: { id },
+      data: { status: 'rejected' },
+      include: {
+        worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+        component: { select: { id: true, code: true, name: true } },
+        organization: { select: { id: true, name: true } },
+        fund: { select: { id: true, code: true, name: true } },
+        grant: { select: { id: true, code: true, name: true } },
+        syncedRun: { select: { id: true, name: true, year: true, month: true, status: true } },
+      }
+    });
+    await this.syncApprovedTimesheetsToPayrollRun(existing.workerId, existing.workDate);
+    return this.serializeProjectTimesheet(row);
   }
 
   async listComponents(query: Record<string, any>) {
@@ -452,24 +721,81 @@ export class PayrollService {
 
     return this.prisma.$transaction(async (tx) => {
       await tx.payrollRunItem.deleteMany({ where: { runId: id } });
-      const componentCodes = ['basic_salary', 'paye_tax', 'pension_employee', 'pension_employer', 'withholding_tax'];
-      const payrollComponents = await tx.payrollComponent.findMany({ where: { code: { in: componentCodes }, isActive: true } });
+      const timesheetAllocations = await tx.payrollRunTimesheetAllocation.findMany({
+        where: { runId: id },
+        orderBy: [{ workerId: 'asc' }, { sortOrder: 'asc' }]
+      });
+      const timesheetByWorker = new Map<string, any[]>();
+      for (const row of timesheetAllocations) {
+        const list = timesheetByWorker.get(row.workerId) || [];
+        list.push(row);
+        timesheetByWorker.set(row.workerId, list);
+      }
+      const componentCodes = ['basic_salary', 'paye_tax', 'pension_employee', 'pension_employer', 'withholding_tax', 'employer_paye_cover', 'salary_advance_recovery', 'loan_repayment'];
+      const payrollComponents = await this.ensureSystemPayrollComponentsTx(tx, componentCodes);
       const componentMap = new Map(payrollComponents.map((component) => [component.code, component]));
+      const componentById = new Map(payrollComponents.map((component) => [component.id, component]));
+      const taxTableCache = new Map<string, any | null>();
 
       for (const worker of workers) {
         const profile = this.pickActiveProfile(worker.profiles, run.periodStart, run.periodEnd);
-        const lines: Array<{ componentId: string; lineType: string; amount: Prisma.Decimal; quantity?: Prisma.Decimal | null; rate?: Prisma.Decimal | null; notes?: string | null }> = [];
+        const lines: Array<{ componentId: string; lineType: string; amount: Prisma.Decimal; quantity?: Prisma.Decimal | null; rate?: Prisma.Decimal | null; notes?: string | null; affectsNetPay?: boolean }> = [];
         const setting = await this.resolvePayrollSettingTx(tx, worker.organizationId ?? null);
         const config = (setting.config || {}) as Record<string, any>;
         const workerMeta = (worker.metadata || {}) as Record<string, any>;
+        const workerTimesheetAllocations = timesheetByWorker.get(worker.id) || [];
+        const workerLoans = await tx.payrollLoan.findMany({
+          where: {
+            workerId: worker.id,
+            status: 'active',
+            startRecoveryDate: { lte: run.periodEnd },
+            outstandingAmount: { gt: 0 },
+          },
+          orderBy: { issuedDate: 'asc' }
+        });
+        const payBasis = worker.payBasis || 'monthly_fixed';
+        const allocationMode = worker.allocationMode || 'fixed';
+        const standardHoursPerDay = Number(worker.standardHoursPerDay || 8) || 8;
+        const hybridFixedPercent = Math.max(0, Math.min(100, Number(worker.hybridFixedPercent || 0)));
         const basicSalaryComponent = componentMap.get('basic_salary');
+        const totalTimesheetHours = workerTimesheetAllocations.reduce((sum, row) => sum + Number(row.hours || 0), 0);
+        let baseEarningsAmount = 0;
 
-        if (profile?.baseAmount && Number(profile.baseAmount) > 0 && basicSalaryComponent) {
+        if (profile?.baseAmount && Number(profile.baseAmount) > 0 && basicSalaryComponent && ['monthly_fixed', 'retainer', 'manual'].includes(payBasis)) {
+          baseEarningsAmount = Number(profile.baseAmount);
           lines.push({
             componentId: basicSalaryComponent.id,
             lineType: 'earning',
             amount: profile.baseAmount,
-            notes: 'Base amount'
+            notes: 'Base amount',
+            affectsNetPay: true,
+          });
+        }
+
+        if (profile?.baseAmount && Number(profile.baseAmount) > 0 && basicSalaryComponent && payBasis === 'hourly_timesheet') {
+          baseEarningsAmount = Number(profile.baseAmount) * totalTimesheetHours;
+          lines.push({
+            componentId: basicSalaryComponent.id,
+            lineType: 'earning',
+            amount: new Prisma.Decimal(baseEarningsAmount),
+            quantity: new Prisma.Decimal(totalTimesheetHours),
+            rate: new Prisma.Decimal(Number(profile.baseAmount)),
+            notes: 'Approved timesheet hours',
+            affectsNetPay: true,
+          });
+        }
+
+        if (profile?.baseAmount && Number(profile.baseAmount) > 0 && basicSalaryComponent && payBasis === 'daily_rate') {
+          const workDays = totalTimesheetHours > 0 ? totalTimesheetHours / standardHoursPerDay : 0;
+          baseEarningsAmount = Number(profile.baseAmount) * workDays;
+          lines.push({
+            componentId: basicSalaryComponent.id,
+            lineType: 'earning',
+            amount: new Prisma.Decimal(baseEarningsAmount),
+            quantity: new Prisma.Decimal(workDays),
+            rate: new Prisma.Decimal(Number(profile.baseAmount)),
+            notes: `Approved workdays at ${standardHoursPerDay}h/day`,
+            affectsNetPay: true,
           });
         }
 
@@ -478,22 +804,15 @@ export class PayrollService {
           const component = row.component;
           const amount = row.amount
             ? Number(row.amount)
-            : row.rate && profile?.baseAmount
-              ? Number(profile.baseAmount) * Number(row.rate)
+            : row.rate && (baseEarningsAmount || Number(profile?.baseAmount || 0))
+              ? (baseEarningsAmount || Number(profile?.baseAmount || 0)) * Number(row.rate)
               : 0;
           if (!amount) continue;
-          lines.push({
-            componentId: component.id,
-            lineType: component.componentType,
-            amount: new Prisma.Decimal(amount),
-            rate: row.rate ?? null,
-            notes: row.formula || null
-          });
+          lines.push(...this.expandProfileComponentLines(component, amount, row.rate == null ? null : Number(row.rate), row.formula || null));
         }
 
         const grossPay = lines.filter((line) => line.lineType === 'earning').reduce((sum, line) => sum + Number(line.amount), 0);
 
-        const employeeTaxRate = Number(workerMeta.tax_rate ?? config.employee_tax_rate ?? 0);
         const employeePensionRate = Number(workerMeta.pension_rate ?? config.employee_pension_rate ?? 0);
         const employerPensionRate = Number(config.employer_pension_rate ?? 0);
         const consultantWithholdingRate = Number(workerMeta.withholding_rate ?? config.consultant_withholding_rate ?? 0);
@@ -502,16 +821,6 @@ export class PayrollService {
         const applyPension = workerMeta.apply_pension !== false;
 
         if (worker.workerType === 'employee') {
-          const taxComponent = componentMap.get('paye_tax');
-          if (taxComponent && applyTax && employeeTaxRate > 0 && grossPay > 0) {
-            lines.push({
-              componentId: taxComponent.id,
-              lineType: 'deduction',
-              amount: new Prisma.Decimal(grossPay * employeeTaxRate),
-              rate: new Prisma.Decimal(employeeTaxRate),
-              notes: 'Auto PAYE',
-            });
-          }
           const employeePensionComponent = componentMap.get('pension_employee');
           if (employeePensionComponent && applyPension && employeePensionRate > 0 && grossPay > 0) {
             lines.push({
@@ -520,7 +829,55 @@ export class PayrollService {
               amount: new Prisma.Decimal(grossPay * employeePensionRate),
               rate: new Prisma.Decimal(employeePensionRate),
               notes: 'Auto employee pension',
+              affectsNetPay: true,
             });
+          }
+          const taxComponent = componentMap.get('paye_tax');
+          const taxTable = await this.resolveEmployeeTaxTableTx(
+            tx,
+            {
+              workerTaxTableId: worker.taxTableId ?? null,
+              settingTaxTableId: setting.employeeTaxTableId ?? null,
+              organizationId: worker.organizationId ?? null,
+            },
+            taxTableCache
+          );
+          const payeResult = this.calculateEmployeePaye({
+            grossPay,
+            lines,
+            componentsById: componentById,
+            taxTable,
+            fallbackRate: Number(workerMeta.tax_rate ?? config.employee_tax_rate ?? 0),
+          });
+          if (taxComponent && applyTax && payeResult.taxAmount > 0 && grossPay > 0) {
+            if (workerMeta.employer_covers_paye) {
+              const employerTaxComponent = componentMap.get('employer_paye_cover') || taxComponent;
+              lines.push({
+                componentId: taxComponent.id,
+                lineType: 'deduction',
+                amount: new Prisma.Decimal(payeResult.taxAmount),
+                rate: payeResult.appliedRate == null ? null : new Prisma.Decimal(payeResult.appliedRate),
+                notes: payeResult.notes || 'PAYE settled by employer',
+                affectsNetPay: false,
+              });
+              lines.push({
+                componentId: employerTaxComponent.id,
+                lineType: 'employer_cost',
+                amount: new Prisma.Decimal(payeResult.taxAmount),
+                rate: payeResult.appliedRate == null ? null : new Prisma.Decimal(payeResult.appliedRate),
+                notes: 'Employer-covered PAYE',
+                affectsNetPay: false,
+              });
+            } else {
+              lines.push({
+                componentId: taxComponent.id,
+                lineType: 'deduction',
+                amount: new Prisma.Decimal(payeResult.taxAmount),
+                rate: payeResult.appliedRate == null ? null : new Prisma.Decimal(payeResult.appliedRate),
+                notes: payeResult.notes || 'Auto PAYE',
+                affectsNetPay: true,
+              });
+            }
           }
           const employerPensionComponent = componentMap.get('pension_employer');
           if (employerPensionComponent && applyPension && employerPensionRate > 0 && grossPay > 0) {
@@ -530,6 +887,7 @@ export class PayrollService {
               amount: new Prisma.Decimal(grossPay * employerPensionRate),
               rate: new Prisma.Decimal(employerPensionRate),
               notes: 'Auto employer pension',
+              affectsNetPay: false,
             });
           }
         } else if (worker.workerType === 'consultant') {
@@ -541,6 +899,7 @@ export class PayrollService {
               amount: new Prisma.Decimal(grossPay * consultantWithholdingRate),
               rate: new Prisma.Decimal(consultantWithholdingRate),
               notes: 'Auto consultant withholding tax',
+              affectsNetPay: true,
             });
           }
           const consultantPensionComponent = componentMap.get('pension_employee');
@@ -551,19 +910,42 @@ export class PayrollService {
               amount: new Prisma.Decimal(grossPay * consultantPensionRate),
               rate: new Prisma.Decimal(consultantPensionRate),
               notes: 'Auto consultant pension',
+              affectsNetPay: true,
             });
           }
         }
 
-        const totalDeductions = lines.filter((line) => line.lineType === 'deduction').reduce((sum, line) => sum + Number(line.amount), 0);
+        for (const loan of workerLoans) {
+          const monthlyAmount = loan.monthlyRecoveryAmount == null
+            ? (loan.recoveryRate != null ? grossPay * Number(loan.recoveryRate) : 0)
+            : Number(loan.monthlyRecoveryAmount);
+          const recoveryAmount = Math.min(Number(loan.outstandingAmount || 0), Math.max(0, monthlyAmount));
+          if (!recoveryAmount) continue;
+          const recoveryCode = loan.loanType === 'salary_advance' ? 'salary_advance_recovery' : 'loan_repayment';
+          const recoveryComponent = componentMap.get(recoveryCode);
+          if (!recoveryComponent) continue;
+          lines.push({
+            componentId: recoveryComponent.id,
+            lineType: 'deduction',
+            amount: new Prisma.Decimal(recoveryAmount),
+            notes: `${loan.loanType === 'salary_advance' ? 'Salary advance' : 'Loan'} recovery: ${loan.title}`,
+            affectsNetPay: true,
+          });
+        }
+
+        const totalDeductions = lines.filter((line) => line.lineType === 'deduction' && line.affectsNetPay !== false).reduce((sum, line) => sum + Number(line.amount), 0);
         const employerCostTotal = lines.filter((line) => line.lineType === 'employer_cost').reduce((sum, line) => sum + Number(line.amount), 0);
-        const netPay = grossPay - totalDeductions;
+        const computedNetPay = grossPay - totalDeductions;
+        const actualNetPay = computedNetPay;
+        const netPay = actualNetPay;
 
         const runItem = await tx.payrollRunItem.create({
           data: {
             runId: id,
             workerId: worker.id,
             workerType: worker.workerType,
+            payBasis,
+            allocationSource: this.resolveAllocationSource(allocationMode, workerTimesheetAllocations.length),
             organizationId: worker.organizationId,
             teamId: worker.teamId,
             projectId: worker.projectId,
@@ -572,6 +954,9 @@ export class PayrollService {
             grossPay,
             totalDeductions,
             employerCostTotal,
+            computedNetPay,
+            actualNetPay,
+            netAdjustmentAmount: 0,
             netPay,
           }
         });
@@ -586,18 +971,42 @@ export class PayrollService {
               quantity: line.quantity ?? null,
               rate: line.rate ?? null,
               notes: line.notes ?? null,
+              metadata: line.affectsNetPay === false ? { affects_net_pay: false } : undefined,
             }))
           });
         }
 
-        const allocations = worker.allocations.length
+        for (const loan of workerLoans) {
+          const repaymentCode = loan.loanType === 'salary_advance' ? 'salary_advance_recovery' : 'loan_repayment';
+          const repaymentLine = lines.find((line) => line.componentId === componentMap.get(repaymentCode)?.id && String(line.notes || '').includes(loan.title));
+          if (!repaymentLine) continue;
+          await tx.payrollLoanRepayment.create({
+            data: {
+              loanId: loan.id,
+              runId: id,
+              runItemId: runItem.id,
+              amount: repaymentLine.amount,
+              status: 'posted',
+              notes: repaymentLine.notes || null,
+            }
+          });
+          await tx.payrollLoan.update({
+            where: { id: loan.id },
+            data: {
+              outstandingAmount: { decrement: repaymentLine.amount },
+              status: Number(loan.outstandingAmount || 0) - Number(repaymentLine.amount || 0) <= 0.01 ? 'closed' : loan.status,
+            }
+          });
+        }
+
+        const fixedAllocations = worker.allocations.length
           ? worker.allocations.map((allocation) => ({
               organizationId: allocation.organizationId,
               teamId: allocation.teamId,
               projectId: allocation.projectId,
               fundId: allocation.fundId,
               grantId: allocation.grantId,
-              allocationPercent: allocation.allocationPercent,
+              allocationPercent: Number(allocation.allocationPercent || 0),
               allocationAmount: allocation.allocationAmount,
               sortOrder: allocation.sortOrder,
             }))
@@ -607,10 +1016,18 @@ export class PayrollService {
               projectId: worker.projectId,
               fundId: worker.defaultFundId,
               grantId: worker.defaultGrantId,
-              allocationPercent: new Prisma.Decimal(100),
+              allocationPercent: 100,
               allocationAmount: null,
               sortOrder: 0,
             }];
+
+        const timesheetDerivedAllocations = this.normalizeTimesheetAllocations(workerTimesheetAllocations);
+        const allocations = this.resolveAllocations({
+          allocationMode,
+          hybridFixedPercent,
+          fixedAllocations,
+          timesheetAllocations: timesheetDerivedAllocations,
+        });
 
         await tx.payrollRunItemAllocation.createMany({
           data: allocations.map((allocation) => ({
@@ -1218,13 +1635,19 @@ export class PayrollService {
     if (['paid', 'closed'].includes(item.run.status) || item.run.postings.length > 0) {
       throw new BadRequestException('Paid, closed, or posted payroll runs cannot be edited');
     }
+    const computedNetPay = dto.net_pay ?? Number(item.computedNetPay || item.netPay || 0);
+    const actualNetPay = dto.actual_net_pay ?? dto.net_pay ?? Number(item.actualNetPay || item.netPay || 0);
     await this.prisma.payrollRunItem.update({
       where: { id: itemId },
       data: {
         grossPay: dto.gross_pay ?? undefined,
         totalDeductions: dto.total_deductions ?? undefined,
         employerCostTotal: dto.employer_cost_total ?? undefined,
-        netPay: dto.net_pay ?? undefined,
+        computedNetPay,
+        actualNetPay,
+        netAdjustmentAmount: actualNetPay - computedNetPay,
+        netAdjustmentReason: dto.net_adjustment_reason ?? undefined,
+        netPay: actualNetPay,
         paymentStatus: dto.payment_status ?? undefined,
         paymentReference: dto.payment_reference ?? undefined,
       }
@@ -1232,6 +1655,7 @@ export class PayrollService {
     await this.recordRunEvent(runId, 'item_updated', actorId, `Updated payroll run item ${itemId}`, {
       item_id: itemId,
       payment_status: dto.payment_status ?? null,
+      actual_net_pay: actualNetPay,
     });
     return this.getRun(runId);
   }
@@ -1261,11 +1685,55 @@ export class PayrollService {
           }))
         });
       }
+      await tx.payrollRunItem.update({
+        where: { id: itemId },
+        data: { allocationSource: 'manual_override' }
+      });
       await this.recordRunEventTx(tx, runId, 'allocations_updated', actorId, `Updated allocations for payroll run item ${itemId}`, {
         item_id: itemId,
         allocation_count: dto.allocations.length,
       });
     });
+    return this.getRun(runId);
+  }
+
+  async updateRunWorkerTimesheetAllocations(runId: string, workerId: string, dto: UpdatePayrollRunTimesheetAllocationsDto, actorId?: string) {
+    const run = await this.prisma.payrollRun.findUnique({ where: { id: runId }, include: { postings: true } });
+    if (!run) throw new NotFoundException('Payroll run not found');
+    if (['paid', 'closed'].includes(run.status) || run.postings.length > 0) {
+      throw new BadRequestException('Paid, closed, or posted payroll runs cannot be edited');
+    }
+    const worker = await this.prisma.payrollWorker.findUnique({ where: { id: workerId } });
+    if (!worker) throw new NotFoundException('Payroll worker not found');
+
+    const normalized = this.normalizeTimesheetInputRows(dto.allocations);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payrollRunTimesheetAllocation.deleteMany({ where: { runId, workerId } });
+      if (normalized.length) {
+        await tx.payrollRunTimesheetAllocation.createMany({
+          data: normalized.map((row, index) => ({
+            runId,
+            workerId,
+            organizationId: row.organization_id ? this.parseBigInt(row.organization_id, 'organization id') : null,
+            teamId: row.team_id ? this.parseBigInt(row.team_id, 'team id') : null,
+            projectId: row.project_id ? this.parseBigInt(row.project_id, 'project id') : null,
+            fundId: row.fund_id || null,
+            grantId: row.grant_id || null,
+            hours: row.hours ?? 0,
+            allocationPercent: row.allocation_percent ?? 0,
+            source: row.source || 'manual',
+            notes: row.notes || null,
+            sortOrder: index,
+            approvedAt: new Date(),
+          })),
+        });
+      }
+      await this.recordRunEventTx(tx, runId, 'timesheet_allocations_updated', actorId, `Updated timesheet allocations for worker ${worker.fullName}`, {
+        worker_id: workerId,
+        allocation_count: normalized.length,
+      });
+    });
+
     return this.getRun(runId);
   }
 
@@ -1657,7 +2125,12 @@ export class PayrollService {
       projectId: dto.project_id ? this.parseBigInt(dto.project_id, 'project id') : null,
       defaultFundId: dto.default_fund_id || null,
       defaultGrantId: dto.default_grant_id || null,
+      taxTableId: dto.tax_table_id || null,
       workerType: dto.worker_type,
+      payBasis: dto.pay_basis || 'monthly_fixed',
+      allocationMode: dto.allocation_mode || 'fixed',
+      hybridFixedPercent: dto.hybrid_fixed_percent ?? 0,
+      standardHoursPerDay: dto.standard_hours_per_day ?? 8,
       fullName: dto.full_name,
       email: dto.email || null,
       staffCode: dto.staff_code || null,
@@ -1729,7 +2202,10 @@ export class PayrollService {
       name: dto.name,
       componentType: dto.component_type,
       calculationType: dto.calculation_type || 'fixed',
+      paidBy: dto.paid_by || 'employee',
+      employerSharePercent: dto.employer_share_percent ?? 0,
       isTaxable: dto.is_taxable ?? false,
+      affectsNetPay: dto.affects_net_pay ?? true,
       isStatutory: dto.is_statutory ?? false,
       isActive: dto.is_active ?? true,
     };
@@ -1741,6 +2217,7 @@ export class PayrollService {
       organization: { select: { id: true, name: true } },
       defaultFund: { select: { id: true, code: true, name: true } },
       defaultGrant: { select: { id: true, code: true, name: true } },
+      taxTable: { include: { bands: { orderBy: { sortOrder: 'asc' } } } },
       profiles: {
         include: {
           components: { include: { component: { include: { chartAccount: { select: { id: true, code: true, name: true } } } } } }
@@ -1754,7 +2231,15 @@ export class PayrollService {
           grant: { select: { id: true, code: true, name: true } },
         },
         orderBy: { sortOrder: 'asc' }
-      }
+      },
+      timesheetAllocations: {
+        include: {
+          organization: { select: { id: true, name: true } },
+          fund: { select: { id: true, code: true, name: true } },
+          grant: { select: { id: true, code: true, name: true } },
+        },
+        orderBy: [{ approvedAt: 'desc' }, { sortOrder: 'asc' }]
+      },
     } satisfies Prisma.PayrollWorkerInclude;
   }
 
@@ -1778,6 +2263,15 @@ export class PayrollService {
           runItem: { select: { id: true, paymentStatus: true } },
         },
         orderBy: { createdAt: 'desc' }
+      },
+      timesheetAllocations: {
+        include: {
+          worker: { select: { id: true, fullName: true, workerType: true } },
+          organization: { select: { id: true, name: true } },
+          fund: { select: { id: true, code: true, name: true } },
+          grant: { select: { id: true, code: true, name: true } },
+        },
+        orderBy: [{ workerId: 'asc' }, { sortOrder: 'asc' }]
       },
       items: {
         include: {
@@ -1822,7 +2316,13 @@ export class PayrollService {
       default_fund: row.defaultFund,
       default_grant_id: row.defaultGrantId ?? null,
       default_grant: row.defaultGrant,
+      tax_table_id: row.taxTableId ?? null,
+      tax_table: row.taxTable ? this.serializeTaxTable(row.taxTable) : null,
       worker_type: row.workerType,
+      pay_basis: row.payBasis,
+      allocation_mode: row.allocationMode,
+      hybrid_fixed_percent: Number(row.hybridFixedPercent || 0),
+      standard_hours_per_day: Number(row.standardHoursPerDay || 8),
       full_name: row.fullName,
       email: row.email,
       staff_code: row.staffCode,
@@ -1867,6 +2367,22 @@ export class PayrollService {
         allocation_percent: Number(allocation.allocationPercent || 0),
         allocation_amount: allocation.allocationAmount == null ? null : Number(allocation.allocationAmount),
       })),
+      timesheet_allocations: (row.timesheetAllocations || []).map((allocation: any) => ({
+        id: allocation.id,
+        organization_id: allocation.organizationId?.toString() ?? null,
+        organization: allocation.organization ? { id: allocation.organization.id.toString(), name: allocation.organization.name } : null,
+        team_id: allocation.teamId?.toString() ?? null,
+        project_id: allocation.projectId?.toString() ?? null,
+        fund_id: allocation.fundId ?? null,
+        fund: allocation.fund,
+        grant_id: allocation.grantId ?? null,
+        grant: allocation.grant,
+        hours: Number(allocation.hours || 0),
+        allocation_percent: Number(allocation.allocationPercent || 0),
+        source: allocation.source,
+        notes: allocation.notes,
+        approved_at: allocation.approvedAt,
+      })),
       created_at: row.createdAt,
       updated_at: row.updatedAt,
     };
@@ -1883,7 +2399,10 @@ export class PayrollService {
       name: row.name,
       component_type: row.componentType,
       calculation_type: row.calculationType,
+      paid_by: row.paidBy,
+      employer_share_percent: Number(row.employerSharePercent || 0),
       is_taxable: row.isTaxable,
+      affects_net_pay: row.affectsNetPay,
       is_statutory: row.isStatutory,
       is_active: row.isActive,
       sort_order: row.sortOrder,
@@ -1901,6 +2420,8 @@ export class PayrollService {
       default_expense_account: row.defaultExpenseAccount,
       default_cash_account_id: row.defaultCashAccountId ?? null,
       default_cash_account: row.defaultCashAccount,
+      employee_tax_table_id: row.employeeTaxTableId ?? null,
+      employee_tax_table: row.employeeTaxTable ? this.serializeTaxTable(row.employeeTaxTable) : null,
       config: row.config || {},
       updated_at: row.updatedAt,
     };
@@ -2005,9 +2526,15 @@ export class PayrollService {
         grant_id: item.grantId ?? null,
         grant: item.grant,
         worker_type: item.workerType,
+        pay_basis: item.payBasis,
+        allocation_source: item.allocationSource,
         gross_pay: Number(item.grossPay || 0),
         total_deductions: Number(item.totalDeductions || 0),
         employer_cost_total: Number(item.employerCostTotal || 0),
+        computed_net_pay: Number(item.computedNetPay || 0),
+        actual_net_pay: Number(item.actualNetPay || 0),
+        net_adjustment_amount: Number(item.netAdjustmentAmount || 0),
+        net_adjustment_reason: item.netAdjustmentReason,
         net_pay: Number(item.netPay || 0),
         payment_status: item.paymentStatus,
         payment_reference: item.paymentReference,
@@ -2033,9 +2560,256 @@ export class PayrollService {
           grant: allocation.grant,
           allocation_percent: Number(allocation.allocationPercent || 0),
           allocation_amount: allocation.allocationAmount == null ? null : Number(allocation.allocationAmount),
-        }))
+        })),
+        timesheet_allocations: (row.timesheetAllocations || [])
+          .filter((allocation: any) => allocation.workerId === item.workerId)
+          .map((allocation: any) => ({
+            id: allocation.id,
+            organization_id: allocation.organizationId?.toString() ?? null,
+            organization: allocation.organization ? { id: allocation.organization.id.toString(), name: allocation.organization.name } : null,
+            team_id: allocation.teamId?.toString() ?? null,
+            project_id: allocation.projectId?.toString() ?? null,
+            fund_id: allocation.fundId ?? null,
+            fund: allocation.fund,
+            grant_id: allocation.grantId ?? null,
+            grant: allocation.grant,
+            hours: Number(allocation.hours || 0),
+            allocation_percent: Number(allocation.allocationPercent || 0),
+            source: allocation.source,
+            notes: allocation.notes,
+            approved_at: allocation.approvedAt,
+          }))
       }))
     };
+  }
+
+  private serializeLoan(row: any) {
+    return {
+      id: row.id,
+      worker_id: row.workerId,
+      worker: row.worker
+        ? { id: row.worker.id, full_name: row.worker.fullName, worker_type: row.worker.workerType, email: row.worker.email }
+        : null,
+      component_id: row.componentId ?? null,
+      component: row.component || null,
+      loan_type: row.loanType,
+      title: row.title,
+      principal_amount: Number(row.principalAmount || 0),
+      outstanding_amount: Number(row.outstandingAmount || 0),
+      issued_date: row.issuedDate,
+      start_recovery_date: row.startRecoveryDate,
+      monthly_recovery_amount: row.monthlyRecoveryAmount == null ? null : Number(row.monthlyRecoveryAmount),
+      recovery_rate: row.recoveryRate == null ? null : Number(row.recoveryRate),
+      status: row.status,
+      notes: row.notes,
+      repayments: (row.repayments || []).map((repayment: any) => ({
+        id: repayment.id,
+        run_id: repayment.runId ?? null,
+        run_item_id: repayment.runItemId ?? null,
+        amount: Number(repayment.amount || 0),
+        status: repayment.status,
+        notes: repayment.notes,
+        created_at: repayment.createdAt,
+      })),
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    };
+  }
+
+  private serializeTaxTable(row: any) {
+    return {
+      id: row.id,
+      organization_id: row.organizationId?.toString() ?? null,
+      name: row.name,
+      code: row.code,
+      worker_type: row.workerType,
+      periodicity: row.periodicity,
+      status: row.status,
+      effective_from: row.effectiveFrom,
+      effective_to: row.effectiveTo,
+      fixed_relief_amount: Number(row.fixedReliefAmount || 0),
+      gross_relief_rate: Number(row.grossReliefRate || 0),
+      minimum_relief_amount: Number(row.minimumReliefAmount || 0),
+      pension_relief_enabled: row.pensionReliefEnabled !== false,
+      bands: (row.bands || []).map((band: any) => ({
+        id: band.id,
+        lower_bound: Number(band.lowerBound || 0),
+        upper_bound: band.upperBound == null ? null : Number(band.upperBound),
+        rate: Number(band.rate || 0),
+        sort_order: band.sortOrder,
+      })),
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    };
+  }
+
+  private serializeProjectTimesheet(row: any) {
+    return {
+      id: row.id,
+      worker_id: row.workerId,
+      worker: row.worker
+        ? { id: row.worker.id, full_name: row.worker.fullName, worker_type: row.worker.workerType, email: row.worker.email }
+        : null,
+      component_id: row.componentId ?? null,
+      component: row.component || null,
+      organization_id: row.organizationId?.toString() ?? null,
+      organization: row.organization ? { id: row.organization.id.toString(), name: row.organization.name } : null,
+      team_id: row.teamId?.toString() ?? null,
+      project_id: row.projectId?.toString() ?? null,
+      fund_id: row.fundId ?? null,
+      fund: row.fund || null,
+      grant_id: row.grantId ?? null,
+      grant: row.grant || null,
+      synced_run_id: row.syncedRunId ?? null,
+      synced_run: row.syncedRun || null,
+      work_date: row.workDate,
+      hours: Number(row.hours || 0),
+      description: row.description,
+      status: row.status,
+      approved_at: row.approvedAt,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    };
+  }
+
+  private mapTaxTableDto(dto: UpsertPayrollTaxTableDto): Prisma.PayrollTaxTableUncheckedCreateInput {
+    return {
+      organizationId: dto.organization_id ? this.parseBigInt(dto.organization_id, 'organization id') : null,
+      name: dto.name,
+      code: dto.code.trim().toLowerCase(),
+      workerType: dto.worker_type || 'employee',
+      periodicity: dto.periodicity || 'monthly',
+      status: dto.status || 'active',
+      effectiveFrom: new Date(dto.effective_from),
+      effectiveTo: dto.effective_to ? new Date(dto.effective_to) : null,
+      fixedReliefAmount: dto.fixed_relief_amount ?? 0,
+      grossReliefRate: dto.gross_relief_rate ?? 0,
+      minimumReliefAmount: dto.minimum_relief_amount ?? 0,
+      pensionReliefEnabled: dto.pension_relief_enabled ?? true,
+    };
+  }
+
+  private mapTaxBandDtos(rows: Array<{ lower_bound?: number; upper_bound?: number | null; rate: number; sort_order?: number }>) {
+    return rows
+      .map((row, index) => ({
+        lowerBound: row.lower_bound ?? 0,
+        upperBound: row.upper_bound == null ? null : row.upper_bound,
+        rate: row.rate,
+        sortOrder: row.sort_order ?? index,
+      }))
+      .sort((a, b) => a.sortOrder - b.sortOrder || a.lowerBound - b.lowerBound);
+  }
+
+  private async resolveWorkerForUser(userId: string) {
+    const worker = await this.prisma.payrollWorker.findFirst({
+      where: { profileId: toBigInt(userId) },
+      select: { id: true, fullName: true, workerType: true },
+    });
+    if (!worker) throw new NotFoundException('Payroll worker profile not found for this user');
+    return worker;
+  }
+
+  private async resolveEmployeeTaxTableTx(
+    tx: Prisma.TransactionClient,
+    input: { workerTaxTableId?: string | null; settingTaxTableId?: string | null; organizationId?: bigint | null },
+    cache?: Map<string, any | null>
+  ) {
+    const lookupById = async (id: string | null | undefined) => {
+      if (!id) return null;
+      if (cache?.has(id)) return cache.get(id) ?? null;
+      const row = await tx.payrollTaxTable.findUnique({
+        where: { id },
+        include: { bands: { orderBy: { sortOrder: 'asc' } } },
+      });
+      cache?.set(id, row ?? null);
+      return row;
+    };
+
+    const direct = (await lookupById(input.workerTaxTableId)) || (await lookupById(input.settingTaxTableId));
+    if (direct) return direct;
+
+    const today = new Date();
+    const row = await tx.payrollTaxTable.findFirst({
+      where: {
+        status: 'active',
+        workerType: { in: ['employee', 'all'] },
+        OR: input.organizationId ? [{ organizationId: input.organizationId }, { organizationId: null }] : [{ organizationId: null }],
+        effectiveFrom: { lte: today },
+        AND: [{ OR: [{ effectiveTo: null }, { effectiveTo: { gte: today } }] }],
+      },
+      include: { bands: { orderBy: { sortOrder: 'asc' } } },
+      orderBy: [{ organizationId: 'desc' }, { effectiveFrom: 'desc' }],
+    });
+    if (row && cache) cache.set(row.id, row);
+    return row;
+  }
+
+  private calculateEmployeePaye(input: {
+    grossPay: number;
+    lines: Array<{ componentId: string; lineType: string; amount: Prisma.Decimal; affectsNetPay?: boolean }>;
+    componentsById: Map<string, any>;
+    taxTable: any | null;
+    fallbackRate: number;
+  }) {
+    const taxableGross = input.lines
+      .filter((line) => line.lineType === 'earning' && input.componentsById.get(line.componentId)?.isTaxable !== false)
+      .reduce((sum, line) => sum + Number(line.amount || 0), 0);
+    const pensionRelief = input.taxTable?.pensionReliefEnabled
+      ? input.lines
+          .filter((line) => line.lineType === 'deduction' && input.componentsById.get(line.componentId)?.code === 'pension_employee')
+          .reduce((sum, line) => sum + Number(line.amount || 0), 0)
+      : 0;
+
+    if (input.taxTable?.bands?.length) {
+      const periodicityFactor = input.taxTable.periodicity === 'annual' ? 12 : 1;
+      const taxableBase = taxableGross * periodicityFactor;
+      const fixedRelief = Number(input.taxTable.fixedReliefAmount || 0);
+      const percentageRelief = taxableBase * Number(input.taxTable.grossReliefRate || 0);
+      const minimumRelief = Number(input.taxTable.minimumReliefAmount || 0);
+      const relief = Math.max(minimumRelief, fixedRelief + percentageRelief);
+      const chargeableIncome = Math.max(0, taxableBase - relief - pensionRelief * periodicityFactor);
+      const taxBase = this.applyProgressiveTax(chargeableIncome, input.taxTable.bands || []);
+      const monthlyTax = periodicityFactor === 12 ? taxBase / 12 : taxBase;
+      const appliedRate = taxableGross > 0 ? monthlyTax / taxableGross : null;
+      return {
+        taxAmount: Math.max(0, monthlyTax),
+        appliedRate,
+        notes: `PAYE via ${input.taxTable.name}`,
+      };
+    }
+
+    if (input.fallbackRate > 0 && input.grossPay > 0) {
+      return {
+        taxAmount: input.grossPay * input.fallbackRate,
+        appliedRate: input.fallbackRate,
+        notes: 'Auto PAYE (legacy rate)',
+      };
+    }
+
+    return { taxAmount: 0, appliedRate: null, notes: null };
+  }
+
+  private applyProgressiveTax(amount: number, bands: Array<{ lowerBound?: Prisma.Decimal | number; upperBound?: Prisma.Decimal | number | null; rate?: Prisma.Decimal | number }>) {
+    if (!amount || amount <= 0) return 0;
+    let total = 0;
+    const normalized = bands
+      .map((band) => ({
+        lower: Number(band.lowerBound || 0),
+        upper: band.upperBound == null ? null : Number(band.upperBound),
+        rate: Number(band.rate || 0),
+      }))
+      .sort((a, b) => a.lower - b.lower);
+
+    for (const band of normalized) {
+      if (amount <= band.lower) continue;
+      const upper = band.upper ?? amount;
+      const taxableInBand = Math.max(0, Math.min(amount, upper) - band.lower);
+      if (taxableInBand <= 0) continue;
+      total += taxableInBand * band.rate;
+      if (band.upper != null && amount <= band.upper) break;
+    }
+
+    return total;
   }
 
   private pickActiveProfile(profiles: any[], periodStart: Date, periodEnd: Date) {
@@ -2046,11 +2820,73 @@ export class PayrollService {
     }) || null;
   }
 
+  private mapProjectTimesheetDto(dto: any, actorId?: string, preserveCreator = false): Prisma.ProjectTimesheetEntryUncheckedCreateInput {
+    return {
+      workerId: dto.worker_id,
+      componentId: dto.component_id || null,
+      organizationId: dto.organization_id ? this.parseBigInt(dto.organization_id, 'organization id') : null,
+      teamId: dto.team_id ? this.parseBigInt(dto.team_id, 'team id') : null,
+      projectId: dto.project_id ? this.parseBigInt(dto.project_id, 'project id') : null,
+      fundId: dto.fund_id || null,
+      grantId: dto.grant_id || null,
+      workDate: new Date(dto.work_date),
+      hours: dto.hours,
+      description: dto.description || null,
+      status: dto.status || 'draft',
+      createdBy: preserveCreator ? undefined : (actorId ? toBigInt(actorId) : undefined),
+    };
+  }
+
+  private async syncApprovedTimesheetsToPayrollRun(workerId: string, workDate: Date) {
+    const month = workDate.getUTCMonth() + 1;
+    const year = workDate.getUTCFullYear();
+    const periodStart = new Date(Date.UTC(year, month - 1, 1));
+    const periodEnd = new Date(Date.UTC(year, month, 0));
+    const run = await this.prisma.payrollRun.findFirst({ where: { year, month } });
+    if (!run) return null;
+    const approvedRows = await this.prisma.projectTimesheetEntry.findMany({
+      where: {
+        workerId,
+        status: 'approved',
+        workDate: { gte: periodStart, lte: periodEnd },
+      },
+      orderBy: [{ workDate: 'asc' }, { createdAt: 'asc' }]
+    });
+    const totalHours = approvedRows.reduce((sum, row) => sum + Number(row.hours || 0), 0);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.payrollRunTimesheetAllocation.deleteMany({ where: { runId: run.id, workerId } });
+      if (approvedRows.length) {
+        await tx.payrollRunTimesheetAllocation.createMany({
+          data: approvedRows.map((row, index) => ({
+            runId: run.id,
+            workerId,
+            organizationId: row.organizationId,
+            teamId: row.teamId,
+            projectId: row.projectId,
+            fundId: row.fundId,
+            grantId: row.grantId,
+            hours: row.hours,
+            allocationPercent: totalHours > 0 ? (Number(row.hours || 0) / totalHours) * 100 : 0,
+            source: 'timesheet',
+            notes: row.description,
+            sortOrder: index,
+            approvedAt: row.approvedAt ?? new Date(),
+          }))
+        });
+      }
+      await tx.projectTimesheetEntry.updateMany({
+        where: { id: { in: approvedRows.map((row) => row.id) } },
+        data: { syncedRunId: run.id }
+      });
+    });
+    return run.id;
+  }
+
   private async resolvePayrollSettingTx(tx: Prisma.TransactionClient, organizationId: bigint | null) {
     return tx.payrollSetting.findFirst({
       where: organizationId ? { OR: [{ organizationId }, { organizationId: null }] } : { organizationId: null },
       orderBy: { organizationId: 'desc' }
-    }).then((row) => row || { defaultExpenseAccountId: null, defaultCashAccountId: null, config: {} });
+    }).then((row) => row || { defaultExpenseAccountId: null, defaultCashAccountId: null, employeeTaxTableId: null, config: {} });
   }
 
   private async resolveCashChartAccountTx(tx: Prisma.TransactionClient, financeAccountId: string, organizationId: bigint | null) {
@@ -2112,7 +2948,7 @@ export class PayrollService {
       }
       for (const allocation of allocations) {
         const factor = Number(allocation.allocationPercent || 0) / 100;
-        const amount = Number(item.netPay || 0) * factor;
+        const amount = Number(item.actualNetPay || item.netPay || 0) * factor;
         if (!amount) continue;
         addLine({
           chartAccountId: cashChartAccountId,
@@ -2209,6 +3045,171 @@ export class PayrollService {
     const year = date.getFullYear();
     const count = await tx.financeJournalEntry.count({ where: { entryNo: { startsWith: `${prefix}/${year}/` } } });
     return `${prefix}/${year}/${String(count + 1).padStart(4, '0')}`;
+  }
+
+  private resolveAllocationSource(allocationMode: string, timesheetRowCount: number) {
+    if (allocationMode === 'timesheet') return timesheetRowCount > 0 ? 'timesheet' : 'fixed';
+    if (allocationMode === 'hybrid') return timesheetRowCount > 0 ? 'hybrid' : 'fixed';
+    return 'fixed';
+  }
+
+  private async ensureSystemPayrollComponentsTx(tx: Prisma.TransactionClient, codes: string[]) {
+    const existing = await tx.payrollComponent.findMany({ where: { code: { in: codes }, isActive: true } });
+    const existingCodes = new Set(existing.map((row) => row.code));
+    const definitions: Record<string, Partial<Prisma.PayrollComponentUncheckedCreateInput>> = {
+      basic_salary: { name: 'Basic Salary', componentType: 'earning', calculationType: 'fixed', paidBy: 'employer', isTaxable: true, affectsNetPay: true, isStatutory: false, isActive: true },
+      paye_tax: { name: 'PAYE Tax', componentType: 'deduction', calculationType: 'percentage', paidBy: 'employee', isTaxable: false, affectsNetPay: true, isStatutory: true, isActive: true },
+      pension_employee: { name: 'Employee Pension', componentType: 'deduction', calculationType: 'percentage', paidBy: 'employee', isTaxable: false, affectsNetPay: true, isStatutory: true, isActive: true },
+      pension_employer: { name: 'Employer Pension', componentType: 'employer_cost', calculationType: 'percentage', paidBy: 'employer', isTaxable: false, affectsNetPay: false, isStatutory: true, isActive: true },
+      withholding_tax: { name: 'Withholding Tax', componentType: 'deduction', calculationType: 'percentage', paidBy: 'employee', isTaxable: false, affectsNetPay: true, isStatutory: true, isActive: true },
+      employer_paye_cover: { name: 'Employer PAYE Cover', componentType: 'employer_cost', calculationType: 'percentage', paidBy: 'employer', isTaxable: false, affectsNetPay: false, isStatutory: true, isActive: true },
+      salary_advance_recovery: { name: 'Salary Advance Recovery', componentType: 'deduction', calculationType: 'fixed', paidBy: 'employee', isTaxable: false, affectsNetPay: true, isStatutory: false, isActive: true },
+      loan_repayment: { name: 'Loan Repayment', componentType: 'deduction', calculationType: 'fixed', paidBy: 'employee', isTaxable: false, affectsNetPay: true, isStatutory: false, isActive: true },
+    };
+    for (const code of codes) {
+      if (existingCodes.has(code) || !definitions[code]) continue;
+      const created = await tx.payrollComponent.create({
+        data: {
+          code,
+          ...definitions[code],
+        } as Prisma.PayrollComponentUncheckedCreateInput
+      });
+      existing.push(created);
+    }
+    return existing;
+  }
+
+  private expandProfileComponentLines(component: any, amount: number, rate: number | null, notes: string | null) {
+    const lineRate = rate == null ? null : new Prisma.Decimal(rate);
+    const employerSharePercent = Math.max(0, Math.min(100, Number(component.employerSharePercent || 0)));
+    if (component.componentType === 'earning' || component.componentType === 'employer_cost') {
+      return [{
+        componentId: component.id,
+        lineType: component.componentType,
+        amount: new Prisma.Decimal(amount),
+        rate: lineRate,
+        notes,
+        affectsNetPay: component.componentType === 'earning' ? true : false,
+      }];
+    }
+    if (component.paidBy === 'employer') {
+      return [{
+        componentId: component.id,
+        lineType: 'employer_cost',
+        amount: new Prisma.Decimal(amount),
+        rate: lineRate,
+        notes,
+        affectsNetPay: false,
+      }];
+    }
+    if (component.paidBy === 'shared' && employerSharePercent > 0) {
+      const employerAmount = amount * (employerSharePercent / 100);
+      const employeeAmount = amount - employerAmount;
+      return [
+        ...(employeeAmount > 0 ? [{
+          componentId: component.id,
+          lineType: 'deduction',
+          amount: new Prisma.Decimal(employeeAmount),
+          rate: lineRate,
+          notes: notes || 'Employee share',
+          affectsNetPay: true,
+        }] : []),
+        ...(employerAmount > 0 ? [{
+          componentId: component.id,
+          lineType: 'employer_cost',
+          amount: new Prisma.Decimal(employerAmount),
+          rate: lineRate,
+          notes: notes || 'Employer share',
+          affectsNetPay: false,
+        }] : []),
+      ];
+    }
+    return [{
+      componentId: component.id,
+      lineType: 'deduction',
+      amount: new Prisma.Decimal(amount),
+      rate: lineRate,
+      notes,
+      affectsNetPay: component.affectsNetPay !== false,
+    }];
+  }
+
+  private normalizeTimesheetAllocations(rows: any[]) {
+    if (!rows.length) return [];
+    const totalPercent = rows.reduce((sum, row) => sum + Number(row.allocationPercent || 0), 0);
+    const totalHours = rows.reduce((sum, row) => sum + Number(row.hours || 0), 0);
+    return rows
+      .map((row) => {
+        const percent = totalPercent > 0
+          ? Number(row.allocationPercent || 0)
+          : totalHours > 0
+            ? (Number(row.hours || 0) / totalHours) * 100
+            : 0;
+        return {
+          organizationId: row.organizationId ?? null,
+          teamId: row.teamId ?? null,
+          projectId: row.projectId ?? null,
+          fundId: row.fundId ?? null,
+          grantId: row.grantId ?? null,
+          allocationPercent: new Prisma.Decimal(percent),
+          allocationAmount: null,
+          sortOrder: row.sortOrder ?? 0,
+          hours: Number(row.hours || 0),
+        };
+      })
+      .filter((row) => Number(row.allocationPercent) > 0);
+  }
+
+  private resolveAllocations(input: {
+    allocationMode: string;
+    hybridFixedPercent: number;
+    fixedAllocations: Array<{ organizationId: bigint | null; teamId: bigint | null; projectId: bigint | null; fundId: string | null; grantId: string | null; allocationPercent: number; allocationAmount?: Prisma.Decimal | null; sortOrder: number }>;
+    timesheetAllocations: Array<{ organizationId: bigint | null; teamId: bigint | null; projectId: bigint | null; fundId: string | null; grantId: string | null; allocationPercent: Prisma.Decimal; allocationAmount?: Prisma.Decimal | null; sortOrder: number; hours?: number }>;
+  }) {
+    const timesheetRows = input.timesheetAllocations.length ? input.timesheetAllocations : [];
+    if (input.allocationMode === 'timesheet' && timesheetRows.length) {
+      return timesheetRows.map((row, index) => ({ ...row, sortOrder: index }));
+    }
+    if (input.allocationMode !== 'hybrid' || !timesheetRows.length) {
+      return input.fixedAllocations.map((row, index) => ({
+        ...row,
+        allocationPercent: new Prisma.Decimal(Number(row.allocationPercent || 0)),
+        sortOrder: index,
+      }));
+    }
+
+    const fixedWeight = Math.max(0, Math.min(100, input.hybridFixedPercent)) / 100;
+    const timesheetWeight = 1 - fixedWeight;
+    const bucket = new Map<string, { organizationId: bigint | null; teamId: bigint | null; projectId: bigint | null; fundId: string | null; grantId: string | null; allocationPercent: number }>();
+    const add = (row: { organizationId: bigint | null; teamId: bigint | null; projectId: bigint | null; fundId: string | null; grantId: string | null }, percent: number) => {
+      const key = [row.organizationId ?? '', row.teamId ?? '', row.projectId ?? '', row.fundId ?? '', row.grantId ?? ''].join('|');
+      const existing = bucket.get(key) || { ...row, allocationPercent: 0 };
+      existing.allocationPercent += percent;
+      bucket.set(key, existing);
+    };
+    for (const row of input.fixedAllocations) add(row, Number(row.allocationPercent || 0) * fixedWeight);
+    for (const row of timesheetRows) add(row, Number(row.allocationPercent || 0) * timesheetWeight);
+    return Array.from(bucket.values())
+      .filter((row) => row.allocationPercent > 0)
+      .map((row, index) => ({
+        ...row,
+        allocationPercent: new Prisma.Decimal(row.allocationPercent),
+        allocationAmount: null,
+        sortOrder: index,
+      }));
+  }
+
+  private normalizeTimesheetInputRows(rows: UpdatePayrollRunTimesheetAllocationsDto['allocations']) {
+    const totalPercent = rows.reduce((sum, row) => sum + Number(row.allocation_percent || 0), 0);
+    const totalHours = rows.reduce((sum, row) => sum + Number(row.hours || 0), 0);
+    return rows.map((row) => ({
+      ...row,
+      allocation_percent: totalPercent > 0
+        ? Number(row.allocation_percent || 0)
+        : totalHours > 0
+          ? (Number(row.hours || 0) / totalHours) * 100
+          : 0,
+    })).filter((row) => Number(row.allocation_percent || 0) > 0 || Number(row.hours || 0) > 0);
   }
 
   private async analyzeImport(dto: PayrollImportDto) {

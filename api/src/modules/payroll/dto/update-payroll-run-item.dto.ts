@@ -33,6 +33,18 @@ export class UpdatePayrollRunItemDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  actual_net_pay?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  net_adjustment_reason?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsString()
   payment_status?: string;
 

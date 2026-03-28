@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import Table from "@/components/Base/Table";
 import Lucide from "@/components/Base/Lucide";
@@ -54,21 +54,54 @@ function MyPayslipsPage() {
     }
   };
 
+  const summary = useMemo(() => {
+    const latest = rows[0] || null;
+    return {
+      total: rows.length,
+      latest,
+      distributed: rows.filter((row) => row.latest_distribution?.status === "sent").length,
+      pending: rows.filter((row) => !row.latest_distribution || row.latest_distribution?.status !== "sent").length,
+    };
+  }, [rows]);
+
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">My Payslips</h2>
-        <Button variant="outline-secondary" onClick={() => void load()} disabled={loading}>
-          <Lucide icon="Undo2" className="w-4 h-4 mr-1" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Link to="/app/profile/payroll-notifications">
+            <Button variant="outline-secondary">
+              <Lucide icon="Bell" className="w-4 h-4 mr-1" />
+              Notifications
+            </Button>
+          </Link>
+          <Button variant="outline-secondary" onClick={() => void load()} disabled={loading}>
+            <Lucide icon="Undo2" className="w-4 h-4 mr-1" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
+      <div className="grid grid-cols-1 gap-4 mt-5 md:grid-cols-4">
+        <div className="box p-5"><div className="text-sm text-slate-500">Available Payslips</div><div className="mt-2 text-2xl font-semibold">{summary.total}</div></div>
+        <div className="box p-5"><div className="text-sm text-slate-500">Latest Period</div><div className="mt-2 text-lg font-semibold">{summary.latest ? `${summary.latest.month}/${summary.latest.year}` : "-"}</div></div>
+        <div className="box p-5"><div className="text-sm text-slate-500">Sent to you</div><div className="mt-2 text-2xl font-semibold">{summary.distributed}</div></div>
+        <div className="box p-5"><div className="text-sm text-slate-500">Needs attention</div><div className="mt-2 text-2xl font-semibold">{summary.pending}</div></div>
+      </div>
+
       <div className="box p-5 mt-5">
-        <div className="text-sm text-slate-600">
-          Download your payroll payslips. Newly distributed payslips will appear here with the latest distribution status.
+        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+          <div>
+            <div className="font-medium">Your payroll documents</div>
+            <div className="text-sm text-slate-600">Download confirmed payslips here. If you were sent a link from a payroll notification, the matching row is highlighted below.</div>
+          </div>
+          {summary.latest ? (
+            <div className="rounded border px-3 py-2 text-sm text-slate-600">
+              Latest net pay: <span className="font-medium text-slate-800">{formatMoney(summary.latest.net_pay)}</span>
+            </div>
+          ) : null}
         </div>
       </div>
 
@@ -102,9 +135,7 @@ function MyPayslipsPage() {
                         <div className="capitalize">{String(row.latest_distribution.status || "").replaceAll("_", " ")}</div>
                         <div className="text-xs text-slate-500">{formatDisplayDate(row.latest_distribution.created_at)}</div>
                       </div>
-                    ) : (
-                      <span className="text-slate-500">-</span>
-                    )}
+                    ) : <span className="text-slate-500">-</span>}
                   </Table.Td>
                   <Table.Td className="text-right">
                     <Button size="sm" variant="outline-primary" onClick={() => void download(row.run_id, row.id)}>
@@ -117,9 +148,7 @@ function MyPayslipsPage() {
             })}
             {!rows.length ? (
               <Table.Tr>
-                <Table.Td colSpan={6} className="text-center text-slate-500 py-10">
-                  No payslips available yet.
-                </Table.Td>
+                <Table.Td colSpan={6} className="text-center text-slate-500 py-10">No payslips available yet.</Table.Td>
               </Table.Tr>
             ) : null}
           </Table.Tbody>
