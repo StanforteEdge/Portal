@@ -118,6 +118,9 @@ function FinancePayrollRunsPage() {
     return { ...emptyForm, period_start: start, period_end: end };
   });
 
+  const readSettledValue = <T,>(result: PromiseSettledResult<T>, fallback: T): T =>
+    result.status === "fulfilled" ? result.value : fallback;
+
   const closeDetail = () => {
     setShowDetail(false);
     setDetailTab("overview");
@@ -131,22 +134,38 @@ function FinancePayrollRunsPage() {
   const load = async () => {
     try {
       setLoading(true);
-      const [runRes, accountRes, organizationRows, teamRows, projectRows, fundRows, grantRows] = await Promise.all([
+      const [runRes, accountRes, organizationRows, teamRows, projectRows, fundRows, grantRows] = await Promise.allSettled([
         listPayrollRuns({ page: 1, per_page: 100, status: statusFilter || undefined }),
-        listFinanceAccounts({ is_active: true }).catch(() => []),
-        listOrganizations({ is_active: true }).catch(() => []),
-        listTeams({ active_only: true }).catch(() => []),
-        listProjects({ active_only: false }).catch(() => []),
-        listFinanceFunds().catch(() => []),
-        listFinanceGrants().catch(() => []),
+        listFinanceAccounts({ is_active: true }),
+        listOrganizations({ is_active: true }),
+        listTeams({ active_only: true }),
+        listProjects({ active_only: false }),
+        listFinanceFunds(),
+        listFinanceGrants(),
       ]);
-      setRows(runRes.data ?? []);
-      setAccounts(accountRes ?? []);
-      setOrganizations(organizationRows ?? []);
-      setTeams(teamRows ?? []);
-      setProjects(projectRows ?? []);
-      setFunds(fundRows ?? []);
-      setGrants(grantRows ?? []);
+
+      if (runRes.status !== "fulfilled") {
+        throw runRes.reason;
+      }
+
+      const lookupFailures = [accountRes, organizationRows, teamRows, projectRows, fundRows, grantRows].filter(
+        (result) => result.status === "rejected"
+      ).length;
+
+      setRows(runRes.value.data ?? []);
+      setAccounts(readSettledValue(accountRes, []));
+      setOrganizations(readSettledValue(organizationRows, []));
+      setTeams(readSettledValue(teamRows, []));
+      setProjects(readSettledValue(projectRows, []));
+      setFunds(readSettledValue(fundRows, []));
+      setGrants(readSettledValue(grantRows, []));
+
+      if (lookupFailures > 0) {
+        setNotice({
+          tone: "warning",
+          message: `Payroll runs loaded with ${lookupFailures} supporting lookup${lookupFailures === 1 ? "" : "s"} unavailable.`,
+        });
+      }
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load payroll runs." });
     } finally {

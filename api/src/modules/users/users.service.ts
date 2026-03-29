@@ -125,7 +125,7 @@ export class UsersService {
     ]);
 
     return {
-      data,
+      data: data.map((row) => this.serializeUserSummary(row)),
       meta: {
         page,
         per_page: perPage,
@@ -261,7 +261,7 @@ export class UsersService {
       });
     }
 
-    return user;
+    return this.serializeUserSummary(user);
   }
 
   async getUserById(userId: string) {
@@ -270,7 +270,7 @@ export class UsersService {
       where: { id: profileId }
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return this.serializeUserDetail(user);
   }
 
   async updateUser(userId: string, dto: UpdateUserDto) {
@@ -424,7 +424,7 @@ export class UsersService {
       });
     }
 
-    return user;
+    return this.serializeUserDetail(user);
   }
 
   async getUserRoles(userId: string) {
@@ -678,5 +678,24 @@ export class UsersService {
         : null,
       onboarding_progress: user.onboardingProgress ?? null
     };
+  }
+
+  private serializeUserSummary(user: any) {
+    return {
+      id: user.id.toString(),
+      username: user.username ?? null,
+      email: user.email,
+      type: user.type,
+      status: user.status,
+      firstName: user.firstName ?? null,
+      lastName: user.lastName ?? null,
+      primaryOrganizationId: user.primaryOrganizationId ? user.primaryOrganizationId.toString() : null,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    };
+  }
+
+  private serializeUserDetail(user: any) {
+    return this.serializeUserSummary(user);
   }
 }

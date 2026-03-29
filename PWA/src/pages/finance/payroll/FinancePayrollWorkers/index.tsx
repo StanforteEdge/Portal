@@ -93,29 +93,53 @@ function FinancePayrollWorkersPage() {
   const [editorStep, setEditorStep] = useState<WorkerStep>("identity");
   const [form, setForm] = useState(emptyForm);
 
+  const readSettledValue = <T,>(result: PromiseSettledResult<T>, fallback: T): T =>
+    result.status === "fulfilled" ? result.value : fallback;
+
   const load = async () => {
     try {
       setLoading(true);
-      const [workerRes, componentRows, orgRows, teamRows, projectRows, fundRows, grantRows, userRows, taxTableRows] = await Promise.all([
+      const [workerRes, componentRows, orgRows, teamRows, projectRows, fundRows, grantRows, userRows, taxTableRows] = await Promise.allSettled([
         listPayrollWorkers({ page: 1, per_page: 200, search: search || undefined, worker_type: workerType || undefined }),
         listPayrollComponents({ is_active: true }),
-        listOrganizations({ is_active: true }).catch(() => []),
-        listTeams({ active_only: true }).catch(() => []),
-        listProjects({ active_only: false }).catch(() => []),
-        listFinanceFunds().catch(() => []),
-        listFinanceGrants().catch(() => []),
-        listUsers({ page: 1, per_page: 200, status: "active" }).catch(() => ({ data: [], meta: null })),
-        listPayrollTaxTables({ status: "active" }).catch(() => []),
+        listOrganizations({ is_active: true }),
+        listTeams({ active_only: true }),
+        listProjects({ active_only: false }),
+        listFinanceFunds(),
+        listFinanceGrants(),
+        listUsers({ page: 1, per_page: 200, status: "active" }),
+        listPayrollTaxTables({ status: "active" }),
       ]);
-      setRows(workerRes.data ?? []);
-      setComponents(componentRows ?? []);
-      setOrganizations(orgRows);
-      setTeams(teamRows);
-      setProjects(projectRows);
-      setFunds(fundRows);
-      setGrants(grantRows);
-      setProfiles(userRows.data ?? []);
-      setTaxTables(taxTableRows ?? []);
+
+      if (workerRes.status !== "fulfilled") {
+        throw workerRes.reason;
+      }
+
+      const lookupFailures = [componentRows, orgRows, teamRows, projectRows, fundRows, grantRows, userRows, taxTableRows].filter(
+        (result) => result.status === "rejected"
+      ).length;
+
+      setRows(workerRes.value.data ?? []);
+      setComponents(readSettledValue(componentRows, []));
+      setOrganizations(readSettledValue(orgRows, []));
+      setTeams(readSettledValue(teamRows, []));
+      setProjects(readSettledValue(projectRows, []));
+      setFunds(readSettledValue(fundRows, []));
+      setGrants(readSettledValue(grantRows, []));
+      setProfiles(
+        readSettledValue(userRows, {
+          data: [],
+          meta: { page: 1, per_page: 200, total: 0, last_page: 1 },
+        }).data ?? []
+      );
+      setTaxTables(readSettledValue(taxTableRows, []));
+
+      if (lookupFailures > 0) {
+        setNotice({
+          tone: "warning",
+          message: `Payroll workers loaded with ${lookupFailures} supporting lookup${lookupFailures === 1 ? "" : "s"} unavailable.`,
+        });
+      }
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load payroll workers." });
     } finally {
