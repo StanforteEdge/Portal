@@ -8,10 +8,14 @@ const dialogContext = createContext<{
   open: boolean;
   zoom: boolean;
   size: Size;
+  panelRef: React.MutableRefObject<HTMLElement | null>;
+  focusRef: React.MutableRefObject<HTMLElement | null>;
 }>({
   open: false,
   zoom: false,
   size: "md",
+  panelRef: { current: null },
+  focusRef: { current: null },
 });
 
 function Dialog({
@@ -28,6 +32,7 @@ function Dialog({
   staticBackdrop?: boolean;
 }) {
   const focusElement = useRef<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLElement | null>(null);
   const [zoom, setZoom] = useState(false);
 
   return (
@@ -36,6 +41,8 @@ function Dialog({
         open: open,
         zoom: zoom,
         size: size,
+        panelRef,
+        focusRef: focusElement,
       }}
     >
       <Transition appear as={Fragment} show={open}>
@@ -96,6 +103,13 @@ Dialog.Panel = ({
       >
         <HeadlessDialog.Panel
           as={as}
+          ref={(node: HTMLElement | null) => {
+            dialog.panelRef.current = node;
+            if (!dialog.focusRef.current) {
+              dialog.focusRef.current = node;
+            }
+          }}
+          tabIndex={-1}
           className={twMerge([
             "w-[90%] mx-auto bg-white relative rounded-md shadow-md transition-transform dark:bg-darkmode-600",
             dialog.size == "md" && "sm:w-[460px]",

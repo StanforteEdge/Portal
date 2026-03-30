@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import Table from "@/components/Base/Table";
-import { FormInput, FormSelect } from "@/components/Base/Form";
+import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { getHrSummary, listHrEmployees, type HrEmployee } from "@/services/hr";
 
@@ -53,12 +53,14 @@ function HrEmployeesPage() {
 
       <div className="mt-5 intro-y box p-5">
         <div className="flex flex-wrap gap-2 mb-4">
+          <FormLabel className="sr-only">Search employees</FormLabel>
           <FormInput
             type="text"
             placeholder="Search by name/email"
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
+          <FormLabel className="sr-only">Filter employee status</FormLabel>
           <FormSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
             <option value="">All status</option>
             <option value="active">Active</option>
@@ -85,7 +87,7 @@ function HrEmployeesPage() {
                 const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim() || employee.username;
                 return (
                   <Table.Tr key={employee.id}>
-                    <Table.Td>{fullName}</Table.Td>
+                    <Table.RowHeader>{fullName}</Table.RowHeader>
                     <Table.Td>{employee.email}</Table.Td>
                     <Table.Td>{employee.roles?.[0]?.name || "-"}</Table.Td>
                     <Table.Td>{employee.status}</Table.Td>

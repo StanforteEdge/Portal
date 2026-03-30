@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import Lucide from "@/components/Base/Lucide";
 import Breadcrumb from "@/components/Base/Breadcrumb";
-import { FormInput } from "@/components/Base/Form";
+import { FormInput, FormLabel } from "@/components/Base/Form";
 import { Menu, Popover } from "@/components/Base/Headless";
 import { useAppDispatch, useAppSelector } from "@/stores/hooks";
 import { logoutThunk, selectAuthState } from "@/stores/authSlice";
@@ -78,8 +78,10 @@ function Main() {
 
       <div className="relative mr-3 intro-x sm:mr-6">
         <div className="relative hidden sm:block">
+          <FormLabel className="sr-only">Search the portal</FormLabel>
           <FormInput
             type="text"
+            aria-label="Search the portal"
             className="border-transparent w-56 shadow-none rounded-full bg-slate-300/50 pr-8 transition-[width] duration-300 ease-in-out focus:border-transparent focus:w-72 dark:bg-darkmode-400/70"
             placeholder="Search..."
           />
@@ -92,6 +94,8 @@ function Main() {
 
       <Popover className="mr-auto intro-x sm:mr-6">
         <Popover.Button
+          aria-label={unreadCount > 0 ? `Open notifications, ${unreadCount} unread` : "Open notifications"}
+          title="Open notifications"
           className="relative text-slate-600 outline-none block"
         >
           {unreadCount > 0 ? (
@@ -142,7 +146,11 @@ function Main() {
       </Popover>
 
       <Menu>
-        <Menu.Button className="flex items-center justify-center w-8 h-8 overflow-hidden rounded-full shadow-lg bg-primary/10 text-primary font-semibold zoom-in intro-x">
+        <Menu.Button
+          aria-label="Open user menu"
+          title="Open user menu"
+          className="flex items-center justify-center w-8 h-8 overflow-hidden rounded-full shadow-lg bg-primary/10 text-primary font-semibold zoom-in intro-x"
+        >
           {userName?.charAt(0)?.toUpperCase() || "U"}
         </Menu.Button>
         <Menu.Items className="w-56 mt-px text-white bg-primary">

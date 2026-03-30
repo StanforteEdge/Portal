@@ -553,11 +553,26 @@ function HrSettingsPage() {
             <div className="grid grid-cols-12 gap-3 mt-3">
               <div className="col-span-12 md:col-span-2"><FormInput type="time" value={attendanceOverrideConfig.start_time} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, start_time: e.target.value }))} /></div>
               <div className="col-span-12 md:col-span-2"><FormInput type="time" value={attendanceOverrideConfig.end_time} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, end_time: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-2"><FormInput type="number" min={0} placeholder="Grace" value={attendanceOverrideConfig.grace_minutes} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, grace_minutes: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-2"><FormInput type="number" min={0} placeholder="Future" value={attendanceOverrideConfig.max_future_minutes} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, max_future_minutes: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-2"><FormInput type="number" min={0} placeholder="Backdate" value={attendanceOverrideConfig.max_past_days} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, max_past_days: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-1"><FormInput type="number" min={0} placeholder="Early" value={attendanceOverrideConfig.earliest_clock_in_minutes_before_start} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, earliest_clock_in_minutes_before_start: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-1"><FormInput type="number" min={0} placeholder="Late" value={attendanceOverrideConfig.latest_clock_out_minutes_after_end} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, latest_clock_out_minutes_after_end: e.target.value }))} /></div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel className="sr-only">Grace minutes</FormLabel>
+                <FormInput type="number" min={0} placeholder="Grace" value={attendanceOverrideConfig.grace_minutes} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, grace_minutes: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel className="sr-only">Future minutes</FormLabel>
+                <FormInput type="number" min={0} placeholder="Future" value={attendanceOverrideConfig.max_future_minutes} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, max_future_minutes: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel className="sr-only">Backdate days</FormLabel>
+                <FormInput type="number" min={0} placeholder="Backdate" value={attendanceOverrideConfig.max_past_days} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, max_past_days: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-1">
+                <FormLabel className="sr-only">Early clock-in minutes</FormLabel>
+                <FormInput type="number" min={0} placeholder="Early" value={attendanceOverrideConfig.earliest_clock_in_minutes_before_start} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, earliest_clock_in_minutes_before_start: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-1">
+                <FormLabel className="sr-only">Late clock-out minutes</FormLabel>
+                <FormInput type="number" min={0} placeholder="Late" value={attendanceOverrideConfig.latest_clock_out_minutes_after_end} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, latest_clock_out_minutes_after_end: e.target.value }))} />
+              </div>
             </div>
 
             <Table className="mt-4">
@@ -576,7 +591,7 @@ function HrSettingsPage() {
                     <Table.Td>{scopeLabel(row.scope_type, row.scope_id)}</Table.Td>
                     <Table.Td>{row.priority}</Table.Td>
                     <Table.Td>
-                      <Button variant="outline-danger" size="sm" onClick={() => void deactivateOverride(row.id)}>
+                      <Button variant="outline-danger" size="sm" aria-label={`Disable attendance override for ${scopeLabel(row.scope_type, row.scope_id)}`} title="Disable override" onClick={() => void deactivateOverride(row.id)}>
                         <Lucide icon="Trash2" className="w-3 h-3 mr-1" /> Disable
                       </Button>
                     </Table.Td>
@@ -680,9 +695,10 @@ function HrSettingsPage() {
             <div className="space-y-2 mt-4">
               {leaveEntitlements.map((row, index) => (
                 <div key={`${row.leave_type_key}-${index}`} className="grid grid-cols-12 gap-2">
-                  <div className="col-span-8">
-                    <FormInput
-                      value={row.leave_type_key}
+                <div className="col-span-8">
+                  <FormLabel className="sr-only">Leave entitlement key</FormLabel>
+                  <FormInput
+                    value={row.leave_type_key}
                       onChange={(e) =>
                         setLeaveEntitlements((prev) =>
                           prev.map((item, i) => (i === index ? { ...item, leave_type_key: e.target.value } : item))
@@ -691,9 +707,10 @@ function HrSettingsPage() {
                       placeholder="e.g. annual_leave"
                     />
                   </div>
-                  <div className="col-span-3">
-                    <FormInput
-                      type="number"
+                <div className="col-span-3">
+                  <FormLabel className="sr-only">Leave entitlement days</FormLabel>
+                  <FormInput
+                    type="number"
                       min={0}
                       step="0.5"
                       value={row.days}
@@ -709,6 +726,8 @@ function HrSettingsPage() {
                       type="button"
                       variant="outline-danger"
                       className="w-full"
+                      aria-label={`Remove leave entitlement row ${index + 1}`}
+                      title="Remove row"
                       onClick={() => setLeaveEntitlements((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}
                     >
                       <Lucide icon="XCircle" className="w-4 h-4" />
@@ -782,6 +801,8 @@ function HrSettingsPage() {
                       type="button"
                       variant="outline-danger"
                       className="w-full"
+                      aria-label={`Remove leave override row ${index + 1}`}
+                      title="Remove row"
                       onClick={() => setLeaveOverrideRows((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}
                     >
                       <Lucide icon="XCircle" className="w-4 h-4" />
@@ -807,7 +828,7 @@ function HrSettingsPage() {
                     <Table.Td>{scopeLabel(row.scope_type, row.scope_id)}</Table.Td>
                     <Table.Td>{row.priority}</Table.Td>
                     <Table.Td>
-                      <Button variant="outline-danger" size="sm" onClick={() => void deactivateOverride(row.id)}>
+                      <Button variant="outline-danger" size="sm" aria-label={`Disable leave override for ${scopeLabel(row.scope_type, row.scope_id)}`} title="Disable override" onClick={() => void deactivateOverride(row.id)}>
                         <Lucide icon="Trash2" className="w-3 h-3 mr-1" /> Disable
                       </Button>
                     </Table.Td>

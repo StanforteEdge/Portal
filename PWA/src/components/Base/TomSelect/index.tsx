@@ -1,5 +1,5 @@
 import "@/assets/css/vendors/tom-select.css";
-import { createRef, useEffect } from "react";
+import { createRef, useEffect, useId } from "react";
 import { setValue, init, updateValue } from "./tom-select";
 import TomSelectPlugin from "tom-select";
 import { useRef, useMemo } from "react";
@@ -51,6 +51,7 @@ function TomSelect<T extends string | string[]>({
   };
   const initialRender = useRef(true);
   const tomSelectRef = createRef<TomSelectElement>();
+  const generatedId = useId();
 
   // Compute all default options
   const computedOptions = useMemo(() => {
@@ -103,12 +104,20 @@ function TomSelect<T extends string | string[]>({
         const clonedEl = tomSelectRef.current.cloneNode(
           true
         ) as TomSelectElement;
+        const originalId = tomSelectRef.current.getAttribute("id");
 
         // Save initial classnames
         const classNames = tomSelectRef.current?.getAttribute("class");
         classNames && clonedEl.setAttribute("data-initial-class", classNames);
 
         // Hide original element
+        if (originalId) {
+          clonedEl.setAttribute("id", originalId);
+          tomSelectRef.current.setAttribute("data-original-id", originalId);
+          tomSelectRef.current.removeAttribute("id");
+        }
+        tomSelectRef.current.setAttribute("aria-hidden", "true");
+        tomSelectRef.current.setAttribute("tabindex", "-1");
         tomSelectRef.current?.parentNode &&
           tomSelectRef.current?.parentNode.appendChild(clonedEl);
         tomSelectRef.current.setAttribute("hidden", "true");
@@ -139,6 +148,7 @@ function TomSelect<T extends string | string[]>({
   return (
     <select
       {...computedProps}
+      id={computedProps.id || generatedId}
       ref={tomSelectRef}
       value={props.value}
       onChange={(e) => {

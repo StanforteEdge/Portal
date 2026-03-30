@@ -249,8 +249,9 @@ function FinancePayablesPage() {
           </FormSelect>
         </div>
         <div className="col-span-12 md:col-span-1 flex items-end">
-          <Button variant="primary" className="w-full" onClick={() => void load()}>
-            <Lucide icon="Search" className="w-4 h-4" />
+          <Button variant="primary" className="w-full" onClick={() => void load()} aria-label="Apply payables filters" title="Apply filters">
+            <Lucide icon="Search" className="w-4 h-4 mr-1" />
+            Apply Filters
           </Button>
         </div>
       </div>
@@ -292,10 +293,10 @@ function FinancePayablesPage() {
           <Table.Tbody>
             {(report?.items || []).map((item: any) => (
               <Table.Tr key={item.id}>
-                <Table.Td>
-                  <div className="font-medium">{item.document_number}</div>
+                <Table.RowHeader>
+                  {item.document_number}
                   <div className="text-xs text-slate-500">{item.organization || "-"} {item.team ? `• ${item.team}` : ""}</div>
-                </Table.Td>
+                </Table.RowHeader>
                 <Table.Td>{item.party_name}</Table.Td>
                 <Table.Td>{formatDisplayDate(item.issue_date)}</Table.Td>
                 <Table.Td>{formatDisplayDate(item.due_date)}</Table.Td>
@@ -308,6 +309,8 @@ function FinancePayablesPage() {
                   <Button
                     size="sm"
                     variant="outline-primary"
+                    aria-label={`Pay vendor bill ${item.document_number}`}
+                    title="Record payment"
                     onClick={() => openPaymentModal(item)}
                     disabled={Number(item.outstanding_amount || 0) <= 0}
                   >
@@ -413,7 +416,13 @@ function FinancePayablesPage() {
                   <FormInput type="number" min="0" value={line.unit_price} onChange={(e) => updateLine(index, "unit_price", e.target.value)} />
                 </div>
                 <div className="col-span-12 md:col-span-1 flex md:justify-end">
-                  <Button size="sm" variant="soft-danger" onClick={() => removeLine(index)}>
+                  <Button
+                    size="sm"
+                    variant="soft-danger"
+                    aria-label={`Remove bill line ${index + 1}`}
+                    title="Remove line"
+                    onClick={() => removeLine(index)}
+                  >
                     <Lucide icon="Trash2" className="w-4 h-4" />
                   </Button>
                 </div>

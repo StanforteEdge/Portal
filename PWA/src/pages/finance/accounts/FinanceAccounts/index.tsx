@@ -249,17 +249,17 @@ function FinanceAccountsPage() {
                 <Table.Td className="text-right">
                   <div className="flex gap-2 justify-end">
                     <Tippy content="View" as="div">
-                      <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/finance/accounts/${account.id}`)}>
+                      <Button size="sm" variant="outline-primary" aria-label={`View account ${account.name}`} title="View account" onClick={() => navigate(`/app/finance/accounts/${account.id}`)}>
                         <Lucide icon="Eye" className="w-4 h-4" />
                       </Button>
                     </Tippy>
                     <Tippy content="Edit" as="div">
-                      <Button size="sm" variant="outline-secondary" onClick={() => openEdit(account)}>
+                      <Button size="sm" variant="outline-secondary" aria-label={`Edit account ${account.name}`} title="Edit account" onClick={() => openEdit(account)}>
                         <Lucide icon="FilePenLine" className="w-4 h-4" />
                       </Button>
                     </Tippy>
                     <Tippy content={account.is_active ? "Deactivate" : "Activate"} as="div">
-                      <Button size="sm" variant="outline-danger" onClick={() => void toggleStatus(account)} disabled={saving}>
+                      <Button size="sm" variant="outline-danger" aria-label={`${account.is_active ? "Deactivate" : "Activate"} account ${account.name}`} title={account.is_active ? "Deactivate account" : "Activate account"} onClick={() => void toggleStatus(account)} disabled={saving}>
                         <Lucide icon={account.is_active ? "UserX" : "UserCheck"} className="w-4 h-4" />
                       </Button>
                     </Tippy>

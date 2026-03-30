@@ -166,6 +166,7 @@ function FinancePaymentVouchersPage() {
         <div className="flex flex-wrap items-center justify-between p-5 border-t border-slate-200/60 dark:border-darkmode-400 mt-4">
           <div className="text-slate-500 text-sm">Showing {rows.length} of {meta.total} vouchers</div>
           <div className="flex items-center gap-3">
+            <FormLabel className="sr-only">Items per page</FormLabel>
             <FormSelect
               className="w-auto"
               value={filters.per_page}

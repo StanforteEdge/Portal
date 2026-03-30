@@ -82,8 +82,9 @@ function FinanceAgedReceivablesPage() {
           </FormSelect>
         </div>
         <div className="col-span-12 md:col-span-1 flex items-end">
-          <Button variant="primary" className="w-full" onClick={() => void load()}>
-            <Lucide icon="Search" className="w-4 h-4" />
+          <Button variant="primary" className="w-full" onClick={() => void load()} aria-label="Apply aged receivables filters" title="Apply filters">
+            <Lucide icon="Search" className="w-4 h-4 mr-1" />
+            Apply Filters
           </Button>
         </div>
       </div>
@@ -114,13 +115,16 @@ function FinanceAgedReceivablesPage() {
             {(report?.items || []).map((item: any) => (
               <Table.Tr key={item.id}>
                 <Table.Td>
-                  <button
-                    type="button"
-                    className="text-primary font-medium"
-                    onClick={() => navigate(`/app/finance/receivables/${item.id}`)}
-                  >
-                    {item.document_number}
-                  </button>
+                  <Table.RowHeader>
+                    <button
+                      type="button"
+                      className="text-primary font-medium"
+                      aria-label={`Open receivable ${item.document_number}`}
+                      onClick={() => navigate(`/app/finance/receivables/${item.id}`)}
+                    >
+                      {item.document_number}
+                    </button>
+                  </Table.RowHeader>
                 </Table.Td>
                 <Table.Td>{item.party_name}</Table.Td>
                 <Table.Td>{formatDisplayDate(item.issue_date)}</Table.Td>

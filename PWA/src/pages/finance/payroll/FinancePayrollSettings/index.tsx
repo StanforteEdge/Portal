@@ -3,6 +3,7 @@ import Button from "@/components/Base/Button";
 import { Dialog } from "@/components/Base/Headless";
 import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import Lucide from "@/components/Base/Lucide";
+import TomSelect from "@/components/Base/TomSelect";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import { listFinanceChartAccounts } from "@/services/financeAccounting";
 import {
@@ -190,21 +191,21 @@ function FinancePayrollSettingsPage() {
         <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-2">
           <div>
             <FormLabel>Default Expense Account</FormLabel>
-            <FormSelect value={form.default_expense_account_id} onChange={(e) => setForm((prev) => ({ ...prev, default_expense_account_id: e.target.value }))}>
+            <TomSelect value={form.default_expense_account_id} onChange={(e) => setForm((prev) => ({ ...prev, default_expense_account_id: e.target.value }))}>
               <option value="">Select account</option>
               {accounts.map((row) => (
                 <option key={row.id} value={row.id}>{row.code} - {row.name}</option>
               ))}
-            </FormSelect>
+            </TomSelect>
           </div>
           <div>
             <FormLabel>Default Cash / Bank Chart Account</FormLabel>
-            <FormSelect value={form.default_cash_account_id} onChange={(e) => setForm((prev) => ({ ...prev, default_cash_account_id: e.target.value }))}>
+            <TomSelect value={form.default_cash_account_id} onChange={(e) => setForm((prev) => ({ ...prev, default_cash_account_id: e.target.value }))}>
               <option value="">Select account</option>
               {accounts.map((row) => (
                 <option key={row.id} value={row.id}>{row.code} - {row.name}</option>
               ))}
-            </FormSelect>
+            </TomSelect>
           </div>
         </div>
       </div>
@@ -224,7 +225,7 @@ function FinancePayrollSettingsPage() {
         <div className="grid grid-cols-1 gap-4 mt-4 md:grid-cols-2">
           <div>
             <FormLabel>Default Employee PAYE Table</FormLabel>
-            <FormSelect value={form.employee_tax_table_id} onChange={(e) => setForm((prev) => ({ ...prev, employee_tax_table_id: e.target.value }))}>
+            <TomSelect value={form.employee_tax_table_id} onChange={(e) => setForm((prev) => ({ ...prev, employee_tax_table_id: e.target.value }))}>
               <option value="">None selected</option>
               {taxTables
                 .filter((row) => ["employee", "all"].includes(String(row.worker_type || "employee")))
@@ -233,7 +234,7 @@ function FinancePayrollSettingsPage() {
                     {row.name} ({row.periodicity})
                   </option>
                 ))}
-            </FormSelect>
+            </TomSelect>
           </div>
         </div>
 

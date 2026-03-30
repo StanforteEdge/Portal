@@ -154,13 +154,13 @@ function FinanceNonprofitSettingsPage() {
             <Table.Tbody>
               {donors.map((row) => (
                 <Table.Tr key={row.id}>
-                  <Table.Td>
+                  <Table.RowHeader>
                     <div className="font-medium">{row.name}</div>
                     <div className="text-xs text-slate-500">{row.email || "-"}</div>
-                  </Table.Td>
+                  </Table.RowHeader>
                   <Table.Td>{row.donor_type}</Table.Td>
                   <Table.Td className="text-right">
-                    <Button size="sm" variant="outline-secondary" onClick={() => { setDonorId(row.id); setDonorForm({ name: row.name || "", donor_type: row.donor_type || "grantor", email: row.email || "", phone: row.phone || "", address: row.address || "", is_active: row.is_active !== false }); setShowDonor(true); }}>
+                    <Button size="sm" variant="outline-secondary" aria-label={`Edit donor ${row.name}`} title="Edit donor" onClick={() => { setDonorId(row.id); setDonorForm({ name: row.name || "", donor_type: row.donor_type || "grantor", email: row.email || "", phone: row.phone || "", address: row.address || "", is_active: row.is_active !== false }); setShowDonor(true); }}>
                       <Lucide icon="FilePenLine" className="w-4 h-4" />
                     </Button>
                   </Table.Td>
@@ -182,13 +182,13 @@ function FinanceNonprofitSettingsPage() {
             <Table.Tbody>
               {funds.map((row) => (
                 <Table.Tr key={row.id}>
-                  <Table.Td>
+                  <Table.RowHeader>
                     <div className="font-medium">{row.code}</div>
                     <div className="text-xs text-slate-500">{row.name}</div>
-                  </Table.Td>
+                  </Table.RowHeader>
                   <Table.Td>{row.restriction_type}</Table.Td>
                   <Table.Td className="text-right">
-                    <Button size="sm" variant="outline-secondary" onClick={() => { setFundId(row.id); setFundForm({ code: row.code || "", name: row.name || "", fund_type: row.fund_type || "operating", restriction_type: row.restriction_type || "unrestricted", donor_id: row.donor?.id || "", purpose: row.purpose || "", is_active: row.is_active !== false }); setShowFund(true); }}>
+                    <Button size="sm" variant="outline-secondary" aria-label={`Edit fund ${row.code || row.name}`} title="Edit fund" onClick={() => { setFundId(row.id); setFundForm({ code: row.code || "", name: row.name || "", fund_type: row.fund_type || "operating", restriction_type: row.restriction_type || "unrestricted", donor_id: row.donor?.id || "", purpose: row.purpose || "", is_active: row.is_active !== false }); setShowFund(true); }}>
                       <Lucide icon="FilePenLine" className="w-4 h-4" />
                     </Button>
                   </Table.Td>
@@ -210,16 +210,16 @@ function FinanceNonprofitSettingsPage() {
             <Table.Tbody>
               {grants.map((row) => (
                 <Table.Tr key={row.id}>
-                  <Table.Td>
+                  <Table.RowHeader>
                     <div className="font-medium">{row.code}</div>
                     <div className="text-xs text-slate-500">{row.name}</div>
-                  </Table.Td>
+                  </Table.RowHeader>
                   <Table.Td>
                     <div>{row.status}</div>
                     <div className="text-xs text-slate-500">{formatMoney(row.committed_amount)}</div>
                   </Table.Td>
                   <Table.Td className="text-right">
-                    <Button size="sm" variant="outline-secondary" onClick={() => { setGrantId(row.id); setGrantForm({ code: row.code || "", name: row.name || "", donor_id: row.donor?.id || "", fund_id: row.fund?.id || "", restriction_type: row.restriction_type || "restricted", start_date: row.start_date ? String(row.start_date).slice(0, 10) : "", end_date: row.end_date ? String(row.end_date).slice(0, 10) : "", committed_amount: String(row.committed_amount || ""), recognized_amount: String(row.recognized_amount || ""), deferred_amount: String(row.deferred_amount || ""), status: row.status || "active", purpose: row.purpose || "", notes: row.notes || "" }); setShowGrant(true); }}>
+                    <Button size="sm" variant="outline-secondary" aria-label={`Edit grant ${row.code || row.name}`} title="Edit grant" onClick={() => { setGrantId(row.id); setGrantForm({ code: row.code || "", name: row.name || "", donor_id: row.donor?.id || "", fund_id: row.fund?.id || "", restriction_type: row.restriction_type || "restricted", start_date: row.start_date ? String(row.start_date).slice(0, 10) : "", end_date: row.end_date ? String(row.end_date).slice(0, 10) : "", committed_amount: String(row.committed_amount || ""), recognized_amount: String(row.recognized_amount || ""), deferred_amount: String(row.deferred_amount || ""), status: row.status || "active", purpose: row.purpose || "", notes: row.notes || "" }); setShowGrant(true); }}>
                       <Lucide icon="FilePenLine" className="w-4 h-4" />
                     </Button>
                   </Table.Td>

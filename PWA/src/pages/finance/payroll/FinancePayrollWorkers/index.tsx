@@ -558,10 +558,10 @@ function FinancePayrollWorkersPage() {
                 </div>
                 <div className="col-span-12 md:col-span-4">
                   <FormLabel>Project</FormLabel>
-                  <FormSelect value={form.project_id} onChange={(e) => setForm((prev: any) => ({ ...prev, project_id: e.target.value }))}>
+                  <TomSelect value={form.project_id} onChange={(e) => setForm((prev: any) => ({ ...prev, project_id: e.target.value }))}>
                     <option value="">Select project</option>
                     {projects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                  </FormSelect>
+                  </TomSelect>
                 </div>
               </div>
             ) : null}
@@ -620,7 +620,7 @@ function FinancePayrollWorkersPage() {
                       <div key={`component-${index}`} className="grid grid-cols-12 gap-3">
                         <div className="col-span-12 md:col-span-8">
                           <FormLabel>Component</FormLabel>
-                          <FormSelect
+                          <TomSelect
                             value={row.component_id}
                             onChange={(e) => setForm((prev: any) => ({
                               ...prev,
@@ -629,7 +629,7 @@ function FinancePayrollWorkersPage() {
                           >
                             <option value="">Select component</option>
                             {components.map((component) => <option key={component.id} value={component.id}>{component.name}</option>)}
-                          </FormSelect>
+                          </TomSelect>
                         </div>
                         <div className="col-span-10 md:col-span-3">
                           <FormLabel>Amount</FormLabel>
@@ -683,17 +683,17 @@ function FinancePayrollWorkersPage() {
                   <div className="mt-4 grid grid-cols-12 gap-4">
                     <div className="col-span-12 md:col-span-6">
                       <FormLabel>Default Fund</FormLabel>
-                      <FormSelect value={form.default_fund_id} onChange={(e) => setForm((prev: any) => ({ ...prev, default_fund_id: e.target.value }))}>
+                      <TomSelect value={form.default_fund_id} onChange={(e) => setForm((prev: any) => ({ ...prev, default_fund_id: e.target.value }))}>
                         <option value="">No default fund</option>
                         {funds.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                      </FormSelect>
+                      </TomSelect>
                     </div>
                     <div className="col-span-12 md:col-span-6">
                       <FormLabel>Default Grant</FormLabel>
-                      <FormSelect value={form.default_grant_id} onChange={(e) => setForm((prev: any) => ({ ...prev, default_grant_id: e.target.value }))}>
+                      <TomSelect value={form.default_grant_id} onChange={(e) => setForm((prev: any) => ({ ...prev, default_grant_id: e.target.value }))}>
                         <option value="">No default grant</option>
                         {grants.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                      </FormSelect>
+                      </TomSelect>
                     </div>
                   </div>
                 </div>
@@ -730,7 +730,7 @@ function FinancePayrollWorkersPage() {
                     </label>
                     <div className="col-span-12 md:col-span-4">
                       <FormLabel>PAYE Tax Table Override</FormLabel>
-                      <FormSelect value={form.tax_table_id} onChange={(e) => setForm((prev: any) => ({ ...prev, tax_table_id: e.target.value }))}>
+                      <TomSelect value={form.tax_table_id} onChange={(e) => setForm((prev: any) => ({ ...prev, tax_table_id: e.target.value }))}>
                         <option value="">Use payroll default</option>
                         {taxTables
                           .filter((row) => ["employee", "all"].includes(String(row.worker_type || "employee")))
@@ -739,7 +739,7 @@ function FinancePayrollWorkersPage() {
                               {row.name}
                             </option>
                           ))}
-                      </FormSelect>
+                      </TomSelect>
                     </div>
                     <div className="col-span-12 md:col-span-3">
                       <FormLabel>Pension Rate Override</FormLabel>

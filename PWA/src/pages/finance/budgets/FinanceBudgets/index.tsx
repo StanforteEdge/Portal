@@ -232,10 +232,10 @@ function FinanceBudgetsPage() {
           <Table.Tbody>
             {budgets.map((row) => (
               <Table.Tr key={row.id}>
-                <Table.Td>
-                  <div className="font-medium">{row.name}</div>
+                <Table.RowHeader>
+                  {row.name}
                   <div className="text-xs text-slate-500 uppercase">{row.budget_type}</div>
-                </Table.Td>
+                </Table.RowHeader>
                 <Table.Td>
                   {row.grant?.name || row.fund?.name || projects.find((project) => project.id === row.project_id)?.name || "General"}
                 </Table.Td>
@@ -245,7 +245,13 @@ function FinanceBudgetsPage() {
                 <Table.Td>{row.status}</Table.Td>
                 <Table.Td className="text-right">{formatMoney(row.total_budget)}</Table.Td>
                 <Table.Td className="text-right">
-                  <Button size="sm" variant="outline-secondary" onClick={() => openEdit(row)}>
+                  <Button
+                    size="sm"
+                    variant="outline-secondary"
+                    aria-label={`Edit budget ${row.name}`}
+                    title="Edit budget"
+                    onClick={() => openEdit(row)}
+                  >
                     <Lucide icon="FilePenLine" className="w-4 h-4" />
                   </Button>
                 </Table.Td>
@@ -402,6 +408,8 @@ function FinanceBudgetsPage() {
                       <Button
                         size="sm"
                         variant="outline-danger"
+                        aria-label={`Remove budget line ${index + 1}`}
+                        title="Remove line"
                         onClick={() =>
                           setForm((prev: any) => ({
                             ...prev,
