@@ -12,8 +12,8 @@ import { BRAND_LOGO_FULL_DARK } from "@/constants/branding";
 import clsx from "clsx";
 import SimpleBar from "simplebar";
 
-function menuPanelId(level: number, key: number) {
-  return `mobile-menu-panel-${level}-${key}`;
+function menuPanelId(...parts: Array<number | string>) {
+  return `mobile-menu-panel-${parts.join("-")}`;
 }
 
 function Main() {
@@ -203,7 +203,7 @@ function Main() {
                                 subMenu.active ? "menu menu--active" : "menu",
                               ])}
                               aria-expanded={Boolean(subMenu.activeDropdown)}
-                              aria-controls={menuPanelId(2, subMenuKey)}
+                              aria-controls={menuPanelId(2, menuKey, subMenuKey)}
                               onClick={(event) => {
                                 event.preventDefault();
                                 linkTo(subMenu, navigate, setActiveMobileMenu);
@@ -257,7 +257,7 @@ function Main() {
                                 timeout={300}
                               >
                                 <ul
-                                  id={menuPanelId(2, subMenuKey)}
+                                  id={menuPanelId(2, menuKey, subMenuKey)}
                                   className={clsx({
                                     "menu__sub-open": subMenu.activeDropdown,
                                   })}
