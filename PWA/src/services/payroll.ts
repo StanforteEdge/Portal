@@ -98,7 +98,18 @@ export async function updatePayrollTaxTable(id: string, payload: Record<string, 
 
 export async function listPayrollWorkers(params?: Record<string, unknown>) {
   const response = await apiClient.get("/payroll/workers", { params });
-  return response.data?.data as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
+  const payload = response.data ?? {};
+  const nested = payload.data ?? {};
+  if (Array.isArray(nested)) {
+    return {
+      data: nested,
+      meta: payload.meta ?? { page: 1, per_page: nested.length, total: nested.length, last_page: 1 },
+    } as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
+  }
+  return {
+    data: nested.data ?? [],
+    meta: nested.meta ?? payload.meta ?? { page: 1, per_page: 0, total: 0, last_page: 1 },
+  } as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
 }
 
 export async function getPayrollWorker(id: string) {
@@ -178,7 +189,18 @@ export async function rejectProjectTimesheet(id: string) {
 
 export async function listPayrollRuns(params?: Record<string, unknown>) {
   const response = await apiClient.get("/payroll/runs", { params });
-  return response.data?.data as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
+  const payload = response.data ?? {};
+  const nested = payload.data ?? {};
+  if (Array.isArray(nested)) {
+    return {
+      data: nested,
+      meta: payload.meta ?? { page: 1, per_page: nested.length, total: nested.length, last_page: 1 },
+    } as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
+  }
+  return {
+    data: nested.data ?? [],
+    meta: nested.meta ?? payload.meta ?? { page: 1, per_page: 0, total: 0, last_page: 1 },
+  } as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
 }
 
 export async function getPayrollRun(id: string) {

@@ -53,12 +53,12 @@ const menu: Array<Menu | "divider"> = [
     moduleKey: "attendance",
   },
   {
-    icon: "Trello",
-    title: "Workspace",
+    icon: "User",
+    title: "Profile",
     subMenu: [
       {
         icon: "User",
-        title: "My Profile",
+        title: "Profile",
         pathname: "/app/profile",
       },
       {
@@ -67,31 +67,20 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/onboarding",
       },
       {
-        icon: "Lock",
-        title: "Security",
-        pathname: "/app/settings/security",
-      },
-      {
         icon: "FileText",
-        title: "My Payslips",
+        title: "Payslips",
         pathname: "/app/profile/payslips",
         moduleKey: "finance",
       },
       {
         icon: "Clock3",
-        title: "My Timesheets",
+        title: "Timesheets",
         pathname: "/app/profile/timesheets",
         moduleKey: "finance",
       },
       {
-        icon: "Bell",
-        title: "Payroll Notifications",
-        pathname: "/app/profile/payroll-notifications",
-        moduleKey: "finance",
-      },
-      {
         icon: "FolderOpen",
-        title: "My Media",
+        title: "Media",
         pathname: "/app/media",
         moduleKey: "media",
       },
@@ -100,6 +89,23 @@ const menu: Array<Menu | "divider"> = [
         title: "Documents",
         pathname: "/app/documents",
         moduleKey: "documents",
+      },
+    ],
+  },
+  {
+    icon: "Settings",
+    title: "Settings",
+    subMenu: [
+      {
+        icon: "Lock",
+        title: "Security",
+        pathname: "/app/settings/security",
+      },
+      {
+        icon: "Bell",
+        title: "Payroll Notifications",
+        pathname: "/app/profile/payroll-notifications",
+        moduleKey: "finance",
       },
     ],
   },
