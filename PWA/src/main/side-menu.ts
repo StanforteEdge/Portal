@@ -8,13 +8,13 @@ const menu: Array<Menu | "divider"> = [
   },
   {
     icon: "Wallet",
-    title: "My Requests",
+    title: "Requests",
     moduleKey: "finance",
     subMenu: [
       {
         icon: "List",
         pathname: "/app/requests/finance",
-        title: "My Requests",
+        title: "Requests",
       },
       {
         icon: "Plus",
@@ -51,11 +51,6 @@ const menu: Array<Menu | "divider"> = [
     pathname: "/app/requests/attendance",
     title: "Attendance",
     moduleKey: "attendance",
-  },
-  {
-    icon: "ListChecks",
-    title: "My Work",
-    pathname: "/app/profile/work",
   },
   {
     icon: "Trello",
@@ -362,11 +357,6 @@ const menu: Array<Menu | "divider"> = [
         icon: "Clock3",
         pathname: "/app/hr/attendance",
         title: "Attendance",
-      },
-      {
-        icon: "ListChecks",
-        pathname: "/app/hr/work",
-        title: "Work Planner",
       },
       {
         icon: "ClipboardList",

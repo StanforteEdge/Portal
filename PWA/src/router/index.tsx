@@ -23,7 +23,6 @@ const UpdateProfile = lazy(() => import("../pages/staff/profile/UpdateProfile"))
 const ChangePassword = lazy(() => import("../pages/staff/security/ChangePassword"));
 const MyPayslipsPage = lazy(() => import("../pages/profile/MyPayslips"));
 const MyTimesheetsPage = lazy(() => import("../pages/profile/MyTimesheets"));
-const MyWorkPage = lazy(() => import("../pages/profile/MyWork"));
 const HelpHomePage = lazy(() => import("../pages/help/HelpHome"));
 const FinanceHelpPage = lazy(() => import("../pages/help/FinanceHelp"));
 const FinanceSettings = lazy(
@@ -185,7 +184,6 @@ const HrEmployeesPage = lazy(() => import("../pages/hr/employees/HrEmployees"));
 const HrDashboardPage = lazy(() => import("../pages/hr/dashboard/HrDashboard"));
 const HrOnboardingPage = lazy(() => import("../pages/hr/onboarding/HrOnboarding"));
 const HrAttendancePage = lazy(() => import("../pages/hr/attendance/HrAttendance"));
-const HrWorkManagementPage = lazy(() => import("../pages/hr/work/HrWorkManagement"));
 const HrLeaveTrackerPage = lazy(() => import("../pages/hr/leave/HrLeaveTracker"));
 const HrLeaveRequestsPage = lazy(() => import("../pages/hr/leave/HrLeaveRequests"));
 const HrSettingsPage = lazy(() => import("../pages/hr/settings/HrSettings"));
@@ -275,10 +273,6 @@ function Router() {
               {page(<MyTimesheetsPage />)}
             </ModuleRoute>
           ),
-        },
-        {
-          path: "profile/work",
-          element: page(<MyWorkPage />),
         },
         {
           path: "profile/payroll-notifications",
@@ -1101,16 +1095,6 @@ function Router() {
               <PermissionRoute requiredPermissions={["users.manage"]}>
                 {page(<HrAttendancePage />)}
               </PermissionRoute>
-            </ModuleRoute>
-          ),
-        },
-        {
-          path: "hr/work",
-          element: (
-            <ModuleRoute moduleKey="hr">
-              <AnyPermissionRoute requiredPermissions={["users.manage", "requests.approve"]}>
-                {page(<HrWorkManagementPage />)}
-              </AnyPermissionRoute>
             </ModuleRoute>
           ),
         },
