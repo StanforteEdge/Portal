@@ -101,6 +101,11 @@ const menu: Array<Menu | "divider"> = [
         moduleKey: "finance",
       },
       {
+        icon: "ListChecks",
+        title: "My Work",
+        pathname: "/app/profile/work",
+      },
+      {
         icon: "Bell",
         title: "Payroll Notifications",
         pathname: "/app/profile/payroll-notifications",
@@ -362,6 +367,11 @@ const menu: Array<Menu | "divider"> = [
         icon: "Clock3",
         pathname: "/app/hr/attendance",
         title: "Attendance",
+      },
+      {
+        icon: "ListChecks",
+        pathname: "/app/hr/work",
+        title: "Work Planner",
       },
       {
         icon: "ClipboardList",

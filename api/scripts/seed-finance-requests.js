@@ -35,8 +35,8 @@ const requestTypes = [
     approvalLimit: 50000,
     approvalFlowJson: {
       steps: [
-        { role: 'team_lead' },
-        { role: 'accountant' }
+        { approver: { type: 'relation', value: 'requester_team_lead' } },
+        { approver: { type: 'permission', value: 'finance.approve' } }
       ]
     }
   },
@@ -47,10 +47,10 @@ const requestTypes = [
     approvalLimit: null,
     approvalFlowJson: {
       steps: [
-        { role: 'team_lead' },
-        { role: 'accountant' },
-        { role: 'coo', min_amount: 500000 },
-        { role: 'ed', min_amount: 2000000 }
+        { approver: { type: 'relation', value: 'requester_team_lead' } },
+        { approver: { type: 'permission', value: 'finance.approve' } },
+        { approver: { type: 'office', value: 'coo' }, min_amount: 500000 },
+        { approver: { type: 'office', value: 'ed' }, min_amount: 2000000 }
       ]
     }
   }

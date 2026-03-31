@@ -132,6 +132,7 @@ export class FinanceService {
     ]);
 
     const pendingFinanceRoleSlugs = new Set(['accountant', 'finance_manager']);
+    const pendingFinancePermissionSlugs = new Set(['finance.approve']);
     const approvalInstanceIds = rows
       .filter((row) => row.status === 'approval' && row.workflowInstanceId)
       .map((row) => row.workflowInstanceId as string);
@@ -152,8 +153,12 @@ export class FinanceService {
       for (const instance of instances) {
         const hasFinanceApprover = (instance.currentStep?.approvers ?? []).some(
           (approver) =>
-            approver.approverType === 'role' &&
-            pendingFinanceRoleSlugs.has(String(approver.approverId || '').trim().toLowerCase())
+            (
+              (approver.approverType === 'role' &&
+                pendingFinanceRoleSlugs.has(String(approver.approverId || '').trim().toLowerCase())) ||
+              (approver.approverType === 'permission' &&
+                pendingFinancePermissionSlugs.has(String(approver.approverId || '').trim().toLowerCase()))
+            )
         );
         const progressedPastFirstStep = (instance.currentStep?.order ?? 1) > 1;
         if (hasFinanceApprover || progressedPastFirstStep) financeApprovalInstanceIds.add(instance.id);
