@@ -142,7 +142,11 @@ export class PayrollService {
 
   async getInbox(userId: string, permissions: string[] = []) {
     const actorId = toBigInt(userId);
-    const canManage = permissions.includes('settings.manage') || permissions.includes('requests.approve');
+    const canManage =
+      permissions.includes('finance.manage') ||
+      permissions.includes('payroll.approve') ||
+      permissions.includes('requests.approve') ||
+      permissions.includes('settings.manage');
 
     const [approvals, corrections, payments, importJobs, failedDistributions, notifications] = await this.prisma.$transaction([
       this.prisma.payrollRun.findMany({

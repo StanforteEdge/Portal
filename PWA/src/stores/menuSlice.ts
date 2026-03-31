@@ -10,6 +10,7 @@ import topMenu from "@/main/top-menu";
 export interface Menu {
   icon: keyof typeof icons;
   title: string;
+  isSectionLabel?: boolean;
   badge?: number;
   pathname?: string;
   matchSubPaths?: boolean;
@@ -78,9 +79,20 @@ const filterMenuByAccess = (
   }
 
   const cleaned: Array<Menu | "divider"> = [];
-  for (const item of out) {
+  for (let index = 0; index < out.length; index += 1) {
+    const item = out[index];
     if (item === "divider") {
       if (cleaned.length === 0 || cleaned[cleaned.length - 1] === "divider") continue;
+    } else if (item.isSectionLabel) {
+      let hasVisibleSectionItems = false;
+      for (const nextItem of out.slice(index + 1)) {
+        if (nextItem === "divider") break;
+        if (!nextItem.isSectionLabel) {
+          hasVisibleSectionItems = true;
+          break;
+        }
+      }
+      if (!hasVisibleSectionItems) continue;
     }
     cleaned.push(item);
   }

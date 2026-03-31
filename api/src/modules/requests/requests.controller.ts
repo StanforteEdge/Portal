@@ -75,10 +75,10 @@ export class RequestsController {
           approval_limit: 2000000,
           approval_flow_json: {
             steps: [
-              { role: 'team_lead' },
-              { role: 'accountant' },
-              { role: 'coo', min_amount: 500000 },
-              { role: 'ed', min_amount: 2000000 }
+              { approver: { type: 'relation', value: 'requester_team_lead' } },
+              { approver: { type: 'permission', value: 'finance.approve' } },
+              { approver: { type: 'office', value: 'coo' }, min_amount: 500000 },
+              { approver: { type: 'office', value: 'ed' }, min_amount: 2000000 }
             ]
           }
         }
@@ -97,7 +97,11 @@ export class RequestsController {
       updateWorkflow: {
         value: {
           approval_flow_json: {
-            steps: [{ role: 'team_lead' }, { role: 'accountant' }, { role: 'coo', min_amount: 300000 }]
+            steps: [
+              { approver: { type: 'relation', value: 'requester_team_lead' } },
+              { approver: { type: 'permission', value: 'finance.approve' } },
+              { approver: { type: 'office', value: 'coo' }, min_amount: 300000 }
+            ]
           }
         }
       }
