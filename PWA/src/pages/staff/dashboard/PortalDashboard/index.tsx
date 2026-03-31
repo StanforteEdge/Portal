@@ -273,7 +273,7 @@ function PortalDashboardPage() {
           <h3 className="font-medium mb-3">Quick Actions</h3>
           <div className="grid grid-cols-1 gap-2">
             <Link to="/app/requests/new" className="btn btn-primary">Create Request</Link>
-            <Link to="/app/requests/approvals" className="btn btn-outline-secondary">My Approvals</Link>
+            <Link to="/app/approvals" className="btn btn-outline-secondary">My Approvals</Link>
             {canSeeFinance ? <Link to="/app/finance/requests" className="btn btn-outline-secondary">Finance Requests</Link> : null}
             {canSeeFinance ? <Link to="/app/finance" className="btn btn-outline-secondary">Finance Dashboard</Link> : null}
             {canSeeAdmin ? <Link to="/app/admin/users" className="btn btn-outline-secondary">Manage Users</Link> : null}
