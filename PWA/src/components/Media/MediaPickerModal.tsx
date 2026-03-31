@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import Button from "@/components/Base/Button";
 import { Dialog } from "@/components/Base/Headless";
 import Table from "@/components/Base/Table";
@@ -52,6 +52,8 @@ function MediaPickerModal({
   multiple = false,
   selectedIds = [],
 }: MediaPickerModalProps) {
+  const searchInputId = useId();
+  const uploadInputId = useId();
   const [items, setItems] = useState<FileAssetRecord[]>([]);
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState("");
@@ -130,8 +132,9 @@ function MediaPickerModal({
 
           <div className="grid grid-cols-12 gap-3 items-end">
             <div className="col-span-12 md:col-span-6">
-              <FormLabel>Search existing files</FormLabel>
+              <FormLabel htmlFor={searchInputId}>Search existing files</FormLabel>
               <FormInput
+                id={searchInputId}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search by name..."
@@ -143,8 +146,9 @@ function MediaPickerModal({
               </Button>
             </div>
             <div className="col-span-12 md:col-span-4">
-              <FormLabel>Upload new file</FormLabel>
+              <FormLabel htmlFor={uploadInputId}>Upload new file</FormLabel>
               <FormInput
+                id={uploadInputId}
                 type="file"
                 multiple={multiple}
                 onChange={(event) => {
@@ -169,17 +173,30 @@ function MediaPickerModal({
               </Table.Thead>
               <Table.Tbody>
                 {items.map((item) => (
-                  <Table.Tr key={item.id} onClick={() => togglePick(item.id)} className="cursor-pointer">
+                  <Table.Tr
+                    key={item.id}
+                    onClick={() => togglePick(item.id)}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        togglePick(item.id);
+                      }
+                    }}
+                    className="cursor-pointer focus-within:bg-slate-50"
+                    tabIndex={0}
+                  >
                     <Table.Td>
                       <input
+                        id={`media-picker-${item.id}`}
                         type={multiple ? "checkbox" : "radio"}
                         checked={selected.includes(item.id)}
                         onChange={() => togglePick(item.id)}
                         onClick={(event) => event.stopPropagation()}
+                        aria-labelledby={`media-picker-label-${item.id}`}
                       />
                     </Table.Td>
                     <Table.Td>
-                      <div className="font-medium">{item.file_name}</div>
+                      <div id={`media-picker-label-${item.id}`} className="font-medium">{item.file_name}</div>
                       <div className="text-xs text-slate-500">{item.storage_path}</div>
                     </Table.Td>
                     <Table.Td>{item.mime_type || "-"}</Table.Td>

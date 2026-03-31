@@ -155,7 +155,13 @@ function AllocationRowsEditor({
             </div>
           ) : null}
           <div className="col-span-4 md:col-span-1 flex items-end">
-            <Button variant="outline-danger" className="w-full" onClick={() => removeRow(index)}>
+            <Button
+              variant="outline-danger"
+              className="w-full"
+              onClick={() => removeRow(index)}
+              aria-label={`Remove allocation row ${index + 1}`}
+              title="Remove allocation row"
+            >
               <Lucide icon="Trash2" className="w-4 h-4" />
             </Button>
           </div>

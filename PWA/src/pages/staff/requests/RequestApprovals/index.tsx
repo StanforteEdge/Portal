@@ -222,11 +222,11 @@ function RequestApprovalsPage() {
                     String(req.request_type?.name ?? "").toLowerCase().includes("leave");
                   return (
                     <Table.Tr key={req.id}>
-                      <Table.Td>
+                      <Table.RowHeader>
                         <Link className="font-semibold text-primary hover:underline" to={`/app/requests/request/${req.id}`}>
                           {formatRequestNumber(req.request_number)}
                         </Link>
-                      </Table.Td>
+                      </Table.RowHeader>
                       <Table.Td className="capitalize">{isLeave ? "Leave" : "Financial"}</Table.Td>
                       <Table.Td>{req.request_type?.name || "-"}</Table.Td>
                       <Table.Td>{formatMoney(req.total_amount)}</Table.Td>

@@ -459,20 +459,20 @@ function FinancePayrollRunsPage() {
               <Table.Th className="text-right">Actions</Table.Th>
             </Table.Tr>
           </Table.Thead>
-          <Table.Tbody>
-            {rows.map((row) => (
-              <Table.Tr key={row.id}>
-                <Table.Td>
+              <Table.Tbody>
+                {rows.map((row) => (
+                  <Table.Tr key={row.id}>
+                <Table.RowHeader>
                   <div className="font-medium">{row.name}</div>
                   <div className="text-xs text-slate-500">{row.item_count || 0} workers</div>
-                </Table.Td>
+                </Table.RowHeader>
                 <Table.Td>{formatDisplayDate(row.period_start)} - {formatDisplayDate(row.period_end)}</Table.Td>
                 <Table.Td><span className={`inline-flex rounded-full px-2 py-1 text-xs font-medium capitalize ${statusBadgeClass(row.status)}`}>{String(row.status || "draft").replaceAll("_", " ")}</span></Table.Td>
                 <Table.Td className="text-right">{formatMoney(row.totals?.net || 0)}</Table.Td>
                 <Table.Td className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="outline-primary" onClick={() => void openDetail(row.id)}><Lucide icon="Eye" className="w-4 h-4" /></Button>
-                    <Button size="sm" variant="outline-secondary" onClick={() => openEdit(row)}><Lucide icon="FilePenLine" className="w-4 h-4" /></Button>
+                    <Button size="sm" variant="outline-primary" aria-label={`View payroll run ${row.name}`} title="View payroll run" onClick={() => void openDetail(row.id)}><Lucide icon="Eye" className="w-4 h-4" /></Button>
+                    <Button size="sm" variant="outline-secondary" aria-label={`Edit payroll run ${row.name}`} title="Edit payroll run" onClick={() => openEdit(row)}><Lucide icon="FilePenLine" className="w-4 h-4" /></Button>
                     <Button size="sm" variant="primary" onClick={() => void runAction(() => generatePayrollRun(row.id), "Payroll run generated.")}>Generate</Button>
                   </div>
                 </Table.Td>
@@ -600,11 +600,11 @@ function FinancePayrollRunsPage() {
                       <Table.Tbody>
                         {(detail.items || []).map((item: any) => (
                           <Table.Tr key={item.id}>
-                            <Table.Td>
+                            <Table.RowHeader>
                               <div className="font-medium">{item.worker?.fullName || item.worker?.full_name || item.worker_id}</div>
                               <div className="text-xs text-slate-500">{item.worker?.staffCode || item.worker?.staff_code || item.worker?.email || "-"}</div>
                               <div className="text-xs text-slate-500">{String(item.pay_basis || "monthly_fixed").replaceAll("_", " ")} · {String(item.allocation_source || "fixed").replaceAll("_", " ")}</div>
-                            </Table.Td>
+                            </Table.RowHeader>
                             <Table.Td className="capitalize">{item.worker_type}</Table.Td>
                             <Table.Td className="text-right">{formatMoney(item.gross_pay)}</Table.Td>
                             <Table.Td className="text-right">{formatMoney(item.total_deductions)}</Table.Td>
@@ -613,8 +613,24 @@ function FinancePayrollRunsPage() {
                               <div className="flex items-center justify-between gap-2">
                                 <span className="capitalize">{String(item.payment_status || "pending").replaceAll("_", " ")}</span>
                                 <div className="flex gap-2">
-                                  <Button size="sm" variant="outline-secondary" onClick={() => openItemEditor(item)}><Lucide icon="FilePenLine" className="w-4 h-4" /></Button>
-                                  <Button size="sm" variant="outline-secondary" onClick={() => void downloadPayslip(detail.id, item.id)}><Lucide icon="FileText" className="w-4 h-4" /></Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline-secondary"
+                                    aria-label={`Edit payroll item for ${item.worker?.fullName || item.worker?.full_name || item.worker_id}`}
+                                    title="Edit payroll item"
+                                    onClick={() => openItemEditor(item)}
+                                  >
+                                    <Lucide icon="FilePenLine" className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="outline-secondary"
+                                    aria-label={`Download payslip for ${item.worker?.fullName || item.worker?.full_name || item.worker_id}`}
+                                    title="Download payslip"
+                                    onClick={() => void downloadPayslip(detail.id, item.id)}
+                                  >
+                                    <Lucide icon="FileText" className="w-4 h-4" />
+                                  </Button>
                                 </div>
                               </div>
                             </Table.Td>

@@ -1,4 +1,4 @@
-import { useContext, forwardRef } from "react";
+import { useContext, forwardRef, useId } from "react";
 import { formInlineContext } from "../FormInline";
 import { inputGroupContext } from "../InputGroup";
 import { twMerge } from "tailwind-merge";
@@ -14,9 +14,11 @@ const FormInput = forwardRef((props: FormInputProps, ref: FormInputRef) => {
   const formInline = useContext(formInlineContext);
   const inputGroup = useContext(inputGroupContext);
   const { formInputSize, rounded, ...computedProps } = props;
+  const generatedId = useId();
   return (
     <input
       {...computedProps}
+      id={props.id || generatedId}
       ref={ref}
       className={twMerge([
         "disabled:bg-slate-100 disabled:cursor-not-allowed dark:disabled:bg-darkmode-800/50 dark:disabled:border-transparent",

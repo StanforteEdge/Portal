@@ -153,7 +153,6 @@ function Main() {
                   src={illustrationUrl}
                   width={640}
                   height={480}
-                  fetchPriority="high"
                 />
                 <div className="mt-10 text-4xl font-medium leading-tight text-white -intro-x">
                   A few more clicks to <br />

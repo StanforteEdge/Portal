@@ -3818,6 +3818,28 @@ export class RequestsService {
         continue;
       }
 
+      if (approverId === 'team_lead_or_manager') {
+        if (request.teamId) {
+          const leadOrManager = await this.prisma.groupUser.count({
+            where: {
+              groupId: request.teamId,
+              userId: toBigInt(userId),
+              role: { in: [GroupUserRole.moderator, GroupUserRole.admin] }
+            }
+          });
+          if (leadOrManager > 0) return true;
+        }
+
+        const managerRole = await this.prisma.userRole.count({
+          where: {
+            profileId: toBigInt(userId),
+            role: { slug: 'manager' }
+          }
+        });
+        if (managerRole > 0) return true;
+        continue;
+      }
+
       const hasRole = await this.prisma.userRole.count({
         where: {
           profileId: toBigInt(userId),
@@ -3826,17 +3848,19 @@ export class RequestsService {
       });
       if (hasRole > 0) return true;
 
-      const hasPermission = await this.prisma.rolePermission.count({
-        where: {
-          permission: { slug: approverId },
-          role: {
-            users: {
-              some: { profileId: toBigInt(userId) }
+      if (approverId.includes('.')) {
+        const hasPermission = await this.prisma.rolePermission.count({
+          where: {
+            permission: { slug: approverId },
+            role: {
+              users: {
+                some: { profileId: toBigInt(userId) }
+              }
             }
           }
-        }
-      });
-      if (hasPermission > 0) return true;
+        });
+        if (hasPermission > 0) return true;
+      }
     }
 
     return false;
@@ -3880,17 +3904,19 @@ export class RequestsService {
       });
       for (const row of directRoleUsers) userIds.add(row.profileId.toString());
 
-      const permissionUsers = await this.prisma.userRole.findMany({
-        where: {
-          role: {
-            permissions: {
-              some: { permission: { slug: approverId } }
+      if (approverId.includes('.')) {
+        const permissionUsers = await this.prisma.userRole.findMany({
+          where: {
+            role: {
+              permissions: {
+                some: { permission: { slug: approverId } }
+              }
             }
-          }
-        },
-        select: { profileId: true }
-      });
-      for (const row of permissionUsers) userIds.add(row.profileId.toString());
+          },
+          select: { profileId: true }
+        });
+        for (const row of permissionUsers) userIds.add(row.profileId.toString());
+      }
     }
 
     return Array.from(userIds);

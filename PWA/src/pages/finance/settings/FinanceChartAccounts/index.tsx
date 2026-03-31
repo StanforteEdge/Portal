@@ -102,7 +102,7 @@ function FinanceChartAccountsPage() {
                 <Table.Td>{row.category}</Table.Td>
                 <Table.Td className="capitalize">{row.normal_balance}</Table.Td>
                 <Table.Td>{row.finance_account?.name || "-"}</Table.Td>
-                <Table.Td className="text-right"><Button size="sm" variant="outline-secondary" onClick={() => openEdit(row)}><Lucide icon="FilePenLine" className="w-4 h-4" /></Button></Table.Td>
+                <Table.Td className="text-right"><Button size="sm" variant="outline-secondary" aria-label={`Edit chart account ${row.name}`} title="Edit chart account" onClick={() => openEdit(row)}><Lucide icon="FilePenLine" className="w-4 h-4" /></Button></Table.Td>
               </Table.Tr>
             ))}
           </Table.Tbody>

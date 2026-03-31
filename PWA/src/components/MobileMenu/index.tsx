@@ -12,6 +12,10 @@ import { BRAND_LOGO_FULL_DARK } from "@/constants/branding";
 import clsx from "clsx";
 import SimpleBar from "simplebar";
 
+function menuPanelId(...parts: Array<number | string>) {
+  return `mobile-menu-panel-${parts.join("-")}`;
+}
+
 function Main() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -48,24 +52,38 @@ function Main() {
         ])}
       >
         <div className="h-[70px] px-3 sm:px-8 flex items-center">
-          <a href="" className="flex mr-auto">
+          <button
+            type="button"
+            className="flex mr-auto"
+            aria-label="Go to dashboard"
+            onClick={() => {
+              navigate("/app");
+              setActiveMobileMenu(false);
+            }}
+          >
             <img
               alt="Midone Tailwind HTML Admin Template"
               className="w-32 h-auto"
               src={BRAND_LOGO_FULL_DARK}
             />
-          </a>
-          <a href="#" onClick={(e) => e.preventDefault()}>
+          </button>
+          <button
+            type="button"
+            aria-label={activeMobileMenu ? "Close mobile menu" : "Open mobile menu"}
+            aria-expanded={activeMobileMenu}
+            aria-controls="mobile-menu-navigation"
+            onClick={() => {
+              setActiveMobileMenu(!activeMobileMenu);
+            }}
+          >
             <Lucide
               icon="BarChart2"
               className="w-8 h-8 text-white transform -rotate-90"
-              onClick={() => {
-                setActiveMobileMenu(!activeMobileMenu);
-              }}
             />
-          </a>
+          </button>
         </div>
         <div
+          id="mobile-menu-navigation"
           ref={scrollableRef}
           className={clsx([
             "h-screen z-20 top-0 left-0 w-[270px] -ml-[100%] bg-primary transition-all duration-300 ease-in-out dark:bg-darkmode-800",
@@ -73,23 +91,23 @@ function Main() {
             "group-[.mobile-menu--active]:ml-0",
           ])}
         >
-          <a
-            href="#"
-            onClick={(e) => e.preventDefault()}
+          <button
+            type="button"
+            aria-label="Close mobile menu"
             className={clsx([
               "fixed top-0 right-0 mt-4 mr-4 transition-opacity duration-200 ease-in-out",
               "invisible opacity-0",
               "group-[.mobile-menu--active]:visible group-[.mobile-menu--active]:opacity-100",
             ])}
+            onClick={() => {
+              setActiveMobileMenu(!activeMobileMenu);
+            }}
           >
             <Lucide
               icon="XCircle"
               className="w-8 h-8 text-white transform -rotate-90"
-              onClick={() => {
-                setActiveMobileMenu(!activeMobileMenu);
-              }}
             />
-          </a>
+          </button>
           <div className="px-5 pt-6 pb-3">
             <div className="text-white text-xl font-bold tracking-wide">
               Menu
@@ -103,8 +121,38 @@ function Main() {
                 <li className="my-6 menu__divider" key={menuKey}></li>
               ) : (
                 <li key={menuKey}>
+                  {menu.subMenu ? (
+                    <button
+                      type="button"
+                      className={clsx([
+                        menu.active ? "menu menu--active" : "menu",
+                      ])}
+                      aria-expanded={Boolean(menu.activeDropdown)}
+                      aria-controls={menuPanelId(1, menuKey)}
+                      onClick={(event) => {
+                        event.preventDefault();
+                        linkTo(menu, navigate, setActiveMobileMenu);
+                        setFormattedMenu([...formattedMenu]);
+                      }}
+                    >
+                      <div className="menu__icon">
+                        <Lucide icon={menu.icon} />
+                      </div>
+                      <div className="menu__title">
+                        {menu.title}
+                        <div
+                          className={clsx([
+                            "menu__sub-icon",
+                            menu.activeDropdown && "transform rotate-180",
+                          ])}
+                        >
+                          <Lucide icon="ChevronDown" />
+                        </div>
+                      </div>
+                    </button>
+                  ) : (
                   <a
-                    href={menu.subMenu ? undefined : menu.pathname}
+                    href={menu.pathname}
                     className={clsx([
                       menu.active ? "menu menu--active" : "menu",
                     ])}
@@ -131,6 +179,7 @@ function Main() {
                       )}
                     </div>
                   </a>
+                  )}
                   {/* BEGIN: Second Child */}
                   {menu.subMenu && (
                     <Transition
@@ -140,17 +189,21 @@ function Main() {
                       timeout={300}
                     >
                       <ul
+                        id={menuPanelId(1, menuKey)}
                         className={clsx({
                           "menu__sub-open": menu.activeDropdown,
                         })}
                       >
                         {menu.subMenu.map((subMenu, subMenuKey) => (
                           <li key={subMenuKey}>
-                          <a
-                              href={subMenu.subMenu ? undefined : subMenu.pathname}
+                            {subMenu.subMenu ? (
+                              <button
+                              type="button"
                               className={clsx([
                                 subMenu.active ? "menu menu--active" : "menu",
                               ])}
+                              aria-expanded={Boolean(subMenu.activeDropdown)}
+                              aria-controls={menuPanelId(2, menuKey, subMenuKey)}
                               onClick={(event) => {
                                 event.preventDefault();
                                 linkTo(subMenu, navigate, setActiveMobileMenu);
@@ -174,7 +227,27 @@ function Main() {
                                   </div>
                                 )}
                               </div>
+                              </button>
+                            ) : (
+                            <a
+                              href={subMenu.pathname}
+                              className={clsx([
+                                subMenu.active ? "menu menu--active" : "menu",
+                              ])}
+                              onClick={(event) => {
+                                event.preventDefault();
+                                linkTo(subMenu, navigate, setActiveMobileMenu);
+                                setFormattedMenu([...formattedMenu]);
+                              }}
+                            >
+                              <div className="menu__icon">
+                                <Lucide icon={subMenu.icon} />
+                              </div>
+                              <div className="menu__title">
+                                {subMenu.title}
+                              </div>
                             </a>
+                            )}
                             {/* BEGIN: Third Child */}
                             {subMenu.subMenu && (
                               <Transition
@@ -184,6 +257,7 @@ function Main() {
                                 timeout={300}
                               >
                                 <ul
+                                  id={menuPanelId(2, menuKey, subMenuKey)}
                                   className={clsx({
                                     "menu__sub-open": subMenu.activeDropdown,
                                   })}

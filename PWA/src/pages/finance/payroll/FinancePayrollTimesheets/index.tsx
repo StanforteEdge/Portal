@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import Table from "@/components/Base/Table";
+import TomSelect from "@/components/Base/TomSelect";
 import { Dialog } from "@/components/Base/Headless";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
@@ -141,7 +142,7 @@ function FinancePayrollTimesheetsPage() {
                 <Table.Td>{row.synced_run?.name || "-"}</Table.Td>
                 <Table.Td className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="outline-secondary" onClick={() => {
+                    <Button size="sm" variant="outline-secondary" aria-label={`Edit project timesheet for ${row.worker?.full_name || "worker"} on ${formatDisplayDate(row.work_date)}`} title="Edit project timesheet" onClick={() => {
                       setEditingId(row.id);
                       setForm({
                         worker_id: row.worker_id,
@@ -157,9 +158,9 @@ function FinancePayrollTimesheetsPage() {
                       });
                       setShowEditor(true);
                     }}><Lucide icon="FilePenLine" className="w-4 h-4" /></Button>
-                    {row.status === "draft" ? <Button size="sm" variant="outline-secondary" onClick={() => void runAction(() => submitProjectTimesheet(row.id), "Timesheet submitted.")}><Lucide icon="Send" className="w-4 h-4" /></Button> : null}
-                    {row.status === "submitted" ? <Button size="sm" variant="outline-primary" onClick={() => void runAction(() => approveProjectTimesheet(row.id), "Timesheet approved and synced.")}><Lucide icon="CheckCheck" className="w-4 h-4" /></Button> : null}
-                    {row.status === "submitted" ? <Button size="sm" variant="outline-danger" onClick={() => void runAction(() => rejectProjectTimesheet(row.id), "Timesheet rejected.")}><Lucide icon="XCircle" className="w-4 h-4" /></Button> : null}
+                    {row.status === "draft" ? <Button size="sm" variant="outline-secondary" aria-label={`Submit project timesheet for ${row.worker?.full_name || "worker"} on ${formatDisplayDate(row.work_date)}`} title="Submit project timesheet" onClick={() => void runAction(() => submitProjectTimesheet(row.id), "Timesheet submitted.")}><Lucide icon="Send" className="w-4 h-4" /></Button> : null}
+                    {row.status === "submitted" ? <Button size="sm" variant="outline-primary" aria-label={`Approve project timesheet for ${row.worker?.full_name || "worker"} on ${formatDisplayDate(row.work_date)}`} title="Approve project timesheet" onClick={() => void runAction(() => approveProjectTimesheet(row.id), "Timesheet approved and synced.")}><Lucide icon="CheckCheck" className="w-4 h-4" /></Button> : null}
+                    {row.status === "submitted" ? <Button size="sm" variant="outline-danger" aria-label={`Reject project timesheet for ${row.worker?.full_name || "worker"} on ${formatDisplayDate(row.work_date)}`} title="Reject project timesheet" onClick={() => void runAction(() => rejectProjectTimesheet(row.id), "Timesheet rejected.")}><Lucide icon="XCircle" className="w-4 h-4" /></Button> : null}
                   </div>
                 </Table.Td>
               </Table.Tr>
@@ -173,14 +174,14 @@ function FinancePayrollTimesheetsPage() {
         <Dialog.Panel>
           <Dialog.Title><h2 className="mr-auto text-base font-medium">{editingId ? "Edit Project Timesheet Entry" : "New Project Timesheet Entry"}</h2></Dialog.Title>
           <Dialog.Description className="grid grid-cols-12 gap-4">
-            <div className="col-span-12 md:col-span-6"><FormLabel>Worker</FormLabel><FormSelect value={form.worker_id} onChange={(e) => setForm((prev) => ({ ...prev, worker_id: e.target.value }))}><option value="">Select worker</option>{workers.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</FormSelect></div>
+            <div className="col-span-12 md:col-span-6"><FormLabel>Worker</FormLabel><TomSelect value={form.worker_id} onChange={(e) => setForm((prev) => ({ ...prev, worker_id: e.target.value }))}><option value="">Select worker</option>{workers.map((row) => <option key={row.id} value={row.id}>{row.full_name}</option>)}</TomSelect></div>
             <div className="col-span-12 md:col-span-3"><FormLabel>Work Date</FormLabel><FormInput type="date" value={form.work_date} onChange={(e) => setForm((prev) => ({ ...prev, work_date: e.target.value }))} /></div>
             <div className="col-span-12 md:col-span-3"><FormLabel>Hours</FormLabel><FormInput type="number" value={form.hours} onChange={(e) => setForm((prev) => ({ ...prev, hours: e.target.value }))} /></div>
-            <div className="col-span-12 md:col-span-4"><FormLabel>Organization</FormLabel><FormSelect value={form.organization_id} onChange={(e) => setForm((prev) => ({ ...prev, organization_id: e.target.value }))}><option value="">None</option>{organizations.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
-            <div className="col-span-12 md:col-span-4"><FormLabel>Team</FormLabel><FormSelect value={form.team_id} onChange={(e) => setForm((prev) => ({ ...prev, team_id: e.target.value }))}><option value="">None</option>{teams.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
-            <div className="col-span-12 md:col-span-4"><FormLabel>Project</FormLabel><FormSelect value={form.project_id} onChange={(e) => setForm((prev) => ({ ...prev, project_id: e.target.value }))}><option value="">None</option>{projects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
-            <div className="col-span-12 md:col-span-6"><FormLabel>Fund</FormLabel><FormSelect value={form.fund_id} onChange={(e) => setForm((prev) => ({ ...prev, fund_id: e.target.value }))}><option value="">None</option>{funds.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
-            <div className="col-span-12 md:col-span-6"><FormLabel>Grant</FormLabel><FormSelect value={form.grant_id} onChange={(e) => setForm((prev) => ({ ...prev, grant_id: e.target.value }))}><option value="">None</option>{grants.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
+            <div className="col-span-12 md:col-span-4"><FormLabel>Organization</FormLabel><TomSelect value={form.organization_id} onChange={(e) => setForm((prev) => ({ ...prev, organization_id: e.target.value }))}><option value="">None</option>{organizations.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div>
+            <div className="col-span-12 md:col-span-4"><FormLabel>Team</FormLabel><TomSelect value={form.team_id} onChange={(e) => setForm((prev) => ({ ...prev, team_id: e.target.value }))}><option value="">None</option>{teams.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div>
+            <div className="col-span-12 md:col-span-4"><FormLabel>Project</FormLabel><TomSelect value={form.project_id} onChange={(e) => setForm((prev) => ({ ...prev, project_id: e.target.value }))}><option value="">None</option>{projects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div>
+            <div className="col-span-12 md:col-span-6"><FormLabel>Fund</FormLabel><TomSelect value={form.fund_id} onChange={(e) => setForm((prev) => ({ ...prev, fund_id: e.target.value }))}><option value="">None</option>{funds.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div>
+            <div className="col-span-12 md:col-span-6"><FormLabel>Grant</FormLabel><TomSelect value={form.grant_id} onChange={(e) => setForm((prev) => ({ ...prev, grant_id: e.target.value }))}><option value="">None</option>{grants.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div>
             <div className="col-span-12"><FormLabel>Description</FormLabel><FormTextarea rows={3} value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} /></div>
           </Dialog.Description>
           <Dialog.Footer>
