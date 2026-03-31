@@ -14,7 +14,6 @@ import {
   type RequestItemInput,
   type RequestTypeOption,
 } from "@/services/requests";
-import { listFinanceFunds, listFinanceGrants } from "@/services/financeAccounting";
 import { listProjects } from "@/services/projects";
 import { listMyOrganizations } from "@/services/organizations";
 import type { FileAssetRecord } from "@/services/files";
@@ -46,8 +45,6 @@ type CreateFormState = {
   project_id: string;
   team_id: string;
   organization_id: string;
-  fund_id: string;
-  grant_id: string;
   due_date: string;
   items: CreateItemState[];
 };
@@ -76,8 +73,6 @@ const defaultForm: CreateFormState = {
   project_id: "",
   team_id: "",
   organization_id: "",
-  fund_id: "",
-  grant_id: "",
   due_date: "",
   items: [{ ...defaultItem }],
 };
@@ -108,8 +103,6 @@ function RequestsCreatePage() {
   const [projectOptions, setProjectOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [organizationOptions, setOrganizationOptions] = useState<Array<{ id: string; name: string }>>([]);
   const [teamOptions, setTeamOptions] = useState<TeamOption[]>([]);
-  const [fundOptions, setFundOptions] = useState<Array<{ id: string; code: string; name: string }>>([]);
-  const [grantOptions, setGrantOptions] = useState<Array<{ id: string; code: string; name: string; fund?: { id: string } | null }>>([]);
   const [taxonomyMap, setTaxonomyMap] = useState<Record<string, CategoryTermOption[]>>({});
   const [categoryOptions, setCategoryOptions] = useState<CategoryTermOption[]>([]);
 
@@ -202,11 +195,6 @@ function RequestsCreatePage() {
 
   const shouldShowTeamSelect = useMemo(() => teamOptions.length > 1, [teamOptions]);
   const shouldShowOrganizationSelect = useMemo(() => organizationOptions.length > 1, [organizationOptions]);
-  const filteredGrantOptions = useMemo(
-    () => (form.fund_id ? grantOptions.filter((grant) => String(grant.fund?.id || "") === form.fund_id) : grantOptions),
-    [grantOptions, form.fund_id]
-  );
-
   const grandTotal = useMemo(
     () => form.items.reduce((sum, item) => sum + Number(item.amount || 0), 0),
     [form.items]
@@ -215,14 +203,12 @@ function RequestsCreatePage() {
   useEffect(() => {
     const loadOptions = async () => {
       try {
-        const [typeData, projects, orgs, teams, taxonomies, funds, grants] = await Promise.all([
+        const [typeData, projects, orgs, teams, taxonomies] = await Promise.all([
           listRequestTypes(),
           listProjects().catch(() => []),
           listMyOrganizations().catch(() => []),
           listTeams({ active_only: false }).catch(() => []),
           listManagedTaxonomies({ include_inactive: false }).catch(() => []),
-          listFinanceFunds({ is_active: true }).catch(() => []),
-          listFinanceGrants({ status: "active" }).catch(() => []),
         ]);
 
         const onlyMatching = kind === "all"
@@ -267,21 +253,6 @@ function RequestsCreatePage() {
           if (taxonomyId) nextTaxonomyMap[taxonomyId] = options;
         }
         setTaxonomyMap(nextTaxonomyMap);
-        setFundOptions(
-          (funds || []).map((fund: any) => ({
-            id: String(fund.id),
-            code: String(fund.code || ""),
-            name: String(fund.name || ""),
-          }))
-        );
-        setGrantOptions(
-          (grants || []).map((grant: any) => ({
-            id: String(grant.id),
-            code: String(grant.code || ""),
-            name: String(grant.name || ""),
-            fund: grant.fund ? { id: String(grant.fund.id) } : null,
-          }))
-        );
 
         setForm((prev) => {
           const selectedStillValid = onlyMatching.some((type) => type.id === prev.request_type_id);
@@ -297,10 +268,6 @@ function RequestsCreatePage() {
                     : "",
             organization_id: myOrgOptions.length === 1 ? myOrgOptions[0].id : prev.organization_id,
             team_id: myTeams.length === 1 ? myTeams[0].id : prev.team_id,
-            grant_id:
-              prev.grant_id && (grants || []).some((grant: any) => String(grant.id) === prev.grant_id)
-                ? prev.grant_id
-                : "",
           };
         });
       } catch (error: any) {
@@ -357,8 +324,6 @@ function RequestsCreatePage() {
           project_id: String(data.project_id || ""),
           team_id: String(data.team_id || ""),
           organization_id: String(data.organization_id || ""),
-          fund_id: String(data.fund_id || ""),
-          grant_id: String(data.grant_id || ""),
           due_date: String(data.due_date || ""),
           items: draftItems,
         };
@@ -407,14 +372,6 @@ function RequestsCreatePage() {
       return exists ? prev : { ...prev, category_id: "" };
     });
   }, [selectedRequestType?.category_key, taxonomyMap]);
-
-  useEffect(() => {
-    setForm((prev) => {
-      if (!prev.grant_id) return prev;
-      const isValid = filteredGrantOptions.some((grant) => grant.id === prev.grant_id);
-      return isValid ? prev : { ...prev, grant_id: "" };
-    });
-  }, [filteredGrantOptions]);
 
   useEffect(() => {
     const loadLeaveBalance = async () => {
@@ -551,8 +508,6 @@ function RequestsCreatePage() {
         project_name: selectedProjectName || undefined,
         team_id: form.team_id || undefined,
         organization_id: form.organization_id || undefined,
-        fund_id: form.fund_id || undefined,
-        grant_id: form.grant_id || undefined,
         due_date: form.due_date || undefined,
       },
       items: payloadItems,
@@ -750,17 +705,20 @@ function RequestsCreatePage() {
               <FormInput type="date" value={form.due_date} onChange={(e) => setForm((prev) => ({ ...prev, due_date: e.target.value }))} />
             </div>
           ) : null}
-          {!isLeaveRequest && projectRequired ? (
+          {!isLeaveRequest ? (
             <div className="col-span-12 md:col-span-4">
               <FormLabel>Project</FormLabel>
               <FormSelect value={form.project_id} onChange={(e) => setForm((prev) => ({ ...prev, project_id: e.target.value }))}>
-                <option value="">Select project</option>
+                <option value="">{projectRequired ? "Select project" : "No specific project"}</option>
                 {projectOptions.map((project) => (
                   <option key={project.id} value={project.id}>
                     {project.name}
                   </option>
                 ))}
               </FormSelect>
+              <div className="mt-1 text-xs text-slate-500">
+                Staff select the project only. Fund and grant allocation will be assigned later by Finance Admin.
+              </div>
             </div>
           ) : null}
 
@@ -786,38 +744,6 @@ function RequestsCreatePage() {
                 {organizationOptions.map((option) => (
                   <option key={option.id} value={option.id}>
                     {option.name}
-                  </option>
-                ))}
-              </FormSelect>
-            </div>
-          ) : null}
-          {!isLeaveRequest ? (
-            <div className="col-span-12 md:col-span-4">
-              <FormLabel>Fund</FormLabel>
-              <FormSelect
-                value={form.fund_id}
-                onChange={(e) => setForm((prev) => ({ ...prev, fund_id: e.target.value, grant_id: "" }))}
-              >
-                <option value="">No specific fund</option>
-                {fundOptions.map((fund) => (
-                  <option key={fund.id} value={fund.id}>
-                    {fund.code ? `${fund.code} - ` : ""}{fund.name}
-                  </option>
-                ))}
-              </FormSelect>
-            </div>
-          ) : null}
-          {!isLeaveRequest ? (
-            <div className="col-span-12 md:col-span-4">
-              <FormLabel>Grant / Donor Line</FormLabel>
-              <FormSelect
-                value={form.grant_id}
-                onChange={(e) => setForm((prev) => ({ ...prev, grant_id: e.target.value }))}
-              >
-                <option value="">No specific grant</option>
-                {filteredGrantOptions.map((grant) => (
-                  <option key={grant.id} value={grant.id}>
-                    {grant.code ? `${grant.code} - ` : ""}{grant.name}
                   </option>
                 ))}
               </FormSelect>
