@@ -385,7 +385,7 @@ function Router() {
           ),
         },
         {
-          path: "requests/approvals",
+          path: "approvals",
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["requests.approve"]}>
@@ -395,7 +395,7 @@ function Router() {
           ),
         },
         {
-          path: "requests/approvals/:id",
+          path: "approvals/:id",
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["requests.approve"]}>
@@ -403,6 +403,14 @@ function Router() {
               </PermissionRoute>
             </ModuleRoute>
           ),
+        },
+        {
+          path: "requests/approvals",
+          element: <Navigate to="/app/approvals" replace />,
+        },
+        {
+          path: "requests/approvals/:id",
+          element: <Navigate to="/app/approvals" replace />,
         },
         {
           path: "requests/attendance",

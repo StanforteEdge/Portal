@@ -199,7 +199,7 @@ async function main() {
     });
 
     const users = await prisma.profile.findMany({
-      where: { isActive: true },
+      where: { status: 'active' },
       select: { id: true, email: true },
       orderBy: { id: 'asc' },
     });

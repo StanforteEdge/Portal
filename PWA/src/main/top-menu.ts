@@ -8,17 +8,17 @@ const menu: Array<Menu | "divider"> = [
   },
   {
     icon: "FileText",
-    title: "Requests",
+    title: "My Requests",
     moduleKey: "finance",
     subMenu: [
       {
         icon: "List",
         pathname: "/app/requests",
-        title: "All Requests",
+        title: "My Requests",
       },
       {
         icon: "CheckCheck",
-        pathname: "/app/requests/approvals",
+        pathname: "/app/approvals",
         title: "Approvals",
         permissions: ["requests.approve"],
       },

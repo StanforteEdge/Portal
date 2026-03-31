@@ -25,7 +25,7 @@ const menu: Array<Menu | "divider"> = [
   },
   {
     icon: "CheckCheck",
-    pathname: "/app/requests/approvals",
+    pathname: "/app/approvals",
     title: "Approvals",
     permissions: ["requests.approve"],
   },
