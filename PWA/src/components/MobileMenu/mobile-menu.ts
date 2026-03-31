@@ -57,6 +57,7 @@ const nestedMenu = (menu: Array<Menu | "divider">, location: Location) => {
       const menuItem: FormattedMenu = {
         icon: item.icon,
         title: item.title,
+        isSectionLabel: item.isSectionLabel,
         pathname: resolved.pathname,
         subMenu: item.subMenu,
         ignore: item.ignore,

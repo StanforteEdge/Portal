@@ -119,6 +119,13 @@ function Main() {
             {formattedMenu.map((menu, menuKey) =>
               menu == "divider" ? (
                 <li className="my-6 menu__divider" key={menuKey}></li>
+              ) : menu.isSectionLabel ? (
+                <li
+                  key={menuKey}
+                  className="px-6 pt-1 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/60"
+                >
+                  {menu.title}
+                </li>
               ) : (
                 <li key={menuKey}>
                   {menu.subMenu ? (
