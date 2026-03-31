@@ -8,13 +8,13 @@ const menu: Array<Menu | "divider"> = [
   },
   {
     icon: "FileText",
-    title: "My Requests",
+    title: "Requests",
     moduleKey: "finance",
     subMenu: [
       {
         icon: "List",
         pathname: "/app/requests",
-        title: "My Requests",
+        title: "Requests",
       },
       {
         icon: "CheckCheck",
