@@ -23,6 +23,7 @@ import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { AcknowledgementsModule } from './modules/acknowledgements/acknowledgements.module';
 import { PoliciesModule } from './modules/policies/policies.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
+import { WorkModule } from './modules/work/work.module';
 
 @Module({
   imports: [
@@ -49,7 +50,8 @@ import { PayrollModule } from './modules/payroll/payroll.module';
     OnboardingModule,
     AcknowledgementsModule,
     PoliciesModule,
-    PayrollModule
+    PayrollModule,
+    WorkModule
   ]
 })
 export class AppModule {}

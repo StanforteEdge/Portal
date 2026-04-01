@@ -23,6 +23,10 @@ const UpdateProfile = lazy(() => import("../pages/staff/profile/UpdateProfile"))
 const ChangePassword = lazy(() => import("../pages/staff/security/ChangePassword"));
 const MyPayslipsPage = lazy(() => import("../pages/profile/MyPayslips"));
 const MyTimesheetsPage = lazy(() => import("../pages/profile/MyTimesheets"));
+const MyWorkPage = lazy(() => import("../pages/profile/MyWork"));
+const PerformanceOverviewPage = lazy(
+  () => import("../pages/work/PerformanceOverview")
+);
 const HelpHomePage = lazy(() => import("../pages/help/HelpHome"));
 const FinanceHelpPage = lazy(() => import("../pages/help/FinanceHelp"));
 const FinanceSettings = lazy(
@@ -186,6 +190,9 @@ const HrOnboardingPage = lazy(() => import("../pages/hr/onboarding/HrOnboarding"
 const HrAttendancePage = lazy(() => import("../pages/hr/attendance/HrAttendance"));
 const HrLeaveTrackerPage = lazy(() => import("../pages/hr/leave/HrLeaveTracker"));
 const HrLeaveRequestsPage = lazy(() => import("../pages/hr/leave/HrLeaveRequests"));
+const HrWorkManagementPage = lazy(
+  () => import("../pages/hr/work/HrWorkManagement")
+);
 const HrSettingsPage = lazy(() => import("../pages/hr/settings/HrSettings"));
 const HrLeaveSettingsPage = lazy(
   () => import("../pages/hr/settings/HrLeaveSettings")
@@ -272,6 +279,22 @@ function Router() {
             <ModuleRoute moduleKey="finance">
               {page(<MyTimesheetsPage />)}
             </ModuleRoute>
+          ),
+        },
+        {
+          path: "work",
+          element: (
+            <PermissionRoute requiredPermissions={["work.view"]}>
+              {page(<MyWorkPage />)}
+            </PermissionRoute>
+          ),
+        },
+        {
+          path: "work/performance",
+          element: (
+            <PermissionRoute requiredPermissions={["work.view"]}>
+              {page(<PerformanceOverviewPage />)}
+            </PermissionRoute>
           ),
         },
         {
@@ -1094,6 +1117,16 @@ function Router() {
             <ModuleRoute moduleKey="hr">
               <PermissionRoute requiredPermissions={["users.manage"]}>
                 {page(<HrAttendancePage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "hr/work",
+          element: (
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["work.manage"]}>
+                {page(<HrWorkManagementPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),

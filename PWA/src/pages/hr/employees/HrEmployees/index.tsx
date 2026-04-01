@@ -75,6 +75,8 @@ function HrEmployeesPage() {
               <Table.Tr>
                 <Table.Th>Name</Table.Th>
                 <Table.Th>Email</Table.Th>
+                <Table.Th>Organization</Table.Th>
+                <Table.Th>Team</Table.Th>
                 <Table.Th>Role</Table.Th>
                 <Table.Th>Status</Table.Th>
                 <Table.Th>Onboarding</Table.Th>
@@ -85,10 +87,17 @@ function HrEmployeesPage() {
             <Table.Tbody>
               {employees.map((employee) => {
                 const fullName = `${employee.first_name || ""} ${employee.last_name || ""}`.trim() || employee.username;
+                const primaryOrganization =
+                  employee.organizations?.find((entry) => entry.is_primary)?.name ||
+                  employee.organizations?.[0]?.name ||
+                  "-";
+                const teamNames = employee.teams?.map((entry) => entry.name).filter(Boolean) || [];
                 return (
                   <Table.Tr key={employee.id}>
                     <Table.RowHeader>{fullName}</Table.RowHeader>
                     <Table.Td>{employee.email}</Table.Td>
+                    <Table.Td>{primaryOrganization}</Table.Td>
+                    <Table.Td>{teamNames.length > 0 ? teamNames.join(", ") : "-"}</Table.Td>
                     <Table.Td>{employee.roles?.[0]?.name || "-"}</Table.Td>
                     <Table.Td>{employee.status}</Table.Td>
                     <Table.Td>{employee.onboarding_progress?.status || "-"}</Table.Td>
@@ -103,7 +112,7 @@ function HrEmployeesPage() {
               })}
               {!loading && employees.length === 0 ? (
                 <Table.Tr>
-                  <Table.Td colSpan={7} className="text-center text-slate-500">No employees found.</Table.Td>
+                  <Table.Td colSpan={9} className="text-center text-slate-500">No employees found.</Table.Td>
                 </Table.Tr>
               ) : null}
             </Table.Tbody>

@@ -26,6 +26,24 @@ type PaymentVoucherLike = {
   retirement_status: string;
 };
 
+type FlowStepConfig = {
+  role?: string;
+  min_amount?: number;
+  approver_type?: string;
+  approver_id?: string;
+  approver?: {
+    type?: string;
+    value?: string;
+  };
+};
+
+type NormalizedFlowStep = {
+  approverType: string;
+  approverId: string;
+  role?: string;
+  minAmount: number | null;
+};
+
 const STATUS_RANK: Record<string, number> = {
   draft: 0,
   sent: 1,
@@ -47,8 +65,77 @@ const ROLE_LABELS: Record<string, string> = {
   ed: "ED",
 };
 
+const APPROVER_LABELS: Record<string, string> = {
+  "relation:requester_team_lead": "Team Lead",
+  "relation:requester_team_lead_or_manager": "Team Lead or Manager",
+  "permission:finance.approve": "Finance",
+  "permission:hr.approve": "HR",
+  "permission:payroll.approve": "Payroll",
+  "office:coo": "COO",
+  "office:ed": "ED",
+};
+
 const roleLabel = (role: string) =>
   ROLE_LABELS[role] || role.replaceAll("_", " ").replace(/\b\w/g, (m) => m.toUpperCase());
+
+function normalizeFlowStep(step: FlowStepConfig): NormalizedFlowStep {
+  const approverType = String(step.approver?.type ?? step.approver_type ?? "")
+    .trim()
+    .toLowerCase();
+  const approverId = String(step.approver?.value ?? step.approver_id ?? "")
+    .trim()
+    .toLowerCase();
+  const role = String(step.role ?? "")
+    .trim()
+    .toLowerCase();
+
+  if (approverType && approverId) {
+    return {
+      approverType,
+      approverId,
+      role: role || undefined,
+      minAmount: step.min_amount ? Number(step.min_amount) : null,
+    };
+  }
+
+  if (role === "team_lead") {
+    return { approverType: "relation", approverId: "requester_team_lead", role, minAmount: step.min_amount ? Number(step.min_amount) : null };
+  }
+  if (role === "manager" || role === "team_lead_or_manager") {
+    return { approverType: "relation", approverId: "requester_team_lead_or_manager", role, minAmount: step.min_amount ? Number(step.min_amount) : null };
+  }
+  if (role === "accountant") {
+    return { approverType: "permission", approverId: "finance.approve", role, minAmount: step.min_amount ? Number(step.min_amount) : null };
+  }
+  if (role === "hr") {
+    return { approverType: "permission", approverId: "hr.approve", role, minAmount: step.min_amount ? Number(step.min_amount) : null };
+  }
+  if (role === "coo" || role === "ed") {
+    return { approverType: "office", approverId: role, role, minAmount: step.min_amount ? Number(step.min_amount) : null };
+  }
+  if (role.includes(".")) {
+    return { approverType: "permission", approverId: role, role, minAmount: step.min_amount ? Number(step.min_amount) : null };
+  }
+
+  return {
+    approverType: role ? "role" : "permission",
+    approverId: role || "requests.approve",
+    role: role || undefined,
+    minAmount: step.min_amount ? Number(step.min_amount) : null,
+  };
+}
+
+function approverLabel(step: NormalizedFlowStep) {
+  return (
+    APPROVER_LABELS[`${step.approverType}:${step.approverId}`] ||
+    (step.role ? roleLabel(step.role) : roleLabel(step.approverId))
+  );
+}
+
+function approvalTitle(step: NormalizedFlowStep) {
+  if (step.approverType === "permission" && step.approverId === "finance.approve") return "Cleared for Disbursement";
+  return "Approved";
+}
 
 const pickActor = (entry: Record<string, any>) =>
   entry.performed_by_name ||
@@ -72,6 +159,27 @@ function findMatchingApprovalActor(done: Array<Record<string, any>>, role: strin
     return String(item.action || "").toLowerCase() === "approve" && step.includes(role.toLowerCase());
   });
   return entry ? pickActor(entry) : undefined;
+}
+
+function normalizeText(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase();
+}
+
+function findApprovalEntry(done: Array<Record<string, any>>, step: NormalizedFlowStep, index: number) {
+  const label = normalizeText(approverLabel(step));
+  const legacyRole = normalizeText(step.role);
+  const candidates = done.filter((entry) => normalizeText(entry.action) === "approve");
+
+  return (
+    candidates.find((entry) => normalizeText(entry.step) === label) ||
+    candidates.find((entry) => normalizeText(entry.step).includes(label)) ||
+    (legacyRole
+      ? candidates.find((entry) => normalizeText(entry.step).includes(legacyRole))
+      : undefined) ||
+    candidates[index]
+  );
 }
 
 function hasStateEvent(data: Record<string, unknown>, toState: string, actionText: string) {
@@ -101,24 +209,20 @@ export function buildRequestWorkflowSteps(
     paymentVouchers.length > 0 &&
     paymentVouchers.every((voucher) => String(voucher.retirement_status || "").toLowerCase() === "verified");
 
-  const flowSteps = ((request.request_type?.approval_flow_json as any)?.steps || []) as Array<{
-    role?: string;
-    min_amount?: number;
-  }>;
-  const normalizedFlow = flowSteps.length > 0 ? flowSteps : [{ role: "team_lead" }, { role: "accountant" }];
+  const flowSteps = ((request.request_type?.approval_flow_json as any)?.steps || []) as FlowStepConfig[];
+  const normalizedFlow = (flowSteps.length > 0 ? flowSteps : [{ role: "team_lead" }, { role: "accountant" }]).map(normalizeFlowStep);
 
   const approvalSteps: WorkflowStepDraft[] = normalizedFlow.reduce<WorkflowStepDraft[]>((acc, step, index) => {
-    const role = String(step.role || `step_${index + 1}`).trim();
-    const minAmount = step.min_amount ? Number(step.min_amount) : null;
-    const skippedByThreshold = minAmount !== null && amount < minAmount;
+    const skippedByThreshold = step.minAmount !== null && amount < step.minAmount;
     if (skippedByThreshold) return acc;
     const forcedDoneByStatus = currentRank >= 3;
-    const done = forcedDoneByStatus || hasMatchingApproval(doneEntries, role);
-    const actor = done ? findMatchingApprovalActor(doneEntries, role) : undefined;
+    const matchedEntry = findApprovalEntry(doneEntries, step, acc.length);
+    const done = forcedDoneByStatus || Boolean(matchedEntry);
+    const actor = done ? (matchedEntry ? pickActor(matchedEntry) : step.approverType === "permission" && step.approverId === "finance.approve" ? findMatchingApprovalActor(doneEntries, "accountant") : undefined) : undefined;
     acc.push({
-      key: `approval_${role}_${index}`,
-      title: role === "accountant" ? "Cleared for Disbursement" : "Approved",
-      owner: roleLabel(role),
+      key: `approval_${step.approverType}_${step.approverId}_${index}`,
+      title: approvalTitle(step),
+      owner: approverLabel(step),
       done,
       actor,
     });
