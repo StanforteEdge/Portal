@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import Table from "@/components/Base/Table";
@@ -224,6 +225,7 @@ function groupBudgetLines(lines: any[]) {
 }
 
 function FinanceBudgetsPage() {
+  const inputRef = useRef<HTMLInputElement | null>(null);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -328,6 +330,273 @@ function FinanceBudgetsPage() {
     setEditingId("");
     setForm(emptyForm);
     setShowEditor(true);
+  };
+
+  const downloadTemplate = () => {
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet([
+        {
+          name: "2026 Organization Annual Budget",
+          scope_type: "organization",
+          budget_type: "organization",
+          period_type: "annual",
+          fiscal_year: 2026,
+          quarter: "",
+          month: "",
+          currency: "NGN",
+          exchange_rate: 1500,
+          status: "draft",
+          organization_id: "",
+          team_id: "",
+          project_id: "",
+          fund_id: "",
+          grant_id: "",
+          notes: "Sample organization budget import",
+        },
+      ]),
+      "Budget"
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet([
+        { section: "general", label: "Exchange Rate", value: "1 USD = 1500 NGN", notes: "" },
+        { section: "planning", label: "Inflation", value: "12%", notes: "" },
+      ]),
+      "Assumptions"
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet([
+        {
+          project_id: "",
+          fund_id: "",
+          grant_id: "",
+          funder_name: "Sample Funder",
+          status: "active",
+          period_1_amount: 1000000,
+          period_2_amount: 1200000,
+          period_3_amount: 900000,
+          period_4_amount: 800000,
+          total_budget: 3900000,
+          notes: "",
+        },
+      ]),
+      "Portfolio"
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet([
+        {
+          section: "income",
+          group_name: "Funding",
+          line_name: "Grant Income",
+          chart_account_id: "",
+          project_id: "",
+          fund_id: "",
+          grant_id: "",
+          period_1_amount: 1000000,
+          period_2_amount: 1200000,
+          period_3_amount: 900000,
+          period_4_amount: 800000,
+          total_amount: 3900000,
+          notes: "",
+        },
+        {
+          section: "expenditure",
+          group_name: "Programme Costs",
+          line_name: "Field Activities",
+          chart_account_id: "",
+          project_id: "",
+          fund_id: "",
+          grant_id: "",
+          period_1_amount: 600000,
+          period_2_amount: 750000,
+          period_3_amount: 500000,
+          period_4_amount: 450000,
+          total_amount: 2300000,
+          notes: "",
+        },
+      ]),
+      "Lines"
+    );
+    XLSX.writeFile(workbook, "budget-import-template.xlsx");
+  };
+
+  const exportBudget = () => {
+    if (!selectedBudget) return;
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet([
+        {
+          name: selectedBudget.name,
+          scope_type: selectedBudget.scope_type,
+          budget_type: selectedBudget.budget_type,
+          period_type: selectedBudget.period_type,
+          fiscal_year: selectedBudget.fiscal_year,
+          quarter: selectedBudget.quarter ?? "",
+          month: selectedBudget.month ?? "",
+          currency: selectedBudget.currency,
+          exchange_rate: selectedBudget.exchange_rate ?? "",
+          status: selectedBudget.status,
+          organization_id: selectedBudget.organization_id ?? "",
+          team_id: selectedBudget.team_id ?? "",
+          project_id: selectedBudget.project_id ?? "",
+          fund_id: selectedBudget.fund?.id ?? "",
+          grant_id: selectedBudget.grant?.id ?? "",
+          notes: selectedBudget.notes ?? "",
+        },
+      ]),
+      "Budget"
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(
+        (selectedBudget.assumptions || []).map((entry: any) => ({
+          section: entry.section || "",
+          label: entry.label || "",
+          value: entry.value || "",
+          notes: entry.notes || "",
+        }))
+      ),
+      "Assumptions"
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(
+        (selectedBudget.portfolio || []).map((entry: any) => ({
+          project_id: entry.project_id || "",
+          fund_id: entry.fund_id || "",
+          grant_id: entry.grant_id || "",
+          funder_name: entry.funder_name || "",
+          status: entry.status || "",
+          period_1_amount: entry.period_1_amount ?? "",
+          period_2_amount: entry.period_2_amount ?? "",
+          period_3_amount: entry.period_3_amount ?? "",
+          period_4_amount: entry.period_4_amount ?? "",
+          period_total: entry.period_total ?? "",
+          total_budget: entry.total_budget ?? "",
+          notes: entry.notes || "",
+        }))
+      ),
+      "Portfolio"
+    );
+    XLSX.utils.book_append_sheet(
+      workbook,
+      XLSX.utils.json_to_sheet(
+        (selectedBudget.lines || []).map((line: any) => ({
+          section: line.section || "",
+          group_name: line.group_name || "",
+          line_name: line.line_name || line.line_label || "",
+          chart_account_id: line.chart_account_id || "",
+          project_id: line.project_id || "",
+          fund_id: line.fund_id || "",
+          grant_id: line.grant_id || "",
+          period_1_amount: line.period_1_amount ?? "",
+          period_2_amount: line.period_2_amount ?? "",
+          period_3_amount: line.period_3_amount ?? "",
+          period_4_amount: line.period_4_amount ?? "",
+          total_amount: line.total_amount ?? line.amount ?? "",
+          actual_total_amount: line.actual_total_amount ?? "",
+          variance_amount: line.variance_amount ?? "",
+          notes: line.notes || "",
+        }))
+      ),
+      "Lines"
+    );
+    XLSX.writeFile(workbook, `${selectedBudget.name.replace(/[^a-z0-9]+/gi, "-").toLowerCase() || "budget"}.xlsx`);
+  };
+
+  const importBudgetFile = async (file: File) => {
+    try {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const budgetRows = XLSX.utils.sheet_to_json(workbook.Sheets["Budget"], { defval: "" }) as Record<string, unknown>[];
+      const assumptionRows = workbook.Sheets["Assumptions"]
+        ? (XLSX.utils.sheet_to_json(workbook.Sheets["Assumptions"], { defval: "" }) as Record<string, unknown>[])
+        : [];
+      const portfolioRows = workbook.Sheets["Portfolio"]
+        ? (XLSX.utils.sheet_to_json(workbook.Sheets["Portfolio"], { defval: "" }) as Record<string, unknown>[])
+        : [];
+      const lineRows = workbook.Sheets["Lines"]
+        ? (XLSX.utils.sheet_to_json(workbook.Sheets["Lines"], { defval: "" }) as Record<string, unknown>[])
+        : [];
+
+      const budget = budgetRows[0];
+      if (!budget) {
+        throw new Error("Budget sheet is empty.");
+      }
+
+      setEditingId("");
+      setForm({
+        name: toText(budget.name),
+        scope_type: toText(budget.scope_type || budget.budget_type || "organization"),
+        budget_type: toText(budget.budget_type || budget.scope_type || "organization"),
+        period_type: toText(budget.period_type || "annual"),
+        fiscal_year: toText(budget.fiscal_year || new Date().getFullYear()),
+        quarter: toText(budget.quarter),
+        month: toText(budget.month),
+        currency: toText(budget.currency || "NGN"),
+        exchange_rate: toText(budget.exchange_rate),
+        status: toText(budget.status || "draft"),
+        organization_id: toText(budget.organization_id),
+        team_id: toText(budget.team_id),
+        project_id: toText(budget.project_id),
+        fund_id: toText(budget.fund_id),
+        grant_id: toText(budget.grant_id),
+        parent_budget_id: toText(budget.parent_budget_id),
+        start_date: toText(budget.start_date),
+        end_date: toText(budget.end_date),
+        notes: toText(budget.notes),
+        assumptions: assumptionRows.length
+          ? assumptionRows.map((entry) => ({
+              section: toText(entry.section),
+              label: toText(entry.label),
+              value: toText(entry.value),
+              notes: toText(entry.notes),
+            }))
+          : [emptyAssumption],
+        portfolio: portfolioRows.map((entry) => ({
+          project_id: toText(entry.project_id),
+          fund_id: toText(entry.fund_id),
+          grant_id: toText(entry.grant_id),
+          funder_name: toText(entry.funder_name),
+          status: toText(entry.status || "active"),
+          period_1_amount: toText(entry.period_1_amount),
+          period_2_amount: toText(entry.period_2_amount),
+          period_3_amount: toText(entry.period_3_amount),
+          period_4_amount: toText(entry.period_4_amount),
+          period_total: toText(entry.period_total),
+          total_budget: toText(entry.total_budget),
+          notes: toText(entry.notes),
+        })),
+        lines: lineRows.length
+          ? lineRows.map((entry) => ({
+              section: toText(entry.section || "expenditure"),
+              group_name: toText(entry.group_name),
+              line_name: toText(entry.line_name || entry.line_label),
+              chart_account_id: toText(entry.chart_account_id),
+              project_id: toText(entry.project_id),
+              fund_id: toText(entry.fund_id),
+              grant_id: toText(entry.grant_id),
+              period_1_amount: toText(entry.period_1_amount),
+              period_2_amount: toText(entry.period_2_amount),
+              period_3_amount: toText(entry.period_3_amount),
+              period_4_amount: toText(entry.period_4_amount),
+              total_amount: toText(entry.total_amount || entry.amount),
+              notes: toText(entry.notes),
+            }))
+          : [emptyLine],
+      });
+      setShowEditor(true);
+      setNotice({ tone: "success", message: "Budget spreadsheet imported into the editor." });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.message || "Unable to import budget spreadsheet." });
+    } finally {
+      if (inputRef.current) inputRef.current.value = "";
+    }
   };
 
   const openEdit = (row: any) => {
@@ -495,6 +764,25 @@ function FinanceBudgetsPage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Budgets</h2>
         <div className="flex gap-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void importBudgetFile(file);
+            }}
+          />
+          <Button variant="outline-secondary" onClick={downloadTemplate}>
+            <Lucide icon="FileText" className="w-4 h-4 mr-1" /> Template
+          </Button>
+          <Button variant="outline-secondary" onClick={() => inputRef.current?.click()}>
+            <Lucide icon="Upload" className="w-4 h-4 mr-1" /> Import
+          </Button>
+          <Button variant="outline-secondary" onClick={exportBudget} disabled={!selectedBudget}>
+            <Lucide icon="Download" className="w-4 h-4 mr-1" /> Export
+          </Button>
           <Button variant="outline-secondary" onClick={() => void load()} disabled={loading}>
             <Lucide icon="Undo2" className="w-4 h-4 mr-1" /> Refresh
           </Button>
