@@ -30,6 +30,11 @@ export class UpsertFinanceFundDto {
   @IsUUID()
   donor_id?: string;
 
+  @ApiPropertyOptional({ example: '7' })
+  @IsOptional()
+  @IsString()
+  project_id?: string;
+
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
