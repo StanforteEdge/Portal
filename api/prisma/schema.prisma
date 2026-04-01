@@ -758,6 +758,7 @@ model FinanceDonor {
 model FinanceFund {
   id              String   @id @default(uuid()) @db.Uuid
   organizationId  BigInt?  @map("organization_id")
+  projectId       BigInt?  @map("project_id")
   donorId         String?  @map("donor_id") @db.Uuid
   code            String   @db.VarChar(50)
   name            String   @db.VarChar(150)
@@ -790,6 +791,7 @@ model FinanceFund {
 
   @@unique([organizationId, code], name: "unique_finance_fund_code_per_org")
   @@index([organizationId])
+  @@index([projectId])
   @@index([restrictionType])
   @@index([isActive])
   @@map("sta_finance_funds")
@@ -798,6 +800,7 @@ model FinanceFund {
 model FinanceGrant {
   id               String    @id @default(uuid()) @db.Uuid
   organizationId   BigInt?   @map("organization_id")
+  projectId        BigInt?   @map("project_id")
   donorId          String?   @map("donor_id") @db.Uuid
   fundId           String?   @map("fund_id") @db.Uuid
   code             String    @db.VarChar(60)
@@ -836,6 +839,7 @@ model FinanceGrant {
 
   @@unique([organizationId, code], name: "unique_finance_grant_code_per_org")
   @@index([organizationId])
+  @@index([projectId])
   @@index([donorId])
   @@index([fundId])
   @@index([status])
@@ -1390,9 +1394,16 @@ model FinanceBudget {
   projectId     BigInt?   @map("project_id")
   fundId        String?   @map("fund_id") @db.Uuid
   grantId       String?   @map("grant_id") @db.Uuid
+  parentBudgetId String?  @map("parent_budget_id") @db.Uuid
   name          String    @db.VarChar(180)
+  scopeType     String    @default("project") @map("scope_type") @db.VarChar(30)
   budgetType    String    @default("project") @map("budget_type") @db.VarChar(30)
+  periodType    String    @default("annual") @map("period_type") @db.VarChar(30)
+  fiscalYear    Int?      @map("fiscal_year")
+  quarter       Int?      @db.SmallInt
+  month         Int?      @db.SmallInt
   currency      String    @default("NGN") @db.VarChar(3)
+  exchangeRate  Decimal?  @map("exchange_rate") @db.Decimal(15, 4)
   startDate     DateTime  @map("start_date") @db.Date
   endDate       DateTime  @map("end_date") @db.Date
   status        String    @default("draft") @db.VarChar(30)
@@ -1401,37 +1412,112 @@ model FinanceBudget {
   metadata      Json?
   createdBy     BigInt?   @map("created_by")
   updatedBy     BigInt?   @map("updated_by")
+  approvedBy    BigInt?   @map("approved_by")
+  approvedAt    DateTime? @map("approved_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   fund          FinanceFund?          @relation(fields: [fundId], references: [id], onDelete: SetNull)
   grant         FinanceGrant?         @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  parentBudget  FinanceBudget?        @relation("FinanceBudgetChildren", fields: [parentBudgetId], references: [id], onDelete: SetNull)
+  childBudgets  FinanceBudget[]       @relation("FinanceBudgetChildren")
   lines         FinanceBudgetLine[]
+  assumptions   FinanceBudgetAssumption[]
+  portfolio     FinanceBudgetPortfolio[]
 
   @@index([organizationId])
   @@index([teamId])
   @@index([projectId])
   @@index([fundId])
   @@index([grantId])
+  @@index([parentBudgetId])
   @@index([budgetType, status])
+  @@index([scopeType, periodType])
+  @@index([fiscalYear, quarter, month])
   @@index([startDate, endDate])
   @@map("sta_finance_budgets")
 }
 
 model FinanceBudgetLine {
+  id                String   @id @default(uuid()) @db.Uuid
+  budgetId          String   @map("budget_id") @db.Uuid
+  chartAccountId    String?  @map("chart_account_id") @db.Uuid
+  projectId         BigInt?  @map("project_id")
+  fundId            String?  @map("fund_id") @db.Uuid
+  grantId           String?  @map("grant_id") @db.Uuid
+  section           String   @default("expenditure") @db.VarChar(20)
+  groupName         String?  @map("group_name") @db.VarChar(120)
+  lineLabel         String   @map("line_label") @db.VarChar(180)
+  amount            Decimal  @db.Decimal(15, 2)
+  period1Amount     Decimal? @map("period_1_amount") @db.Decimal(15, 2)
+  period2Amount     Decimal? @map("period_2_amount") @db.Decimal(15, 2)
+  period3Amount     Decimal? @map("period_3_amount") @db.Decimal(15, 2)
+  period4Amount     Decimal? @map("period_4_amount") @db.Decimal(15, 2)
+  totalAmount       Decimal? @map("total_amount") @db.Decimal(15, 2)
+  revisedTotalAmount Decimal? @map("revised_total_amount") @db.Decimal(15, 2)
+  actualTotalAmount Decimal? @map("actual_total_amount") @db.Decimal(15, 2)
+  varianceAmount    Decimal? @map("variance_amount") @db.Decimal(15, 2)
+  notes             String?
+  sortOrder         Int      @default(0) @map("sort_order")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  budget FinanceBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId, sortOrder])
+  @@index([chartAccountId])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@index([section])
+  @@map("sta_finance_budget_lines")
+}
+
+model FinanceBudgetAssumption {
   id         String   @id @default(uuid()) @db.Uuid
   budgetId   String   @map("budget_id") @db.Uuid
-  lineLabel  String   @map("line_label") @db.VarChar(180)
-  amount     Decimal  @db.Decimal(15, 2)
+  section    String?  @db.VarChar(60)
+  label      String   @db.VarChar(120)
+  value      String   @db.VarChar(255)
+  notes      String?
   sortOrder  Int      @default(0) @map("sort_order")
-  metadata   Json?
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   budget FinanceBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
 
   @@index([budgetId, sortOrder])
-  @@map("sta_finance_budget_lines")
+  @@map("sta_finance_budget_assumptions")
+}
+
+model FinanceBudgetPortfolio {
+  id               String   @id @default(uuid()) @db.Uuid
+  budgetId         String   @map("budget_id") @db.Uuid
+  projectId        BigInt   @map("project_id")
+  fundId           String?  @map("fund_id") @db.Uuid
+  grantId          String?  @map("grant_id") @db.Uuid
+  funderName       String?  @map("funder_name") @db.VarChar(180)
+  status           String?  @db.VarChar(40)
+  period1Amount    Decimal? @map("period_1_amount") @db.Decimal(15, 2)
+  period2Amount    Decimal? @map("period_2_amount") @db.Decimal(15, 2)
+  period3Amount    Decimal? @map("period_3_amount") @db.Decimal(15, 2)
+  period4Amount    Decimal? @map("period_4_amount") @db.Decimal(15, 2)
+  periodTotal      Decimal? @map("period_total") @db.Decimal(15, 2)
+  totalBudget      Decimal? @map("total_budget") @db.Decimal(15, 2)
+  notes            String?
+  sortOrder        Int      @default(0) @map("sort_order")
+  metadata         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  budget FinanceBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId, sortOrder])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@map("sta_finance_budget_portfolio")
 }
 
 model PayrollWorker {

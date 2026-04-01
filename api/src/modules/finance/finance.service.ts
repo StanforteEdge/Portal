@@ -1693,6 +1693,7 @@ export class FinanceService {
     const rows = await this.prisma.financeFund.findMany({
       where: {
         ...(query.organization_id ? { organizationId: this.parseId(String(query.organization_id), 'organization_id') } : {}),
+        ...(query.project_id ? { projectId: this.parseId(String(query.project_id), 'project_id') } : {}),
         ...(query.restriction_type ? { restrictionType: String(query.restriction_type) } : {}),
         ...(query.is_active !== undefined ? { isActive: String(query.is_active) !== 'false' } : {})
       },
@@ -1704,10 +1705,12 @@ export class FinanceService {
 
   async createFund(dto: any, actorId?: string) {
     const donor = dto.donor_id ? await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.donor_id && !donor) throw new BadRequestException('Invalid donor_id');
     const row = await this.prisma.financeFund.create({
       data: {
         organizationId: null,
+        projectId,
         donorId: donor?.id ?? null,
         code: dto.code.trim().toUpperCase(),
         name: dto.name.trim(),
@@ -1727,10 +1730,12 @@ export class FinanceService {
     const existing = await this.prisma.financeFund.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Fund not found');
     const donor = dto.donor_id ? await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.donor_id && !donor) throw new BadRequestException('Invalid donor_id');
     const row = await this.prisma.financeFund.update({
       where: { id },
       data: {
+        projectId: dto.project_id !== undefined ? projectId : existing.projectId,
         donorId: dto.donor_id !== undefined ? donor?.id ?? null : existing.donorId,
         code: dto.code.trim().toUpperCase(),
         name: dto.name.trim(),
@@ -1749,6 +1754,7 @@ export class FinanceService {
     const rows = await this.prisma.financeGrant.findMany({
       where: {
         ...(query.organization_id ? { organizationId: this.parseId(String(query.organization_id), 'organization_id') } : {}),
+        ...(query.project_id ? { projectId: this.parseId(String(query.project_id), 'project_id') } : {}),
         ...(query.status ? { status: String(query.status) } : {})
       },
       include: { donor: true, fund: true },
@@ -1760,11 +1766,13 @@ export class FinanceService {
   async createGrant(dto: any, actorId?: string) {
     const donor = dto.donor_id ? await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } }) : null;
     const fund = dto.fund_id ? await this.prisma.financeFund.findUnique({ where: { id: dto.fund_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.donor_id && !donor) throw new BadRequestException('Invalid donor_id');
     if (dto.fund_id && !fund) throw new BadRequestException('Invalid fund_id');
     const row = await this.prisma.financeGrant.create({
       data: {
         organizationId: null,
+        projectId,
         donorId: donor?.id ?? null,
         fundId: fund?.id ?? null,
         code: dto.code.trim().toUpperCase(),
@@ -1791,11 +1799,13 @@ export class FinanceService {
     if (!existing) throw new NotFoundException('Grant not found');
     const donor = dto.donor_id ? await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } }) : null;
     const fund = dto.fund_id ? await this.prisma.financeFund.findUnique({ where: { id: dto.fund_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.donor_id && !donor) throw new BadRequestException('Invalid donor_id');
     if (dto.fund_id && !fund) throw new BadRequestException('Invalid fund_id');
     const row = await this.prisma.financeGrant.update({
       where: { id },
       data: {
+        projectId: dto.project_id !== undefined ? projectId : existing.projectId,
         donorId: dto.donor_id !== undefined ? donor?.id ?? null : existing.donorId,
         fundId: dto.fund_id !== undefined ? fund?.id ?? null : existing.fundId,
         code: dto.code.trim().toUpperCase(),
@@ -1824,12 +1834,19 @@ export class FinanceService {
         ...(query.project_id ? { projectId: this.parseId(String(query.project_id), 'project_id') } : {}),
         ...(query.fund_id ? { fundId: String(query.fund_id) } : {}),
         ...(query.grant_id ? { grantId: String(query.grant_id) } : {}),
+        ...(query.scope_type ? { scopeType: String(query.scope_type) } : {}),
+        ...(query.period_type ? { periodType: String(query.period_type) } : {}),
+        ...(query.fiscal_year ? { fiscalYear: Number(query.fiscal_year) } : {}),
+        ...(query.quarter ? { quarter: Number(query.quarter) } : {}),
+        ...(query.month ? { month: Number(query.month) } : {}),
         ...(query.status ? { status: String(query.status) } : {}),
         ...(query.budget_type ? { budgetType: String(query.budget_type) } : {})
       },
       include: {
         fund: true,
         grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
         lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
       },
       orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }]
@@ -1843,6 +1860,8 @@ export class FinanceService {
       include: {
         fund: true,
         grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
         lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
       }
     });
@@ -1858,31 +1877,117 @@ export class FinanceService {
     return this.upsertBudget(id, dto, actorId);
   }
 
+  async approveBudget(id: string, actorId?: string) {
+    const row = await this.prisma.financeBudget.update({
+      where: { id },
+      data: {
+        status: 'approved',
+        approvedBy: actorId ? toBigInt(actorId) : null,
+        approvedAt: new Date(),
+        updatedBy: actorId ? toBigInt(actorId) : null,
+      },
+      include: {
+        fund: true,
+        grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+      },
+    });
+    return this.serializeBudget(row);
+  }
+
+  async reopenBudget(id: string, actorId?: string) {
+    const row = await this.prisma.financeBudget.update({
+      where: { id },
+      data: {
+        status: 'draft',
+        approvedBy: null,
+        approvedAt: null,
+        updatedBy: actorId ? toBigInt(actorId) : null,
+      },
+      include: {
+        fund: true,
+        grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+      },
+    });
+    return this.serializeBudget(row);
+  }
+
+  async recalculateBudget(id: string) {
+    const budget = await this.prisma.financeBudget.findUnique({
+      where: { id },
+      include: {
+        fund: true,
+        grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+      },
+    });
+    if (!budget) throw new NotFoundException('Budget not found');
+
+    const { expenseTotal, incomeTotal } = await this.computeBudgetActuals(budget);
+    const lineUpdates = budget.lines.map((line) => {
+      const planned = Number(line.totalAmount ?? line.amount ?? 0);
+      const actual = line.section === 'income' ? incomeTotal : expenseTotal;
+      const variance = actual - planned;
+      return this.prisma.financeBudgetLine.update({
+        where: { id: line.id },
+        data: {
+          totalAmount: planned,
+          actualTotalAmount: actual,
+          varianceAmount: variance,
+        },
+      });
+    });
+    await this.prisma.$transaction([
+      ...lineUpdates,
+      this.prisma.financeBudget.update({
+        where: { id: budget.id },
+        data: { totalBudget: budget.lines.reduce((sum, line) => sum + Number(line.totalAmount ?? line.amount ?? 0), 0) },
+      }),
+    ]);
+    return this.getBudget(id);
+  }
+
   private async upsertBudget(id: string | null, dto: any, actorId?: string) {
-    const startDate = new Date(dto.start_date);
-    const endDate = new Date(dto.end_date);
-    if (Number.isNaN(startDate.getTime())) throw new BadRequestException('Invalid start_date');
-    if (Number.isNaN(endDate.getTime())) throw new BadRequestException('Invalid end_date');
-    if (endDate < startDate) throw new BadRequestException('end_date cannot be before start_date');
+    const scopeType = String(dto.scope_type || dto.budget_type || 'project').trim();
+    const budgetType = String(dto.budget_type || scopeType || 'project').trim();
+    const periodType = String(dto.period_type || 'annual').trim();
+    const fiscalYear = dto.fiscal_year !== undefined && dto.fiscal_year !== null ? Number(dto.fiscal_year) : null;
+    const quarter = dto.quarter !== undefined && dto.quarter !== null && dto.quarter !== '' ? Number(dto.quarter) : null;
+    const month = dto.month !== undefined && dto.month !== null && dto.month !== '' ? Number(dto.month) : null;
+    const { startDate, endDate } = this.resolveBudgetDates(dto.start_date, dto.end_date, periodType, fiscalYear, quarter, month);
     const fund = dto.fund_id ? await this.prisma.financeFund.findUnique({ where: { id: dto.fund_id } }) : null;
     const grant = dto.grant_id ? await this.prisma.financeGrant.findUnique({ where: { id: dto.grant_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.fund_id && !fund) throw new BadRequestException('Invalid fund_id');
     if (dto.grant_id && !grant) throw new BadRequestException('Invalid grant_id');
-    if (fund && grant && grant.fundId && grant.fundId !== fund.id) throw new BadRequestException('grant_id does not belong to fund_id');
+    this.validateScope(scopeType, dto);
+    await this.validateBudgetDimensionCompatibility({ projectId, fund, grant });
     const lines = Array.isArray(dto.lines) ? dto.lines : [];
-    if (!lines.length) throw new BadRequestException('At least one budget line is required');
-    const totalBudget = lines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
-    if (totalBudget <= 0) throw new BadRequestException('Budget total must be greater than zero');
-    if (!['project', 'fund', 'grant'].includes(String(dto.budget_type || 'project'))) {
-      throw new BadRequestException('budget_type must be project, fund, or grant');
+    const assumptions = Array.isArray(dto.assumptions) ? dto.assumptions : [];
+    const portfolio = Array.isArray(dto.portfolio) ? dto.portfolio : [];
+    if (portfolio.length) {
+      await Promise.all(portfolio.map((entry: any) => this.ensureProjectExists(String(entry.project_id), 'portfolio project_id')));
     }
-    if (String(dto.budget_type || 'project') === 'project' && !dto.project_id) {
+    if (!lines.length) throw new BadRequestException('At least one budget line is required');
+    const totalBudget = lines.reduce((sum: number, line: any) => sum + this.resolveLineTotal(line), 0);
+    if (totalBudget <= 0) throw new BadRequestException('Budget total must be greater than zero');
+    if (!['organization', 'team', 'project', 'fund', 'grant'].includes(budgetType)) {
+      throw new BadRequestException('budget_type must be organization, team, project, fund, or grant');
+    }
+    if (budgetType === 'project' && !dto.project_id) {
       throw new BadRequestException('project_id is required for project budgets');
     }
-    if (String(dto.budget_type || 'project') === 'fund' && !dto.fund_id) {
+    if (budgetType === 'fund' && !dto.fund_id) {
       throw new BadRequestException('fund_id is required for fund budgets');
     }
-    if (String(dto.budget_type || 'project') === 'grant' && !dto.grant_id) {
+    if (budgetType === 'grant' && !dto.grant_id) {
       throw new BadRequestException('grant_id is required for grant budgets');
     }
 
@@ -1898,12 +2003,19 @@ export class FinanceService {
             data: {
               organizationId: dto.organization_id ? this.parseId(String(dto.organization_id), 'organization_id') : null,
               teamId: dto.team_id ? this.parseId(String(dto.team_id), 'team_id') : null,
-              projectId: dto.project_id ? this.parseId(String(dto.project_id), 'project_id') : null,
+              projectId,
               fundId: fund?.id ?? null,
               grantId: grant?.id ?? null,
+              parentBudgetId: dto.parent_budget_id || null,
               name: String(dto.name || '').trim(),
-              budgetType: String(dto.budget_type || 'project').trim(),
+              scopeType,
+              budgetType,
+              periodType,
+              fiscalYear,
+              quarter,
+              month,
               currency: String(dto.currency || 'NGN').toUpperCase(),
+              exchangeRate: dto.exchange_rate !== undefined && dto.exchange_rate !== null ? Number(dto.exchange_rate) : null,
               startDate,
               endDate,
               status: String(dto.status || 'draft').trim(),
@@ -1916,12 +2028,19 @@ export class FinanceService {
             data: {
               organizationId: dto.organization_id ? this.parseId(String(dto.organization_id), 'organization_id') : null,
               teamId: dto.team_id ? this.parseId(String(dto.team_id), 'team_id') : null,
-              projectId: dto.project_id ? this.parseId(String(dto.project_id), 'project_id') : null,
+              projectId,
               fundId: fund?.id ?? null,
               grantId: grant?.id ?? null,
+              parentBudgetId: dto.parent_budget_id || null,
               name: String(dto.name || '').trim(),
-              budgetType: String(dto.budget_type || 'project').trim(),
+              scopeType,
+              budgetType,
+              periodType,
+              fiscalYear,
+              quarter,
+              month,
               currency: String(dto.currency || 'NGN').toUpperCase(),
+              exchangeRate: dto.exchange_rate !== undefined && dto.exchange_rate !== null ? Number(dto.exchange_rate) : null,
               startDate,
               endDate,
               status: String(dto.status || 'draft').trim(),
@@ -1933,14 +2052,60 @@ export class FinanceService {
           });
 
       await tx.financeBudgetLine.deleteMany({ where: { budgetId: budget.id } });
+      await tx.financeBudgetAssumption.deleteMany({ where: { budgetId: budget.id } });
+      await tx.financeBudgetPortfolio.deleteMany({ where: { budgetId: budget.id } });
       if (lines.length) {
         await tx.financeBudgetLine.createMany({
           data: lines.map((line: any, index: number) => ({
             budgetId: budget.id,
-            lineLabel: String(line.line_label || '').trim(),
-            amount: Number(line.amount || 0),
+            chartAccountId: line.chart_account_id || null,
+            projectId: line.project_id ? this.parseId(String(line.project_id), 'line project_id') : null,
+            fundId: line.fund_id || null,
+            grantId: line.grant_id || null,
+            section: String(line.section || 'expenditure').trim(),
+            groupName: line.group_name ? String(line.group_name).trim() : null,
+            lineLabel: String(line.line_name || line.line_label || '').trim(),
+            amount: this.resolveLineTotal(line),
+            period1Amount: line.period_1_amount !== undefined && line.period_1_amount !== null ? Number(line.period_1_amount) : null,
+            period2Amount: line.period_2_amount !== undefined && line.period_2_amount !== null ? Number(line.period_2_amount) : null,
+            period3Amount: line.period_3_amount !== undefined && line.period_3_amount !== null ? Number(line.period_3_amount) : null,
+            period4Amount: line.period_4_amount !== undefined && line.period_4_amount !== null ? Number(line.period_4_amount) : null,
+            totalAmount: this.resolveLineTotal(line),
+            notes: line.notes ? String(line.notes).trim() : null,
             sortOrder: Number(line.sort_order ?? index),
           }))
+        });
+      }
+      if (assumptions.length) {
+        await tx.financeBudgetAssumption.createMany({
+          data: assumptions.map((entry: any, index: number) => ({
+            budgetId: budget.id,
+            section: entry.section ? String(entry.section).trim() : null,
+            label: String(entry.label || '').trim(),
+            value: String(entry.value || '').trim(),
+            notes: entry.notes ? String(entry.notes).trim() : null,
+            sortOrder: Number(entry.sort_order ?? index),
+          })),
+        });
+      }
+      if (portfolio.length) {
+        await tx.financeBudgetPortfolio.createMany({
+          data: portfolio.map((entry: any, index: number) => ({
+            budgetId: budget.id,
+            projectId: this.parseId(String(entry.project_id), 'portfolio project_id'),
+            fundId: entry.fund_id || null,
+            grantId: entry.grant_id || null,
+            funderName: entry.funder_name ? String(entry.funder_name).trim() : null,
+            status: entry.status ? String(entry.status).trim() : null,
+            period1Amount: entry.period_1_amount !== undefined && entry.period_1_amount !== null ? Number(entry.period_1_amount) : null,
+            period2Amount: entry.period_2_amount !== undefined && entry.period_2_amount !== null ? Number(entry.period_2_amount) : null,
+            period3Amount: entry.period_3_amount !== undefined && entry.period_3_amount !== null ? Number(entry.period_3_amount) : null,
+            period4Amount: entry.period_4_amount !== undefined && entry.period_4_amount !== null ? Number(entry.period_4_amount) : null,
+            periodTotal: this.resolvePortfolioTotal(entry),
+            totalBudget: entry.total_budget !== undefined && entry.total_budget !== null ? Number(entry.total_budget) : this.resolvePortfolioTotal(entry),
+            notes: entry.notes ? String(entry.notes).trim() : null,
+            sortOrder: Number(entry.sort_order ?? index),
+          })),
         });
       }
       return tx.financeBudget.findUnique({
@@ -1948,6 +2113,8 @@ export class FinanceService {
         include: {
           fund: true,
           grant: true,
+          assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+          portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
           lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
         }
       });
@@ -2831,6 +2998,8 @@ export class FinanceService {
       include: {
         fund: true,
         grant: true,
+        assumptions: true,
+        portfolio: true,
         lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
       }
     });
@@ -2839,8 +3008,41 @@ export class FinanceService {
     const { expenseTotal, incomeTotal } = await this.computeBudgetActuals(budget);
     const totalBudget = Number(budget.totalBudget || 0);
     const actualAmount = budget.budgetType === 'project' ? expenseTotal : expenseTotal;
+    const lines = budget.lines.map((line) => ({
+      id: line.id,
+      section: line.section,
+      group_name: line.groupName,
+      line_label: line.lineLabel,
+      planned_amount: Number(line.totalAmount ?? line.amount ?? 0),
+      revised_amount: line.revisedTotalAmount != null ? Number(line.revisedTotalAmount) : null,
+      actual_amount: line.actualTotalAmount != null ? Number(line.actualTotalAmount) : null,
+      variance_amount: line.varianceAmount != null ? Number(line.varianceAmount) : null,
+      sort_order: line.sortOrder,
+    }));
+    const sectionBudgetTotals = lines.reduce(
+      (acc, line) => {
+        const key = line.section === 'income' ? 'income' : 'expenditure';
+        acc[key] += line.planned_amount;
+        return acc;
+      },
+      { income: 0, expenditure: 0 }
+    );
+    const sections = {
+      income: {
+        planned: sectionBudgetTotals.income,
+        actual: incomeTotal,
+        variance: sectionBudgetTotals.income - incomeTotal,
+      },
+      expenditure: {
+        planned: sectionBudgetTotals.expenditure,
+        actual: expenseTotal,
+        variance: sectionBudgetTotals.expenditure - expenseTotal,
+      },
+    };
     return {
       budget: this.serializeBudget(budget),
+      lines,
+      sections,
       actuals: {
         total_budget: totalBudget,
         total_actual: actualAmount,
@@ -3253,6 +3455,120 @@ export class FinanceService {
     }
   }
 
+  private resolveBudgetDates(
+    startDateValue: string | undefined,
+    endDateValue: string | undefined,
+    periodType: string,
+    fiscalYear: number | null,
+    quarter: number | null,
+    month: number | null
+  ) {
+    if (startDateValue && endDateValue) {
+      const startDate = new Date(startDateValue);
+      const endDate = new Date(endDateValue);
+      if (Number.isNaN(startDate.getTime())) throw new BadRequestException('Invalid start_date');
+      if (Number.isNaN(endDate.getTime())) throw new BadRequestException('Invalid end_date');
+      if (endDate < startDate) throw new BadRequestException('end_date cannot be before start_date');
+      return { startDate, endDate };
+    }
+
+    if (!fiscalYear) {
+      throw new BadRequestException('fiscal_year is required when start_date/end_date are omitted');
+    }
+
+    if (periodType === 'annual') {
+      return { startDate: new Date(Date.UTC(fiscalYear, 0, 1)), endDate: new Date(Date.UTC(fiscalYear, 11, 31)) };
+    }
+
+    if (periodType === 'quarterly') {
+      if (!quarter || quarter < 1 || quarter > 4) throw new BadRequestException('quarter is required for quarterly budgets');
+      const startMonth = (quarter - 1) * 3;
+      return {
+        startDate: new Date(Date.UTC(fiscalYear, startMonth, 1)),
+        endDate: new Date(Date.UTC(fiscalYear, startMonth + 3, 0)),
+      };
+    }
+
+    if (periodType === 'monthly') {
+      if (!month || month < 1 || month > 12) throw new BadRequestException('month is required for monthly budgets');
+      return {
+        startDate: new Date(Date.UTC(fiscalYear, month - 1, 1)),
+        endDate: new Date(Date.UTC(fiscalYear, month, 0)),
+      };
+    }
+
+    throw new BadRequestException('period_type must be annual, quarterly, or monthly');
+  }
+
+  private validateScope(scopeType: string, dto: Record<string, any>) {
+    if (!['organization', 'team', 'project'].includes(scopeType)) {
+      throw new BadRequestException('scope_type must be organization, team, or project');
+    }
+    if (scopeType === 'organization' && !dto.organization_id) {
+      throw new BadRequestException('organization_id is required for organization budgets');
+    }
+    if (scopeType === 'team' && (!dto.organization_id || !dto.team_id)) {
+      throw new BadRequestException('organization_id and team_id are required for team budgets');
+    }
+    if (scopeType === 'project' && !dto.project_id) {
+      throw new BadRequestException('project_id is required for project budgets');
+    }
+  }
+
+  private resolveLineTotal(line: Record<string, any>) {
+    if (line.total_amount !== undefined && line.total_amount !== null && line.total_amount !== '') {
+      return Number(line.total_amount || 0);
+    }
+    const periodValues = ['period_1_amount', 'period_2_amount', 'period_3_amount', 'period_4_amount']
+      .map((key) => Number(line[key] ?? 0))
+      .filter((value) => Number.isFinite(value));
+    if (periodValues.some((value) => value !== 0)) {
+      return periodValues.reduce((sum, value) => sum + value, 0);
+    }
+    return Number(line.amount || 0);
+  }
+
+  private resolvePortfolioTotal(entry: Record<string, any>) {
+    if (entry.period_total !== undefined && entry.period_total !== null && entry.period_total !== '') {
+      return Number(entry.period_total || 0);
+    }
+    return ['period_1_amount', 'period_2_amount', 'period_3_amount', 'period_4_amount']
+      .map((key) => Number(entry[key] ?? 0))
+      .reduce((sum, value) => sum + value, 0);
+  }
+
+  private async ensureProjectExists(value: string, label: string) {
+    const projectId = this.parseId(value, label);
+    const project = await this.prisma.group.findUnique({ where: { id: projectId } });
+    if (!project || project.type !== 'project') {
+      throw new BadRequestException(`Invalid ${label}`);
+    }
+    return projectId;
+  }
+
+  private async validateBudgetDimensionCompatibility({
+    projectId,
+    fund,
+    grant,
+  }: {
+    projectId: bigint | null;
+    fund: Prisma.FinanceFundGetPayload<{}> | null;
+    grant: Prisma.FinanceGrantGetPayload<{}> | null;
+  }) {
+    if (fund && grant && grant.fundId && grant.fundId !== fund.id) {
+      throw new BadRequestException('grant_id does not belong to fund_id');
+    }
+    if (projectId && fund?.projectId && fund.projectId !== projectId) {
+      throw new BadRequestException('fund_id does not belong to project_id');
+    }
+    if (projectId && grant?.projectId && grant.projectId !== projectId) {
+      throw new BadRequestException('grant_id does not belong to project_id');
+    }
+    if (fund?.projectId && grant?.projectId && fund.projectId !== grant.projectId) {
+      throw new BadRequestException('fund_id and grant_id do not belong to the same project');
+    }
+  }
+
   private async nextVoucherNumber(requestId: bigint, year: number) {
     const count = await this.prisma.financePaymentVoucher.count({
       where: { requestId }
@@ -3383,6 +3699,7 @@ export class FinanceService {
   ) {
     return {
       id: row.id,
+      project_id: row.projectId ? row.projectId.toString() : null,
       code: row.code,
       name: row.name,
       fund_type: row.fundType,
@@ -3401,6 +3718,7 @@ export class FinanceService {
   ) {
     return {
       id: row.id,
+      project_id: row.projectId ? row.projectId.toString() : null,
       code: row.code,
       name: row.name,
       restriction_type: row.restrictionType,
@@ -3420,19 +3738,21 @@ export class FinanceService {
   }
 
   private serializeBudget(
-    row: Prisma.FinanceBudgetGetPayload<{ include: { fund: true; grant: true; lines: true } }>
+    row: Prisma.FinanceBudgetGetPayload<{ include: { fund: true; grant: true; lines: true; assumptions: true; portfolio: true } }>
   ) {
     return {
       id: row.id,
       organization_id: row.organizationId ? row.organizationId.toString() : null,
       team_id: row.teamId ? row.teamId.toString() : null,
       project_id: row.projectId ? row.projectId.toString() : null,
+      parent_budget_id: row.parentBudgetId,
       fund: row.fund
         ? {
             id: row.fund.id,
             code: row.fund.code,
             name: row.fund.name,
             restriction_type: row.fund.restrictionType,
+            project_id: row.fund.projectId ? row.fund.projectId.toString() : null,
           }
         : null,
       grant: row.grant
@@ -3442,29 +3762,78 @@ export class FinanceService {
             name: row.grant.name,
             restriction_type: row.grant.restrictionType,
             status: row.grant.status,
+            project_id: row.grant.projectId ? row.grant.projectId.toString() : null,
           }
         : null,
       name: row.name,
+      scope_type: row.scopeType,
       budget_type: row.budgetType,
+      period_type: row.periodType,
+      fiscal_year: row.fiscalYear,
+      quarter: row.quarter,
+      month: row.month,
       currency: row.currency,
+      exchange_rate: row.exchangeRate != null ? Number(row.exchangeRate) : null,
       start_date: row.startDate,
       end_date: row.endDate,
       status: row.status,
       total_budget: Number(row.totalBudget),
       notes: row.notes,
+      assumptions: row.assumptions.map((entry) => ({
+        id: entry.id,
+        section: entry.section,
+        label: entry.label,
+        value: entry.value,
+        notes: entry.notes,
+        sort_order: entry.sortOrder,
+      })),
+      portfolio: row.portfolio.map((entry) => ({
+        id: entry.id,
+        project_id: entry.projectId.toString(),
+        fund_id: entry.fundId,
+        grant_id: entry.grantId,
+        funder_name: entry.funderName,
+        status: entry.status,
+        period_1_amount: entry.period1Amount != null ? Number(entry.period1Amount) : null,
+        period_2_amount: entry.period2Amount != null ? Number(entry.period2Amount) : null,
+        period_3_amount: entry.period3Amount != null ? Number(entry.period3Amount) : null,
+        period_4_amount: entry.period4Amount != null ? Number(entry.period4Amount) : null,
+        period_total: entry.periodTotal != null ? Number(entry.periodTotal) : null,
+        total_budget: entry.totalBudget != null ? Number(entry.totalBudget) : null,
+        notes: entry.notes,
+        sort_order: entry.sortOrder,
+      })),
       lines: row.lines.map((line) => ({
         id: line.id,
+        section: line.section,
+        group_name: line.groupName,
         line_label: line.lineLabel,
+        line_name: line.lineLabel,
+        chart_account_id: line.chartAccountId,
+        project_id: line.projectId ? line.projectId.toString() : null,
+        fund_id: line.fundId,
+        grant_id: line.grantId,
+        period_1_amount: line.period1Amount != null ? Number(line.period1Amount) : null,
+        period_2_amount: line.period2Amount != null ? Number(line.period2Amount) : null,
+        period_3_amount: line.period3Amount != null ? Number(line.period3Amount) : null,
+        period_4_amount: line.period4Amount != null ? Number(line.period4Amount) : null,
+        total_amount: line.totalAmount != null ? Number(line.totalAmount) : Number(line.amount),
+        revised_total_amount: line.revisedTotalAmount != null ? Number(line.revisedTotalAmount) : null,
+        actual_total_amount: line.actualTotalAmount != null ? Number(line.actualTotalAmount) : null,
+        variance_amount: line.varianceAmount != null ? Number(line.varianceAmount) : null,
         amount: Number(line.amount),
+        notes: line.notes,
         sort_order: line.sortOrder,
       })),
+      approved_by: row.approvedBy ? row.approvedBy.toString() : null,
+      approved_at: row.approvedAt,
       created_at: row.createdAt,
       updated_at: row.updatedAt,
     };
   }
 
   private async computeBudgetActuals(
-    budget: Prisma.FinanceBudgetGetPayload<{ include: { fund: true; grant: true; lines: true } }>
+    budget: Prisma.FinanceBudgetGetPayload<{ include: { fund: true; grant: true; lines: true; assumptions: true; portfolio: true } }>
   ) {
     const dateRange = {
       gte: budget.startDate,
@@ -3493,7 +3862,9 @@ export class FinanceService {
     const fundGrantFilter =
       budget.budgetType === 'grant'
         ? { grantId: budget.grantId ?? undefined }
-        : { fundId: budget.fundId ?? undefined };
+        : budget.budgetType === 'fund'
+          ? { fundId: budget.fundId ?? undefined }
+          : {};
 
     const [incomeRows, voucherRows] = await Promise.all([
       this.prisma.financeIncomeEntry.findMany({
@@ -3523,9 +3894,7 @@ export class FinanceService {
     const grant = grantId ? await this.prisma.financeGrant.findUnique({ where: { id: grantId } }) : null;
     if (fundId && !fund) throw new BadRequestException('Invalid fund_id');
     if (grantId && !grant) throw new BadRequestException('Invalid grant_id');
-    if (grant?.fundId && fund && grant.fundId !== fund.id) {
-      throw new BadRequestException('grant_id does not belong to fund_id');
-    }
+    await this.validateBudgetDimensionCompatibility({ projectId: null, fund, grant });
     return { fund, grant };
   }
 

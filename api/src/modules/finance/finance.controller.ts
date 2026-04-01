@@ -283,6 +283,27 @@ export class FinanceController {
     return this.financeService.updateBudget(id, dto, req.user?.id);
   }
 
+  @Post('budgets/:id/approve')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Approve finance budget' })
+  approveBudget(@Param('id') id: string, @Req() req: any) {
+    return this.financeService.approveBudget(id, req.user?.id);
+  }
+
+  @Post('budgets/:id/reopen')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Reopen finance budget' })
+  reopenBudget(@Param('id') id: string, @Req() req: any) {
+    return this.financeService.reopenBudget(id, req.user?.id);
+  }
+
+  @Post('budgets/:id/recalculate')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Recalculate finance budget totals and variance' })
+  recalculateBudget(@Param('id') id: string) {
+    return this.financeService.recalculateBudget(id);
+  }
+
   @Get('accounts/:id')
   @Permissions('requests.view')
   @ApiOperation({ summary: 'Get single finance account details' })
