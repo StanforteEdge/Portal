@@ -1869,6 +1869,25 @@ export class FinanceService {
     return this.serializeBudget(row);
   }
 
+  async exportBudget(id: string, format = 'csv') {
+    const normalizedFormat = String(format || 'csv').trim().toLowerCase();
+    if (!['csv'].includes(normalizedFormat)) {
+      throw new BadRequestException('Unsupported export format');
+    }
+
+    const budget = await this.getBudget(id);
+    const rows = this.buildBudgetExportRows(budget);
+    if (!rows.length) {
+      throw new BadRequestException('Budget export has no rows');
+    }
+    const csv = this.toCsv(rows);
+    return {
+      file_name: `${String(budget.name || 'budget').replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'budget'}.${normalizedFormat}`,
+      mime_type: 'text/csv; charset=utf-8',
+      content_base64: Buffer.from(`\uFEFF${csv}`, 'utf8').toString('base64'),
+    };
+  }
+
   async createBudget(dto: any, actorId?: string) {
     return this.upsertBudget(null, dto, actorId);
   }
@@ -4770,6 +4789,149 @@ export class FinanceService {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(amount);
+  }
+
+  private buildBudgetExportRows(budget: any) {
+    const rows: Record<string, string | number>[] = [
+      {
+        record_type: 'budget',
+        name: budget.name || '',
+        scope_type: budget.scope_type || '',
+        budget_type: budget.budget_type || '',
+        period_type: budget.period_type || '',
+        fiscal_year: budget.fiscal_year ?? '',
+        quarter: budget.quarter ?? '',
+        month: budget.month ?? '',
+        currency: budget.currency || '',
+        exchange_rate: budget.exchange_rate ?? '',
+        status: budget.status || '',
+        organization_id: budget.organization_id || '',
+        team_id: budget.team_id || '',
+        project_id: budget.project_id || '',
+        fund_id: budget.fund?.id || '',
+        grant_id: budget.grant?.id || '',
+        parent_budget_id: budget.parent_budget_id || '',
+        start_date: this.formatDate(budget.start_date),
+        end_date: this.formatDate(budget.end_date),
+        notes: budget.notes || '',
+      },
+    ];
+
+    for (const entry of budget.assumptions || []) {
+      rows.push({
+        record_type: 'assumption',
+        section: entry.section || '',
+        label: entry.label || '',
+        value: entry.value || '',
+        notes: entry.notes || '',
+      });
+    }
+
+    for (const entry of budget.portfolio || []) {
+      rows.push({
+        record_type: 'portfolio',
+        project_id: entry.project_id || '',
+        fund_id: entry.fund_id || '',
+        grant_id: entry.grant_id || '',
+        funder_name: entry.funder_name || '',
+        status: entry.status || '',
+        period_1_amount: entry.period_1_amount ?? '',
+        period_2_amount: entry.period_2_amount ?? '',
+        period_3_amount: entry.period_3_amount ?? '',
+        period_4_amount: entry.period_4_amount ?? '',
+        period_total: entry.period_total ?? '',
+        total_budget: entry.total_budget ?? '',
+        notes: entry.notes || '',
+      });
+    }
+
+    for (const line of budget.lines || []) {
+      rows.push({
+        record_type: 'line',
+        section: line.section || '',
+        group_name: line.group_name || '',
+        line_name: line.line_name || line.line_label || '',
+        chart_account_id: line.chart_account_id || '',
+        project_id: line.project_id || '',
+        fund_id: line.fund_id || '',
+        grant_id: line.grant_id || '',
+        period_1_amount: line.period_1_amount ?? '',
+        period_2_amount: line.period_2_amount ?? '',
+        period_3_amount: line.period_3_amount ?? '',
+        period_4_amount: line.period_4_amount ?? '',
+        total_amount: line.total_amount ?? line.amount ?? '',
+        actual_total_amount: line.actual_total_amount ?? '',
+        variance_amount: line.variance_amount ?? '',
+        notes: line.notes || '',
+      });
+    }
+
+    return rows;
+  }
+
+  private toCsv(rows: Record<string, string | number>[]) {
+    const preferredHeaders = [
+      'record_type',
+      'name',
+      'scope_type',
+      'budget_type',
+      'period_type',
+      'fiscal_year',
+      'quarter',
+      'month',
+      'currency',
+      'exchange_rate',
+      'status',
+      'organization_id',
+      'team_id',
+      'project_id',
+      'fund_id',
+      'grant_id',
+      'parent_budget_id',
+      'start_date',
+      'end_date',
+      'section',
+      'group_name',
+      'line_name',
+      'chart_account_id',
+      'label',
+      'value',
+      'funder_name',
+      'period_1_amount',
+      'period_2_amount',
+      'period_3_amount',
+      'period_4_amount',
+      'period_total',
+      'total_amount',
+      'total_budget',
+      'actual_total_amount',
+      'variance_amount',
+      'notes',
+    ];
+
+    const seenHeaders = rows.reduce((set, row) => {
+      Object.keys(row).forEach((key) => set.add(key));
+      return set;
+    }, new Set<string>());
+
+    const headers = [
+      ...preferredHeaders.filter((header) => seenHeaders.has(header)),
+      ...Array.from(seenHeaders).filter((header) => !preferredHeaders.includes(header)).sort(),
+    ];
+
+    const escape = (value: unknown) => {
+      const text = value == null ? '' : String(value);
+      if (/[",\n]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+
+    const lines = [
+      headers.join(','),
+      ...rows.map((row) => headers.map((header) => escape(row[header])).join(',')),
+    ];
+    return lines.join('\r\n');
   }
 
   private async postIncomeJournal(row: Prisma.FinanceIncomeEntryGetPayload<{}>, actorId?: string) {

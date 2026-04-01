@@ -50,6 +50,8 @@ const permissions = [
   { name: 'Approve Finance', slug: 'finance.approve', module: 'finance', description: 'Can approve finance workflow steps' },
   { name: 'Generate Vouchers', slug: 'finance.vouchers', module: 'finance', description: 'Can generate payment vouchers' },
   { name: 'Approve Payroll', slug: 'payroll.approve', module: 'payroll', description: 'Can approve payroll workflow steps' },
+  { name: 'View Projects', slug: 'projects.view', module: 'projects', description: 'Can view projects and project governance' },
+  { name: 'Manage Projects', slug: 'projects.manage', module: 'projects', description: 'Can create projects and administer project governance' },
   { name: 'View Work', slug: 'work.view', module: 'work', description: 'Can access personal work tracking and work-linked timesheet views' },
   { name: 'Manage Work', slug: 'work.manage', module: 'work', description: 'Can plan team work, goals, objectives, and KPIs' },
   { name: 'Approve Work', slug: 'work.approve', module: 'work', description: 'Can review and approve submitted work logs' },
@@ -66,16 +68,16 @@ const permissions = [
 const rolePermissionMap = {
   administrator: ['*'],
   admin: ['*'],
-  finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'payroll.approve', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
-  accountant: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'workflow_view'],
-  finance_officer: ['requests.view', 'finance.view', 'finance.vouchers', 'workflow_view'],
-  finance_auditor: ['requests.view', 'finance.view', 'audit.view', 'workflow_view'],
-  tester: ['requests.create', 'requests.view', 'requests.retire', 'work.view'],
-  staff: ['requests.create', 'requests.view', 'requests.retire', 'work.view'],
-  team_lead: ['requests.view', 'requests.approve', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
-  line_manager: ['requests.view', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
-  coo: ['requests.view', 'requests.approve', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
-  ed: ['requests.view', 'requests.approve', 'workflow_view', 'work.view', 'work.manage', 'work.approve']
+  finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'payroll.approve', 'projects.view', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
+  accountant: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'projects.view', 'workflow_view'],
+  finance_officer: ['requests.view', 'finance.view', 'finance.vouchers', 'projects.view', 'workflow_view'],
+  finance_auditor: ['requests.view', 'finance.view', 'audit.view', 'projects.view', 'workflow_view'],
+  tester: ['requests.create', 'requests.view', 'requests.retire', 'projects.view', 'work.view'],
+  staff: ['requests.create', 'requests.view', 'requests.retire', 'projects.view', 'work.view'],
+  team_lead: ['requests.view', 'requests.approve', 'projects.view', 'projects.manage', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
+  line_manager: ['requests.view', 'projects.view', 'projects.manage', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
+  coo: ['requests.view', 'requests.approve', 'projects.view', 'projects.manage', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
+  ed: ['requests.view', 'requests.approve', 'projects.view', 'projects.manage', 'workflow_view', 'work.view', 'work.manage', 'work.approve']
 };
 
 async function main() {

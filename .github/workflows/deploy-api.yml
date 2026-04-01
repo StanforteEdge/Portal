@@ -50,8 +50,6 @@ jobs:
             set -e
             cd "${{ secrets.API_APP_DIR }}"
             npm ci
-            npm run prisma:generate -w api
-            npm run build -w api
-            npm run prisma:migrate:deploy -w api
+            npm run deploy:server
             npm run seed:release-baseline -w api
             pm2 startOrReload api/ecosystem.config.cjs --env production

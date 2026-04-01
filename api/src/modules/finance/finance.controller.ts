@@ -269,6 +269,13 @@ export class FinanceController {
     return this.financeService.getBudget(id);
   }
 
+  @Get('budgets/:id/export')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Export finance budget' })
+  exportBudget(@Param('id') id: string, @Query('format') format?: string) {
+    return this.financeService.exportBudget(id, format);
+  }
+
   @Post('budgets')
   @Permissions('finance.manage')
   @ApiOperation({ summary: 'Create finance budget' })
