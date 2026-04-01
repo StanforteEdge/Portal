@@ -11,6 +11,7 @@
     "dev:api": "npm run dev -w api",
     "build": "npm run build -w api",
     "build:pwa": "npm run build -w PWA",
-    "build:api": "npm run build -w api"
+    "build:api": "npm run build -w api",
+    "deploy:server": "npm run deploy:server -w api"
   }
 }

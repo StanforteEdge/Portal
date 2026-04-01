@@ -136,10 +136,15 @@ function derivedLineTotal(line: Record<string, unknown>) {
   );
 }
 
+type BudgetSectionTotals = {
+  income: { planned: number; actual: number; variance: number };
+  expenditure: { planned: number; actual: number; variance: number };
+};
+
 function summarizeBudgetSections(budget: any) {
-  const lines = Array.isArray(budget?.lines) ? budget.lines : [];
+  const lines = (Array.isArray(budget?.lines) ? budget.lines : []) as Array<Record<string, unknown>>;
   return lines.reduce(
-    (acc, line) => {
+    (acc: BudgetSectionTotals, line: Record<string, unknown>) => {
       const section = line.section === "income" ? "income" : "expenditure";
       const planned = Number(line.total_amount ?? line.amount ?? 0);
       const actual = Number(line.actual_total_amount ?? 0);
