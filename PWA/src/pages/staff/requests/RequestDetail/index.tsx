@@ -177,6 +177,17 @@ function RequestDetailPage() {
         return;
       }
       if (action === "submit") await submitRequest(id);
+      if (action === "approve" || action === "reject") {
+        const availableActions: string[] = await getRequestActions(id).catch(() => []);
+        if (!availableActions.includes(action)) {
+          await load();
+          setNotice({
+            tone: "error",
+            message: "This request is no longer awaiting your approval. We refreshed the page for you.",
+          });
+          return;
+        }
+      }
       if (action === "approve") await approveRequest(id, window.prompt("Approval comment (optional):") || undefined);
       if (action === "reject") await rejectRequest(id, window.prompt("Rejection reason:") || undefined);
       if (action === "complete") await completeRequest(id);
@@ -184,6 +195,9 @@ function RequestDetailPage() {
       setNotice({ tone: "success", message: `Action '${action}' completed.` });
       await load();
     } catch (error: any) {
+      if (String(error?.response?.data?.error?.message || "").includes("not an allowed approver")) {
+        await load();
+      }
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || `Action '${action}' failed.` });
     } finally {
       setBusyAction("");
@@ -416,8 +430,8 @@ function RequestDetailPage() {
                     progressSteps.map((item) => (
                       <div key={item.key} className="flex flex-wrap items-center gap-2 text-sm">
                         <span className="font-medium">{item.title}</span>
-                        <span className="text-slate-500" title={item.actor || undefined}>- {item.owner}</span>
-                        {item.actor ? <span className="text-slate-500">(by {item.actor})</span> : null}
+                        <span className="text-slate-500">- {item.owner}</span>
+                        {item.actor ? <span className="text-slate-500 font-medium">Approved by {item.actor}</span> : null}
                         {item.note ? <span className="text-xs text-slate-500">({item.note})</span> : null}
                         {item.state === "done" ? (
                           <Lucide icon="CheckCircle2" className="w-4 h-4 text-success" />

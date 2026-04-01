@@ -48,6 +48,23 @@ const menu: Array<Menu | "divider"> = [
   },
   {
     icon: "Trello",
+    title: "Work",
+    permissions: ["work.view"],
+    subMenu: [
+      {
+        icon: "BarChart2",
+        pathname: "/app/work/performance",
+        title: "Performance",
+      },
+      {
+        icon: "ListChecks",
+        pathname: "/app/work",
+        title: "Tracker",
+      },
+    ],
+  },
+  {
+    icon: "User",
     title: "Profile",
     pathname: "/app/profile",
   },

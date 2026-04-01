@@ -72,6 +72,37 @@ enum OnboardingStatus {
   completed
 }
 
+enum WorkItemType {
+  weekly_task
+  daily_task
+  project_activity
+  recurring_responsibility
+  ad_hoc
+}
+
+enum WorkItemStatus {
+  planned
+  in_progress
+  completed
+  blocked
+  carried_over
+  cancelled
+}
+
+enum WorkPriority {
+  low
+  medium
+  high
+  critical
+}
+
+enum WorkLogApprovalStatus {
+  draft
+  submitted
+  approved
+  rejected
+}
+
 model Profile {
   id                    BigInt    @id @default(autoincrement())
   wpUserId              BigInt?   @map("wp_user_id")
@@ -152,6 +183,17 @@ model Profile {
   payrollSettingsUpdated         PayrollSetting[]           @relation("PayrollSettingUpdatedBy")
   projectTimesheetsApproved      ProjectTimesheetEntry[]    @relation("ProjectTimesheetApprovedBy")
   projectTimesheetsCreated       ProjectTimesheetEntry[]    @relation("ProjectTimesheetCreatedBy")
+  createdWorkItems               WorkItem[]                 @relation("WorkItemCreatedBy")
+  assignedWorkItems              WorkItem[]                 @relation("WorkItemAssignedTo")
+  plannedWorkItems               WorkItem[]                 @relation("WorkItemAssignedBy")
+  workLogs                       WorkLog[]                  @relation("WorkLogStaff")
+  approvedWorkLogs               WorkLog[]                  @relation("WorkLogApprovedBy")
+  ownedTeamGoals                 TeamGoal[]                 @relation("TeamGoalOwner")
+  createdTeamGoals               TeamGoal[]                 @relation("TeamGoalCreatedBy")
+  ownedTeamObjectives            TeamObjective[]            @relation("TeamObjectiveOwner")
+  createdTeamObjectives          TeamObjective[]            @relation("TeamObjectiveCreatedBy")
+  ownedTeamKpis                  TeamKpi[]                  @relation("TeamKpiOwner")
+  createdTeamKpis                TeamKpi[]                  @relation("TeamKpiCreatedBy")
 
   @@map("sta_profiles")
 }
@@ -323,6 +365,11 @@ model Organization {
   payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
   projectTimesheetEntries ProjectTimesheetEntry[]
   payrollSettings      PayrollSetting[]
+  workItems            WorkItem[]
+  workLogs             WorkLog[]
+  teamGoals            TeamGoal[]
+  teamObjectives       TeamObjective[]
+  teamKpis             TeamKpi[]
 
   @@map("sta_organizations")
 }
@@ -497,6 +544,14 @@ model Group {
   financeJournalLines  FinanceJournalLine[]
   financeSalesInvoices FinanceSalesInvoice[]
   financeBillHeaders   FinanceBillHeader[]
+  ownedWorkItems       WorkItem[] @relation("WorkItemOwnerTeam")
+  supportWorkItems     WorkItem[] @relation("WorkItemSecondaryTeam")
+  workItemProjects     WorkItem[] @relation("WorkItemProject")
+  workLogs             WorkLog[]  @relation("WorkLogTeam")
+  workLogProjects      WorkLog[]  @relation("WorkLogProject")
+  teamGoals            TeamGoal[]
+  teamObjectives       TeamObjective[]
+  teamKpis             TeamKpi[]
 
   @@map("sta_groups")
 }
@@ -730,6 +785,8 @@ model FinanceFund {
   payrollRunItemAllocations PayrollRunItemAllocation[]
   payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
   projectTimesheetEntries ProjectTimesheetEntry[]
+  workItems          WorkItem[]
+  workLogs           WorkLog[]
 
   @@unique([organizationId, code], name: "unique_finance_fund_code_per_org")
   @@index([organizationId])
@@ -774,6 +831,8 @@ model FinanceGrant {
   payrollRunItemAllocations PayrollRunItemAllocation[]
   payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
   projectTimesheetEntries ProjectTimesheetEntry[]
+  workItems          WorkItem[]
+  workLogs           WorkLog[]
 
   @@unique([organizationId, code], name: "unique_finance_grant_code_per_org")
   @@index([organizationId])
@@ -1761,6 +1820,7 @@ model PayrollLoanRepayment {
 
 model ProjectTimesheetEntry {
   id                 String    @id @default(uuid()) @db.Uuid
+  sourceWorkLogId    String?   @unique @map("source_work_log_id") @db.Uuid
   workerId           String    @map("worker_id") @db.Uuid
   componentId        String?   @map("component_id") @db.Uuid
   organizationId     BigInt?   @map("organization_id")
@@ -1779,12 +1839,13 @@ model ProjectTimesheetEntry {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  worker       PayrollWorker     @relation(fields: [workerId], references: [id], onDelete: Cascade)
-  component    PayrollComponent? @relation(fields: [componentId], references: [id], onDelete: SetNull)
-  organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  fund         FinanceFund?      @relation(fields: [fundId], references: [id], onDelete: SetNull)
-  grant        FinanceGrant?     @relation(fields: [grantId], references: [id], onDelete: SetNull)
-  syncedRun    PayrollRun?       @relation("ProjectTimesheetSyncedRun", fields: [syncedRunId], references: [id], onDelete: SetNull)
+  sourceWorkLog   WorkLog?         @relation(fields: [sourceWorkLogId], references: [id], onDelete: SetNull)
+  worker          PayrollWorker    @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  component       PayrollComponent? @relation(fields: [componentId], references: [id], onDelete: SetNull)
+  organization    Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  fund            FinanceFund?      @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant           FinanceGrant?     @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  syncedRun       PayrollRun?       @relation("ProjectTimesheetSyncedRun", fields: [syncedRunId], references: [id], onDelete: SetNull)
   approvedByUser Profile?        @relation("ProjectTimesheetApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
   createdByUser  Profile?        @relation("ProjectTimesheetCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
 
@@ -1794,7 +1855,200 @@ model ProjectTimesheetEntry {
   @@index([grantId])
   @@index([status])
   @@index([syncedRunId])
+  @@index([sourceWorkLogId])
   @@map("sta_project_timesheet_entries")
+}
+
+model TeamGoal {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  teamId         BigInt?  @map("team_id")
+  ownerUserId    BigInt?  @map("owner_user_id")
+  createdById    BigInt?  @map("created_by_id")
+  title          String   @db.VarChar(255)
+  description    String?
+  periodYear     Int      @map("period_year")
+  periodType     String   @default("annual") @map("period_type") @db.VarChar(20)
+  periodLabel    String?  @map("period_label") @db.VarChar(80)
+  status         String   @default("draft") @db.VarChar(20)
+  weight         Decimal? @db.Decimal(8, 2)
+  startDate      DateTime? @map("start_date") @db.Date
+  endDate        DateTime? @map("end_date") @db.Date
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  team         Group?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  owner        Profile?      @relation("TeamGoalOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy    Profile?      @relation("TeamGoalCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  objectives   TeamObjective[]
+  kpis         TeamKpi[]
+  workItems    WorkItem[]
+
+  @@index([teamId, periodYear])
+  @@index([organizationId])
+  @@map("sta_team_goals")
+}
+
+model TeamObjective {
+  id             String   @id @default(uuid()) @db.Uuid
+  goalId         String?  @map("goal_id") @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  teamId         BigInt?  @map("team_id")
+  ownerUserId    BigInt?  @map("owner_user_id")
+  createdById    BigInt?  @map("created_by_id")
+  title          String   @db.VarChar(255)
+  description    String?
+  status         String   @default("draft") @db.VarChar(20)
+  weight         Decimal? @db.Decimal(8, 2)
+  dueDate        DateTime? @map("due_date") @db.Date
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  goal         TeamGoal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  team         Group?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  owner        Profile?      @relation("TeamObjectiveOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy    Profile?      @relation("TeamObjectiveCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  kpis         TeamKpi[]
+  workItems    WorkItem[]
+
+  @@index([goalId])
+  @@index([teamId])
+  @@map("sta_team_objectives")
+}
+
+model TeamKpi {
+  id             String   @id @default(uuid()) @db.Uuid
+  goalId         String?  @map("goal_id") @db.Uuid
+  objectiveId    String?  @map("objective_id") @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  teamId         BigInt?  @map("team_id")
+  ownerUserId    BigInt?  @map("owner_user_id")
+  createdById    BigInt?  @map("created_by_id")
+  title          String   @db.VarChar(255)
+  description    String?
+  targetType     String?  @map("target_type") @db.VarChar(30)
+  targetValue    Decimal? @map("target_value") @db.Decimal(15, 2)
+  unitLabel      String?  @map("unit_label") @db.VarChar(50)
+  periodYear     Int?     @map("period_year")
+  quarter        Int?
+  status         String   @default("draft") @db.VarChar(20)
+  weight         Decimal? @db.Decimal(8, 2)
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  goal         TeamGoal?      @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  objective    TeamObjective? @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
+  organization Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  team         Group?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  owner        Profile?       @relation("TeamKpiOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy    Profile?       @relation("TeamKpiCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  workItems    WorkItem[]
+
+  @@index([goalId])
+  @@index([objectiveId])
+  @@index([teamId, periodYear, quarter])
+  @@map("sta_team_kpis")
+}
+
+model WorkItem {
+  id                 String         @id @default(uuid()) @db.Uuid
+  title              String         @db.VarChar(255)
+  description        String?
+  itemType           WorkItemType   @default(weekly_task) @map("item_type")
+  status             WorkItemStatus @default(planned)
+  priority           WorkPriority   @default(medium)
+  organizationId     BigInt?        @map("organization_id")
+  ownerTeamId        BigInt?        @map("owner_team_id")
+  secondaryTeamId    BigInt?        @map("secondary_team_id")
+  projectId          BigInt?        @map("project_id")
+  fundId             String?        @map("fund_id") @db.Uuid
+  grantId            String?        @map("grant_id") @db.Uuid
+  goalId             String?        @map("goal_id") @db.Uuid
+  objectiveId        String?        @map("objective_id") @db.Uuid
+  kpiId              String?        @map("kpi_id") @db.Uuid
+  assignedToId       BigInt?        @map("assigned_to_id")
+  assignedById       BigInt?        @map("assigned_by_id")
+  createdById        BigInt?        @map("created_by_id")
+  plannedStartDate   DateTime?      @map("planned_start_date") @db.Date
+  dueDate            DateTime?      @map("due_date") @db.Date
+  expectedHours      Decimal?       @map("expected_hours") @db.Decimal(10, 2)
+  weekStartDate      DateTime?      @map("week_start_date") @db.Date
+  isStaffAdded       Boolean        @default(false) @map("is_staff_added")
+  requiresManagerAck Boolean        @default(false) @map("requires_manager_ack")
+  metadata           Json?
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  ownerTeam     Group?        @relation("WorkItemOwnerTeam", fields: [ownerTeamId], references: [id], onDelete: SetNull)
+  secondaryTeam Group?        @relation("WorkItemSecondaryTeam", fields: [secondaryTeamId], references: [id], onDelete: SetNull)
+  project       Group?        @relation("WorkItemProject", fields: [projectId], references: [id], onDelete: SetNull)
+  fund          FinanceFund?  @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant         FinanceGrant? @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  goal          TeamGoal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  objective     TeamObjective? @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
+  kpi           TeamKpi?      @relation(fields: [kpiId], references: [id], onDelete: SetNull)
+  assignedTo    Profile?      @relation("WorkItemAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedBy    Profile?      @relation("WorkItemAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  createdBy     Profile?      @relation("WorkItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  logs          WorkLog[]
+
+  @@index([assignedToId, status])
+  @@index([ownerTeamId, weekStartDate])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@index([goalId])
+  @@index([objectiveId])
+  @@index([kpiId])
+  @@map("sta_work_items")
+}
+
+model WorkLog {
+  id                 String                @id @default(uuid()) @db.Uuid
+  workItemId         String                @map("work_item_id") @db.Uuid
+  staffId            BigInt                @map("staff_id")
+  organizationId     BigInt?               @map("organization_id")
+  teamId             BigInt?               @map("team_id")
+  projectId          BigInt?               @map("project_id")
+  fundId             String?               @map("fund_id") @db.Uuid
+  grantId            String?               @map("grant_id") @db.Uuid
+  logDate            DateTime              @map("log_date") @db.Date
+  hoursSpent         Decimal               @default(0) @map("hours_spent") @db.Decimal(10, 2)
+  status             WorkItemStatus        @default(in_progress)
+  progressPercent    Decimal?              @map("progress_percent") @db.Decimal(5, 2)
+  note               String?
+  blockerNote        String?               @map("blocker_note")
+  carriedOver        Boolean               @default(false) @map("carried_over")
+  carryOverToDate    DateTime?             @map("carry_over_to_date") @db.Date
+  approvalStatus     WorkLogApprovalStatus @default(draft) @map("approval_status")
+  approvedById       BigInt?               @map("approved_by_id")
+  approvedAt         DateTime?             @map("approved_at")
+  metadata           Json?
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  workItem      WorkItem      @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  staff         Profile       @relation("WorkLogStaff", fields: [staffId], references: [id], onDelete: Cascade)
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  team          Group?        @relation("WorkLogTeam", fields: [teamId], references: [id], onDelete: SetNull)
+  project       Group?        @relation("WorkLogProject", fields: [projectId], references: [id], onDelete: SetNull)
+  fund          FinanceFund?  @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant         FinanceGrant? @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  approvedBy    Profile?      @relation("WorkLogApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  projectTimesheet ProjectTimesheetEntry?
+
+  @@index([staffId, logDate])
+  @@index([approvalStatus, logDate])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@map("sta_work_logs")
 }
 
 model PayrollTaxTable {

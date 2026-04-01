@@ -53,6 +53,30 @@ const menu: Array<Menu | "divider"> = [
     moduleKey: "attendance",
   },
   {
+    icon: "ListChecks",
+    title: "Work",
+    subMenu: [
+      {
+        icon: "BarChart2",
+        pathname: "/app/work/performance",
+        title: "Performance",
+        permissions: ["work.view"],
+      },
+      {
+        icon: "ListChecks",
+        pathname: "/app/work",
+        title: "Tracker",
+        permissions: ["work.view"],
+      },
+      {
+        icon: "ClipboardList",
+        pathname: "/app/hr/work",
+        title: "Planner",
+        permissions: ["work.manage"],
+      },
+    ],
+  },
+  {
     icon: "User",
     title: "Profile",
     subMenu: [
@@ -346,7 +370,6 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "UserCheck",
     title: "People",
-    permissions: ["users.manage"],
     moduleKey: "hr",
     subMenu: [
       {

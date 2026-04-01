@@ -279,11 +279,23 @@ function FinanceRequestDetailPage() {
   const approve = async () => {
     try {
       setBusyAction("approve");
+      const availableActions: string[] = await getRequestActions(id).catch(() => []);
+      if (!availableActions.includes("approve")) {
+        await load();
+        setNotice({
+          tone: "error",
+          message: "This request is no longer awaiting your approval. We refreshed the page for you.",
+        });
+        return;
+      }
       const comment = window.prompt("Approval comment (optional):", "") || undefined;
       await approveRequest(id, comment);
       setNotice({ tone: "success", message: "Request approved." });
       await load();
     } catch (error: any) {
+      if (String(error?.response?.data?.error?.message || "").includes("not an allowed approver")) {
+        await load();
+      }
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Approval failed." });
     } finally {
       setBusyAction("");
@@ -293,11 +305,23 @@ function FinanceRequestDetailPage() {
   const reject = async () => {
     try {
       setBusyAction("reject");
+      const availableActions: string[] = await getRequestActions(id).catch(() => []);
+      if (!availableActions.includes("reject")) {
+        await load();
+        setNotice({
+          tone: "error",
+          message: "This request is no longer awaiting your review. We refreshed the page for you.",
+        });
+        return;
+      }
       const comment = window.prompt("Rejection reason:", "") || undefined;
       await rejectRequest(id, comment);
       setNotice({ tone: "success", message: "Request rejected." });
       await load();
     } catch (error: any) {
+      if (String(error?.response?.data?.error?.message || "").includes("not an allowed approver")) {
+        await load();
+      }
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Rejection failed." });
     } finally {
       setBusyAction("");
@@ -474,12 +498,10 @@ function FinanceRequestDetailPage() {
                     progressSteps.map((item) => (
                       <div key={item.key} className="flex flex-wrap items-center gap-2 text-sm">
                         <span className="font-medium">{item.title}</span>
-                        <span className="text-slate-500" title={item.actor || undefined}>
-                          - {item.owner}
-                        </span>
+                        <span className="text-slate-500">- {item.owner}</span>
                         {item.actor ? (
-                          <span className="text-slate-500" title={item.actor}>
-                            (by {item.actor})
+                          <span className="text-slate-500 font-medium" title={item.actor}>
+                            Approved by {item.actor}
                           </span>
                         ) : null}
                         {item.note ? <span className="text-xs text-slate-500">({item.note})</span> : null}
