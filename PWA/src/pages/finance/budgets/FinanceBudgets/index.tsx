@@ -1036,16 +1036,16 @@ function FinanceBudgetsPage() {
             <Lucide icon="FileText" className="w-4 h-4 mr-1" /> Template XLSX
           </Button>
           <Button variant="outline-secondary" onClick={downloadCsvTemplate}>
-            <Lucide icon="FileSpreadsheet" className="w-4 h-4 mr-1" /> Template CSV
+            <Lucide icon="File" className="w-4 h-4 mr-1" /> Template CSV
           </Button>
           <Button variant="outline-secondary" onClick={() => inputRef.current?.click()}>
-            <Lucide icon="Upload" className="w-4 h-4 mr-1" /> Import
+            <Lucide icon="Plus" className="w-4 h-4 mr-1" /> Import
           </Button>
           <Button variant="outline-secondary" onClick={exportBudget} disabled={!selectedBudget}>
-            <Lucide icon="Download" className="w-4 h-4 mr-1" /> Export XLSX
+            <Lucide icon="FileText" className="w-4 h-4 mr-1" /> Export XLSX
           </Button>
           <Button variant="outline-secondary" onClick={exportBudgetCsv} disabled={!selectedBudget}>
-            <Lucide icon="FileSpreadsheet" className="w-4 h-4 mr-1" /> Export CSV
+            <Lucide icon="File" className="w-4 h-4 mr-1" /> Export CSV
           </Button>
           <Button variant="outline-secondary" onClick={() => void exportBudgetServer()} disabled={!selectedBudget}>
             <Lucide icon="ShieldCheck" className="w-4 h-4 mr-1" /> Server CSV
