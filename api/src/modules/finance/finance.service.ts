@@ -1877,11 +1877,14 @@ export class FinanceService {
 
     const budget = await this.getBudget(id);
     const rows = this.buildBudgetExportRows(budget);
+    if (!rows.length) {
+      throw new BadRequestException('Budget export has no rows');
+    }
     const csv = this.toCsv(rows);
     return {
       file_name: `${String(budget.name || 'budget').replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'budget'}.${normalizedFormat}`,
-      mime_type: 'text/csv',
-      content_base64: Buffer.from(csv, 'utf8').toString('base64'),
+      mime_type: 'text/csv; charset=utf-8',
+      content_base64: Buffer.from(`\uFEFF${csv}`, 'utf8').toString('base64'),
     };
   }
 
@@ -4867,12 +4870,54 @@ export class FinanceService {
   }
 
   private toCsv(rows: Record<string, string | number>[]) {
-    const headers = Array.from(
-      rows.reduce((set, row) => {
-        Object.keys(row).forEach((key) => set.add(key));
-        return set;
-      }, new Set<string>())
-    );
+    const preferredHeaders = [
+      'record_type',
+      'name',
+      'scope_type',
+      'budget_type',
+      'period_type',
+      'fiscal_year',
+      'quarter',
+      'month',
+      'currency',
+      'exchange_rate',
+      'status',
+      'organization_id',
+      'team_id',
+      'project_id',
+      'fund_id',
+      'grant_id',
+      'parent_budget_id',
+      'start_date',
+      'end_date',
+      'section',
+      'group_name',
+      'line_name',
+      'chart_account_id',
+      'label',
+      'value',
+      'funder_name',
+      'period_1_amount',
+      'period_2_amount',
+      'period_3_amount',
+      'period_4_amount',
+      'period_total',
+      'total_amount',
+      'total_budget',
+      'actual_total_amount',
+      'variance_amount',
+      'notes',
+    ];
+
+    const seenHeaders = rows.reduce((set, row) => {
+      Object.keys(row).forEach((key) => set.add(key));
+      return set;
+    }, new Set<string>());
+
+    const headers = [
+      ...preferredHeaders.filter((header) => seenHeaders.has(header)),
+      ...Array.from(seenHeaders).filter((header) => !preferredHeaders.includes(header)).sort(),
+    ];
 
     const escape = (value: unknown) => {
       const text = value == null ? '' : String(value);
@@ -4886,7 +4931,7 @@ export class FinanceService {
       headers.join(','),
       ...rows.map((row) => headers.map((header) => escape(row[header])).join(',')),
     ];
-    return lines.join('\n');
+    return lines.join('\r\n');
   }
 
   private async postIncomeJournal(row: Prisma.FinanceIncomeEntryGetPayload<{}>, actorId?: string) {

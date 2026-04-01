@@ -429,7 +429,6 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "ShieldCheck",
     title: "Admin",
-    permissions: ["settings.manage"],
     moduleKey: "admin",
     subMenu: [
       {
@@ -449,31 +448,37 @@ const menu: Array<Menu | "divider"> = [
         icon: "Folder",
         pathname: "/app/admin/files",
         title: "Media",
+        permissions: ["settings.manage"],
       },
       {
         icon: "Kanban",
         pathname: "/app/admin/projects",
         title: "Projects",
+        permissions: ["projects.manage"],
       },
       {
         icon: "BookOpen",
         pathname: "/app/admin/documents",
         title: "Documents",
+        permissions: ["settings.manage"],
       },
       {
         icon: "ClipboardList",
         pathname: "/app/admin/forms",
         title: "Forms",
+        permissions: ["settings.manage"],
       },
       {
         icon: "Settings2",
         pathname: "/app/admin/policies",
         title: "Policies",
+        permissions: ["settings.manage"],
       },
       {
         icon: "Settings2",
         pathname: "/app/admin/settings",
         title: "Settings",
+        permissions: ["settings.manage"],
       },
     ],
   },

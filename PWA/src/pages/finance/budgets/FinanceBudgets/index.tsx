@@ -100,6 +100,9 @@ const monthOptions = [
   { value: "12", label: "December" },
 ];
 
+const MAX_BUDGET_IMPORT_SIZE = 5 * 1024 * 1024;
+const SUPPORTED_BUDGET_IMPORT_EXTENSIONS = [".xlsx", ".xls", ".csv"];
+
 function getPeriodLabels(periodType: string, quarter: string, month: string) {
   if (periodType === "quarterly") {
     const q = Number(quarter || 1);
@@ -115,6 +118,15 @@ function getPeriodLabels(periodType: string, quarter: string, month: string) {
 
 function toText(value: unknown) {
   return value == null ? "" : String(value);
+}
+
+function normalizeSection(value: unknown) {
+  return String(value || "").trim().toLowerCase() === "income" ? "income" : "expenditure";
+}
+
+function fileHasSupportedBudgetExtension(fileName: string) {
+  const normalized = fileName.toLowerCase();
+  return SUPPORTED_BUDGET_IMPORT_EXTENSIONS.some((extension) => normalized.endsWith(extension));
 }
 
 function numericValue(value: unknown) {
@@ -421,18 +433,63 @@ function FinanceBudgetsPage() {
     portfolioRows: Record<string, unknown>[],
     lineRows: Record<string, unknown>[]
   ) => {
+    if (budgetRows.length !== 1) {
+      throw new Error(budgetRows.length > 1 ? "Budget import must contain exactly one budget header row." : "Budget data is empty.");
+    }
+
     const budget = budgetRows[0];
     if (!budget) {
       throw new Error("Budget data is empty.");
     }
 
+    const normalizedBudget = {
+      name: toText(budget.name).trim(),
+      scope_type: toText(budget.scope_type || budget.budget_type || "organization").trim().toLowerCase(),
+      budget_type: toText(budget.budget_type || budget.scope_type || "organization").trim().toLowerCase(),
+      period_type: toText(budget.period_type || "annual").trim().toLowerCase(),
+      fiscal_year: toText(budget.fiscal_year || new Date().getFullYear()).trim(),
+    };
+
+    if (!normalizedBudget.name) throw new Error("Budget name is required.");
+    if (!["organization", "team", "project"].includes(normalizedBudget.scope_type)) {
+      throw new Error("Budget scope_type must be one of organization, team, or project.");
+    }
+    if (!["annual", "quarterly", "monthly"].includes(normalizedBudget.period_type)) {
+      throw new Error("Budget period_type must be one of annual, quarterly, or monthly.");
+    }
+    if (!normalizedBudget.fiscal_year || Number.isNaN(Number(normalizedBudget.fiscal_year))) {
+      throw new Error("Budget fiscal_year must be a valid year.");
+    }
+
+    const normalizedLines = lineRows
+      .map((entry) => ({
+        section: normalizeSection(entry.section),
+        group_name: toText(entry.group_name),
+        line_name: toText(entry.line_name || entry.line_label),
+        chart_account_id: toText(entry.chart_account_id),
+        project_id: toText(entry.project_id),
+        fund_id: toText(entry.fund_id),
+        grant_id: toText(entry.grant_id),
+        period_1_amount: toText(entry.period_1_amount),
+        period_2_amount: toText(entry.period_2_amount),
+        period_3_amount: toText(entry.period_3_amount),
+        period_4_amount: toText(entry.period_4_amount),
+        total_amount: toText(entry.total_amount || entry.amount),
+        notes: toText(entry.notes),
+      }))
+      .filter((entry) => entry.line_name.trim());
+
+    if (!normalizedLines.length) {
+      throw new Error("Budget import must contain at least one line row.");
+    }
+
     setEditingId("");
     setForm({
-      name: toText(budget.name),
-      scope_type: toText(budget.scope_type || budget.budget_type || "organization"),
-      budget_type: toText(budget.budget_type || budget.scope_type || "organization"),
-      period_type: toText(budget.period_type || "annual"),
-      fiscal_year: toText(budget.fiscal_year || new Date().getFullYear()),
+      name: normalizedBudget.name,
+      scope_type: normalizedBudget.scope_type,
+      budget_type: normalizedBudget.budget_type,
+      period_type: normalizedBudget.period_type,
+      fiscal_year: normalizedBudget.fiscal_year,
       quarter: toText(budget.quarter),
       month: toText(budget.month),
       currency: toText(budget.currency || "NGN"),
@@ -448,44 +505,32 @@ function FinanceBudgetsPage() {
       end_date: toText(budget.end_date),
       notes: toText(budget.notes),
       assumptions: assumptionRows.length
-        ? assumptionRows.map((entry) => ({
+        ? assumptionRows
+            .map((entry) => ({
             section: toText(entry.section),
             label: toText(entry.label),
             value: toText(entry.value),
             notes: toText(entry.notes),
-          }))
+            }))
+            .filter((entry) => entry.label.trim() || entry.value.trim())
         : [emptyAssumption],
-      portfolio: portfolioRows.map((entry) => ({
-        project_id: toText(entry.project_id),
-        fund_id: toText(entry.fund_id),
-        grant_id: toText(entry.grant_id),
-        funder_name: toText(entry.funder_name),
-        status: toText(entry.status || "active"),
-        period_1_amount: toText(entry.period_1_amount),
-        period_2_amount: toText(entry.period_2_amount),
-        period_3_amount: toText(entry.period_3_amount),
-        period_4_amount: toText(entry.period_4_amount),
-        period_total: toText(entry.period_total),
-        total_budget: toText(entry.total_budget),
-        notes: toText(entry.notes),
-      })),
-      lines: lineRows.length
-        ? lineRows.map((entry) => ({
-            section: toText(entry.section || "expenditure"),
-            group_name: toText(entry.group_name),
-            line_name: toText(entry.line_name || entry.line_label),
-            chart_account_id: toText(entry.chart_account_id),
-            project_id: toText(entry.project_id),
-            fund_id: toText(entry.fund_id),
-            grant_id: toText(entry.grant_id),
-            period_1_amount: toText(entry.period_1_amount),
-            period_2_amount: toText(entry.period_2_amount),
-            period_3_amount: toText(entry.period_3_amount),
-            period_4_amount: toText(entry.period_4_amount),
-            total_amount: toText(entry.total_amount || entry.amount),
-            notes: toText(entry.notes),
-          }))
-        : [emptyLine],
+      portfolio: portfolioRows
+        .map((entry) => ({
+          project_id: toText(entry.project_id),
+          fund_id: toText(entry.fund_id),
+          grant_id: toText(entry.grant_id),
+          funder_name: toText(entry.funder_name),
+          status: toText(entry.status || "active"),
+          period_1_amount: toText(entry.period_1_amount),
+          period_2_amount: toText(entry.period_2_amount),
+          period_3_amount: toText(entry.period_3_amount),
+          period_4_amount: toText(entry.period_4_amount),
+          period_total: toText(entry.period_total),
+          total_budget: toText(entry.total_budget),
+          notes: toText(entry.notes),
+        }))
+        .filter((entry) => entry.project_id || entry.funder_name || entry.total_budget),
+      lines: normalizedLines,
     });
     setShowEditor(true);
   };
@@ -767,11 +812,20 @@ function FinanceBudgetsPage() {
 
   const importBudgetFile = async (file: File) => {
     try {
+      if (!fileHasSupportedBudgetExtension(file.name)) {
+        throw new Error("Unsupported budget file type. Use .xlsx, .xls, or .csv.");
+      }
+      if (file.size > MAX_BUDGET_IMPORT_SIZE) {
+        throw new Error("Budget import file is too large. Use a file smaller than 5MB.");
+      }
+
       if (file.name.toLowerCase().endsWith(".csv")) {
         const text = await file.text();
         const workbook = XLSX.read(text, { type: "string" });
         const firstSheet = workbook.SheetNames[0];
+        if (!firstSheet) throw new Error("CSV import is empty.");
         const rows = XLSX.utils.sheet_to_json(workbook.Sheets[firstSheet], { defval: "" }) as Record<string, unknown>[];
+        if (!rows.length) throw new Error("CSV import is empty.");
         const budgetRows = rows.filter((entry) => toText(entry.record_type).toLowerCase() === "budget");
         const assumptionRows = rows.filter((entry) => toText(entry.record_type).toLowerCase() === "assumption");
         const portfolioRows = rows.filter((entry) => toText(entry.record_type).toLowerCase() === "portfolio");
@@ -780,6 +834,9 @@ function FinanceBudgetsPage() {
       } else {
         const buffer = await file.arrayBuffer();
         const workbook = XLSX.read(buffer, { type: "array" });
+        if (!workbook.Sheets["Budget"]) {
+          throw new Error("Spreadsheet import must include a Budget sheet.");
+        }
         const budgetRows = XLSX.utils.sheet_to_json(workbook.Sheets["Budget"], { defval: "" }) as Record<string, unknown>[];
         const assumptionRows = workbook.Sheets["Assumptions"]
           ? (XLSX.utils.sheet_to_json(workbook.Sheets["Assumptions"], { defval: "" }) as Record<string, unknown>[])

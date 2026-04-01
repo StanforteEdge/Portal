@@ -971,7 +971,7 @@ function Router() {
           path: "admin/projects",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["projects.manage"]}>
                 {page(<AdminProjectsPage />)}
               </PermissionRoute>
             </ModuleRoute>

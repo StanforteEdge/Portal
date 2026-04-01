@@ -58,7 +58,7 @@ const emptyForm = {
   base_amount: "",
   effective_from: "",
   payment_mode: "bank_transfer",
-  profile_components: [] as Array<{ component_id: string; amount: string }>,
+  profile_components: [] as Array<{ component_id: string; amount: string; rate: string; formula: string }>,
   allocations: [emptyAllocation],
 };
 
@@ -173,6 +173,11 @@ function FinancePayrollWorkersPage() {
     };
   }, [organizations, teams, projects, funds, grants, components]);
 
+  const componentMap = useMemo(
+    () => new Map(components.map((component) => [String(component.id), component])),
+    [components]
+  );
+
   const summary = useMemo(
     () => ({
       total: rows.length,
@@ -238,6 +243,8 @@ function FinancePayrollWorkersPage() {
         latestProfile?.components?.map((componentRow: any) => ({
           component_id: componentRow.component_id,
           amount: String(componentRow.amount ?? ""),
+          rate: componentRow.rate != null ? String(componentRow.rate) : "",
+          formula: componentRow.formula || "",
         })) || [],
       allocations:
         row.allocations?.length > 0
@@ -258,8 +265,14 @@ function FinancePayrollWorkersPage() {
     try {
       setSaving(true);
       const componentRows = (form.profile_components || [])
-        .filter((row: any) => row.component_id && Number(row.amount || 0) > 0)
-        .map((row: any) => ({ component_id: row.component_id, amount: Number(row.amount || 0) }));
+        .filter((row: any) => row.component_id)
+        .map((row: any) => ({
+          component_id: row.component_id,
+          amount: row.amount !== "" ? Number(row.amount || 0) : undefined,
+          rate: row.rate !== "" ? Number(row.rate || 0) : undefined,
+          formula: row.formula?.trim() || undefined,
+        }))
+        .filter((row: any) => row.amount !== undefined || row.rate !== undefined || row.formula);
       const payload = {
         profile_id: form.profile_id || undefined,
         worker_type: form.worker_type,
@@ -609,7 +622,12 @@ function FinancePayrollWorkersPage() {
                     <Button
                       size="sm"
                       variant="outline-secondary"
-                      onClick={() => setForm((prev: any) => ({ ...prev, profile_components: [...(prev.profile_components || []), { component_id: "", amount: "" }] }))}
+                      onClick={() =>
+                        setForm((prev: any) => ({
+                          ...prev,
+                          profile_components: [...(prev.profile_components || []), { component_id: "", amount: "", rate: "", formula: "" }],
+                        }))
+                      }
                     >
                       <Lucide icon="Plus" className="w-4 h-4 mr-1" />
                       Add Component
@@ -617,7 +635,7 @@ function FinancePayrollWorkersPage() {
                   </div>
                   <div className="mt-3 space-y-3">
                     {(form.profile_components || []).map((row: any, index: number) => (
-                      <div key={`component-${index}`} className="grid grid-cols-12 gap-3">
+                      <div key={`component-${index}`} className="grid grid-cols-12 gap-3 rounded border p-3">
                         <div className="col-span-12 md:col-span-8">
                           <FormLabel>Component</FormLabel>
                           <TomSelect
@@ -630,6 +648,13 @@ function FinancePayrollWorkersPage() {
                             <option value="">Select component</option>
                             {components.map((component) => <option key={component.id} value={component.id}>{component.name}</option>)}
                           </TomSelect>
+                          {row.component_id ? (
+                            <div className="mt-2 text-xs text-slate-500">
+                              {String(componentMap.get(String(row.component_id))?.component_type || "earning").replaceAll("_", " ")}
+                              {" · "}
+                              {String(componentMap.get(String(row.component_id))?.calculation_type || "fixed").replaceAll("_", " ")}
+                            </div>
+                          ) : null}
                         </div>
                         <div className="col-span-10 md:col-span-3">
                           <FormLabel>Amount</FormLabel>
@@ -642,6 +667,39 @@ function FinancePayrollWorkersPage() {
                           <Button variant="outline-danger" className="w-full" onClick={() => setForm((prev: any) => ({ ...prev, profile_components: (prev.profile_components || []).filter((_: unknown, entryIndex: number) => entryIndex !== index) }))}>
                             <Lucide icon="Trash2" className="w-4 h-4" />
                           </Button>
+                        </div>
+                        <div className="col-span-12 md:col-span-4">
+                          <FormLabel>Rate / %</FormLabel>
+                          <FormInput
+                            type="number"
+                            value={row.rate}
+                            onChange={(e) =>
+                              setForm((prev: any) => ({
+                                ...prev,
+                                profile_components: (prev.profile_components || []).map((entry: any, entryIndex: number) =>
+                                  entryIndex === index ? { ...entry, rate: e.target.value } : entry
+                                ),
+                              }))
+                            }
+                            placeholder={
+                              componentMap.get(String(row.component_id))?.calculation_type === "percentage" ? "e.g. 10" : "Optional rate"
+                            }
+                          />
+                        </div>
+                        <div className="col-span-12 md:col-span-7">
+                          <FormLabel>Formula</FormLabel>
+                          <FormInput
+                            value={row.formula}
+                            onChange={(e) =>
+                              setForm((prev: any) => ({
+                                ...prev,
+                                profile_components: (prev.profile_components || []).map((entry: any, entryIndex: number) =>
+                                  entryIndex === index ? { ...entry, formula: e.target.value } : entry
+                                ),
+                              }))
+                            }
+                            placeholder="Optional formula expression"
+                          />
                         </div>
                       </div>
                     ))}
