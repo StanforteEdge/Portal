@@ -636,6 +636,15 @@ function FinancePayrollWorkersPage() {
                   <div className="mt-3 space-y-3">
                     {(form.profile_components || []).map((row: any, index: number) => (
                       <div key={`component-${index}`} className="grid grid-cols-12 gap-3 rounded border p-3">
+                        {(() => {
+                          const selectedComponent = componentMap.get(String(row.component_id));
+                          const calculationType = String(selectedComponent?.calculation_type || "fixed");
+                          const showAmount = calculationType === "fixed";
+                          const showRate = calculationType === "percentage";
+                          const showFormula = calculationType === "formula";
+
+                          return (
+                            <>
                         <div className="col-span-12 md:col-span-8">
                           <FormLabel>Component</FormLabel>
                           <TomSelect
@@ -650,12 +659,18 @@ function FinancePayrollWorkersPage() {
                           </TomSelect>
                           {row.component_id ? (
                             <div className="mt-2 text-xs text-slate-500">
-                              {String(componentMap.get(String(row.component_id))?.component_type || "earning").replaceAll("_", " ")}
+                              {String(selectedComponent?.component_type || "earning").replaceAll("_", " ")}
                               {" · "}
-                              {String(componentMap.get(String(row.component_id))?.calculation_type || "fixed").replaceAll("_", " ")}
+                              {calculationType.replaceAll("_", " ")}
                             </div>
                           ) : null}
                         </div>
+                        <div className="col-span-2 md:col-span-1 flex items-end md:order-last">
+                          <Button variant="outline-danger" className="w-full" onClick={() => setForm((prev: any) => ({ ...prev, profile_components: (prev.profile_components || []).filter((_: unknown, entryIndex: number) => entryIndex !== index) }))}>
+                            <Lucide icon="Trash2" className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        {showAmount ? (
                         <div className="col-span-10 md:col-span-3">
                           <FormLabel>Amount</FormLabel>
                           <FormInput type="number" value={row.amount} onChange={(e) => setForm((prev: any) => ({
@@ -663,12 +678,9 @@ function FinancePayrollWorkersPage() {
                             profile_components: (prev.profile_components || []).map((entry: any, entryIndex: number) => entryIndex === index ? { ...entry, amount: e.target.value } : entry),
                           }))} />
                         </div>
-                        <div className="col-span-2 md:col-span-1 flex items-end">
-                          <Button variant="outline-danger" className="w-full" onClick={() => setForm((prev: any) => ({ ...prev, profile_components: (prev.profile_components || []).filter((_: unknown, entryIndex: number) => entryIndex !== index) }))}>
-                            <Lucide icon="Trash2" className="w-4 h-4" />
-                          </Button>
-                        </div>
-                        <div className="col-span-12 md:col-span-4">
+                        ) : null}
+                        {showRate ? (
+                        <div className="col-span-10 md:col-span-3">
                           <FormLabel>Rate / %</FormLabel>
                           <FormInput
                             type="number"
@@ -681,12 +693,12 @@ function FinancePayrollWorkersPage() {
                                 ),
                               }))
                             }
-                            placeholder={
-                              componentMap.get(String(row.component_id))?.calculation_type === "percentage" ? "e.g. 10" : "Optional rate"
-                            }
+                            placeholder="e.g. 10"
                           />
                         </div>
-                        <div className="col-span-12 md:col-span-7">
+                        ) : null}
+                        {showFormula ? (
+                        <div className="col-span-10 md:col-span-11">
                           <FormLabel>Formula</FormLabel>
                           <FormInput
                             value={row.formula}
@@ -701,6 +713,27 @@ function FinancePayrollWorkersPage() {
                             placeholder="Optional formula expression"
                           />
                         </div>
+                        ) : null}
+                        {!row.component_id ? (
+                        <div className="col-span-10 md:col-span-3">
+                          <FormLabel>Amount</FormLabel>
+                          <FormInput
+                            type="number"
+                            value={row.amount}
+                            onChange={(e) =>
+                              setForm((prev: any) => ({
+                                ...prev,
+                                profile_components: (prev.profile_components || []).map((entry: any, entryIndex: number) =>
+                                  entryIndex === index ? { ...entry, amount: e.target.value } : entry
+                                ),
+                              }))
+                            }
+                          />
+                        </div>
+                        ) : null}
+                            </>
+                          );
+                        })()}
                       </div>
                     ))}
                     {!form.profile_components.length ? <div className="text-sm text-slate-500">No recurring components yet. You can still save a worker with only a base amount.</div> : null}
