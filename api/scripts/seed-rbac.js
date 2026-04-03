@@ -46,6 +46,7 @@ const permissions = [
   { name: 'Workflow View', slug: 'workflow_view', module: 'workflow', description: 'Can view workflow states and history' },
   { name: 'Send Notifications', slug: 'send_notifications', module: 'notifications', description: 'Can trigger notifications' },
   { name: 'Manage Finance', slug: 'finance.manage', module: 'finance', description: 'Full access to finance module' },
+  { name: 'Correct Completed Finance Records', slug: 'finance.correct_completed', module: 'finance', description: 'Can edit protected finance records after a request is completed' },
   { name: 'View Finance', slug: 'finance.view', module: 'finance', description: 'Read-only access to finance module' },
   { name: 'Approve Finance', slug: 'finance.approve', module: 'finance', description: 'Can approve finance workflow steps' },
   { name: 'Generate Vouchers', slug: 'finance.vouchers', module: 'finance', description: 'Can generate payment vouchers' },
@@ -68,7 +69,7 @@ const permissions = [
 const rolePermissionMap = {
   administrator: ['*'],
   admin: ['*'],
-  finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'payroll.approve', 'projects.view', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
+  finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.correct_completed', 'finance.view', 'finance.approve', 'finance.vouchers', 'payroll.approve', 'projects.view', 'workflow_view', 'work.view', 'work.manage', 'work.approve'],
   accountant: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'projects.view', 'workflow_view'],
   finance_officer: ['requests.view', 'finance.view', 'finance.vouchers', 'projects.view', 'workflow_view'],
   finance_auditor: ['requests.view', 'finance.view', 'audit.view', 'projects.view', 'workflow_view'],

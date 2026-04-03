@@ -16,6 +16,7 @@ import {
   approvePayrollRun,
   closePayrollRun,
   createPayrollRun,
+  deletePayrollRun,
   distributePayrollRunPayslips,
   generatePayrollBankSchedule,
   generatePayrollRun,
@@ -105,6 +106,7 @@ function FinancePayrollRunsPage() {
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showEditor, setShowEditor] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
@@ -148,10 +150,6 @@ function FinancePayrollRunsPage() {
         throw runRes.reason;
       }
 
-      const lookupFailures = [accountRes, organizationRows, teamRows, projectRows, fundRows, grantRows].filter(
-        (result) => result.status === "rejected"
-      ).length;
-
       setRows(runRes.value.data ?? []);
       setAccounts(readSettledValue(accountRes, []));
       setOrganizations(readSettledValue(organizationRows, []));
@@ -159,13 +157,6 @@ function FinancePayrollRunsPage() {
       setProjects(readSettledValue(projectRows, []));
       setFunds(readSettledValue(fundRows, []));
       setGrants(readSettledValue(grantRows, []));
-
-      if (lookupFailures > 0) {
-        setNotice({
-          tone: "warning",
-          message: `Payroll runs loaded with ${lookupFailures} supporting lookup${lookupFailures === 1 ? "" : "s"} unavailable.`,
-        });
-      }
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load payroll runs." });
     } finally {
@@ -287,47 +278,60 @@ function FinancePayrollRunsPage() {
     }
   };
 
-  const runAction = async (action: () => Promise<any>, successMessage: string) => {
+  const runAction = async (actionKey: string, action: () => Promise<any>, successMessage: string) => {
     try {
+      setActionLoading(actionKey);
       await action();
       setNotice({ tone: "success", message: successMessage });
       await load();
       if (detail?.id) setDetail(await getPayrollRun(detail.id));
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Action failed." });
+    } finally {
+      setActionLoading("");
     }
   };
 
   const downloadBankSchedule = async (id: string) => {
     try {
+      setActionLoading(`bank-schedule-${id}`);
       const response = await generatePayrollBankSchedule(id);
       downloadBase64File(response.file_name, response.mime_type, response.content_base64);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to generate bank schedule." });
+    } finally {
+      setActionLoading("");
     }
   };
 
   const downloadPayslipPackage = async (id: string) => {
     try {
+      setActionLoading(`payslip-package-${id}`);
       const response = await generatePayrollRunPayslipsPackage(id);
       downloadBase64File(response.file_name, response.mime_type, response.content_base64);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to generate payslip package." });
+    } finally {
+      setActionLoading("");
     }
   };
 
   const downloadPayslip = async (runId: string, itemId: string) => {
     try {
+      setActionLoading(`payslip-${itemId}`);
       const response = await generatePayrollRunItemPayslip(runId, itemId);
       downloadBase64File(response.file_name, response.mime_type, response.content_base64);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to generate payslip." });
+    } finally {
+      setActionLoading("");
     }
   };
 
   const saveItem = async () => {
     if (!detail?.id || !editingItem?.id) return;
     try {
+      setActionLoading(`save-item-${editingItem.id}`);
       await updatePayrollRunItem(detail.id, editingItem.id, {
         gross_pay: Number(editingItem.gross_pay || 0),
         total_deductions: Number(editingItem.total_deductions || 0),
@@ -366,16 +370,21 @@ function FinancePayrollRunsPage() {
       setNotice({ tone: "success", message: "Payroll run item updated." });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to update payroll run item." });
+    } finally {
+      setActionLoading("");
     }
   };
 
   const distributePayslips = async (id: string) => {
     try {
+      setActionLoading(`distribute-${id}`);
       const response = await distributePayrollRunPayslips(id);
       setNotice({ tone: "success", message: `Payslips distributed. Sent: ${response.sent}. Skipped: ${response.skipped}. Failed: ${response.failed}.` });
       if (detail?.id) setDetail(await getPayrollRun(detail.id));
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to distribute payslips." });
+    } finally {
+      setActionLoading("");
     }
   };
 
@@ -391,7 +400,8 @@ function FinancePayrollRunsPage() {
   };
 
   const currentWorkflow = workflowState(detail?.status);
-  const nextAction = !detail ? null : detail.status === "draft" ? { label: "Generate", action: () => runAction(() => generatePayrollRun(detail.id), "Payroll run generated.") } : detail.status === "generated" ? { label: "Submit", action: () => runAction(() => submitPayrollRun(detail.id), "Payroll run submitted for review.") } : detail.status === "under_review" ? { label: "Approve", action: () => runAction(() => approvePayrollRun(detail.id), "Payroll run approved.") } : detail.status === "approved" ? { label: "Mark Paid", action: () => runAction(() => payPayrollRun(detail.id, { paid_from_account_id: detail.paid_from_account?.id }), "Payroll run marked as paid.") } : detail.status === "paid" ? { label: "Close Run", action: () => runAction(() => closePayrollRun(detail.id), "Payroll run closed.") } : null;
+  const nextAction = !detail ? null : detail.status === "draft" ? { label: "Generate", action: () => runAction(`generate-${detail.id}`, () => generatePayrollRun(detail.id), "Payroll run generated.") } : detail.status === "generated" ? { label: "Submit", action: () => runAction(`submit-${detail.id}`, () => submitPayrollRun(detail.id), "Payroll run submitted for review.") } : detail.status === "under_review" ? { label: "Approve", action: () => runAction(`approve-${detail.id}`, () => approvePayrollRun(detail.id), "Payroll run approved.") } : detail.status === "approved" ? { label: "Mark Paid", action: () => runAction(`pay-${detail.id}`, () => payPayrollRun(detail.id, { paid_from_account_id: detail.paid_from_account?.id }), "Payroll run marked as paid.") } : detail.status === "paid" ? { label: "Close Run", action: () => runAction(`close-${detail.id}`, () => closePayrollRun(detail.id), "Payroll run closed.") } : null;
+  const busy = loading || saving || Boolean(actionLoading);
 
   return (
     <>
@@ -402,7 +412,7 @@ function FinancePayrollRunsPage() {
             <Lucide icon="Undo2" className="w-4 h-4 mr-1" />
             Refresh
           </Button>
-          <Button variant="primary" onClick={openCreate}>
+          <Button variant="primary" onClick={openCreate} disabled={busy}>
             <Lucide icon="Plus" className="w-4 h-4 mr-1" />
             New Run
           </Button>
@@ -471,9 +481,32 @@ function FinancePayrollRunsPage() {
                 <Table.Td className="text-right">{formatMoney(row.totals?.net || 0)}</Table.Td>
                 <Table.Td className="text-right">
                   <div className="flex justify-end gap-2">
-                    <Button size="sm" variant="outline-primary" aria-label={`View payroll run ${row.name}`} title="View payroll run" onClick={() => void openDetail(row.id)}><Lucide icon="Eye" className="w-4 h-4" /></Button>
-                    <Button size="sm" variant="outline-secondary" aria-label={`Edit payroll run ${row.name}`} title="Edit payroll run" onClick={() => openEdit(row)}><Lucide icon="FilePenLine" className="w-4 h-4" /></Button>
-                    <Button size="sm" variant="primary" onClick={() => void runAction(() => generatePayrollRun(row.id), "Payroll run generated.")}>Generate</Button>
+                    <Button size="sm" variant="outline-primary" aria-label={`View payroll run ${row.name}`} title="View payroll run" onClick={() => void openDetail(row.id)} disabled={busy}><Lucide icon="Eye" className="w-4 h-4" /></Button>
+                    <Button size="sm" variant="outline-secondary" aria-label={`Edit payroll run ${row.name}`} title="Edit payroll run" onClick={() => openEdit(row)} disabled={busy}><Lucide icon="FilePenLine" className="w-4 h-4" /></Button>
+                    <Button size="sm" variant="primary" onClick={() => void runAction(`generate-${row.id}`, () => generatePayrollRun(row.id), "Payroll run generated.")} disabled={busy}>{actionLoading === `generate-${row.id}` ? "Generating..." : "Generate"}</Button>
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      disabled={busy}
+                      onClick={() =>
+                        void (async () => {
+                          if (!window.confirm(`Delete payroll run "${row.name}"? Only draft or prepared runs can be deleted.`)) return;
+                          try {
+                            setActionLoading(`delete-run-${row.id}`);
+                            await deletePayrollRun(row.id);
+                            setNotice({ tone: "success", message: "Payroll run deleted." });
+                            if (detail?.id === row.id) closeDetail();
+                            await load();
+                          } catch (error: any) {
+                            setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete payroll run." });
+                          } finally {
+                            setActionLoading("");
+                          }
+                        })()
+                      }
+                    >
+                      {actionLoading === `delete-run-${row.id}` ? "Deleting..." : <Lucide icon="Trash2" className="w-4 h-4" />}
+                    </Button>
                   </div>
                 </Table.Td>
               </Table.Tr>
@@ -497,7 +530,7 @@ function FinancePayrollRunsPage() {
             <div className="col-span-12"><FormLabel>Notes</FormLabel><FormTextarea value={form.notes} onChange={(e) => setForm((prev) => ({ ...prev, notes: e.target.value }))} /></div>
           </Dialog.Description>
           <Dialog.Footer>
-            <Button variant="outline-secondary" onClick={() => setShowEditor(false)}>Cancel</Button>
+            <Button variant="outline-secondary" onClick={() => setShowEditor(false)} disabled={saving}>Cancel</Button>
             <Button variant="primary" onClick={() => void saveRun()} disabled={saving}>{saving ? "Saving..." : "Save Run"}</Button>
           </Dialog.Footer>
         </Dialog.Panel>
@@ -530,7 +563,7 @@ function FinancePayrollRunsPage() {
                       <div className="font-medium">Workflow</div>
                       <div className="text-xs text-slate-500">Move the run from generation to payment and closeout.</div>
                     </div>
-                    {nextAction ? <Button variant="primary" onClick={() => void nextAction.action()}>{nextAction.label}</Button> : null}
+                    {nextAction ? <Button variant="primary" onClick={() => void nextAction.action()} disabled={busy}>{actionLoading ? "Working..." : nextAction.label}</Button> : null}
                   </div>
                   <div className="mt-4 grid gap-3 md:grid-cols-5">
                     {[{ id: "generated", label: "Generated" }, { id: "review", label: "Under Review" }, { id: "approved", label: "Approved" }, { id: "paid", label: "Paid" }, { id: "closed", label: "Closed" }].map((step) => (
@@ -542,17 +575,39 @@ function FinancePayrollRunsPage() {
                 </div>
 
                 <div className="mt-5 flex flex-wrap gap-2">
-                  <Button variant="primary" onClick={() => void runAction(() => generatePayrollRun(detail.id), "Payroll run generated.")}>Generate</Button>
-                  <Button variant="outline-primary" onClick={() => void runAction(() => submitPayrollRun(detail.id), "Payroll run submitted for review.")}>Submit</Button>
-                  <Button variant="outline-primary" onClick={() => void runAction(() => reviewPayrollRun(detail.id), "Payroll run moved to review.")}>Review</Button>
-                  <Button variant="outline-primary" onClick={() => void runAction(() => approvePayrollRun(detail.id), "Payroll run approved.")}>Approve</Button>
-                  <Button variant="outline-danger" onClick={() => void runAction(() => rejectPayrollRun(detail.id), "Payroll run rejected.")}>Reject</Button>
-                  <Button variant="outline-secondary" onClick={() => void runAction(() => reopenPayrollRun(detail.id), "Payroll run reopened.")}>Reopen</Button>
-                  <Button variant="outline-success" onClick={() => void runAction(() => payPayrollRun(detail.id, { paid_from_account_id: detail.paid_from_account?.id }), "Payroll run marked as paid.")}>Mark Paid</Button>
-                  <Button variant="outline-secondary" onClick={() => void downloadPayslipPackage(detail.id)}>Payslip Package</Button>
-                  <Button variant="outline-secondary" onClick={() => void distributePayslips(detail.id)}>Email Payslips</Button>
-                  <Button variant="outline-secondary" onClick={() => void downloadBankSchedule(detail.id)}>Bank Schedule</Button>
-                  <Button variant="outline-secondary" onClick={() => void runAction(() => closePayrollRun(detail.id), "Payroll run closed.")}>Close Run</Button>
+                  <Button variant="primary" onClick={() => void runAction(`generate-${detail.id}`, () => generatePayrollRun(detail.id), "Payroll run generated.")} disabled={busy}>{actionLoading === `generate-${detail.id}` ? "Generating..." : "Generate"}</Button>
+                  <Button variant="outline-primary" onClick={() => void runAction(`submit-${detail.id}`, () => submitPayrollRun(detail.id), "Payroll run submitted for review.")} disabled={busy}>{actionLoading === `submit-${detail.id}` ? "Submitting..." : "Submit"}</Button>
+                  <Button variant="outline-primary" onClick={() => void runAction(`review-${detail.id}`, () => reviewPayrollRun(detail.id), "Payroll run moved to review.")} disabled={busy}>{actionLoading === `review-${detail.id}` ? "Reviewing..." : "Review"}</Button>
+                  <Button variant="outline-primary" onClick={() => void runAction(`approve-${detail.id}`, () => approvePayrollRun(detail.id), "Payroll run approved.")} disabled={busy}>{actionLoading === `approve-${detail.id}` ? "Approving..." : "Approve"}</Button>
+                  <Button variant="outline-danger" onClick={() => void runAction(`reject-${detail.id}`, () => rejectPayrollRun(detail.id), "Payroll run rejected.")} disabled={busy}>{actionLoading === `reject-${detail.id}` ? "Rejecting..." : "Reject"}</Button>
+                  <Button variant="outline-secondary" onClick={() => void runAction(`reopen-${detail.id}`, () => reopenPayrollRun(detail.id), "Payroll run reopened.")} disabled={busy}>{actionLoading === `reopen-${detail.id}` ? "Reopening..." : "Reopen"}</Button>
+                  <Button variant="outline-success" onClick={() => void runAction(`pay-${detail.id}`, () => payPayrollRun(detail.id, { paid_from_account_id: detail.paid_from_account?.id }), "Payroll run marked as paid.")} disabled={busy}>{actionLoading === `pay-${detail.id}` ? "Marking..." : "Mark Paid"}</Button>
+                  <Button variant="outline-secondary" onClick={() => void downloadPayslipPackage(detail.id)} disabled={busy}>{actionLoading === `payslip-package-${detail.id}` ? "Preparing..." : "Payslip Package"}</Button>
+                  <Button variant="outline-secondary" onClick={() => void distributePayslips(detail.id)} disabled={busy}>{actionLoading === `distribute-${detail.id}` ? "Sending..." : "Email Payslips"}</Button>
+                  <Button variant="outline-secondary" onClick={() => void downloadBankSchedule(detail.id)} disabled={busy}>{actionLoading === `bank-schedule-${detail.id}` ? "Preparing..." : "Bank Schedule"}</Button>
+                  <Button variant="outline-secondary" onClick={() => void runAction(`close-${detail.id}`, () => closePayrollRun(detail.id), "Payroll run closed.")} disabled={busy}>{actionLoading === `close-${detail.id}` ? "Closing..." : "Close Run"}</Button>
+                  <Button
+                    variant="outline-danger"
+                    disabled={busy}
+                    onClick={() =>
+                      void (async () => {
+                        if (!window.confirm(`Delete payroll run "${detail.name}"? Only draft or prepared runs can be deleted.`)) return;
+                        try {
+                          setActionLoading(`delete-run-${detail.id}`);
+                          await deletePayrollRun(detail.id);
+                          setNotice({ tone: "success", message: "Payroll run deleted." });
+                          closeDetail();
+                          await load();
+                        } catch (error: any) {
+                          setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete payroll run." });
+                        } finally {
+                          setActionLoading("");
+                        }
+                      })()
+                    }
+                  >
+                    {actionLoading === `delete-run-${detail.id}` ? "Deleting..." : "Delete Run"}
+                  </Button>
                 </div>
 
                 {detail.notes ? <div className="mt-4 rounded border p-3"><div className="text-xs text-slate-500 uppercase">Run Notes</div><pre className="mt-2 whitespace-pre-wrap text-sm text-slate-700">{detail.notes}</pre></div> : null}
@@ -683,7 +738,7 @@ function FinancePayrollRunsPage() {
               </>
             ) : <div className="text-sm text-slate-500">Loading run detail...</div>}
           </Dialog.Description>
-          <Dialog.Footer><Button variant="outline-secondary" onClick={closeDetail}>Close</Button></Dialog.Footer>
+          <Dialog.Footer><Button variant="outline-secondary" onClick={closeDetail} disabled={busy}>Close</Button></Dialog.Footer>
         </Dialog.Panel>
       </Dialog>
 
@@ -751,9 +806,9 @@ function FinancePayrollRunsPage() {
           <Dialog.Footer className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-slate-500">Allocation total: {itemAllocationTotal}% · Timesheet total: {itemTimesheetAllocationTotal}%</div>
             <div className="flex gap-2">
-              <Button variant="outline-secondary" onClick={() => setShowItemEditor(false)}>Cancel</Button>
-              <Button variant="outline-secondary" onClick={() => setItemEditorStep("pay")} disabled={itemEditorStep === "pay"}>Previous</Button>
-              <Button variant="primary" onClick={() => itemEditorStep === "pay" ? setItemEditorStep("allocation") : void saveItem()}>{itemEditorStep === "pay" ? "Next" : "Save Item"}</Button>
+              <Button variant="outline-secondary" onClick={() => setShowItemEditor(false)} disabled={Boolean(actionLoading)}>Cancel</Button>
+              <Button variant="outline-secondary" onClick={() => setItemEditorStep("pay")} disabled={itemEditorStep === "pay" || Boolean(actionLoading)}>Previous</Button>
+              <Button variant="primary" onClick={() => itemEditorStep === "pay" ? setItemEditorStep("allocation") : void saveItem()} disabled={Boolean(actionLoading)}>{itemEditorStep === "pay" ? "Next" : actionLoading === `save-item-${editingItem?.id}` ? "Saving..." : "Save Item"}</Button>
             </div>
           </Dialog.Footer>
         </Dialog.Panel>

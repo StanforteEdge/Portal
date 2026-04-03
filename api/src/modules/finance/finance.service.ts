@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
 import { DisburseRequestDto } from './dto/disburse-request.dto';
@@ -20,6 +20,7 @@ import { CreateFinanceBillDto } from './dto/create-finance-bill.dto';
 import { CreateFinanceReceiptDto } from './dto/create-finance-receipt.dto';
 import { CreateFinanceVendorPaymentDto } from './dto/create-finance-vendor-payment.dto';
 import { UpsertFinanceReportNoteDto } from './dto/upsert-finance-report-note.dto';
+import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
 import { MailService } from '../../common/mail/mail.service';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
@@ -480,6 +481,212 @@ export class FinanceService {
         })()
       };
     });
+  }
+
+  async updatePaymentVoucher(
+    requestId: string,
+    voucherId: string,
+    dto: UpdatePaymentVoucherDto,
+    actorId?: string,
+    actorPermissions: string[] = []
+  ) {
+    const id = this.parseId(requestId, 'request id');
+    const voucher = await this.prisma.financePaymentVoucher.findFirst({
+      where: { id: voucherId, requestId: id },
+      include: {
+        request: {
+          select: {
+            id: true,
+            status: true,
+            organizationId: true,
+            teamId: true,
+            workflowInstanceId: true,
+          }
+        },
+      },
+    });
+    if (!voucher) throw new NotFoundException('Payment voucher not found');
+    const permissionSet = new Set((actorPermissions ?? []).map((permission) => String(permission).toLowerCase()));
+    const canCorrectCompleted = permissionSet.has('*') || permissionSet.has('finance.correct_completed');
+    if (voucher.request.status === 'completed' && !canCorrectCompleted) {
+      throw new ForbiddenException('Editing payment vouchers for completed requests requires finance.correct_completed permission');
+    }
+
+    const evidenceFileIds = Array.from(
+      new Set([dto.evidence_file_id ?? null, ...(dto.evidence_file_ids ?? [])].filter((fileId): fileId is string => Boolean(fileId)))
+    );
+    if (evidenceFileIds.length > 0) {
+      const fileExists = await this.prisma.fileAsset.count({ where: { id: { in: evidenceFileIds } } });
+      if (fileExists !== evidenceFileIds.length) {
+        throw new BadRequestException('Invalid payment voucher evidence file');
+      }
+    }
+
+    const nextAmount = dto.amount ?? Number(voucher.amount);
+    if (Number.isNaN(nextAmount) || nextAmount <= 0) {
+      throw new BadRequestException('Payment voucher amount must be greater than zero');
+    }
+    const retiredAmount = Number(voucher.retiredAmount ?? 0);
+    if (nextAmount < retiredAmount) {
+      throw new BadRequestException('Payment voucher amount cannot be less than the retired amount');
+    }
+
+    let disbursedAt = voucher.disbursedAt;
+    if (dto.disbursed_at) {
+      disbursedAt = new Date(dto.disbursed_at);
+      if (Number.isNaN(disbursedAt.getTime())) {
+        throw new BadRequestException('Invalid disbursed_at date');
+      }
+    }
+
+    let paidFromAccountId = dto.paid_from_account_id ?? voucher.paidFromAccountId;
+    let paidFromAccount: { id: string; currency: string; isActive: boolean } | null = null;
+    if (paidFromAccountId) {
+      paidFromAccount = await this.prisma.financeAccount.findUnique({
+        where: { id: paidFromAccountId },
+        select: { id: true, currency: true, isActive: true }
+      });
+      if (!paidFromAccount || !paidFromAccount.isActive) {
+        throw new BadRequestException('Invalid paid_from_account_id');
+      }
+    } else {
+      paidFromAccountId = null;
+    }
+
+    const nextNote = dto.note ?? voucher.note;
+    const nextMethod = dto.method ?? voucher.method;
+    const nextTransactionRef = dto.transaction_ref ?? voucher.transactionRef;
+    const changeSummary: Record<string, { from: string | number | null; to: string | number | null }> = {};
+    if (Number(voucher.amount) !== nextAmount) changeSummary.amount = { from: Number(voucher.amount), to: nextAmount };
+    if ((voucher.paidFromAccountId ?? null) !== (paidFromAccountId ?? null)) {
+      changeSummary.paid_from_account_id = { from: voucher.paidFromAccountId ?? null, to: paidFromAccountId ?? null };
+    }
+    if (voucher.disbursedAt.toISOString() !== disbursedAt.toISOString()) {
+      changeSummary.disbursed_at = { from: voucher.disbursedAt.toISOString(), to: disbursedAt.toISOString() };
+    }
+    if ((voucher.method ?? null) !== (nextMethod ?? null)) changeSummary.method = { from: voucher.method ?? null, to: nextMethod ?? null };
+    if ((voucher.transactionRef ?? null) !== (nextTransactionRef ?? null)) {
+      changeSummary.transaction_ref = { from: voucher.transactionRef ?? null, to: nextTransactionRef ?? null };
+    }
+    if ((voucher.note ?? null) !== (nextNote ?? null)) changeSummary.note = { from: voucher.note ?? null, to: nextNote ?? null };
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financePaymentVoucher.update({
+        where: { id: voucher.id },
+        data: {
+          note: nextNote,
+          method: nextMethod,
+          transactionRef: nextTransactionRef,
+          evidenceFileId: evidenceFileIds[0] ?? null,
+          amount: nextAmount,
+          paidFromAccountId,
+          disbursedAt,
+        },
+      });
+
+      await tx.financePaymentVoucherFile.deleteMany({
+        where: { voucherId: voucher.id, fileKind: 'evidence' },
+      });
+
+      if (evidenceFileIds.length > 0) {
+        await tx.financePaymentVoucherFile.createMany({
+          data: evidenceFileIds.map((fileId, index) => ({
+            voucherId: voucher.id,
+            fileId,
+            fileKind: 'evidence',
+            sortOrder: index,
+          })),
+        });
+      }
+
+      await tx.financeLedgerEntry.deleteMany({
+        where: { sourceType: 'finance_payment_voucher', sourceId: voucher.id },
+      });
+
+      if (paidFromAccountId && paidFromAccount) {
+        await tx.financeLedgerEntry.create({
+          data: {
+            accountId: paidFromAccountId,
+            direction: 'out',
+            amount: nextAmount,
+            currency: paidFromAccount.currency || 'NGN',
+            entryDate: disbursedAt,
+            description: `Disbursement ${voucher.voucherNumber} for request ${voucher.request.id.toString()}`,
+            sourceType: 'finance_payment_voucher',
+            sourceId: voucher.id,
+            createdBy: actorId ? toBigInt(actorId) : null,
+            metadata: {
+              request_id: voucher.request.id.toString(),
+              voucher_number: voucher.voucherNumber
+            } as Prisma.InputJsonValue
+          }
+        });
+      }
+
+      await tx.financeJournalEntry.deleteMany({
+        where: { sourceType: 'finance_payment_voucher', sourceId: voucher.id },
+      });
+
+      if (paidFromAccountId) {
+        const refreshedVoucher = await tx.financePaymentVoucher.findUnique({ where: { id: voucher.id } });
+        if (!refreshedVoucher) throw new NotFoundException('Payment voucher not found after update');
+        const period = await this.ensureReportingPeriod(disbursedAt, actorId);
+        const bankAccount = await this.ensureFinanceAccountChartAccount(paidFromAccountId, actorId);
+        const advanceAccount = await this.getRequiredChartAccount('1200');
+        await this.createJournalEntryTx(tx, {
+          entryDate: disbursedAt,
+          periodId: period.id,
+          sourceType: 'finance_payment_voucher',
+          sourceId: voucher.id,
+          memo: `Payment voucher ${voucher.voucherNumber}`,
+          currency: 'NGN',
+          postedBy: actorId,
+          lines: [
+            {
+              chartAccountId: advanceAccount.id,
+              organizationId: voucher.request.organizationId ?? null,
+              teamId: voucher.request.teamId ?? null,
+              fundId: refreshedVoucher.fundId,
+              grantId: refreshedVoucher.grantId,
+              debit: nextAmount,
+              credit: 0,
+              description: `Advance for ${voucher.voucherNumber}`
+            },
+            {
+              chartAccountId: bankAccount.id,
+              organizationId: voucher.request.organizationId ?? null,
+              teamId: voucher.request.teamId ?? null,
+              fundId: refreshedVoucher.fundId,
+              grantId: refreshedVoucher.grantId,
+              debit: 0,
+              credit: nextAmount,
+              description: `Bank settlement ${voucher.voucherNumber}`
+            }
+          ]
+        });
+      }
+    });
+
+    if (voucher.request.workflowInstanceId) {
+      await this.prisma.workflowHistory.create({
+        data: {
+          instanceId: voucher.request.workflowInstanceId,
+          action: 'pv_corrected',
+          performedBy: actorId ? toBigInt(actorId) : null,
+          data: {
+            request_id: voucher.request.id.toString(),
+            voucher_id: voucher.id,
+            voucher_number: voucher.voucherNumber,
+            changes: changeSummary
+          } as Prisma.InputJsonValue
+        }
+      });
+    }
+
+    const updated = await this.listPaymentVouchers(requestId);
+    const matched = updated.find((row) => row.id === voucherId);
+    if (!matched) throw new NotFoundException('Payment voucher not found after update');
+    return matched;
   }
 
   async listAllPaymentVouchers(query: Record<string, any>) {

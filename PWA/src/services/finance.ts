@@ -256,6 +256,42 @@ export async function listFinanceRequestPaymentVouchers(id: string) {
   }>;
 }
 
+export async function updateFinanceRequestPaymentVoucher(
+  requestId: string,
+  voucherId: string,
+  payload: {
+    note?: string;
+    method?: string;
+    transaction_ref?: string;
+    evidence_file_id?: string;
+    evidence_file_ids?: string[];
+    amount?: number;
+    paid_from_account_id?: string;
+    disbursed_at?: string;
+  }
+) {
+  const response = await apiClient.post(`/finance/requests/${requestId}/payment-vouchers/${voucherId}`, payload);
+  return response.data?.data as {
+    id: string;
+    voucher_number: string;
+    amount: number;
+    retired_amount: number;
+    voucher_balance: number;
+    request_balance: number;
+    retirement_status: string;
+    method: string | null;
+    transaction_ref: string | null;
+    note: string | null;
+    paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
+    disbursed_at: string;
+    retired_at: string | null;
+    verified_at: string | null;
+    evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+    evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+    retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+  };
+}
+
 export type FinancePaymentVoucherListRecord = {
   id: string;
   request_id: string;

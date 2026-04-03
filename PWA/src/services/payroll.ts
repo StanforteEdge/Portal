@@ -127,6 +127,11 @@ export async function updatePayrollWorker(id: string, payload: Record<string, un
   return response.data?.data;
 }
 
+export async function deletePayrollWorker(id: string) {
+  const response = await apiClient.delete(`/payroll/workers/${id}`);
+  return response.data?.data as { action: "deleted" | "deactivated"; reason?: string };
+}
+
 export async function listPayrollComponents(params?: Record<string, unknown>) {
   const response = await apiClient.get("/payroll/components", { params });
   return (response.data?.data ?? []) as any[];
@@ -140,6 +145,11 @@ export async function createPayrollComponent(payload: Record<string, unknown>) {
 export async function updatePayrollComponent(id: string, payload: Record<string, unknown>) {
   const response = await apiClient.post(`/payroll/components/${id}`, payload);
   return response.data?.data;
+}
+
+export async function deletePayrollComponent(id: string) {
+  const response = await apiClient.delete(`/payroll/components/${id}`);
+  return response.data?.data as { action: "deleted" | "deactivated"; reason?: string; component?: any };
 }
 
 export async function listPayrollLoans(params?: Record<string, unknown>) {
@@ -206,6 +216,11 @@ export async function listPayrollRuns(params?: Record<string, unknown>) {
 export async function getPayrollRun(id: string) {
   const response = await apiClient.get(`/payroll/runs/${id}`);
   return response.data?.data;
+}
+
+export async function deletePayrollRun(id: string) {
+  const response = await apiClient.delete(`/payroll/runs/${id}`);
+  return response.data?.data as { action: "deleted" };
 }
 
 export async function createPayrollRun(payload: Record<string, unknown>) {

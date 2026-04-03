@@ -25,6 +25,7 @@ import { UpsertFinanceDonorDto } from './dto/upsert-finance-donor.dto';
 import { UpsertFinanceFundDto } from './dto/upsert-finance-fund.dto';
 import { UpsertFinanceGrantDto } from './dto/upsert-finance-grant.dto';
 import { UpsertFinanceBudgetDto } from './dto/upsert-finance-budget.dto';
+import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -521,6 +522,18 @@ export class FinanceController {
   @ApiOperation({ summary: 'List payment vouchers/disbursements for a request' })
   listPaymentVouchers(@Param('id') id: string) {
     return this.financeService.listPaymentVouchers(id);
+  }
+
+  @Post('requests/:requestId/payment-vouchers/:voucherId')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update payment voucher evidence and metadata' })
+  updatePaymentVoucher(
+    @Req() req: any,
+    @Param('requestId') requestId: string,
+    @Param('voucherId') voucherId: string,
+    @Body() dto: UpdatePaymentVoucherDto
+  ) {
+    return this.financeService.updatePaymentVoucher(requestId, voucherId, dto, req.user?.id, req.user?.permissions ?? []);
   }
 
   @Get('payment-vouchers')

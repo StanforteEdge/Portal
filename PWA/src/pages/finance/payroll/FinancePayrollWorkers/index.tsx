@@ -12,7 +12,7 @@ import { listProjects } from "@/services/projects";
 import { listTeams } from "@/services/teams";
 import { listUsers } from "@/services/users";
 import { listFinanceFunds, listFinanceGrants } from "@/services/financeAccounting";
-import { createPayrollWorker, listPayrollComponents, listPayrollTaxTables, listPayrollWorkers, updatePayrollWorker } from "@/services/payroll";
+import { createPayrollWorker, deletePayrollWorker, listPayrollComponents, listPayrollTaxTables, listPayrollWorkers, updatePayrollWorker } from "@/services/payroll";
 
 const emptyAllocation: AllocationRowValue = {
   organization_id: "",
@@ -86,10 +86,12 @@ function FinancePayrollWorkersPage() {
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState("");
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState("");
   const [search, setSearch] = useState("");
   const [workerType, setWorkerType] = useState("");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [editorStep, setEditorStep] = useState<WorkerStep>("identity");
   const [form, setForm] = useState(emptyForm);
 
@@ -100,7 +102,13 @@ function FinancePayrollWorkersPage() {
     try {
       setLoading(true);
       const [workerRes, componentRows, orgRows, teamRows, projectRows, fundRows, grantRows, userRows, taxTableRows] = await Promise.allSettled([
-        listPayrollWorkers({ page: 1, per_page: 200, search: search || undefined, worker_type: workerType || undefined }),
+        listPayrollWorkers({
+          page: 1,
+          per_page: 200,
+          search: search || undefined,
+          worker_type: workerType || undefined,
+          status: statusFilter || undefined,
+        }),
         listPayrollComponents({ is_active: true }),
         listOrganizations({ is_active: true }),
         listTeams({ active_only: true }),
@@ -114,10 +122,6 @@ function FinancePayrollWorkersPage() {
       if (workerRes.status !== "fulfilled") {
         throw workerRes.reason;
       }
-
-      const lookupFailures = [componentRows, orgRows, teamRows, projectRows, fundRows, grantRows, userRows, taxTableRows].filter(
-        (result) => result.status === "rejected"
-      ).length;
 
       setRows(workerRes.value.data ?? []);
       setComponents(readSettledValue(componentRows, []));
@@ -133,13 +137,6 @@ function FinancePayrollWorkersPage() {
         }).data ?? []
       );
       setTaxTables(readSettledValue(taxTableRows, []));
-
-      if (lookupFailures > 0) {
-        setNotice({
-          tone: "warning",
-          message: `Payroll workers loaded with ${lookupFailures} supporting lookup${lookupFailures === 1 ? "" : "s"} unavailable.`,
-        });
-      }
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load payroll workers." });
     } finally {
@@ -192,6 +189,7 @@ function FinancePayrollWorkersPage() {
     () => (form.allocations || []).reduce((sum, row) => sum + Number(row.allocation_percent || 0), 0),
     [form.allocations]
   );
+  const busy = loading || saving || Boolean(actionLoading);
 
   const resetForm = () => {
     setEditingId("");
@@ -358,7 +356,7 @@ function FinancePayrollWorkersPage() {
             <Lucide icon="Undo2" className="w-4 h-4 mr-1" />
             Refresh
           </Button>
-          <Button variant="primary" onClick={resetForm}>
+          <Button variant="primary" onClick={resetForm} disabled={busy}>
             <Lucide icon="Plus" className="w-4 h-4 mr-1" />
             New Worker
           </Button>
@@ -416,10 +414,18 @@ function FinancePayrollWorkersPage() {
             <option value="consultant">Consultant</option>
           </FormSelect>
         </div>
-        <div className="col-span-12 md:col-span-3 flex items-end">
-          <Button variant="primary" className="w-full" onClick={() => void load()}>
+        <div className="col-span-12 md:col-span-3">
+          <FormLabel>Status</FormLabel>
+          <FormSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="">All</option>
+          </FormSelect>
+        </div>
+        <div className="col-span-12 md:col-span-12 lg:col-span-3 flex items-end">
+          <Button variant="primary" className="w-full" onClick={() => void load()} disabled={loading}>
             <Lucide icon="Search" className="w-4 h-4 mr-1" />
-            Apply Filters
+            {loading ? "Loading..." : "Apply Filters"}
           </Button>
         </div>
       </div>
@@ -460,9 +466,37 @@ function FinancePayrollWorkersPage() {
                   <div className="text-xs text-slate-500">{row.default_grant?.name || labelMaps.grant.get(String(row.default_grant_id || "")) || "No default grant"}</div>
                 </Table.Td>
                 <Table.Td className="text-right">
-                  <Button size="sm" variant="outline-secondary" onClick={() => openEdit(row)}>
-                    <Lucide icon="FilePenLine" className="w-4 h-4" />
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline-secondary" onClick={() => openEdit(row)} disabled={busy}>
+                      {actionLoading === `edit-worker-${row.id}` ? "Opening..." : <Lucide icon="FilePenLine" className="w-4 h-4" />}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      disabled={busy}
+                      onClick={async () => {
+                        if (!window.confirm(`Delete payroll worker "${row.full_name}"? Workers with payroll history will be marked inactive instead.`)) return;
+                        try {
+                          setActionLoading(`delete-worker-${row.id}`);
+                          const result = await deletePayrollWorker(row.id);
+                          setNotice({
+                            tone: "success",
+                            message:
+                              result.action === "deleted"
+                                ? "Payroll worker deleted."
+                                : `Payroll worker marked inactive because they have payroll history${statusFilter === "active" ? ". The row will drop out of the active list after refresh." : "."}`,
+                          });
+                          await load();
+                        } catch (error: any) {
+                          setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete payroll worker." });
+                        } finally {
+                          setActionLoading("");
+                        }
+                      }}
+                    >
+                      {actionLoading === `delete-worker-${row.id}` ? "Deleting..." : <Lucide icon="Trash2" className="w-4 h-4" />}
+                    </Button>
+                  </div>
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -883,10 +917,10 @@ function FinancePayrollWorkersPage() {
           <Dialog.Footer className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-slate-500">Allocation total: {allocationTotal}%</div>
             <div className="flex gap-2">
-              <Button variant="outline-secondary" onClick={() => setShowEditor(false)}>Cancel</Button>
-              <Button variant="outline-secondary" onClick={() => setEditorStep(workerSteps[Math.max(0, workerSteps.findIndex((step) => step.id === editorStep) - 1)].id)} disabled={editorStep === "identity"}>Previous</Button>
+              <Button variant="outline-secondary" onClick={() => setShowEditor(false)} disabled={saving}>Cancel</Button>
+              <Button variant="outline-secondary" onClick={() => setEditorStep(workerSteps[Math.max(0, workerSteps.findIndex((step) => step.id === editorStep) - 1)].id)} disabled={editorStep === "identity" || saving}>Previous</Button>
               {editorStep !== "compliance" ? (
-                <Button variant="primary" onClick={() => setEditorStep(workerSteps[Math.min(workerSteps.length - 1, workerSteps.findIndex((step) => step.id === editorStep) + 1)].id)}>Next</Button>
+                <Button variant="primary" onClick={() => setEditorStep(workerSteps[Math.min(workerSteps.length - 1, workerSteps.findIndex((step) => step.id === editorStep) + 1)].id)} disabled={saving}>Next</Button>
               ) : null}
               <Button variant="primary" onClick={() => void saveWorker()} disabled={saving}>{saving ? "Saving..." : "Save Worker"}</Button>
             </div>

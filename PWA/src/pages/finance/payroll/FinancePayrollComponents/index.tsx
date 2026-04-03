@@ -5,7 +5,7 @@ import Table from "@/components/Base/Table";
 import { Dialog } from "@/components/Base/Headless";
 import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
-import { createPayrollComponent, listPayrollComponents, updatePayrollComponent } from "@/services/payroll";
+import { createPayrollComponent, deletePayrollComponent, listPayrollComponents, updatePayrollComponent } from "@/services/payroll";
 import { listFinanceChartAccounts } from "@/services/financeAccounting";
 
 const emptyForm = {
@@ -28,6 +28,7 @@ function FinancePayrollComponentsPage() {
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState("");
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState("");
   const [form, setForm] = useState(emptyForm);
@@ -85,6 +86,8 @@ function FinancePayrollComponentsPage() {
     }
   };
 
+  const busy = loading || saving || Boolean(actionLoading);
+
   return (
     <>
       <div className="flex items-center mt-8 intro-y">
@@ -101,6 +104,7 @@ function FinancePayrollComponentsPage() {
               setForm(emptyForm);
               setShowEditor(true);
             }}
+            disabled={busy}
           >
             <Lucide icon="Plus" className="w-4 h-4 mr-1" />
             New Component
@@ -134,10 +138,11 @@ function FinancePayrollComponentsPage() {
                 <Table.Td className="capitalize">{row.component_type.replaceAll("_", " ")}</Table.Td>
                 <Table.Td>{row.chart_account ? `${row.chart_account.code} - ${row.chart_account.name}` : "-"}</Table.Td>
                 <Table.Td className="text-right">
-                  <Button
-                    size="sm"
-                    variant="outline-secondary"
-                    onClick={() => {
+                    <Button
+                      size="sm"
+                      variant="outline-secondary"
+                      disabled={busy}
+                      onClick={() => {
                       setEditingId(row.id);
                       setForm({
                         chart_account_id: row.chart_account_id || "",
@@ -157,6 +162,30 @@ function FinancePayrollComponentsPage() {
                   >
                     <Lucide icon="FilePenLine" className="w-4 h-4" />
                   </Button>
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      className="ml-2"
+                      disabled={busy}
+                      onClick={async () => {
+                        if (!window.confirm(`Delete payroll component "${row.name}"? Used components will be deactivated instead.`)) return;
+                        try {
+                          setActionLoading(`delete-component-${row.id}`);
+                          const result = await deletePayrollComponent(row.id);
+                          setNotice({
+                            tone: "success",
+                            message: result.action === "deleted" ? "Payroll component deleted." : "Payroll component deactivated because it has payroll history.",
+                          });
+                          await load();
+                        } catch (error: any) {
+                          setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete payroll component." });
+                        } finally {
+                          setActionLoading("");
+                        }
+                      }}
+                    >
+                      {actionLoading === `delete-component-${row.id}` ? "Deleting..." : <Lucide icon="Trash2" className="w-4 h-4" />}
+                    </Button>
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -252,7 +281,7 @@ function FinancePayrollComponentsPage() {
             </div>
           </Dialog.Description>
           <Dialog.Footer>
-            <Button variant="outline-secondary" onClick={() => setShowEditor(false)}>
+            <Button variant="outline-secondary" onClick={() => setShowEditor(false)} disabled={saving}>
               Cancel
             </Button>
             <Button variant="primary" onClick={() => void save()} disabled={saving}>

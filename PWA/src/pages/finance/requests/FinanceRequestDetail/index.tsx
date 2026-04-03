@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
@@ -7,7 +7,13 @@ import { Dialog } from "@/components/Base/Headless";
 import Table from "@/components/Base/Table";
 import clsx from "clsx";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
-import { disburseFinanceRequest, listFinanceAccounts, listFinanceRequestPaymentVouchers, type FinanceAccountRecord } from "@/services/finance";
+import {
+  disburseFinanceRequest,
+  listFinanceAccounts,
+  listFinanceRequestPaymentVouchers,
+  updateFinanceRequestPaymentVoucher,
+  type FinanceAccountRecord,
+} from "@/services/finance";
 import {
   approveRequest,
   completeRequest,
@@ -34,6 +40,8 @@ import {
 } from "@/utils/formatting";
 import { buildRequestWorkflowSteps } from "@/utils/requestWorkflow";
 import MediaPickerModal from "@/components/Media/MediaPickerModal";
+import { useAppSelector } from "@/stores/hooks";
+import { selectAuthState } from "@/stores/authSlice";
 
 function downloadBase64File(fileName: string, mimeType: string, contentBase64: string) {
   const bytes = atob(contentBase64);
@@ -56,14 +64,43 @@ type PreviewFile = {
   public_url: string | null;
 };
 
+type PaymentVoucherRecord = {
+  id: string;
+  voucher_number: string;
+  amount: number;
+  retired_amount: number;
+  voucher_balance: number;
+  request_balance: number;
+  retirement_status: string;
+  method: string | null;
+  transaction_ref: string | null;
+  note: string | null;
+  paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
+  disbursed_at: string;
+  retired_at: string | null;
+  verified_at: string | null;
+  evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+  evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+  retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+};
+
 function canPreviewInline(file: PreviewFile | null) {
   const mime = String(file?.mime_type || "").toLowerCase();
   return mime.startsWith("image/") || mime === "application/pdf" || mime.startsWith("text/");
 }
 
+function toDateInputValue(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toISOString().slice(0, 10);
+}
+
 function FinanceRequestDetailPage() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const auth = useAppSelector(selectAuthState);
 
   const [request, setRequest] = useState<RequestRecord | null>(null);
   const [actions, setActions] = useState<string[]>([]);
@@ -73,53 +110,16 @@ function FinanceRequestDetailPage() {
   const [financeAccounts, setFinanceAccounts] = useState<FinanceAccountRecord[]>([]);
   const [categoryTermMap, setCategoryTermMap] = useState<Record<string, string>>({});
   const [requestTags, setRequestTags] = useState<TagTerm[]>([]);
-  const [paymentVouchers, setPaymentVouchers] = useState<
-    Array<{
-      id: string;
-      voucher_number: string;
-      amount: number;
-      retired_amount: number;
-      voucher_balance: number;
-      request_balance: number;
-      retirement_status: string;
-      method: string | null;
-      transaction_ref: string | null;
-      note: string | null;
-      paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
-      disbursed_at: string;
-      retired_at: string | null;
-      verified_at: string | null;
-      evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
-      evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
-      retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
-    }>
-  >([]);
+  const [paymentVouchers, setPaymentVouchers] = useState<PaymentVoucherRecord[]>([]);
 
   const [loading, setLoading] = useState(false);
   const [busyAction, setBusyAction] = useState("");
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
-  const [selectedVoucher, setSelectedVoucher] = useState<{
-    id: string;
-    voucher_number: string;
-    amount: number;
-    retired_amount: number;
-    voucher_balance: number;
-    request_balance: number;
-    retirement_status: string;
-    method: string | null;
-    transaction_ref: string | null;
-    note: string | null;
-    paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
-    disbursed_at: string;
-    retired_at: string | null;
-    verified_at: string | null;
-    evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
-    evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
-    retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
-  } | null>(null);
+  const [selectedVoucher, setSelectedVoucher] = useState<PaymentVoucherRecord | null>(null);
 
   const [showDisburseModal, setShowDisburseModal] = useState(false);
   const [showEvidencePicker, setShowEvidencePicker] = useState(false);
+  const [showVoucherEvidencePicker, setShowVoucherEvidencePicker] = useState(false);
   const [previewFile, setPreviewFile] = useState<PreviewFile | null>(null);
   const [disburseForm, setDisburseForm] = useState({
     method: "bank_transfer",
@@ -131,6 +131,17 @@ function FinanceRequestDetailPage() {
     evidence_file_ids: [] as string[],
     evidence_file_names: [] as string[],
     paid_from_account_id: "",
+  });
+  const [voucherEditForm, setVoucherEditForm] = useState({
+    amount: "",
+    paid_from_account_id: "",
+    disbursed_at: "",
+    method: "",
+    transaction_ref: "",
+    note: "",
+    evidence_file_id: "",
+    evidence_file_ids: [] as string[],
+    evidence_file_names: [] as string[],
   });
 
   const data = useMemo(() => ((request?.data || {}) as Record<string, unknown>), [request]);
@@ -170,6 +181,14 @@ function FinanceRequestDetailPage() {
     () => paymentVouchers.reduce((sum, pv) => sum + Number(pv.amount || 0), 0),
     [paymentVouchers]
   );
+  const permissionSet = useMemo(
+    () => new Set((auth.permissions ?? []).map((permission) => String(permission).toLowerCase())),
+    [auth.permissions]
+  );
+  const canManageFinance = permissionSet.has("*") || permissionSet.has("finance.manage");
+  const canCorrectCompletedFinance = permissionSet.has("*") || permissionSet.has("finance.correct_completed");
+  const completedRequestVoucherEditLocked = request?.status === "completed" && !canCorrectCompletedFinance;
+  const canEditVoucher = canManageFinance && !completedRequestVoucherEditLocked;
 
   const retirementStatusLabel = (value: string) => {
     const key = String(value || "").toLowerCase();
@@ -224,6 +243,25 @@ function FinanceRequestDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  useEffect(() => {
+    const voucherId = searchParams.get("voucher_id");
+    if (!voucherId || paymentVouchers.length === 0) return;
+    const matched = paymentVouchers.find((voucher) => voucher.id === voucherId);
+    if (!matched) return;
+    setSelectedVoucher(matched);
+    setVoucherEditForm({
+      amount: String(matched.amount ?? ""),
+      paid_from_account_id: matched.paid_from_account?.id || "",
+      disbursed_at: toDateInputValue(matched.disbursed_at),
+      method: matched.method || "",
+      transaction_ref: matched.transaction_ref || "",
+      note: matched.note || "",
+      evidence_file_id: matched.evidence_files[0]?.id || matched.evidence_file?.id || "",
+      evidence_file_ids: matched.evidence_files.map((file) => file.id),
+      evidence_file_names: matched.evidence_files.map((file) => file.file_name),
+    });
+  }, [paymentVouchers, searchParams]);
+
   const openDisburse = () => {
     setDisburseForm({
       method: "bank_transfer",
@@ -239,9 +277,39 @@ function FinanceRequestDetailPage() {
     setShowDisburseModal(true);
   };
 
+  const openVoucher = (voucher: PaymentVoucherRecord) => {
+    setSelectedVoucher(voucher);
+    setVoucherEditForm({
+      amount: String(voucher.amount ?? ""),
+      paid_from_account_id: voucher.paid_from_account?.id || "",
+      disbursed_at: toDateInputValue(voucher.disbursed_at),
+      method: voucher.method || "",
+      transaction_ref: voucher.transaction_ref || "",
+      note: voucher.note || "",
+      evidence_file_id: voucher.evidence_files[0]?.id || voucher.evidence_file?.id || "",
+      evidence_file_ids: voucher.evidence_files.map((file) => file.id),
+      evidence_file_names: voucher.evidence_files.map((file) => file.file_name),
+    });
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set("voucher_id", voucher.id);
+      return next;
+    });
+  };
+
   const applyEvidenceFile = (files: FileAssetRecord[]) => {
     if (!files.length) return;
     setDisburseForm((prev) => ({
+      ...prev,
+      evidence_file_id: files[0]?.id || "",
+      evidence_file_ids: files.map((file) => file.id),
+      evidence_file_names: files.map((file) => file.file_name),
+    }));
+  };
+
+  const applyVoucherEvidenceFile = (files: FileAssetRecord[]) => {
+    if (!files.length) return;
+    setVoucherEditForm((prev) => ({
       ...prev,
       evidence_file_id: files[0]?.id || "",
       evidence_file_ids: files.map((file) => file.id),
@@ -384,6 +452,56 @@ function FinanceRequestDetailPage() {
     await runPv(voucherId);
     if (voucherNumber) {
       setNotice({ tone: "success", message: `Voucher ${voucherNumber} downloaded.` });
+    }
+  };
+
+  const saveVoucherEdit = async () => {
+    if (!selectedVoucher) return;
+    if (!canEditVoucher) {
+      setNotice({
+        tone: "error",
+        message:
+          request?.status === "completed"
+            ? "Completed requests need finance.correct_completed permission before their payment vouchers can be edited."
+            : "You do not have permission to edit this payment voucher.",
+      });
+      return;
+    }
+    const parsedAmount = Number(voucherEditForm.amount);
+    if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+      setNotice({ tone: "error", message: "Enter a valid voucher amount greater than zero." });
+      return;
+    }
+    try {
+      setBusyAction("save_voucher");
+      const updated = await updateFinanceRequestPaymentVoucher(id, selectedVoucher.id, {
+        amount: parsedAmount,
+        paid_from_account_id: voucherEditForm.paid_from_account_id || undefined,
+        disbursed_at: voucherEditForm.disbursed_at ? new Date(`${voucherEditForm.disbursed_at}T12:00:00`).toISOString() : undefined,
+        method: voucherEditForm.method.trim() || undefined,
+        transaction_ref: voucherEditForm.transaction_ref.trim() || undefined,
+        note: voucherEditForm.note.trim() || undefined,
+        evidence_file_id: voucherEditForm.evidence_file_ids[0] || voucherEditForm.evidence_file_id || undefined,
+        evidence_file_ids: voucherEditForm.evidence_file_ids,
+      });
+      setSelectedVoucher(updated);
+      setVoucherEditForm({
+        amount: String(updated.amount ?? ""),
+        paid_from_account_id: updated.paid_from_account?.id || "",
+        disbursed_at: toDateInputValue(updated.disbursed_at),
+        method: updated.method || "",
+        transaction_ref: updated.transaction_ref || "",
+        note: updated.note || "",
+        evidence_file_id: updated.evidence_files[0]?.id || updated.evidence_file?.id || "",
+        evidence_file_ids: updated.evidence_files.map((file) => file.id),
+        evidence_file_names: updated.evidence_files.map((file) => file.file_name),
+      });
+      setNotice({ tone: "success", message: `Voucher ${updated.voucher_number} updated.` });
+      await load();
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to update payment voucher." });
+    } finally {
+      setBusyAction("");
     }
   };
 
@@ -593,7 +711,7 @@ function FinanceRequestDetailPage() {
                       <Table.Tr
                         key={pv.id}
                         className="cursor-pointer"
-                        onClick={() => setSelectedVoucher(pv)}
+                        onClick={() => openVoucher(pv)}
                       >
                         <Table.Td className="font-medium text-primary">{pv.voucher_number}</Table.Td>
                         <Table.Td>{formatMoney(pv.amount, "-", request.currency || "NGN")}</Table.Td>
@@ -668,7 +786,7 @@ function FinanceRequestDetailPage() {
         )}
       </div>
 
-      <Dialog open={showDisburseModal} onClose={() => setShowDisburseModal(false)}>
+      <Dialog open={showDisburseModal} onClose={() => setShowDisburseModal(false)} staticBackdrop>
         <Dialog.Panel>
           <div className="p-5 space-y-4">
             <div className="text-lg font-medium">Disburse Request</div>
@@ -764,7 +882,18 @@ function FinanceRequestDetailPage() {
         onSelect={applyEvidenceFile}
       />
 
-      <Dialog open={Boolean(selectedVoucher)} onClose={() => setSelectedVoucher(null)}>
+      <Dialog
+        open={Boolean(selectedVoucher)}
+        onClose={() => {
+          setSelectedVoucher(null);
+          setSearchParams((prev) => {
+            const next = new URLSearchParams(prev);
+            next.delete("voucher_id");
+            return next;
+          });
+        }}
+        staticBackdrop
+      >
         <Dialog.Panel>
           <div className="p-5 space-y-2">
             <div className="text-lg font-medium">Payment Voucher Details</div>
@@ -772,10 +901,87 @@ function FinanceRequestDetailPage() {
               <>
                 <div className="text-sm"><span className="text-slate-500">PV Number:</span> {selectedVoucher.voucher_number}</div>
                 <div className="text-sm"><span className="text-slate-500">Amount:</span> {formatMoney(selectedVoucher.amount, "-", request?.currency || "NGN")}</div>
-                <div className="text-sm"><span className="text-slate-500">Method:</span> {formatPaymentMethod(selectedVoucher.method)}</div>
                 <div className="text-sm"><span className="text-slate-500">Paid From:</span> {selectedVoucher.paid_from_account?.name || "-"}</div>
-                <div className="text-sm"><span className="text-slate-500">Transaction Ref:</span> {selectedVoucher.transaction_ref || "-"}</div>
                 <div className="text-sm"><span className="text-slate-500">Disbursed At:</span> {formatDisplayDate(selectedVoucher.disbursed_at)}</div>
+                {completedRequestVoucherEditLocked ? (
+                  <AppNotice
+                    className="mt-2"
+                    tone="warning"
+                    message="This request is completed. Editing its payment voucher now requires the stronger finance.correct_completed permission."
+                  />
+                ) : null}
+                <div className="grid grid-cols-12 gap-3 pt-2">
+                  <div className="col-span-12 md:col-span-6">
+                    <FormLabel>Amount</FormLabel>
+                    <FormInput
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={voucherEditForm.amount}
+                      onChange={(e) => setVoucherEditForm((prev) => ({ ...prev, amount: e.target.value }))}
+                      disabled={!canEditVoucher}
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-6">
+                    <FormLabel>Paid From Account</FormLabel>
+                    <FormSelect
+                      value={voucherEditForm.paid_from_account_id}
+                      onChange={(e) => setVoucherEditForm((prev) => ({ ...prev, paid_from_account_id: e.target.value }))}
+                      disabled={!canEditVoucher}
+                    >
+                      <option value="">Select account</option>
+                      {financeAccounts.map((account) => (
+                        <option key={account.id} value={account.id}>
+                          {account.name} {account.code ? `(${account.code})` : ""}
+                        </option>
+                      ))}
+                    </FormSelect>
+                  </div>
+                  <div className="col-span-12 md:col-span-6">
+                    <FormLabel>Disbursed Date</FormLabel>
+                    <FormInput
+                      type="date"
+                      value={voucherEditForm.disbursed_at}
+                      onChange={(e) => setVoucherEditForm((prev) => ({ ...prev, disbursed_at: e.target.value }))}
+                      disabled={!canEditVoucher}
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-6">
+                    <FormLabel>Method</FormLabel>
+                    <FormInput
+                      value={voucherEditForm.method}
+                      onChange={(e) => setVoucherEditForm((prev) => ({ ...prev, method: e.target.value }))}
+                      placeholder={formatPaymentMethod(selectedVoucher.method)}
+                      disabled={!canEditVoucher}
+                    />
+                  </div>
+                  <div className="col-span-12 md:col-span-6">
+                    <FormLabel>Transaction Ref</FormLabel>
+                    <FormInput
+                      value={voucherEditForm.transaction_ref}
+                      onChange={(e) => setVoucherEditForm((prev) => ({ ...prev, transaction_ref: e.target.value }))}
+                      disabled={!canEditVoucher}
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <FormLabel>Note</FormLabel>
+                    <FormTextarea
+                      rows={3}
+                      value={voucherEditForm.note}
+                      onChange={(e) => setVoucherEditForm((prev) => ({ ...prev, note: e.target.value }))}
+                      disabled={!canEditVoucher}
+                    />
+                  </div>
+                  <div className="col-span-12">
+                    <FormLabel>Evidence Files</FormLabel>
+                    <Button variant="outline-secondary" onClick={() => setShowVoucherEvidencePicker(true)} disabled={!canEditVoucher}>
+                      {voucherEditForm.evidence_file_names.length ? "Change Attached Files" : "Attach Files"}
+                    </Button>
+                    <div className="mt-1 text-xs text-slate-500">
+                      {voucherEditForm.evidence_file_names.length ? voucherEditForm.evidence_file_names.join(", ") : "No evidence file attached yet."}
+                    </div>
+                  </div>
+                </div>
                 <div className="pt-2 mt-2 border-t">
                   <div className="text-sm font-medium mb-1">Retirement</div>
                   <div className="text-sm"><span className="text-slate-500">Status:</span> {retirementStatusLabel(selectedVoucher.retirement_status)}</div>
@@ -832,6 +1038,9 @@ function FinanceRequestDetailPage() {
             ) : null}
           </div>
           <div className="px-5 pb-5 flex justify-end gap-2">
+            <Button variant="primary" onClick={() => void saveVoucherEdit()} disabled={busyAction === "save_voucher" || !canEditVoucher}>
+              {busyAction === "save_voucher" ? "Saving..." : "Save Changes"}
+            </Button>
             <Button
               variant="outline-secondary"
               onClick={() => {
@@ -847,6 +1056,14 @@ function FinanceRequestDetailPage() {
           </div>
         </Dialog.Panel>
       </Dialog>
+      <MediaPickerModal
+        open={showVoucherEvidencePicker}
+        onClose={() => setShowVoucherEvidencePicker(false)}
+        title="Select Voucher Evidence"
+        multiple
+        selectedIds={voucherEditForm.evidence_file_ids.length ? voucherEditForm.evidence_file_ids : (voucherEditForm.evidence_file_id ? [voucherEditForm.evidence_file_id] : [])}
+        onSelect={applyVoucherEvidenceFile}
+      />
 
       <Dialog open={Boolean(previewFile)} onClose={() => setPreviewFile(null)}>
         <Dialog.Panel className="h-screen w-screen max-w-none rounded-none bg-black/95 shadow-none">

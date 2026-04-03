@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
@@ -116,6 +116,12 @@ export class PayrollController {
     return this.payrollService.updateWorker(id, dto, req.user?.id);
   }
 
+  @Delete('workers/:id')
+  @Permissions('finance.manage')
+  deleteWorker(@Param('id') id: string) {
+    return this.payrollService.deleteWorker(id);
+  }
+
   @Get('loans')
   @Permissions('finance.view')
   listLoans(@Query() query: Record<string, any>) {
@@ -206,6 +212,12 @@ export class PayrollController {
     return this.payrollService.updateComponent(id, dto);
   }
 
+  @Delete('components/:id')
+  @Permissions('finance.manage')
+  deleteComponent(@Param('id') id: string) {
+    return this.payrollService.deleteComponent(id);
+  }
+
   @Get('runs')
   @Permissions('finance.view')
   listRuns(@Query() query: Record<string, any>) {
@@ -216,6 +228,12 @@ export class PayrollController {
   @Permissions('finance.view')
   getRun(@Param('id') id: string) {
     return this.payrollService.getRun(id);
+  }
+
+  @Delete('runs/:id')
+  @Permissions('finance.manage')
+  deleteRun(@Param('id') id: string) {
+    return this.payrollService.deleteRun(id);
   }
 
   @Post('runs')
