@@ -334,7 +334,7 @@ function AdminGroupsPage() {
       </div>
 
       <div className="col-span-12">
-        {notice ? <AppNotice tone={notice.tone} message={notice.message} onClose={() => setNotice(null)} /> : null}
+        {notice ? <AppNotice tone={notice.tone} message={notice.message} /> : null}
       </div>
 
       <div className="col-span-12 xl:col-span-5 space-y-4">
@@ -376,6 +376,9 @@ function AdminGroupsPage() {
         <div className="box p-5">
           <div className="overflow-x-auto">
             <Table className="table-report w-full" striped hover>
+              <caption className="sr-only">
+                Groups list with type, organization coverage, and member count.
+              </caption>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Name</Table.Th>
@@ -389,11 +392,18 @@ function AdminGroupsPage() {
                   <Table.Tr
                     key={group.id}
                     className={selectedGroupId === group.id ? "bg-primary/5" : undefined}
-                    onClick={() => setSelectedGroupId(group.id)}
                   >
                     <Table.Td>
-                      <div className="font-medium">{group.name}</div>
-                      <div className="text-xs text-slate-500">{group.isActive ? "Active" : "Inactive"}</div>
+                      <button
+                        type="button"
+                        className="w-full text-left rounded outline-none focus-visible:ring-2 focus-visible:ring-primary/60 focus-visible:ring-offset-2"
+                        onClick={() => setSelectedGroupId(group.id)}
+                        aria-pressed={selectedGroupId === group.id}
+                        aria-label={`Select ${group.name}`}
+                      >
+                        <div className="font-medium">{group.name}</div>
+                        <div className="text-xs text-slate-500">{group.isActive ? "Active" : "Inactive"}</div>
+                      </button>
                     </Table.Td>
                     <Table.Td className="capitalize">{group.groupType || "team"}</Table.Td>
                     <Table.Td>{group.organizationMappings?.length ?? group.organizationIds?.length ?? (group.organizationId ? 1 : 0)}</Table.Td>
@@ -558,6 +568,9 @@ function AdminGroupsPage() {
               </div>
               <div className="mt-4 overflow-x-auto">
                 <Table className="table-report w-full">
+                  <caption className="sr-only">
+                    Organizations linked to the selected group, including whether each one is primary.
+                  </caption>
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>Organization</Table.Th>
@@ -642,6 +655,9 @@ function AdminGroupsPage() {
 
               <div className="mt-5 overflow-x-auto">
                 <Table className="table-report w-full">
+                  <caption className="sr-only">
+                    Members assigned to the selected group, including role and organization coverage.
+                  </caption>
                   <Table.Thead>
                     <Table.Tr>
                       <Table.Th>Member</Table.Th>

@@ -19,7 +19,13 @@ function AppNotice({ tone, message, className }: AppNoticeProps) {
       : "soft-primary";
 
   return (
-    <Alert variant={variant} className={className}>
+    <Alert
+      variant={variant}
+      className={className}
+      aria-live={tone === "error" ? "assertive" : "polite"}
+      aria-atomic="true"
+      tabIndex={-1}
+    >
       {message}
     </Alert>
   );
