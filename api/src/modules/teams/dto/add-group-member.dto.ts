@@ -1,4 +1,4 @@
-import { IsIn, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsIn, IsOptional, IsString } from 'class-validator';
 
 export class AddGroupMemberDto {
   @IsString()
@@ -8,5 +8,9 @@ export class AddGroupMemberDto {
   @IsString()
   @IsIn(['member', 'lead', 'manager'])
   role?: 'member' | 'lead' | 'manager';
-}
 
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  organization_ids?: string[];
+}

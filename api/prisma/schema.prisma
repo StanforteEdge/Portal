@@ -347,6 +347,8 @@ model Organization {
   profiles             ProfileOrganization[]
   userRoles            UserRole[]
   groups               Group[]
+  groupMappings        GroupOrganization[] @relation("GroupOrganizationOrganization")
+  groupMemberScopes    GroupUserOrganizationScope[]
   requests             RequestInstance[]
   requestGroups        RequestGroup[]
   fileAssets           FileAsset[]
@@ -539,6 +541,7 @@ model Group {
   children Group[] @relation("GroupParent")
 
   organization Organization? @relation(fields: [organizationId], references: [id])
+  organizationMappings GroupOrganization[] @relation("GroupOrganizationGroup")
 
   members              GroupUser[]
   employeeProfiles     EmployeeProfile[]
@@ -568,9 +571,40 @@ model GroupUser {
 
   group Group   @relation(fields: [groupId], references: [id])
   user  Profile @relation(fields: [userId], references: [id])
+  organizationScopes GroupUserOrganizationScope[]
 
   @@unique([groupId, userId], name: "unique_group_user")
   @@map("sta_group_users")
+}
+
+model GroupOrganization {
+  id             BigInt   @id @default(autoincrement())
+  groupId        BigInt   @map("group_id")
+  organizationId BigInt   @map("organization_id")
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  group        Group        @relation("GroupOrganizationGroup", fields: [groupId], references: [id], onDelete: Cascade)
+  organization Organization @relation("GroupOrganizationOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, organizationId], name: "unique_group_organization")
+  @@index([organizationId])
+  @@map("sta_group_organizations")
+}
+
+model GroupUserOrganizationScope {
+  id             BigInt   @id @default(autoincrement())
+  groupUserId    BigInt   @map("group_user_id")
+  organizationId BigInt   @map("organization_id")
+  scopeRole      String?  @map("scope_role") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  groupUser     GroupUser     @relation(fields: [groupUserId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([groupUserId, organizationId], name: "unique_group_user_organization_scope")
+  @@index([organizationId])
+  @@map("sta_group_user_organization_scopes")
 }
 
 model RequestGroup {
