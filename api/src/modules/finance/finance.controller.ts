@@ -536,6 +536,31 @@ export class FinanceController {
     return this.financeService.updatePaymentVoucher(requestId, voucherId, dto, req.user?.id, req.user?.permissions ?? []);
   }
 
+  @Post('requests/:requestId/payment-vouchers/:voucherId/corrections/:correctionId/approve')
+  @Permissions('finance.correct_completed')
+  @ApiOperation({ summary: 'Approve a pending payment voucher correction' })
+  approvePaymentVoucherCorrection(
+    @Req() req: any,
+    @Param('requestId') requestId: string,
+    @Param('voucherId') voucherId: string,
+    @Param('correctionId') correctionId: string
+  ) {
+    return this.financeService.approvePaymentVoucherCorrection(requestId, voucherId, correctionId, req.user?.id);
+  }
+
+  @Post('requests/:requestId/payment-vouchers/:voucherId/corrections/:correctionId/reject')
+  @Permissions('finance.correct_completed')
+  @ApiOperation({ summary: 'Reject a pending payment voucher correction' })
+  rejectPaymentVoucherCorrection(
+    @Req() req: any,
+    @Param('requestId') requestId: string,
+    @Param('voucherId') voucherId: string,
+    @Param('correctionId') correctionId: string,
+    @Body('comment') comment?: string
+  ) {
+    return this.financeService.rejectPaymentVoucherCorrection(requestId, voucherId, correctionId, req.user?.id, comment);
+  }
+
   @Get('payment-vouchers')
   @Permissions('requests.view')
   @ApiOperation({ summary: 'List payment vouchers/disbursements across requests' })

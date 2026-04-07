@@ -8,9 +8,11 @@ import Table from "@/components/Base/Table";
 import clsx from "clsx";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
+  approveFinanceRequestPaymentVoucherCorrection,
   disburseFinanceRequest,
   listFinanceAccounts,
   listFinanceRequestPaymentVouchers,
+  rejectFinanceRequestPaymentVoucherCorrection,
   updateFinanceRequestPaymentVoucher,
   type FinanceAccountRecord,
 } from "@/services/finance";
@@ -82,6 +84,22 @@ type PaymentVoucherRecord = {
   evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
   evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
   retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+  pending_correction: {
+    id: string;
+    status: string;
+    reason: string | null;
+    created_at: string;
+    proposed_by: { id: string; name: string; email: string | null };
+    proposed_snapshot: {
+      amount: number;
+      paid_from_account_id: string | null;
+      disbursed_at: string | null;
+      method: string | null;
+      transaction_ref: string | null;
+      note: string | null;
+      evidence_file_ids: string[];
+    };
+  } | null;
 };
 
 function canPreviewInline(file: PreviewFile | null) {
@@ -139,6 +157,7 @@ function FinanceRequestDetailPage() {
     method: "",
     transaction_ref: "",
     note: "",
+    correction_reason: "",
     evidence_file_id: "",
     evidence_file_ids: [] as string[],
     evidence_file_names: [] as string[],
@@ -188,7 +207,7 @@ function FinanceRequestDetailPage() {
   const canManageFinance = permissionSet.has("*") || permissionSet.has("finance.manage");
   const canCorrectCompletedFinance = permissionSet.has("*") || permissionSet.has("finance.correct_completed");
   const completedRequestVoucherEditLocked = request?.status === "completed" && !canCorrectCompletedFinance;
-  const canEditVoucher = canManageFinance && !completedRequestVoucherEditLocked;
+  const canEditVoucher = canManageFinance;
 
   const retirementStatusLabel = (value: string) => {
     const key = String(value || "").toLowerCase();
@@ -256,6 +275,7 @@ function FinanceRequestDetailPage() {
       method: matched.method || "",
       transaction_ref: matched.transaction_ref || "",
       note: matched.note || "",
+      correction_reason: matched.pending_correction?.reason || "",
       evidence_file_id: matched.evidence_files[0]?.id || matched.evidence_file?.id || "",
       evidence_file_ids: matched.evidence_files.map((file) => file.id),
       evidence_file_names: matched.evidence_files.map((file) => file.file_name),
@@ -286,6 +306,7 @@ function FinanceRequestDetailPage() {
       method: voucher.method || "",
       transaction_ref: voucher.transaction_ref || "",
       note: voucher.note || "",
+      correction_reason: voucher.pending_correction?.reason || "",
       evidence_file_id: voucher.evidence_files[0]?.id || voucher.evidence_file?.id || "",
       evidence_file_ids: voucher.evidence_files.map((file) => file.id),
       evidence_file_names: voucher.evidence_files.map((file) => file.file_name),
@@ -460,10 +481,7 @@ function FinanceRequestDetailPage() {
     if (!canEditVoucher) {
       setNotice({
         tone: "error",
-        message:
-          request?.status === "completed"
-            ? "Completed requests need finance.correct_completed permission before their payment vouchers can be edited."
-            : "You do not have permission to edit this payment voucher.",
+        message: "You do not have permission to edit this payment voucher.",
       });
       return;
     }
@@ -474,16 +492,18 @@ function FinanceRequestDetailPage() {
     }
     try {
       setBusyAction("save_voucher");
-      const updated = await updateFinanceRequestPaymentVoucher(id, selectedVoucher.id, {
+      const result = await updateFinanceRequestPaymentVoucher(id, selectedVoucher.id, {
         amount: parsedAmount,
         paid_from_account_id: voucherEditForm.paid_from_account_id || undefined,
         disbursed_at: voucherEditForm.disbursed_at ? new Date(`${voucherEditForm.disbursed_at}T12:00:00`).toISOString() : undefined,
         method: voucherEditForm.method.trim() || undefined,
         transaction_ref: voucherEditForm.transaction_ref.trim() || undefined,
         note: voucherEditForm.note.trim() || undefined,
+        correction_reason: voucherEditForm.correction_reason.trim() || undefined,
         evidence_file_id: voucherEditForm.evidence_file_ids[0] || voucherEditForm.evidence_file_id || undefined,
         evidence_file_ids: voucherEditForm.evidence_file_ids,
       });
+      const updated = result.voucher;
       setSelectedVoucher(updated);
       setVoucherEditForm({
         amount: String(updated.amount ?? ""),
@@ -492,14 +512,56 @@ function FinanceRequestDetailPage() {
         method: updated.method || "",
         transaction_ref: updated.transaction_ref || "",
         note: updated.note || "",
+        correction_reason: updated.pending_correction?.reason || "",
         evidence_file_id: updated.evidence_files[0]?.id || updated.evidence_file?.id || "",
         evidence_file_ids: updated.evidence_files.map((file) => file.id),
         evidence_file_names: updated.evidence_files.map((file) => file.file_name),
       });
-      setNotice({ tone: "success", message: `Voucher ${updated.voucher_number} updated.` });
+      setNotice({
+        tone: "success",
+        message:
+          result.mode === "pending_approval"
+            ? `Correction for voucher ${updated.voucher_number} submitted for approval.`
+            : `Voucher ${updated.voucher_number} updated.`,
+      });
       await load();
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to update payment voucher." });
+    } finally {
+      setBusyAction("");
+    }
+  };
+
+  const approvePendingCorrection = async () => {
+    const pending = selectedVoucher?.pending_correction;
+    if (!selectedVoucher || !pending) return;
+    try {
+      setBusyAction("approve_voucher_correction");
+      await approveFinanceRequestPaymentVoucherCorrection(id, selectedVoucher.id, pending.id);
+      setNotice({ tone: "success", message: `Correction for voucher ${selectedVoucher.voucher_number} approved.` });
+      await load();
+      const refreshed = await listFinanceRequestPaymentVouchers(id).then((rows) => rows.find((row) => row.id === selectedVoucher.id) || null);
+      setSelectedVoucher(refreshed);
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to approve correction." });
+    } finally {
+      setBusyAction("");
+    }
+  };
+
+  const rejectPendingCorrection = async () => {
+    const pending = selectedVoucher?.pending_correction;
+    if (!selectedVoucher || !pending) return;
+    const comment = window.prompt("Reason for rejecting this correction (optional):", "") || undefined;
+    try {
+      setBusyAction("reject_voucher_correction");
+      await rejectFinanceRequestPaymentVoucherCorrection(id, selectedVoucher.id, pending.id, { comment });
+      setNotice({ tone: "success", message: `Correction for voucher ${selectedVoucher.voucher_number} rejected.` });
+      await load();
+      const refreshed = await listFinanceRequestPaymentVouchers(id).then((rows) => rows.find((row) => row.id === selectedVoucher.id) || null);
+      setSelectedVoucher(refreshed);
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to reject correction." });
     } finally {
       setBusyAction("");
     }
@@ -907,7 +969,14 @@ function FinanceRequestDetailPage() {
                   <AppNotice
                     className="mt-2"
                     tone="warning"
-                    message="This request is completed. Editing its payment voucher now requires the stronger finance.correct_completed permission."
+                    message="This request is completed. Your changes will be submitted for approval and only take effect after a finance.correct_completed user approves them."
+                  />
+                ) : null}
+                {selectedVoucher.pending_correction ? (
+                  <AppNotice
+                    className="mt-2"
+                    tone="warning"
+                    message={`A correction is already pending approval from ${selectedVoucher.pending_correction.proposed_by.name}.`}
                   />
                 ) : null}
                 <div className="grid grid-cols-12 gap-3 pt-2">
@@ -972,6 +1041,18 @@ function FinanceRequestDetailPage() {
                       disabled={!canEditVoucher}
                     />
                   </div>
+                  {completedRequestVoucherEditLocked ? (
+                    <div className="col-span-12">
+                      <FormLabel>Reason For Correction</FormLabel>
+                      <FormTextarea
+                        rows={2}
+                        value={voucherEditForm.correction_reason}
+                        onChange={(e) => setVoucherEditForm((prev) => ({ ...prev, correction_reason: e.target.value }))}
+                        placeholder="Explain why this completed voucher needs correction."
+                        disabled={!canEditVoucher}
+                      />
+                    </div>
+                  ) : null}
                   <div className="col-span-12">
                     <FormLabel>Evidence Files</FormLabel>
                     <Button variant="outline-secondary" onClick={() => setShowVoucherEvidencePicker(true)} disabled={!canEditVoucher}>
@@ -1034,12 +1115,42 @@ function FinanceRequestDetailPage() {
                     </div>
                   </div>
                 ) : null}
+                {selectedVoucher.pending_correction ? (
+                  <div className="pt-2 mt-2 border-t">
+                    <div className="text-sm font-medium mb-1">Pending Correction</div>
+                    <div className="text-sm"><span className="text-slate-500">Requested By:</span> {selectedVoucher.pending_correction.proposed_by.name}</div>
+                    <div className="text-sm"><span className="text-slate-500">Requested At:</span> {formatDisplayDate(selectedVoucher.pending_correction.created_at)}</div>
+                    <div className="text-sm"><span className="text-slate-500">Proposed Amount:</span> {formatMoney(selectedVoucher.pending_correction.proposed_snapshot.amount, "-", request?.currency || "NGN")}</div>
+                    <div className="text-sm"><span className="text-slate-500">Proposed Date:</span> {formatDisplayDate(selectedVoucher.pending_correction.proposed_snapshot.disbursed_at)}</div>
+                    <div className="text-sm"><span className="text-slate-500">Proposed Method:</span> {formatPaymentMethod(selectedVoucher.pending_correction.proposed_snapshot.method)}</div>
+                    <div className="text-sm"><span className="text-slate-500">Proposed Ref:</span> {selectedVoucher.pending_correction.proposed_snapshot.transaction_ref || "-"}</div>
+                    <div className="text-sm"><span className="text-slate-500">Reason:</span> {selectedVoucher.pending_correction.reason || "-"}</div>
+                  </div>
+                ) : null}
               </>
             ) : null}
           </div>
           <div className="px-5 pb-5 flex justify-end gap-2">
+            {selectedVoucher?.pending_correction && canCorrectCompletedFinance ? (
+              <>
+                <Button
+                  variant="outline-secondary"
+                  onClick={() => void rejectPendingCorrection()}
+                  disabled={busyAction === "reject_voucher_correction"}
+                >
+                  {busyAction === "reject_voucher_correction" ? "Rejecting..." : "Reject Correction"}
+                </Button>
+                <Button
+                  variant="primary"
+                  onClick={() => void approvePendingCorrection()}
+                  disabled={busyAction === "approve_voucher_correction"}
+                >
+                  {busyAction === "approve_voucher_correction" ? "Approving..." : "Approve Correction"}
+                </Button>
+              </>
+            ) : null}
             <Button variant="primary" onClick={() => void saveVoucherEdit()} disabled={busyAction === "save_voucher" || !canEditVoucher}>
-              {busyAction === "save_voucher" ? "Saving..." : "Save Changes"}
+              {busyAction === "save_voucher" ? "Saving..." : completedRequestVoucherEditLocked ? "Submit Correction" : "Save Changes"}
             </Button>
             <Button
               variant="outline-secondary"

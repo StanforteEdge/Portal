@@ -8,6 +8,11 @@ export class UpdatePaymentVoucherDto {
   @IsString()
   note?: string;
 
+  @ApiPropertyOptional({ example: 'Correcting account and amount after reconciliation.' })
+  @IsOptional()
+  @IsString()
+  correction_reason?: string;
+
   @ApiPropertyOptional({ example: 'bank_transfer' })
   @IsOptional()
   @IsString()

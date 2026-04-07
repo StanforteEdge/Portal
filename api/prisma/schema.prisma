@@ -171,6 +171,8 @@ model Profile {
   createdFinanceVendorPayments   FinanceVendorPayment[]     @relation("FinanceVendorPaymentCreatedBy")
   createdFinanceReportNotes      FinanceReportNote[]        @relation("FinanceReportNoteCreatedBy")
   updatedFinanceReportNotes      FinanceReportNote[]        @relation("FinanceReportNoteUpdatedBy")
+  proposedVoucherCorrections     FinancePaymentVoucherCorrection[] @relation("FinancePaymentVoucherCorrectionProposedBy")
+  reviewedVoucherCorrections     FinancePaymentVoucherCorrection[] @relation("FinancePaymentVoucherCorrectionReviewedBy")
   payrollWorkers                 PayrollWorker[]            @relation("PayrollWorkerProfile")
   payrollRunsPrepared            PayrollRun[]               @relation("PayrollRunPreparedBy")
   payrollRunsReviewed            PayrollRun[]               @relation("PayrollRunReviewedBy")
@@ -635,6 +637,7 @@ model RequestInstance {
   creator            Profile                 @relation("RequestCreatedBy", fields: [createdBy], references: [id])
   items              RequestItem[]
   paymentVouchers    FinancePaymentVoucher[]
+  paymentVoucherCorrections FinancePaymentVoucherCorrection[]
   leaveBalanceLedger LeaveBalanceLedger[]
 
   @@index([requestTypeId])
@@ -2444,6 +2447,7 @@ model FinancePaymentVoucher {
   fund            FinanceFund?         @relation(fields: [fundId], references: [id], onDelete: SetNull)
   grant           FinanceGrant?        @relation(fields: [grantId], references: [id], onDelete: SetNull)
   attachments     FinancePaymentVoucherFile[]
+  corrections     FinancePaymentVoucherCorrection[]
 
   @@index([requestId])
   @@index([paidFromAccountId])
@@ -2470,6 +2474,33 @@ model FinancePaymentVoucherFile {
   @@index([voucherId, fileKind, sortOrder])
   @@index([fileId])
   @@map("sta_finance_payment_voucher_files")
+}
+
+model FinancePaymentVoucherCorrection {
+  id               String    @id @default(uuid()) @db.Uuid
+  voucherId        String    @map("voucher_id") @db.Uuid
+  requestId        BigInt    @map("request_id")
+  status           String    @default("pending") @db.VarChar(20)
+  reason           String?
+  currentSnapshot  Json      @map("current_snapshot")
+  proposedSnapshot Json      @map("proposed_snapshot")
+  proposedBy       BigInt    @map("proposed_by")
+  reviewedBy       BigInt?   @map("reviewed_by")
+  reviewedAt       DateTime? @map("reviewed_at")
+  reviewComment    String?   @map("review_comment")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  voucher      FinancePaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  request      RequestInstance       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  proposer     Profile               @relation("FinancePaymentVoucherCorrectionProposedBy", fields: [proposedBy], references: [id], onDelete: Cascade)
+  reviewer     Profile?              @relation("FinancePaymentVoucherCorrectionReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([voucherId, status])
+  @@index([requestId, status])
+  @@index([proposedBy])
+  @@index([reviewedBy])
+  @@map("sta_finance_payment_voucher_corrections")
 }
 
 model Taxonomy {

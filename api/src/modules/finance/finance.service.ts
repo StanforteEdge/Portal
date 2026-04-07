@@ -388,6 +388,16 @@ export class FinanceService {
         paidFromAccount: {
           select: { id: true, name: true, code: true, accountType: true }
         },
+        corrections: {
+          where: { status: 'pending' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: {
+            proposer: {
+              select: { id: true, firstName: true, lastName: true, username: true, email: true }
+            }
+          }
+        }
       },
       orderBy: { disbursedAt: 'asc' }
     });
@@ -463,6 +473,7 @@ export class FinanceService {
               account_type: voucher.paidFromAccount.accountType
             }
           : null,
+        pending_correction: this.serializeVoucherCorrection(voucher.corrections?.[0] ?? null),
         retirement_files: (() => {
           const metadata =
             voucher.metadata && typeof voucher.metadata === 'object' && !Array.isArray(voucher.metadata)
@@ -508,10 +519,187 @@ export class FinanceService {
     if (!voucher) throw new NotFoundException('Payment voucher not found');
     const permissionSet = new Set((actorPermissions ?? []).map((permission) => String(permission).toLowerCase()));
     const canCorrectCompleted = permissionSet.has('*') || permissionSet.has('finance.correct_completed');
+    const prepared = await this.preparePaymentVoucherUpdate(voucher, dto);
+
     if (voucher.request.status === 'completed' && !canCorrectCompleted) {
-      throw new ForbiddenException('Editing payment vouchers for completed requests requires finance.correct_completed permission');
+      const correction = await this.submitPaymentVoucherCorrection(voucher, prepared, dto.correction_reason, actorId);
+      const updated = await this.listPaymentVouchers(requestId);
+      const matched = updated.find((row) => row.id === voucherId);
+      if (!matched) throw new NotFoundException('Payment voucher not found after correction request');
+      return {
+        mode: 'pending_approval' as const,
+        voucher: matched,
+        correction: this.serializeVoucherCorrection(correction)
+      };
     }
 
+    await this.applyPaymentVoucherUpdate(voucher, prepared, actorId);
+    const updated = await this.listPaymentVouchers(requestId);
+    const matched = updated.find((row) => row.id === voucherId);
+    if (!matched) throw new NotFoundException('Payment voucher not found after update');
+    return {
+      mode: 'updated' as const,
+      voucher: matched
+    };
+  }
+
+  async approvePaymentVoucherCorrection(requestId: string, voucherId: string, correctionId: string, actorId?: string) {
+    const id = this.parseId(requestId, 'request id');
+    const correction = await this.prisma.financePaymentVoucherCorrection.findFirst({
+      where: { id: correctionId, voucherId, requestId: id, status: 'pending' },
+      include: {
+        voucher: {
+          include: {
+            request: {
+              select: {
+                id: true,
+                status: true,
+                organizationId: true,
+                teamId: true,
+                workflowInstanceId: true,
+              }
+            }
+          }
+        }
+      }
+    });
+    if (!correction) throw new NotFoundException('Pending payment voucher correction not found');
+
+    const proposed = this.correctionSnapshotToDto(correction.proposedSnapshot);
+    const prepared = await this.preparePaymentVoucherUpdate(correction.voucher, proposed);
+    await this.applyPaymentVoucherUpdate(correction.voucher, prepared, actorId);
+
+    await this.prisma.financePaymentVoucherCorrection.update({
+      where: { id: correction.id },
+      data: {
+        status: 'approved',
+        reviewedBy: actorId ? toBigInt(actorId) : null,
+        reviewedAt: new Date(),
+      }
+    });
+
+    await this.notificationsService.create({
+      userId: correction.proposedBy,
+      type: 'finance',
+      title: 'Payment voucher correction approved',
+      message: `Your correction for voucher ${correction.voucher.voucherNumber} has been approved.`,
+      link: `/app/finance/requests/request/${requestId}?voucher_id=${voucherId}`,
+      data: { voucher_id: voucherId, correction_id: correction.id, status: 'approved' } as Prisma.InputJsonValue
+    }).catch(() => undefined);
+
+    const updated = await this.listPaymentVouchers(requestId);
+    return {
+      mode: 'approved' as const,
+      voucher: updated.find((row) => row.id === voucherId) ?? null,
+      correction_id: correction.id
+    };
+  }
+
+  async rejectPaymentVoucherCorrection(requestId: string, voucherId: string, correctionId: string, actorId?: string, comment?: string) {
+    const id = this.parseId(requestId, 'request id');
+    const correction = await this.prisma.financePaymentVoucherCorrection.findFirst({
+      where: { id: correctionId, voucherId, requestId: id, status: 'pending' },
+      include: { voucher: true }
+    });
+    if (!correction) throw new NotFoundException('Pending payment voucher correction not found');
+
+    await this.prisma.financePaymentVoucherCorrection.update({
+      where: { id: correction.id },
+      data: {
+        status: 'rejected',
+        reviewedBy: actorId ? toBigInt(actorId) : null,
+        reviewedAt: new Date(),
+        reviewComment: comment?.trim() || null
+      }
+    });
+
+    await this.notificationsService.create({
+      userId: correction.proposedBy,
+      type: 'warning',
+      title: 'Payment voucher correction rejected',
+      message: comment?.trim()
+        ? `Your correction for voucher ${correction.voucher.voucherNumber} was rejected: ${comment.trim()}`
+        : `Your correction for voucher ${correction.voucher.voucherNumber} was rejected.`,
+      link: `/app/finance/requests/request/${requestId}?voucher_id=${voucherId}`,
+      data: { voucher_id: voucherId, correction_id: correction.id, status: 'rejected' } as Prisma.InputJsonValue
+    }).catch(() => undefined);
+
+    const updated = await this.listPaymentVouchers(requestId);
+    return {
+      mode: 'rejected' as const,
+      voucher: updated.find((row) => row.id === voucherId) ?? null,
+      correction_id: correction.id
+    };
+  }
+
+  private serializeVoucherCorrection(
+    correction:
+      | (Prisma.FinancePaymentVoucherCorrectionGetPayload<{ include: { proposer: { select: { id: true; firstName: true; lastName: true; username: true; email: true } } } }>)
+      | null
+  ) {
+    if (!correction) return null;
+    const proposed = correction.proposedSnapshot && typeof correction.proposedSnapshot === 'object' && !Array.isArray(correction.proposedSnapshot)
+      ? (correction.proposedSnapshot as Record<string, unknown>)
+      : {};
+    const proposerName =
+      `${String(correction.proposer?.firstName ?? '').trim()} ${String(correction.proposer?.lastName ?? '').trim()}`.trim() ||
+      correction.proposer?.username ||
+      correction.proposer?.email ||
+      '-';
+    return {
+      id: correction.id,
+      status: correction.status,
+      reason: correction.reason,
+      created_at: correction.createdAt,
+      proposed_by: {
+        id: correction.proposer?.id?.toString?.() ?? String(correction.proposedBy),
+        name: proposerName,
+        email: correction.proposer?.email ?? null
+      },
+      proposed_snapshot: {
+        amount: typeof proposed.amount === 'number' ? proposed.amount : Number(proposed.amount ?? 0),
+        paid_from_account_id: typeof proposed.paid_from_account_id === 'string' ? proposed.paid_from_account_id : null,
+        disbursed_at: typeof proposed.disbursed_at === 'string' ? proposed.disbursed_at : null,
+        method: typeof proposed.method === 'string' ? proposed.method : null,
+        transaction_ref: typeof proposed.transaction_ref === 'string' ? proposed.transaction_ref : null,
+        note: typeof proposed.note === 'string' ? proposed.note : null,
+        evidence_file_ids: Array.isArray(proposed.evidence_file_ids) ? proposed.evidence_file_ids.map((value) => String(value)) : []
+      }
+    };
+  }
+
+  private correctionSnapshotToDto(snapshot: Prisma.JsonValue): UpdatePaymentVoucherDto {
+    const record = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
+      ? (snapshot as Record<string, unknown>)
+      : {};
+    return {
+      amount: Number(record.amount ?? 0),
+      paid_from_account_id: typeof record.paid_from_account_id === 'string' ? record.paid_from_account_id : undefined,
+      disbursed_at: typeof record.disbursed_at === 'string' ? record.disbursed_at : undefined,
+      method: typeof record.method === 'string' ? record.method : undefined,
+      transaction_ref: typeof record.transaction_ref === 'string' ? record.transaction_ref : undefined,
+      note: typeof record.note === 'string' ? record.note : undefined,
+      evidence_file_id: Array.isArray(record.evidence_file_ids) && record.evidence_file_ids.length > 0 ? String(record.evidence_file_ids[0]) : undefined,
+      evidence_file_ids: Array.isArray(record.evidence_file_ids) ? record.evidence_file_ids.map((value) => String(value)) : [],
+    };
+  }
+
+  private async preparePaymentVoucherUpdate(
+    voucher: Prisma.FinancePaymentVoucherGetPayload<{
+      include: {
+        request: {
+          select: {
+            id: true;
+            status: true;
+            organizationId: true;
+            teamId: true;
+            workflowInstanceId: true;
+          }
+        }
+      }
+    }>,
+    dto: UpdatePaymentVoucherDto
+  ) {
     const evidenceFileIds = Array.from(
       new Set([dto.evidence_file_id ?? null, ...(dto.evidence_file_ids ?? [])].filter((fileId): fileId is string => Boolean(fileId)))
     );
@@ -534,9 +722,7 @@ export class FinanceService {
     let disbursedAt = voucher.disbursedAt;
     if (dto.disbursed_at) {
       disbursedAt = new Date(dto.disbursed_at);
-      if (Number.isNaN(disbursedAt.getTime())) {
-        throw new BadRequestException('Invalid disbursed_at date');
-      }
+      if (Number.isNaN(disbursedAt.getTime())) throw new BadRequestException('Invalid disbursed_at date');
     }
 
     let paidFromAccountId = dto.paid_from_account_id ?? voucher.paidFromAccountId;
@@ -546,9 +732,7 @@ export class FinanceService {
         where: { id: paidFromAccountId },
         select: { id: true, currency: true, isActive: true }
       });
-      if (!paidFromAccount || !paidFromAccount.isActive) {
-        throw new BadRequestException('Invalid paid_from_account_id');
-      }
+      if (!paidFromAccount || !paidFromAccount.isActive) throw new BadRequestException('Invalid paid_from_account_id');
     } else {
       paidFromAccountId = null;
     }
@@ -570,17 +754,65 @@ export class FinanceService {
     }
     if ((voucher.note ?? null) !== (nextNote ?? null)) changeSummary.note = { from: voucher.note ?? null, to: nextNote ?? null };
 
+    return {
+      evidenceFileIds,
+      nextAmount,
+      disbursedAt,
+      paidFromAccountId,
+      paidFromAccount,
+      nextNote,
+      nextMethod,
+      nextTransactionRef,
+      changeSummary,
+      currentSnapshot: {
+        amount: Number(voucher.amount),
+        paid_from_account_id: voucher.paidFromAccountId ?? null,
+        disbursed_at: voucher.disbursedAt.toISOString(),
+        method: voucher.method ?? null,
+        transaction_ref: voucher.transactionRef ?? null,
+        note: voucher.note ?? null,
+        evidence_file_ids: voucher.evidenceFileId ? [voucher.evidenceFileId] : []
+      } as Prisma.InputJsonValue,
+      proposedSnapshot: {
+        amount: nextAmount,
+        paid_from_account_id: paidFromAccountId ?? null,
+        disbursed_at: disbursedAt.toISOString(),
+        method: nextMethod ?? null,
+        transaction_ref: nextTransactionRef ?? null,
+        note: nextNote ?? null,
+        evidence_file_ids: evidenceFileIds
+      } as Prisma.InputJsonValue
+    };
+  }
+
+  private async applyPaymentVoucherUpdate(
+    voucher: Prisma.FinancePaymentVoucherGetPayload<{
+      include: {
+        request: {
+          select: {
+            id: true;
+            status: true;
+            organizationId: true;
+            teamId: true;
+            workflowInstanceId: true;
+          }
+        }
+      }
+    }>,
+    prepared: Awaited<ReturnType<FinanceService['preparePaymentVoucherUpdate']>>,
+    actorId?: string
+  ) {
     await this.prisma.$transaction(async (tx) => {
       await tx.financePaymentVoucher.update({
         where: { id: voucher.id },
         data: {
-          note: nextNote,
-          method: nextMethod,
-          transactionRef: nextTransactionRef,
-          evidenceFileId: evidenceFileIds[0] ?? null,
-          amount: nextAmount,
-          paidFromAccountId,
-          disbursedAt,
+          note: prepared.nextNote,
+          method: prepared.nextMethod,
+          transactionRef: prepared.nextTransactionRef,
+          evidenceFileId: prepared.evidenceFileIds[0] ?? null,
+          amount: prepared.nextAmount,
+          paidFromAccountId: prepared.paidFromAccountId,
+          disbursedAt: prepared.disbursedAt,
         },
       });
 
@@ -588,9 +820,9 @@ export class FinanceService {
         where: { voucherId: voucher.id, fileKind: 'evidence' },
       });
 
-      if (evidenceFileIds.length > 0) {
+      if (prepared.evidenceFileIds.length > 0) {
         await tx.financePaymentVoucherFile.createMany({
-          data: evidenceFileIds.map((fileId, index) => ({
+          data: prepared.evidenceFileIds.map((fileId, index) => ({
             voucherId: voucher.id,
             fileId,
             fileKind: 'evidence',
@@ -599,18 +831,23 @@ export class FinanceService {
         });
       }
 
+      await tx.financePaymentVoucherCorrection.updateMany({
+        where: { voucherId: voucher.id, status: 'pending' },
+        data: { status: 'superseded', reviewedBy: actorId ? toBigInt(actorId) : null, reviewedAt: new Date() }
+      });
+
       await tx.financeLedgerEntry.deleteMany({
         where: { sourceType: 'finance_payment_voucher', sourceId: voucher.id },
       });
 
-      if (paidFromAccountId && paidFromAccount) {
+      if (prepared.paidFromAccountId && prepared.paidFromAccount) {
         await tx.financeLedgerEntry.create({
           data: {
-            accountId: paidFromAccountId,
+            accountId: prepared.paidFromAccountId,
             direction: 'out',
-            amount: nextAmount,
-            currency: paidFromAccount.currency || 'NGN',
-            entryDate: disbursedAt,
+            amount: prepared.nextAmount,
+            currency: prepared.paidFromAccount.currency || 'NGN',
+            entryDate: prepared.disbursedAt,
             description: `Disbursement ${voucher.voucherNumber} for request ${voucher.request.id.toString()}`,
             sourceType: 'finance_payment_voucher',
             sourceId: voucher.id,
@@ -627,14 +864,14 @@ export class FinanceService {
         where: { sourceType: 'finance_payment_voucher', sourceId: voucher.id },
       });
 
-      if (paidFromAccountId) {
+      if (prepared.paidFromAccountId) {
         const refreshedVoucher = await tx.financePaymentVoucher.findUnique({ where: { id: voucher.id } });
         if (!refreshedVoucher) throw new NotFoundException('Payment voucher not found after update');
-        const period = await this.ensureReportingPeriod(disbursedAt, actorId);
-        const bankAccount = await this.ensureFinanceAccountChartAccount(paidFromAccountId, actorId);
+        const period = await this.ensureReportingPeriod(prepared.disbursedAt, actorId);
+        const bankAccount = await this.ensureFinanceAccountChartAccount(prepared.paidFromAccountId, actorId);
         const advanceAccount = await this.getRequiredChartAccount('1200');
         await this.createJournalEntryTx(tx, {
-          entryDate: disbursedAt,
+          entryDate: prepared.disbursedAt,
           periodId: period.id,
           sourceType: 'finance_payment_voucher',
           sourceId: voucher.id,
@@ -648,7 +885,7 @@ export class FinanceService {
               teamId: voucher.request.teamId ?? null,
               fundId: refreshedVoucher.fundId,
               grantId: refreshedVoucher.grantId,
-              debit: nextAmount,
+              debit: prepared.nextAmount,
               credit: 0,
               description: `Advance for ${voucher.voucherNumber}`
             },
@@ -659,7 +896,7 @@ export class FinanceService {
               fundId: refreshedVoucher.fundId,
               grantId: refreshedVoucher.grantId,
               debit: 0,
-              credit: nextAmount,
+              credit: prepared.nextAmount,
               description: `Bank settlement ${voucher.voucherNumber}`
             }
           ]
@@ -677,16 +914,129 @@ export class FinanceService {
             request_id: voucher.request.id.toString(),
             voucher_id: voucher.id,
             voucher_number: voucher.voucherNumber,
-            changes: changeSummary
+            changes: prepared.changeSummary
+          } as Prisma.InputJsonValue
+        }
+      });
+    }
+  }
+
+  private async submitPaymentVoucherCorrection(
+    voucher: Prisma.FinancePaymentVoucherGetPayload<{
+      include: {
+        request: {
+          select: {
+            id: true;
+            status: true;
+            organizationId: true;
+            teamId: true;
+            workflowInstanceId: true;
+          }
+        }
+      }
+    }>,
+    prepared: Awaited<ReturnType<FinanceService['preparePaymentVoucherUpdate']>>,
+    reason?: string,
+    actorId?: string
+  ) {
+    if (!actorId) throw new ForbiddenException('Authenticated user required');
+
+    const existingPending = await this.prisma.financePaymentVoucherCorrection.findFirst({
+      where: { voucherId: voucher.id, status: 'pending' },
+      include: {
+        proposer: {
+          select: { id: true, firstName: true, lastName: true, username: true, email: true }
+        }
+      }
+    });
+
+    const correction = existingPending
+      ? await this.prisma.financePaymentVoucherCorrection.update({
+          where: { id: existingPending.id },
+          data: {
+            reason: reason?.trim() || null,
+            currentSnapshot: prepared.currentSnapshot,
+            proposedSnapshot: prepared.proposedSnapshot,
+            proposedBy: toBigInt(actorId),
+            reviewedBy: null,
+            reviewedAt: null,
+            reviewComment: null,
+          },
+          include: {
+            proposer: {
+              select: { id: true, firstName: true, lastName: true, username: true, email: true }
+            }
+          }
+        })
+      : await this.prisma.financePaymentVoucherCorrection.create({
+          data: {
+            voucherId: voucher.id,
+            requestId: voucher.request.id,
+            status: 'pending',
+            reason: reason?.trim() || null,
+            currentSnapshot: prepared.currentSnapshot,
+            proposedSnapshot: prepared.proposedSnapshot,
+            proposedBy: toBigInt(actorId),
+          },
+          include: {
+            proposer: {
+              select: { id: true, firstName: true, lastName: true, username: true, email: true }
+            }
+          }
+        });
+
+    const approvers = await this.prisma.userRole.findMany({
+      where: {
+        role: {
+          OR: [
+            { slug: { in: ['administrator', 'admin'] } },
+            { permissions: { some: { permission: { slug: 'finance.correct_completed' } } } }
+          ]
+        }
+      },
+      select: { profileId: true },
+      distinct: ['profileId']
+    });
+
+    await Promise.all(
+      approvers
+        .filter((row) => row.profileId.toString() !== String(actorId))
+        .map((row) =>
+          this.notificationsService.create({
+            userId: row.profileId,
+            type: 'finance',
+            title: 'Payment voucher correction awaiting approval',
+            message: `Voucher ${voucher.voucherNumber} has a correction request awaiting approval.`,
+            link: `/app/finance/requests/request/${voucher.request.id.toString()}?voucher_id=${voucher.id}`,
+            data: {
+              voucher_id: voucher.id,
+              correction_id: correction.id,
+              request_id: voucher.request.id.toString(),
+              status: 'pending'
+            } as Prisma.InputJsonValue
+          }).catch(() => undefined)
+        )
+    );
+
+    if (voucher.request.workflowInstanceId) {
+      await this.prisma.workflowHistory.create({
+        data: {
+          instanceId: voucher.request.workflowInstanceId,
+          action: 'pv_correction_requested',
+          performedBy: toBigInt(actorId),
+          data: {
+            request_id: voucher.request.id.toString(),
+            voucher_id: voucher.id,
+            voucher_number: voucher.voucherNumber,
+            correction_id: correction.id,
+            changes: prepared.changeSummary,
+            reason: reason?.trim() || null
           } as Prisma.InputJsonValue
         }
       });
     }
 
-    const updated = await this.listPaymentVouchers(requestId);
-    const matched = updated.find((row) => row.id === voucherId);
-    if (!matched) throw new NotFoundException('Payment voucher not found after update');
-    return matched;
+    return correction;
   }
 
   async listAllPaymentVouchers(query: Record<string, any>) {
