@@ -14,6 +14,8 @@ export { WorkflowStepper } from "./layout/WorkflowStepper";
 export type { WorkflowStep, WorkflowStepStatus } from "./layout/WorkflowStepper";
 export { Toolbar } from "./layout/Toolbar";
 export { DesktopTopBar, MobileTopBar } from "./layout/TopBar";
+export { MediaPickerModal } from "./media/MediaPickerModal";
+export type { MediaPickerItem, MediaPickerModalProps } from "./media/MediaPickerModal";
 
 export { Button } from "./ui/Button";
 export { Chip } from "./ui/Chip";

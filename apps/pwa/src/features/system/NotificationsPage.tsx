@@ -56,8 +56,8 @@ export default function NotificationsPage() {
       title="Notifications"
       description="Review the updates, reminders, and workflow events that need your attention."
     >
-      <div className="grid gap-6 xl:grid-cols-12">
-        <div className="space-y-6 xl:col-span-8">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-8">
           <SectionCard
             title="Inbox"
             description="Live notifications from the existing workspace service."
@@ -104,7 +104,7 @@ export default function NotificationsPage() {
           </SectionCard>
         </div>
 
-        <div className="space-y-6 xl:col-span-4">
+        <div className="space-y-6 lg:col-span-4">
           <StatCard label="Unread" value={String(unreadCount ?? 0)} tone="warning" hint="Live unread count from the notifications service." />
           <StatCard label="Total" value={String((notifications ?? []).length)} tone="neutral" hint="All loaded notifications in the current inbox view." />
         </div>

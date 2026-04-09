@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button, Icon } from "@stanforte/shared";
 import { authApi } from "@/lib/core";
+import brandLogo from "../../../../../shared/assets/brand/stanforte-logo.png";
 
 export default function AcceptInvitePage() {
   const [searchParams] = useSearchParams();
@@ -22,7 +23,7 @@ export default function AcceptInvitePage() {
 
       <section className="grid w-full max-w-6xl overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-card backdrop-blur-xl lg:grid-cols-[1fr_1.1fr]">
         <aside className="hidden bg-primary-fixed p-10 text-primary lg:block">
-          <img src="/stanforte-logo.png" alt="Stanforte Edge" className="h-10 w-auto rounded-md bg-white p-1" />
+          <img src={brandLogo} alt="Stanforte Edge" className="h-11 w-auto object-contain" />
           <h1 className="mt-8 font-headline text-5xl font-bold tracking-tight leading-tight">
             Activate your staff portal account
           </h1>
@@ -135,7 +136,7 @@ export default function AcceptInvitePage() {
               <span>I agree to the staff portal security and acceptable use policy.</span>
             </label>
 
-            <Button className="w-full justify-center py-4 text-base" disabled={loading}>
+            <Button type="submit" className="w-full justify-center py-4 text-base" disabled={loading}>
               <span>{loading ? "Activating..." : "Activate Account"}</span>
               {!loading ? <Icon name="arrow_forward" className="ml-2 text-[18px]" /> : null}
             </Button>

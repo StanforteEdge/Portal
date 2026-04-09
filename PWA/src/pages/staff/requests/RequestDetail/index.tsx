@@ -7,6 +7,7 @@ import Table from "@/components/Base/Table";
 import { Dialog } from "@/components/Base/Headless";
 import { FormInput, FormLabel, FormTextarea } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import NewPortalNotice from "@/components/NewPortalNotice";
 import { listFinanceRequestPaymentVouchers } from "@/services/finance";
 import type { FileAssetRecord } from "@/services/files";
 import {
@@ -335,6 +336,9 @@ function RequestDetailPage() {
         <Button variant="outline-secondary" onClick={() => navigate(-1)}>
           Back
         </Button>
+      </div>
+      <div className="mt-5 intro-y">
+        <NewPortalNotice />
       </div>
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
       <div className="box mt-5 p-5">

@@ -66,11 +66,12 @@ export function buildRequestsNavigation(options?: {
   const detailsPath = options?.detailsPath ?? "/requests/details";
 
   return [
-    { label: "Dashboard", icon: "grid_view", path: "/" },
-    { label: "Attendance", icon: "pending_actions", path: "/attendance" },
+    { label: "Dashboard", icon: "grid_view", path: "/", section: "Staff" },
+    { label: "Attendance", icon: "pending_actions", path: "/attendance", section: "Staff" },
     {
       label: "Requests",
       icon: "format_list_bulleted",
+      section: "Staff",
       children: [
         { label: "My Requests", icon: "list_alt", path: "/requests" },
         { label: "Approvals", icon: "task_alt", path: "/requests/approvals" },
@@ -82,17 +83,33 @@ export function buildRequestsNavigation(options?: {
       label: "Profile",
       icon: "person",
       path: "/profile",
+      section: "Staff",
       children: [{ label: "Settings", icon: "settings", path: "/settings" }],
+    },
+    {
+      label: "Finance",
+      icon: "account_balance_wallet",
+      section: "Admin",
+      children: [
+        { label: "Dashboard", icon: "grid_view", path: "/finance" },
+        { label: "Requests", icon: "receipt_long", path: "/finance/requests" },
+        { label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers" },
+      ],
     },
   ];
 }
 
-export function buildAppMobileNav(activeLabel: "Requests" | "Attendance" | "Dashboard" | "Messages" = "Requests") {
+export function buildAppMobileNav(activeLabel: "Requests" | "Attendance" | "Dashboard" | "Finance" | "Messages" = "Requests") {
   return [
-    { label: "Dashboard", icon: "grid_view", active: activeLabel === "Dashboard" },
-    { label: "Attendance", icon: "pending_actions", active: activeLabel === "Attendance" },
-    { label: "Requests", icon: "format_list_bulleted", active: activeLabel === "Requests" },
-    { label: "Messages", icon: "chat_bubble", active: activeLabel === "Messages" },
+    { label: "Dashboard", icon: "grid_view", path: "/", active: activeLabel === "Dashboard" },
+    { label: "Attendance", icon: "pending_actions", path: "/attendance", active: activeLabel === "Attendance" },
+    {
+      label: activeLabel === "Finance" ? "Finance" : "Requests",
+      icon: activeLabel === "Finance" ? "account_balance_wallet" : "format_list_bulleted",
+      path: activeLabel === "Finance" ? "/finance" : "/requests",
+      active: activeLabel === "Requests" || activeLabel === "Finance",
+    },
+    { label: "More", icon: "menu", active: false },
   ];
 }
 

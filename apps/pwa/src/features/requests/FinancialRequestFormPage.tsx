@@ -207,8 +207,8 @@ export function FinancialRequestFormPage() {
           description="Complete this form to initiate a reimbursement or budget request. Ensure all invoices are attached before submission."
         />
 
-        <div className="grid gap-6 xl:grid-cols-12">
-          <div className="space-y-6 xl:col-span-8">
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="space-y-6 lg:col-span-8">
             <SectionCard
               title="Request Setup"
               description="Assign the request and set its urgency."
@@ -245,7 +245,7 @@ export function FinancialRequestFormPage() {
             </SectionCard>
           </div>
 
-          <RightRail className="xl:col-span-4">
+          <RightRail className="lg:col-span-4">
             <section className="section-card bg-brand-900 p-5 text-white">
               <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
                 Ordered Total Amount

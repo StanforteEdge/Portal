@@ -1,6 +1,8 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AttendancePage from "@/features/attendance/AttendancePage";
 import DashboardPage from "@/features/dashboard/DashboardPage";
+import FinanceAdminPage from "@/features/finance/FinanceAdminPage";
+import FinancePaymentVouchersPage from "@/features/finance/FinancePaymentVouchersPage";
 import { ProtectedRoute, PublicOnlyRoute } from "@/features/auth/components/RouteGuards";
 import AcceptInvitePage from "@/features/auth/pages/AcceptInvitePage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
@@ -28,6 +30,9 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
+        <Route path="/finance" element={<FinanceAdminPage />} />
+        <Route path="/finance/requests" element={<FinanceAdminPage />} />
+        <Route path="/finance/payment-vouchers" element={<FinancePaymentVouchersPage />} />
         <Route path="/requests" element={<RequestsListPage scope="mine" />} />
         <Route path="/requests/approvals" element={<RequestsListPage scope="approvals" />} />
         <Route path="/requests/new" element={<RequestTypePage />} />

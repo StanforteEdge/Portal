@@ -4,6 +4,7 @@ import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import NewPortalNotice from "@/components/NewPortalNotice";
 import {
   createRequest,
   getMyLeaveBalance,
@@ -594,6 +595,10 @@ function RequestsCreatePage() {
           <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" />
           {kind === "leave" ? "Back to Leave" : "Back to Requests"}
         </Button>
+      </div>
+
+      <div className="mt-5 intro-y">
+        <NewPortalNotice />
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}

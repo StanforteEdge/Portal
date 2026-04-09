@@ -72,8 +72,8 @@ export default function ProfilePage() {
       title="Profile"
       description="Review and update your staff identity, organizations, and account details."
     >
-      <div className="grid gap-6 xl:grid-cols-12">
-        <div className="space-y-6 xl:col-span-8">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-8">
           {loading ? <div className="text-sm text-slate-500">Loading profile...</div> : null}
           {error ? <div className="text-sm text-danger">{error}</div> : null}
           {notice ? <div className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700">{notice}</div> : null}
@@ -125,7 +125,7 @@ export default function ProfilePage() {
           </SectionCard>
         </div>
 
-        <div className="space-y-6 xl:col-span-4">
+        <div className="space-y-6 lg:col-span-4">
           <SectionCard title="Organizations">
             <div className="space-y-2">
               {organizations.length ? organizations.map((org) => (

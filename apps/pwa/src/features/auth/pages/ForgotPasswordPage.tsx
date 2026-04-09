@@ -65,7 +65,7 @@ export default function ForgotPasswordPage() {
                 />
               </div>
             </label>
-            <Button className="w-full justify-center" disabled={loading}>
+            <Button type="submit" className="w-full justify-center" disabled={loading}>
               {loading ? "Submitting..." : "Send Reset Link"}
             </Button>
           </form>
@@ -110,7 +110,7 @@ export default function ForgotPasswordPage() {
                 onChange={(event) => setEmail(event.target.value)}
               />
             </label>
-            <Button className="h-14 w-full justify-center text-base" disabled={loading}>
+            <Button type="submit" className="h-14 w-full justify-center text-base" disabled={loading}>
               {loading ? "Submitting..." : "Send Link"}
               {!loading ? <Icon name="arrow_forward" className="ml-2 text-[18px]" /> : null}
             </Button>

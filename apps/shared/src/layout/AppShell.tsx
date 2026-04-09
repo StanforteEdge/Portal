@@ -1,18 +1,14 @@
 import type { ReactNode } from "react";
 import { useEffect, useState } from "react";
-import { MobileBottomNav } from "./MobileBottomNav";
+import { MobileBottomNav, type MobileNavItem } from "./MobileBottomNav";
+import { MobileMenuSheet } from "./MobileMenuSheet";
 import { Sidebar, type SidebarItem } from "./Sidebar";
 import { DesktopTopBar, MobileTopBar } from "./TopBar";
 
 type UserInfo = {
   name: string;
   role: string;
-};
-
-type MobileNavItem = {
-  label: string;
-  icon: string;
-  active?: boolean;
+  title?: string;
 };
 
 type AppShellProps = {
@@ -31,6 +27,7 @@ export function AppShell({
   mobileNav,
 }: AppShellProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -51,6 +48,9 @@ export function AppShell({
         user={user}
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed((value) => !value)}
+        onSignOut={() => {
+          // handled by the PWA auth layer in the future; keep shell resilient
+        }}
       />
       <MobileTopBar user={user} />
       <Sidebar navigation={navigation} activeLabel={activeLabel} collapsed={sidebarCollapsed} />
@@ -61,7 +61,23 @@ export function AppShell({
         </main>
       </div>
 
-      {mobileNav ? <MobileBottomNav items={mobileNav} /> : null}
+      {mobileNav ? (
+        <MobileBottomNav
+          items={mobileNav.map((item) =>
+            item.label === "More"
+              ? { ...item, onClick: () => setMobileMenuOpen(true) }
+              : item
+          )}
+        />
+      ) : null}
+
+      <MobileMenuSheet
+        open={mobileMenuOpen}
+        navigation={navigation}
+        activeLabel={activeLabel}
+        user={{ name: user.name, title: user.title || user.role }}
+        onClose={() => setMobileMenuOpen(false)}
+      />
     </div>
   );
 }
