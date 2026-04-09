@@ -8,9 +8,6 @@ import {
 } from "@/services/auth";
 import {
   clearSession,
-  getStoredSession,
-  persistSession,
-  updateSessionTokens,
 } from "@/utils/authStorage";
 import type { RootState } from "./store";
 
@@ -52,20 +49,10 @@ interface LoginPayload {
 export const initializeAuth = createAsyncThunk(
   "auth/initialize",
   async (_, { rejectWithValue }) => {
-    const session = getStoredSession();
-
-    if (!session.accessToken || !session.refreshToken) {
-      return { authenticated: false };
-    }
-
     try {
       const status = await fetchStatus();
 
       if (status?.authenticated && status.user) {
-        // Ensure tokens stay fresh if backend rotated them on status check (future-proof)
-        if (session.expiresAt && session.expiresAt < Date.now() + 60_000) {
-          updateSessionTokens(session.accessToken);
-        }
         return { authenticated: true, user: status.user };
       }
 
@@ -82,9 +69,8 @@ export const loginThunk = createAsyncThunk(
   "auth/login",
   async ({ email, password }: LoginPayload, { rejectWithValue }) => {
     try {
-      const { tokens, user } = await loginRequest(email, password);
-      persistSession(tokens.access_token, tokens.refresh_token, tokens.expires_in);
-      return { user, tokens };
+      const { user } = await loginRequest(email, password);
+      return { user };
     } catch (error: any) {
       const message =
         error?.response?.data?.error?.message ||
@@ -158,13 +144,13 @@ const authSlice = createSlice({
         state.loading = false;
         state.initialized = true;
         if (action.payload.authenticated && action.payload.user) {
-          state.status = "authenticated";
-          state.user = action.payload.user;
-          state.roles = action.payload.user.roles ?? [];
-          state.permissions =
-            (action.payload.user.permissions as string[]) ?? [];
-          state.enabledModules =
-            (action.payload.user.enabled_modules as string[]) ?? [];
+      state.status = "authenticated";
+      state.user = action.payload.user;
+      state.roles = action.payload.user.roles ?? [];
+      state.permissions =
+        (action.payload.user.permissions as string[]) ?? [];
+      state.enabledModules =
+        (action.payload.user.enabled_modules as string[]) ?? [];
         } else {
           state.status = "unauthenticated";
           state.user = null;

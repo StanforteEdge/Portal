@@ -17,6 +17,13 @@ export class ProfileResponseDto {
     code: string;
     is_primary: boolean;
   }>;
+  groups?: Array<{
+    id: string;
+    name: string;
+    type: string;
+    role: string;
+    is_primary?: boolean;
+  }>;
   teams?: Array<{
     id: string;
     name: string;

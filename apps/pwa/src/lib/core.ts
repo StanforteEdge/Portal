@@ -2,15 +2,12 @@ import {
   createAuthApi,
   createCacheStore,
   createHttpClient,
-  createSessionStorage,
   useCachedQuery as useSharedCachedQuery,
 } from "@stanforte/shared";
 import { API_BASE_URL, CACHE_PREFIX } from "@/lib/env";
 
-export const sessionStorage = createSessionStorage("se");
 export const httpRequest = createHttpClient({
   apiBaseUrl: API_BASE_URL,
-  session: sessionStorage,
 });
 
 export const authApi = createAuthApi(httpRequest);

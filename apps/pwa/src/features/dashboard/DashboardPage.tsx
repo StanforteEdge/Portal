@@ -3,6 +3,7 @@ import {
   Chip,
   PageHeader,
   SectionCard,
+  hasModuleAccess,
   humanize,
   userDisplayName,
 } from "@stanforte/shared";
@@ -158,26 +159,8 @@ export default function DashboardPage() {
     : today?.first_in_at
       ? `Clocked in ${formatTime(today.first_in_at)}`
       : "No shift scheduled";
-  const dashboardUserName = profile?.first_name || userDisplayName(user);
-  const financeViewer =
-    (user?.roles ?? []).some((entry) =>
-      [
-        "finance_manager",
-        "finance_officer",
-        "finance_auditor",
-        "accountant",
-        "admin",
-        "administrator",
-      ].includes(String(entry).trim().toLowerCase()),
-    ) ||
-    (user?.permissions ?? []).some((entry) =>
-      [
-        "finance.manage",
-        "finance.approve",
-        "finance.correct_completed",
-        "requests.manage",
-      ].includes(String(entry).trim().toLowerCase()),
-    );
+  const dashboardUserName = userDisplayName(user);
+  const financeViewer = hasModuleAccess(user, "finance");
 
   return (
     <AppShell

@@ -10,6 +10,13 @@ import {
   RightRail,
   SelectField,
   SectionCard,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
   StatCard,
   TextField,
   TextAreaField,
@@ -22,8 +29,12 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { useCachedQuery } from "@/lib/core";
-import { buildRequestsNavigation, requestsMobileNav } from "./requests-data";
+import { cacheStore, useCachedQuery } from "@/lib/core";
+import {
+  buildAppMobileNav,
+  buildRequestsNavigation,
+  requestsMobileNav,
+} from "./requests-data";
 import {
   approveRequest,
   completeRequest,
@@ -104,10 +115,20 @@ function buildWorkflow(
   const doneEntries = Array.isArray(request?.approvals?.done)
     ? request.approvals.done
     : [];
+  const hasWorkflowHistory =
+    doneEntries.length > 0 ||
+    pendingSteps.length > 0 ||
+    stateEvents.some((event: Record<string, unknown>) =>
+      [
+        "submit",
+        "workflow_start",
+        "workflow_auto_approved",
+        "approve",
+        "reject",
+      ].includes(String(event.action || "").toLowerCase()),
+    );
   const status =
-    rawStatus === "draft" && (doneEntries.length > 0 || pendingSteps.length > 0)
-      ? "approval"
-      : rawStatus;
+    rawStatus === "draft" && hasWorkflowHistory ? "approval" : rawStatus;
   const requestTypeSteps = Array.isArray(
     request?.request_type?.approval_flow_json?.steps,
   )
@@ -130,11 +151,11 @@ function buildWorkflow(
     0,
   );
   const requestComplete = status === "completed";
-  const approvalDoneCount = doneEntries.length;
+  const approvalDoneCount = Math.min(doneEntries.length, approvalLabels.length);
   const approvalCurrentIndex =
-    status === "draft"
-      ? -1
-      : Math.min(approvalDoneCount, Math.max(0, approvalLabels.length - 1));
+    pendingSteps.length > 0
+      ? Math.min(approvalDoneCount, Math.max(0, approvalLabels.length - 1))
+      : -1;
   const financeCurrent =
     status === "cleared" ||
     (status === "disbursed" && total > 0 && disbursedTotal < total);
@@ -159,6 +180,7 @@ function buildWorkflow(
   const approvalSteps: WorkflowStep[] = approvalLabels.map(
     (label: string, index: number) => {
       const done =
+        index < approvalDoneCount ||
         requestComplete ||
         status === "cleared" ||
         status === "disbursed" ||
@@ -250,6 +272,45 @@ function buildWorkflow(
   });
 }
 
+function deriveRequestWorkflowStatus(request: any) {
+  const rawStatus = String(request?.status || "").toLowerCase();
+  const stateEvents = Array.isArray(request?.data?.state_events)
+    ? request.data.state_events
+    : [];
+  const hasSubmitted =
+    stateEvents.some((event: Record<string, unknown>) => {
+      const action = String(event.action || "").toLowerCase();
+      const to = String(event.to || "").toLowerCase();
+      return (
+        action === "submit" ||
+        action === "workflow_start" ||
+        action === "workflow_auto_approved" ||
+        to === "sent" ||
+        to === "approval"
+      );
+    }) ||
+    (Array.isArray(request?.approvals?.pending) &&
+      request.approvals.pending.length > 0) ||
+    (Array.isArray(request?.approvals?.done) && request.approvals.done.length > 0);
+
+  if (rawStatus === "draft" && hasSubmitted) {
+    return "approval";
+  }
+
+  return rawStatus;
+}
+
+function requestHasDraftHistory(request: any) {
+  const stateEvents = Array.isArray(request?.data?.state_events)
+    ? request.data.state_events
+    : [];
+  return stateEvents.some(
+    (event: Record<string, unknown>) =>
+      String(event.from || "").toLowerCase() === "draft" ||
+      String(event.to || "").toLowerCase() === "draft",
+  );
+}
+
 export function RequestDetailsPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -265,6 +326,7 @@ export function RequestDetailsPage() {
     transaction_ref: "",
     paid_from_account_id: "",
     note: "",
+    disbursed_at: new Date().toISOString().slice(0, 10),
   });
   const [disburseFiles, setDisburseFiles] = useState<
     Array<{ id: string; file_name: string }>
@@ -282,6 +344,7 @@ export function RequestDetailsPage() {
   const id = searchParams.get("id") || "";
   const detailView = searchParams.get("view") || "mine";
   const { user } = useAuth();
+  const currentUserId = user?.id ? String(user.id) : undefined;
   const { showToast } = useToast();
 
   const {
@@ -401,11 +464,17 @@ export function RequestDetailsPage() {
   const remainingDisbursement = Math.max(0, requestTotal - disbursedTotal);
   const pendingApprovals = request?.approvals?.pending ?? [];
   const completedApprovals = request?.approvals?.done ?? [];
+  const workflowStatus = deriveRequestWorkflowStatus(request);
   const workflow = buildWorkflow(
     request,
     pendingApprovals,
     paymentVouchers ?? [],
-    { showDraftStep: detailView === "mine" },
+    {
+      showDraftStep:
+        detailView === "mine" &&
+        workflowStatus === "draft" &&
+        requestHasDraftHistory(request),
+    },
   );
   const parentPath =
     detailView === "approvals"
@@ -419,10 +488,18 @@ export function RequestDetailsPage() {
       : detailView === "finance"
         ? "Finance Requests"
         : "My Requests";
+  const detailActiveLabel =
+    detailView === "finance"
+      ? "Finance Requests"
+      : detailView === "approvals"
+        ? "Approvals"
+        : "Request Details";
+  const detailMobileNav =
+    detailView === "finance" ? buildAppMobileNav("Finance") : requestsMobileNav;
   const canSubmit =
     (requestActions ?? []).includes("submit") &&
-    String(request?.status || "").toLowerCase() === "draft";
-  const canEditDraft = String(request?.status || "").toLowerCase() === "draft";
+    workflowStatus === "draft";
+  const canEditDraft = workflowStatus === "draft";
   const roles = (user?.roles ?? []).map((entry) =>
     String(entry).trim().toLowerCase(),
   );
@@ -430,9 +507,7 @@ export function RequestDetailsPage() {
     String(entry).trim().toLowerCase(),
   );
   const availableActions = requestActions ?? [];
-  const requestStatus = String(request?.status || "")
-    .trim()
-    .toLowerCase();
+  const requestStatus = workflowStatus;
   const approvalActionsVisible =
     availableActions.includes("approve") || availableActions.includes("reject");
   const financeActionsVisible = detailView === "finance";
@@ -443,7 +518,7 @@ export function RequestDetailsPage() {
     if (approvalActionsVisible) {
       return {
         label: formatViewerRequestStatus(
-          request.status,
+          workflowStatus,
           availableActions,
           pendingApprovals[0]?.step,
         ),
@@ -456,7 +531,7 @@ export function RequestDetailsPage() {
     if (ownerActionsVisible && availableActions.includes("submit")) {
       return {
         label: formatViewerRequestStatus(
-          request.status,
+          workflowStatus,
           availableActions,
           pendingApprovals[0]?.step,
         ),
@@ -474,7 +549,7 @@ export function RequestDetailsPage() {
     if (ownerActionsVisible && availableActions.includes("confirm")) {
       return {
         label: formatViewerRequestStatus(
-          request.status,
+          workflowStatus,
           availableActions,
           pendingApprovals[0]?.step,
         ),
@@ -485,7 +560,7 @@ export function RequestDetailsPage() {
     if (ownerActionsVisible && availableActions.includes("retire")) {
       return {
         label: formatViewerRequestStatus(
-          request.status,
+          workflowStatus,
           availableActions,
           pendingApprovals[0]?.step,
         ),
@@ -496,7 +571,7 @@ export function RequestDetailsPage() {
     if (financeActionsVisible && availableActions.includes("complete")) {
       return {
         label: formatViewerRequestStatus(
-          request.status,
+          workflowStatus,
           availableActions,
           pendingApprovals[0]?.step,
         ),
@@ -526,7 +601,7 @@ export function RequestDetailsPage() {
     }
     return {
       label: formatViewerRequestStatus(
-        request.status,
+        workflowStatus,
         availableActions,
         pendingApprovals[0]?.step,
       ),
@@ -542,6 +617,7 @@ export function RequestDetailsPage() {
     permissions,
     request,
     requestStatus,
+    workflowStatus,
     roles,
     statusTone,
   ]);
@@ -645,8 +721,12 @@ export function RequestDetailsPage() {
       amount: String(voucher.amount ?? ""),
       method: voucher.method || current.method,
       transaction_ref: voucher.transaction_ref || current.transaction_ref,
-      paid_from_account_id: voucher.paid_from_account?.id || current.paid_from_account_id,
+      paid_from_account_id:
+        voucher.paid_from_account?.id || current.paid_from_account_id,
       note: voucher.note || current.note,
+      disbursed_at: voucher.disbursed_at
+        ? String(voucher.disbursed_at).slice(0, 10)
+        : current.disbursed_at,
     }));
     setShowDisbursementMediaPicker(false);
     setShowDisburseDialog(true);
@@ -687,11 +767,6 @@ export function RequestDetailsPage() {
         tone: "neutral" as const,
       },
       {
-        label: "Request Type",
-        value: request.request_type?.name || requestFamilyFromRecord(request),
-        tone: "warning" as const,
-      },
-      {
         label: "Due Date",
         value: formatDisplayDate(String(requestData.due_date || "")),
         tone: "neutral" as const,
@@ -724,16 +799,16 @@ export function RequestDetailsPage() {
 
     const created: ActivityItem[] =
       detailView === "mine" && request?.created_at
-      ? [
-          {
-            title: "Request created",
-            description: "The request was saved into the workflow.",
-            time: formatDisplayDate(request.created_at),
-            tone: "neutral",
-            icon: "add_task",
-          },
-        ]
-      : [];
+        ? [
+            {
+              title: "Request created",
+              description: "The request was saved into the workflow.",
+              time: formatDisplayDate(request.created_at),
+              tone: "neutral",
+              icon: "add_task",
+            },
+          ]
+        : [];
 
     const done: ActivityItem[] = completedApprovals.map((entry) => ({
       title: `${entry.step} ${entry.action}`,
@@ -844,7 +919,14 @@ export function RequestDetailsPage() {
     return [
       ...created,
       ...done,
-      ...pending,
+      ...pending.filter(
+        (entry) =>
+          !completedApprovals.some(
+            (doneEntry) =>
+              String(doneEntry.step || "").trim().toLowerCase() ===
+              entry.title.replace(/ pending$/i, "").trim().toLowerCase(),
+          ),
+      ),
       ...stateActivity,
       ...voucherActivity,
     ];
@@ -884,11 +966,18 @@ export function RequestDetailsPage() {
           transaction_ref: disburseForm.transaction_ref.trim() || undefined,
           paid_from_account_id: disburseForm.paid_from_account_id || undefined,
           note: disburseForm.note.trim() || undefined,
+          disbursed_at: disburseForm.disbursed_at
+            ? `${disburseForm.disbursed_at}T00:00:00.000Z`
+            : undefined,
           evidence_file_id: disburseFiles[0]?.id,
           evidence_file_ids: disburseFiles.map((file) => file.id),
         };
         if (disburseMode === "edit" && editingVoucherId) {
-          await updateRequestPaymentVoucher(id, editingVoucherId, disbursePayload);
+          await updateRequestPaymentVoucher(
+            id,
+            editingVoucherId,
+            disbursePayload,
+          );
         } else {
           await disburseRequest(id, disbursePayload);
         }
@@ -919,6 +1008,7 @@ export function RequestDetailsPage() {
         transaction_ref: "",
         paid_from_account_id: "",
         note: "",
+        disbursed_at: new Date().toISOString().slice(0, 10),
       });
       setDisburseFiles([]);
       setRetireForm({
@@ -927,6 +1017,15 @@ export function RequestDetailsPage() {
         notes: "",
         retirement_file_ids: [],
       });
+      [
+        "requests:list:mine",
+        "requests:list:approvals",
+        "finance-admin:requests",
+        "finance-vouchers:list",
+        `requests:detail:${id}`,
+        `requests:actions:${id}`,
+        `requests:detail:payment-vouchers:${id}`,
+      ].forEach((key) => cacheStore.invalidateCache(key));
       await refetch();
       await refetchRequestActions();
       await refetchPaymentVouchers();
@@ -1000,7 +1099,7 @@ export function RequestDetailsPage() {
             to={parentPath}
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
           >
-            Back to Requests
+            Back to {parentLabel}
           </Link>
         </div>
       </AppShell>
@@ -1010,20 +1109,29 @@ export function RequestDetailsPage() {
   return (
     <AppShell
       navigation={buildRequestsNavigation({
-        includeDetails: true,
+        includeDetails: detailView !== "finance",
         detailsPath: `/requests/details?id=${id}&view=${detailView}`,
+        detailsParent: detailView === "finance" ? "finance" : "requests",
       })}
-      activeLabel="Request Details"
+      activeLabel={detailActiveLabel}
       user={{ name: "Alex Sterling", role: "Fleet Operations" }}
-      mobileNav={requestsMobileNav}
+      mobileNav={detailMobileNav}
     >
       <div className="hidden lg:block">
         <PageHeader
-          breadcrumbs={[
-            { label: "Requests", path: parentPath },
-            { label: parentLabel, path: parentPath },
-            { label: request?.request_number || "Details" },
-          ]}
+          breadcrumbs={
+            detailView === "finance"
+              ? [
+                  { label: "Finance", path: "/finance" },
+                  { label: parentLabel, path: parentPath },
+                  { label: request?.request_number || "Details" },
+                ]
+              : [
+                  { label: "Requests", path: parentPath },
+                  { label: parentLabel, path: parentPath },
+                  { label: request?.request_number || "Details" },
+                ]
+          }
           title={
             request?.request_number ||
             (loading ? "Loading request..." : "Request details")
@@ -1040,7 +1148,7 @@ export function RequestDetailsPage() {
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
               >
                 <Icon name="arrow_back" className="text-[18px]" />
-                Back to Requests
+                Back to {parentLabel}
               </Link>
               {canEditDraft ? (
                 <Link
@@ -1174,23 +1282,22 @@ export function RequestDetailsPage() {
                   }
                 >
                   {lineItems.length ? (
-                    <div className="overflow-hidden rounded-[22px] border border-slate-200">
-                      <table className="min-w-full text-left">
-                        <thead className="bg-slate-50">
-                          <tr className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">
-                            <th className="px-4 py-3">Item</th>
-                            <th className="px-4 py-3">Qty</th>
-                            <th className="px-4 py-3">Unit Price</th>
-                            <th className="px-4 py-3">Total</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                    <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                      <Table caption="Request items">
+                        <TableHead>
+                          <TableHeaderRow>
+                            <TableHeaderCell>Item</TableHeaderCell>
+                            <TableHeaderCell>Qty</TableHeaderCell>
+                            <TableHeaderCell>Unit Price</TableHeaderCell>
+                            <TableHeaderCell>Total</TableHeaderCell>
+                          </TableHeaderRow>
+                        </TableHead>
+                        <TableBody>
                           {lineItems.map((item) => (
-                            <tr
+                            <TableRow
                               key={item.id}
-                              className="border-t border-slate-100 bg-white"
                             >
-                              <td className="px-4 py-4">
+                              <TableCell>
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2">
                                     <p className="text-sm font-semibold text-slate-950">
@@ -1212,23 +1319,23 @@ export function RequestDetailsPage() {
                                     {item.notes || ""}
                                   </p>
                                 </div>
-                              </td>
-                              <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                              </TableCell>
+                              <TableCell className="text-sm font-semibold text-slate-700">
                                 {item.quantity ?? 1}
-                              </td>
-                              <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                              </TableCell>
+                              <TableCell className="text-sm font-semibold text-slate-700">
                                 {formatCurrency(item.amount, request.currency)}
-                              </td>
-                              <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                              </TableCell>
+                              <TableCell className="text-sm font-semibold text-slate-700">
                                 {formatCurrency(
                                   (item.amount ?? 0) * (item.quantity ?? 1),
                                   request.currency,
                                 )}
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   ) : (
                     <EmptyState
@@ -1250,41 +1357,48 @@ export function RequestDetailsPage() {
                   }
                 >
                   {(paymentVouchers ?? []).length ? (
-                    <div className="overflow-x-auto rounded-[22px] border border-slate-200">
-                      <table className="min-w-[560px] text-left">
-                        <thead className="bg-slate-50">
-                          <tr className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">
-                            <th className="px-4 py-3">PV</th>
-                            <th className="px-4 py-3">Amount</th>
-                            <th className="px-4 py-3">Retirement</th>
-                            <th className="px-4 py-3 text-right">Action</th>
-                          </tr>
-                        </thead>
-                        <tbody>
+                    <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
+                      <Table caption="Payment vouchers">
+                        <TableHead>
+                          <TableHeaderRow>
+                            <TableHeaderCell>PV</TableHeaderCell>
+                            <TableHeaderCell>Amount</TableHeaderCell>
+                            <TableHeaderCell>Retirement</TableHeaderCell>
+                            <TableHeaderCell className="text-right">Action</TableHeaderCell>
+                          </TableHeaderRow>
+                        </TableHead>
+                        <TableBody>
                           {(paymentVouchers ?? []).map((voucher) => (
-                            <tr
+                            <TableRow
                               key={voucher.id}
-                              className="border-t border-slate-100 bg-white"
                             >
-                              <td className="px-4 py-4">
+                              <TableCell>
                                 <button
                                   type="button"
                                   className="text-left text-sm font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                                   onClick={() => openVoucherEditor(voucher)}
                                 >
-                                  {voucher.voucher_number}
+                                  <span className="inline-flex items-center gap-2">
+                                    {voucher.evidence_files?.length ? (
+                                      <Icon
+                                        name="attach_file"
+                                        className="text-[15px] text-brand-900"
+                                      />
+                                    ) : null}
+                                    <span>{voucher.voucher_number}</span>
+                                  </span>
                                 </button>
                                 <div className="mt-1 text-xs text-slate-500">
                                   {formatDisplayDate(voucher.disbursed_at)}
                                 </div>
-                              </td>
-                              <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                              </TableCell>
+                              <TableCell className="text-sm font-semibold text-slate-700">
                                 {formatCurrency(
                                   voucher.amount,
                                   request.currency,
                                 )}
-                              </td>
-                              <td className="px-4 py-4 text-sm font-semibold text-slate-700">
+                              </TableCell>
+                              <TableCell className="text-sm font-semibold text-slate-700">
                                 {Number(voucher.retired_amount || 0) > 0 ? (
                                   <div className="flex items-center gap-2">
                                     <Icon
@@ -1310,8 +1424,8 @@ export function RequestDetailsPage() {
                                 ) : (
                                   <span className="text-slate-400">-</span>
                                 )}
-                              </td>
-                              <td className="px-4 py-4 text-right">
+                              </TableCell>
+                              <TableCell className="text-right">
                                 <Button
                                   size="sm"
                                   variant="secondary"
@@ -1319,11 +1433,11 @@ export function RequestDetailsPage() {
                                 >
                                   View / Edit
                                 </Button>
-                              </td>
-                            </tr>
+                              </TableCell>
+                            </TableRow>
                           ))}
-                        </tbody>
-                      </table>
+                        </TableBody>
+                      </Table>
                     </div>
                   ) : (
                     <EmptyState
@@ -1505,8 +1619,7 @@ export function RequestDetailsPage() {
                   </Button>
                 ) : null}
                 {financeActionsVisible &&
-                (availableActions.includes("disburse") ||
-                  requestStatus === "cleared" ||
+                (requestStatus === "cleared" ||
                   (requestStatus === "disbursed" &&
                     requestTotal > disbursedTotal)) ? (
                   <Button
@@ -1609,17 +1722,17 @@ export function RequestDetailsPage() {
         <div className="pt-1">
           <button
             type="button"
-            onClick={() => navigate(-1)}
+            onClick={() => navigate(parentPath)}
             className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
           >
             <Icon name="arrow_back" className="text-[16px]" />
-            Back
+            Back to {parentLabel}
           </button>
 
           <div className="mt-3 flex items-start justify-between gap-4">
             <div>
               <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Request Details
+                {parentLabel}
               </p>
               <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">
                 {request?.request_number || "Request details"}
@@ -1631,8 +1744,8 @@ export function RequestDetailsPage() {
               </p>
             </div>
             {request ? (
-              <Chip variant={statusTone}>
-                {formatRequestStatus(request.status)}
+              <Chip variant={viewerStatus.tone}>
+                {viewerStatus.label}
               </Chip>
             ) : null}
           </div>
@@ -1660,6 +1773,114 @@ export function RequestDetailsPage() {
                     "No summary provided.",
                 )}
               </p>
+              <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                {summaryCards.map((card) => (
+                  <StatCard
+                    key={card.label}
+                    label={card.label}
+                    value={card.value}
+                    tone={card.tone}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+
+            {family !== "leave" ? (
+              <SectionCard title="Request Items">
+                {lineItems.length ? (
+                  <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                    <Table caption="Request items">
+                      <TableHead>
+                        <TableHeaderRow>
+                          <TableHeaderCell>Item</TableHeaderCell>
+                          <TableHeaderCell>Qty</TableHeaderCell>
+                          <TableHeaderCell>Total</TableHeaderCell>
+                        </TableHeaderRow>
+                      </TableHead>
+                      <TableBody>
+                        {lineItems.map((item) => (
+                          <TableRow key={item.id}>
+                            <TableCell>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <p className="text-sm font-semibold text-slate-950">
+                                    {item.description || "Untitled item"}
+                                  </p>
+                                  {(item.files?.length ?? 0) > 0 ? (
+                                    <Icon
+                                      name="attach_file"
+                                      className="text-[15px] text-brand-900"
+                                    />
+                                  ) : null}
+                                </div>
+                                {item.notes ? (
+                                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                                    {item.notes}
+                                  </p>
+                                ) : null}
+                              </div>
+                            </TableCell>
+                            <TableCell className="text-sm font-semibold text-slate-700">
+                              {item.quantity ?? 1}
+                            </TableCell>
+                            <TableCell className="text-sm font-semibold text-slate-700">
+                              {formatCurrency(
+                                (item.amount ?? 0) * (item.quantity ?? 1),
+                                request.currency,
+                              )}
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+                ) : (
+                  <EmptyState
+                    title="No line items"
+                    description="This request does not include any itemized costs."
+                  />
+                )}
+              </SectionCard>
+            ) : null}
+
+            {(paymentVouchers ?? []).length ? (
+              <SectionCard title="Payment Vouchers">
+                <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                  <Table caption="Payment vouchers">
+                    <TableHead>
+                      <TableHeaderRow>
+                        <TableHeaderCell>PV</TableHeaderCell>
+                        <TableHeaderCell>Amount</TableHeaderCell>
+                        <TableHeaderCell>Retirement</TableHeaderCell>
+                      </TableHeaderRow>
+                    </TableHead>
+                    <TableBody>
+                      {(paymentVouchers ?? []).map((voucher) => (
+                        <TableRow key={voucher.id}>
+                          <TableCell className="text-sm font-semibold text-brand-900">
+                            {voucher.voucher_number}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-700">
+                            {formatCurrency(voucher.amount, request.currency)}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-700">
+                            {Number(voucher.retired_amount || 0) > 0
+                              ? formatCurrency(
+                                  voucher.retired_amount,
+                                  request.currency,
+                                )
+                              : "-"}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </SectionCard>
+            ) : null}
+
+            <SectionCard title="Approval Workflow">
+              <WorkflowStepper steps={workflow} />
             </SectionCard>
 
             {availableActions.length ? (
@@ -1741,8 +1962,7 @@ export function RequestDetailsPage() {
                   </Button>
                 ) : null}
                 {financeActionsVisible &&
-                (availableActions.includes("disburse") ||
-                  requestStatus === "cleared" ||
+                (requestStatus === "cleared" ||
                   (requestStatus === "disbursed" &&
                     requestTotal > disbursedTotal)) ? (
                   <Button
@@ -1806,28 +2026,6 @@ export function RequestDetailsPage() {
               </SectionCard>
             ) : null}
 
-            {canShowNudge ? (
-              <SectionCard title="Need a nudge?">
-                <p className="text-sm leading-6 text-slate-600">
-                  {nudgeHeadline}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  You do not have an action right now, but you can still remind
-                  the next reviewer to move this forward.
-                </p>
-                <div className="mt-4 rounded-[18px] bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  {viewerStatus.hint}
-                </div>
-                <Button
-                  className="mt-4 w-full justify-center"
-                  variant="secondary"
-                  onClick={() => void copyNudge()}
-                >
-                  Copy reminder
-                </Button>
-              </SectionCard>
-            ) : null}
-
             <SectionCard title="Activity">
               <ActivityFeed
                 items={activityItems}
@@ -1862,7 +2060,9 @@ export function RequestDetailsPage() {
                     id="disburse-request-title"
                     className="mt-2 text-2xl font-semibold tracking-tight text-slate-950"
                   >
-                    {disburseMode === "edit" ? "Edit Payment Voucher" : "Disburse Request"}
+                    {disburseMode === "edit"
+                      ? "Edit Payment Voucher"
+                      : "Disburse Request"}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
                     {disburseMode === "edit"
@@ -1929,6 +2129,17 @@ export function RequestDetailsPage() {
                     }))
                   }
                   placeholder="Bank reference / voucher ref"
+                />
+                <TextField
+                  label="Disbursement Date"
+                  type="date"
+                  value={disburseForm.disbursed_at}
+                  onChange={(event) =>
+                    setDisburseForm((current) => ({
+                      ...current,
+                      disbursed_at: event.target.value,
+                    }))
+                  }
                 />
                 <SelectField
                   label="Paid From Account"
@@ -2043,7 +2254,12 @@ export function RequestDetailsPage() {
         multiple
         selectedIds={disburseFiles.map((file) => file.id)}
         loadFiles={async (search) =>
-          listFileAssets({ include_usage: true, per_page: 200, search })
+          listFileAssets({
+            include_usage: true,
+            per_page: 200,
+            search,
+            uploaded_by: currentUserId,
+          })
         }
         uploadFiles={async (files) => {
           for (const file of Array.from(files)) {
@@ -2074,7 +2290,12 @@ export function RequestDetailsPage() {
         multiple
         selectedIds={retireForm.retirement_file_ids}
         loadFiles={async (search) =>
-          listFileAssets({ include_usage: true, per_page: 200, search })
+          listFileAssets({
+            include_usage: true,
+            per_page: 200,
+            search,
+            uploaded_by: currentUserId,
+          })
         }
         uploadFiles={async (files) => {
           for (const file of Array.from(files)) {

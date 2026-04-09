@@ -51,7 +51,7 @@ export default function ProfilePage() {
   }
 
   const organizations = profile?.organizations ?? [];
-  const teams = profile?.teams ?? [];
+  const groups = profile?.groups ?? [...(profile?.teams ?? []), ...(profile?.projects ?? [])];
   const sortedRoles = sortRoles(Array.from(new Set((user?.roles ?? []).map((role) => String(role).trim().toLowerCase()).filter(Boolean))));
   const primaryRole = sortedRoles[0] ? roleLabel(sortedRoles[0]) : "Staff";
   const extraRoles = sortedRoles.slice(1).map(roleLabel);
@@ -60,6 +60,9 @@ export default function ProfilePage() {
       profile.employee_profile.manager.email ||
       "-"
     : "-";
+  const fullName =
+    `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim() ||
+    userDisplayName(user);
 
   return (
     <SystemShellPage
@@ -81,10 +84,10 @@ export default function ProfilePage() {
           <SectionCard title="Overview">
             <div className="flex items-start gap-4">
               <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-900 text-lg font-semibold text-white">
-                {userDisplayName(user).slice(0, 1).toUpperCase()}
+                {fullName.slice(0, 1).toUpperCase()}
               </span>
               <div>
-                <p className="text-lg font-semibold text-slate-950">{userDisplayName(user)}</p>
+                <p className="text-lg font-semibold text-slate-950">{fullName}</p>
                 <div className="mt-3 space-y-2">
                   <div className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
                     <span className="font-semibold text-slate-900">Role:</span>
@@ -138,10 +141,12 @@ export default function ProfilePage() {
           </SectionCard>
           <SectionCard title="Groups & Roles">
             <div className="space-y-2">
-              {teams.length ? teams.map((team) => (
-                <div key={team.id} className="rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3">
-                  <p className="text-sm font-semibold text-slate-800">{team.name}</p>
-                  <p className="mt-1 text-xs text-slate-500">{humanize(team.type)} • {humanize(team.role)}</p>
+              {groups.length ? groups.map((group) => (
+                <div key={group.id} className="rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3">
+                  <p className="text-sm font-semibold text-slate-800">{group.name}</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {humanize(group.type)} • {humanize(group.role)}
+                  </p>
                 </div>
               )) : <div className="text-sm text-slate-500">No groups assigned.</div>}
             </div>

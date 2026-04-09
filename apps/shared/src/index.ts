@@ -20,6 +20,7 @@ export type { MediaPickerItem, MediaPickerModalProps } from "./media/MediaPicker
 export { Button } from "./ui/Button";
 export { Chip } from "./ui/Chip";
 export { Icon } from "./ui/Icon";
+export { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableHeaderRow, TableRow } from "./ui/Table";
 export { StatCard } from "./ui/StatCard";
 export { SelectField, TextAreaField, TextField } from "./ui/fields";
 
@@ -27,6 +28,7 @@ export { createSessionStorage } from "./auth/storage";
 export { normalizeTokens } from "./auth/tokens";
 export { createHttpClient } from "./auth/http-client";
 export { createAuthApi } from "./auth/api";
+export { hasAnyPermission, hasApprovalAccess, hasModuleAccess, hasPermission } from "./auth/access";
 export type { AuthSession, AuthStatusResponse, AuthTokens, AuthUser } from "./auth/types";
 export type { HttpRequest } from "./auth/http-client";
 export type { SessionStorageAdapter } from "./auth/storage";

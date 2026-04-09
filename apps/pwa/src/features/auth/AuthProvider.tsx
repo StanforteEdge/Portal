@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import type { AuthUser } from "@stanforte/shared";
-import { authApi, sessionStorage } from "@/lib/core";
+import { authApi } from "@/lib/core";
 
 type AuthStatus = "checking" | "authenticated" | "unauthenticated";
 
@@ -29,14 +29,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [initialized, setInitialized] = useState(false);
 
   const refreshStatus = useCallback(async () => {
-    const session = sessionStorage.getStoredSession();
-    if (!session.accessToken || !session.refreshToken) {
-      setUser(null);
-      setStatus("unauthenticated");
-      setInitialized(true);
-      return;
-    }
-
     setStatus("checking");
 
     try {
@@ -50,7 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setUser(fallbackUser);
           setStatus("authenticated");
         } else {
-          sessionStorage.clearSession();
           setUser(null);
           setStatus("unauthenticated");
         }
@@ -61,7 +52,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(fallbackUser);
         setStatus("authenticated");
       } else {
-        sessionStorage.clearSession();
         setUser(null);
         setStatus("unauthenticated");
       }
@@ -75,8 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refreshStatus]);
 
   const signIn = useCallback(async (email: string, password: string) => {
-    const { tokens, user: authUser } = await authApi.login(email, password);
-    sessionStorage.persistSession(tokens.access_token, tokens.refresh_token, tokens.expires_in);
+    const { user: authUser } = await authApi.login(email, password);
     setUser(authUser);
     setStatus("authenticated");
     setInitialized(true);
@@ -84,7 +73,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await authApi.logout();
-    sessionStorage.clearSession();
     setUser(null);
     setStatus("unauthenticated");
     setInitialized(true);

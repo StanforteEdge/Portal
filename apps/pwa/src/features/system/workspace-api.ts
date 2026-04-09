@@ -11,6 +11,7 @@ export type WorkspaceProfile = {
   phone: string | null;
   address?: string | null;
   organizations?: Array<{ id: string; name: string; code: string; is_primary?: boolean }>;
+  groups?: Array<{ id: string; name: string; type: string; role: string; is_primary?: boolean }>;
   employee_profile?: {
     employee_code?: string | null;
     job_title?: string | null;

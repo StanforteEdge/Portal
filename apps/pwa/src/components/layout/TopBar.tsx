@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Button, Chip, Icon } from "@stanforte/shared";
 import type { WorkspaceNotification } from "@/features/system/workspace-api";
-import stanforteLogo from "../../../../shared/assets/brand/stanforte-logo.png";
-import stanforteIcon from "../../../../shared/assets/brand/stanforte-icon.svg";
+import stanforteLogo from "../../../../shared/assets/brand/Landscape.svg";
+import stanforteIcon from "../../../../shared/assets/brand/icon.svg";
 
 type TopBarProps = {
   user: {
@@ -45,7 +45,7 @@ function formatRelativeTime(value?: string | null) {
 function useDismissOnEscape(
   ref: RefObject<HTMLElement>,
   close: () => void,
-  open: boolean
+  open: boolean,
 ) {
   useEffect(() => {
     if (!open) return;
@@ -87,13 +87,19 @@ export function DesktopTopBar({
   const [busyId, setBusyId] = useState<string>("");
   const notificationRef = useRef<HTMLDivElement | null>(null);
   const profileRef = useRef<HTMLDivElement | null>(null);
-  useDismissOnEscape(notificationRef, () => setNotificationsOpen(false), notificationsOpen);
+  useDismissOnEscape(
+    notificationRef,
+    () => setNotificationsOpen(false),
+    notificationsOpen,
+  );
   useDismissOnEscape(profileRef, () => setProfileOpen(false), profileOpen);
 
   const iconButtonClass = (active: boolean) =>
     [
       "relative flex h-10 w-10 items-center justify-center rounded-full transition-colors",
-      active ? "bg-brand-900/10 text-brand-900" : "hover:bg-surface-container-high",
+      active
+        ? "bg-brand-900/10 text-brand-900"
+        : "hover:bg-surface-container-high",
     ].join(" ");
 
   useEffect(() => {
@@ -102,7 +108,10 @@ export function DesktopTopBar({
       if (!notificationRef.current.contains(event.target as Node)) {
         setNotificationsOpen(false);
       }
-      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(event.target as Node)
+      ) {
         setProfileOpen(false);
       }
     }
@@ -132,7 +141,12 @@ export function DesktopTopBar({
 
   return (
     <header className="fixed top-0 z-50 hidden h-16 w-full items-center justify-between border-b border-outline-variant bg-surface-container-lowest/95 backdrop-blur-md transition-all duration-300 lg:flex">
-      <div className={[sidebarCollapsed ? "w-20 px-4" : "w-64 px-6", "flex items-center gap-3 transition-all duration-300"].join(" ")}>
+      <div
+        className={[
+          sidebarCollapsed ? "w-[6rem] px-4" : "w-64 px-6",
+          "flex items-center gap-3 transition-all duration-300",
+        ].join(" ")}
+      >
         <button
           type="button"
           onClick={onToggleSidebar}
@@ -141,11 +155,19 @@ export function DesktopTopBar({
         >
           <Icon name={sidebarCollapsed ? "menu_open" : "menu"} />
         </button>
-        <NavLink to="/" className="flex items-center" aria-label="Go to dashboard">
+        <NavLink
+          to="/"
+          className="flex items-center"
+          aria-label="Go to dashboard"
+        >
           <img
             src={sidebarCollapsed ? stanforteIcon : stanforteLogo}
             alt="Stanforte Edge"
-            className={sidebarCollapsed ? "h-9 w-9 object-contain" : "h-12 w-auto object-contain"}
+            className={
+              sidebarCollapsed
+                ? "w-54 h-auto object-contain"
+                : "h-12 w-auto object-contain"
+            }
           />
         </NavLink>
       </div>
@@ -176,9 +198,13 @@ export function DesktopTopBar({
           <div className="relative" ref={notificationRef}>
             <button
               type="button"
-            className={`${iconButtonClass(location.pathname === "/notifications" || notificationsOpen)} focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10`}
+              className={`${iconButtonClass(location.pathname === "/notifications" || notificationsOpen)} focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10`}
               onClick={() => setNotificationsOpen((value) => !value)}
-              aria-label={unreadCount > 0 ? `Open notifications, ${unreadCount} unread` : "Open notifications"}
+              aria-label={
+                unreadCount > 0
+                  ? `Open notifications, ${unreadCount} unread`
+                  : "Open notifications"
+              }
               aria-haspopup="menu"
               aria-expanded={notificationsOpen}
               aria-controls="workspace-notifications-menu"
@@ -198,12 +224,21 @@ export function DesktopTopBar({
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-slate-950">Notifications</p>
-                    <p className="mt-1 text-xs text-slate-500">Quick updates from your workspace.</p>
+                    <p className="text-sm font-semibold text-slate-950">
+                      Notifications
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      Quick updates from your workspace.
+                    </p>
                   </div>
                   <div className="flex flex-nowrap items-center gap-2">
                     <Chip variant="pending">{unreadCount} unread</Chip>
-                    <Button variant="secondary" size="sm" onClick={() => void handleMarkAllRead()} disabled={busyId === "all"}>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => void handleMarkAllRead()}
+                      disabled={busyId === "all"}
+                    >
                       {busyId === "all" ? "..." : "Read all"}
                     </Button>
                   </div>
@@ -211,14 +246,21 @@ export function DesktopTopBar({
                 <div className="mt-4 space-y-3">
                   {notifications.length ? (
                     notifications.slice(0, 5).map((item) => (
-                      <div key={item.id} className="rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3">
+                      <div
+                        key={item.id}
+                        className="rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3"
+                      >
                         <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          <p className="text-sm font-semibold text-slate-900">
+                            {item.title}
+                          </p>
                           <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
                             {formatRelativeTime(item.createdAt)}
                           </span>
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-500">{item.message}</p>
+                        <p className="mt-2 text-sm leading-6 text-slate-500">
+                          {item.message}
+                        </p>
                         {item.status === "unread" ? (
                           <button
                             type="button"
@@ -256,7 +298,9 @@ export function DesktopTopBar({
             type="button"
             className={[
               "flex cursor-pointer items-center gap-3 rounded-full py-1 pl-4 pr-1 transition-colors group focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-              profileOpen || location.pathname === "/profile" ? "bg-brand-900/10" : "hover:bg-surface-container-high",
+              profileOpen || location.pathname === "/profile"
+                ? "bg-brand-900/10"
+                : "hover:bg-surface-container-high",
             ].join(" ")}
             onClick={() => setProfileOpen((value) => !value)}
             aria-haspopup="menu"
@@ -265,8 +309,12 @@ export function DesktopTopBar({
             aria-controls="workspace-user-menu"
           >
             <div className="hidden flex-col items-end sm:flex">
-              <span className="font-headline text-sm font-bold text-on-surface capitalize">{user.name}</span>
-              <span className="text-[11px] font-semibold text-on-surface-variant">{user.title || ""}</span>
+              <span className="font-headline text-sm font-bold text-on-surface capitalize">
+                {user.name}
+              </span>
+              <span className="text-[11px] font-semibold text-on-surface-variant">
+                {user.title || ""}
+              </span>
             </div>
             <div className="relative">
               <img
@@ -285,8 +333,12 @@ export function DesktopTopBar({
               className="absolute right-0 top-[calc(100%+0.75rem)] w-[280px] rounded-[24px] border border-slate-200 bg-white p-4 shadow-card"
             >
               <div className="border-b border-slate-100 pb-3">
-                <p className="text-sm font-semibold text-slate-950">{user.name}</p>
-                <p className="mt-1 text-sm text-slate-500">{user.title || "Staff"}</p>
+                <p className="text-sm font-semibold text-slate-950">
+                  {user.name}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {user.title || "Staff"}
+                </p>
               </div>
               <div className="mt-3 space-y-1">
                 <NavLink
@@ -337,14 +389,21 @@ export function DesktopTopBar({
   );
 }
 
-export function MobileTopBar({ user, unreadCount = 0, onSignOut }: TopBarProps) {
+export function MobileTopBar({
+  user,
+  unreadCount = 0,
+  onSignOut,
+}: TopBarProps) {
   const location = useLocation();
   const [profileOpen, setProfileOpen] = useState(false);
   const profileRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (profileRef.current && !profileRef.current.contains(event.target as Node)) {
+      if (
+        profileRef.current &&
+        !profileRef.current.contains(event.target as Node)
+      ) {
         setProfileOpen(false);
       }
     }
@@ -354,20 +413,36 @@ export function MobileTopBar({ user, unreadCount = 0, onSignOut }: TopBarProps) 
 
   return (
     <header className="fixed top-0 z-50 flex h-16 w-full items-center justify-between bg-surface/80 px-6 backdrop-blur-[24px] lg:hidden">
-      <NavLink to="/" className="flex items-center" aria-label="Go to dashboard">
-        <img src={stanforteLogo} alt="Stanforte Edge" className="h-10 w-auto object-contain" />
+      <NavLink
+        to="/"
+        className="flex items-center"
+        aria-label="Go to dashboard"
+      >
+        <img
+          src={stanforteLogo}
+          alt="Stanforte Edge"
+          className="h-10 w-auto object-contain"
+        />
       </NavLink>
       <div className="flex items-center gap-2">
         <NavLink
           to="/notifications"
           className={[
             "relative rounded-full p-2 transition-all active:scale-95 active:opacity-80 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-            location.pathname === "/notifications" ? "bg-brand-900/10 text-brand-900" : "",
+            location.pathname === "/notifications"
+              ? "bg-brand-900/10 text-brand-900"
+              : "",
           ].join(" ")}
-          aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
+          aria-label={
+            unreadCount > 0
+              ? `Notifications, ${unreadCount} unread`
+              : "Notifications"
+          }
         >
           <Icon name="notifications" />
-          {unreadCount > 0 ? <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" /> : null}
+          {unreadCount > 0 ? (
+            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" />
+          ) : null}
         </NavLink>
 
         <div className="relative" ref={profileRef}>
@@ -395,15 +470,29 @@ export function MobileTopBar({ user, unreadCount = 0, onSignOut }: TopBarProps) 
               className="absolute right-0 top-[calc(100%+0.75rem)] w-[240px] rounded-[24px] border border-slate-200 bg-white p-4 shadow-card"
             >
               <div className="border-b border-slate-100 pb-3">
-                <p className="text-sm font-semibold text-slate-950">{user.name}</p>
-                <p className="mt-1 text-sm text-slate-500">{user.title || "Staff"}</p>
+                <p className="text-sm font-semibold text-slate-950">
+                  {user.name}
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {user.title || "Staff"}
+                </p>
               </div>
               <div className="mt-3 space-y-1">
-                <NavLink to="/settings" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10" role="menuitem">
+                <NavLink
+                  to="/settings"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                  role="menuitem"
+                >
                   <Icon name="settings" />
                   Settings
                 </NavLink>
-                <NavLink to="/help" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10" role="menuitem">
+                <NavLink
+                  to="/help"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                  role="menuitem"
+                >
                   <Icon name="help" />
                   Support
                 </NavLink>
