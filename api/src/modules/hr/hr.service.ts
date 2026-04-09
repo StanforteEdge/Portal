@@ -1011,7 +1011,10 @@ export class HrService {
         name: entry.role.name,
         is_primary: entry.isPrimaryRole
       })),
-      teams: groupMemberships.filter((entry: any) => String(entry.type).toLowerCase() === 'team'),
+      teams: groupMemberships.filter((entry: any) => {
+        const type = String(entry.type).toLowerCase();
+        return type === 'team' || type === 'department';
+      }),
       projects: groupMemberships.filter((entry: any) => String(entry.type).toLowerCase() === 'project'),
       employee_profile: profile.employeeProfile
         ? {

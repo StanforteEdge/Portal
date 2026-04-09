@@ -8,7 +8,7 @@ const menu: Array<Menu | "divider"> = [
   },
   {
     icon: "Wallet",
-    title: "Finance",
+    title: "Requests",
     moduleKey: "finance",
     subMenu: [
       {
@@ -21,13 +21,13 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/requests/finance/new",
         title: "New Request",
       },
-      {
-        icon: "CheckCheck",
-        pathname: "/app/requests/approvals",
-        title: "Approvals",
-        permissions: ["requests.approve"],
-      },
     ],
+  },
+  {
+    icon: "CheckCheck",
+    pathname: "/app/approvals",
+    title: "Approvals",
+    permissions: ["requests.approve"],
   },
   {
     icon: "ClipboardList",
@@ -53,29 +53,36 @@ const menu: Array<Menu | "divider"> = [
     moduleKey: "attendance",
   },
   {
-    icon: "FolderOpen",
-    title: "My Media",
-    pathname: "/app/media",
-    moduleKey: "media",
+    icon: "ListChecks",
+    title: "Work",
+    subMenu: [
+      {
+        icon: "BarChart2",
+        pathname: "/app/work/performance",
+        title: "Performance",
+        permissions: ["work.view"],
+      },
+      {
+        icon: "ListChecks",
+        pathname: "/app/work",
+        title: "Tracker",
+        permissions: ["work.view"],
+      },
+      {
+        icon: "ClipboardList",
+        pathname: "/app/hr/work",
+        title: "Planner",
+        permissions: ["work.manage"],
+      },
+    ],
   },
   {
-    icon: "BookOpen",
-    title: "Documents",
-    pathname: "/app/documents",
-    moduleKey: "documents",
-  },
-  {
-    icon: "HelpCircle",
-    title: "Help",
-    pathname: "/app/help",
-  },
-  {
-    icon: "Trello",
+    icon: "User",
     title: "Profile",
     subMenu: [
       {
         icon: "User",
-        title: "My Profile",
+        title: "Profile",
         pathname: "/app/profile",
       },
       {
@@ -84,21 +91,39 @@ const menu: Array<Menu | "divider"> = [
         pathname: "/app/onboarding",
       },
       {
-        icon: "Lock",
-        title: "Security",
-        pathname: "/app/settings/security",
-      },
-      {
         icon: "FileText",
-        title: "My Payslips",
+        title: "Payslips",
         pathname: "/app/profile/payslips",
         moduleKey: "finance",
       },
       {
         icon: "Clock3",
-        title: "My Timesheets",
+        title: "Timesheets",
         pathname: "/app/profile/timesheets",
         moduleKey: "finance",
+      },
+      {
+        icon: "FolderOpen",
+        title: "Media",
+        pathname: "/app/media",
+        moduleKey: "media",
+      },
+      {
+        icon: "BookOpen",
+        title: "Documents",
+        pathname: "/app/documents",
+        moduleKey: "documents",
+      },
+    ],
+  },
+  {
+    icon: "Settings",
+    title: "Settings",
+    subMenu: [
+      {
+        icon: "Lock",
+        title: "Security",
+        pathname: "/app/settings/security",
       },
       {
         icon: "Bell",
@@ -108,10 +133,21 @@ const menu: Array<Menu | "divider"> = [
       },
     ],
   },
+  {
+    icon: "HelpCircle",
+    title: "Help",
+    pathname: "/app/help",
+  },
   "divider",
   {
+    icon: "Minus",
+    title: "Admin",
+    isSectionLabel: true,
+    permissions: ["finance.view"],
+  },
+  {
     icon: "Wallet",
-    title: "Finance Admin",
+    title: "Finance",
     permissions: ["finance.view"],
     moduleKey: "finance",
     subMenu: [
@@ -129,12 +165,6 @@ const menu: Array<Menu | "divider"> = [
             pathname: "/app/finance/requests",
             title: "Requests",
             matchSubPaths: true,
-          },
-          {
-            icon: "CheckCheck",
-            pathname: "/app/requests/approvals",
-            title: "Approvals",
-            permissions: ["requests.approve"],
           },
           {
             icon: "Clipboard",
@@ -205,38 +235,9 @@ const menu: Array<Menu | "divider"> = [
             matchSubPaths: true,
           },
           {
-            icon: "Users",
-            pathname: "/app/finance/payroll/workers",
-            title: "Workers",
-            permissions: ["settings.manage"],
-          },
-          {
             icon: "Inbox",
             pathname: "/app/finance/payroll/inbox",
             title: "Inbox",
-          },
-          {
-            icon: "Bell",
-            pathname: "/app/finance/payroll/notification-preferences",
-            title: "Notification Preferences",
-          },
-          {
-            icon: "ListChecks",
-            pathname: "/app/finance/payroll/components",
-            title: "Components",
-            permissions: ["settings.manage"],
-          },
-          {
-            icon: "Clock3",
-            pathname: "/app/finance/payroll/timesheets",
-            title: "Timesheets",
-            permissions: ["settings.manage"],
-          },
-          {
-            icon: "CircleDollarSign",
-            pathname: "/app/finance/payroll/loans",
-            title: "Advances & Loans",
-            permissions: ["settings.manage"],
           },
           {
             icon: "Wallet",
@@ -244,31 +245,55 @@ const menu: Array<Menu | "divider"> = [
             title: "Runs",
           },
           {
-            icon: "ListChecks",
-            pathname: "/app/finance/payroll/approvals",
-            title: "Approvals",
-          },
-          {
-            icon: "Settings",
-            pathname: "/app/finance/payroll/settings",
-            title: "Settings",
-            permissions: ["settings.manage"],
-          },
-          {
             icon: "BarChart2",
             pathname: "/app/finance/payroll/reports",
             title: "Reports",
           },
           {
+            icon: "Users",
+            pathname: "/app/finance/payroll/workers",
+            title: "Workers",
+            permissions: ["finance.manage"],
+          },
+          {
+            icon: "ListChecks",
+            pathname: "/app/finance/payroll/components",
+            title: "Components",
+            permissions: ["finance.manage"],
+          },
+          {
+            icon: "Clock3",
+            pathname: "/app/finance/payroll/timesheets",
+            title: "Timesheets",
+            permissions: ["finance.manage"],
+          },
+          {
+            icon: "CircleDollarSign",
+            pathname: "/app/finance/payroll/loans",
+            title: "Advances & Loans",
+            permissions: ["finance.manage"],
+          },
+          {
+            icon: "Bell",
+            pathname: "/app/finance/payroll/notification-preferences",
+            title: "Notification Preferences",
+          },
+          {
             icon: "FileText",
             pathname: "/app/finance/payroll/import",
             title: "Import",
-            permissions: ["settings.manage"],
+            permissions: ["finance.manage"],
           },
           {
             icon: "FileText",
             pathname: "/app/finance/payroll/templates",
             title: "Templates",
+          },
+          {
+            icon: "Settings",
+            pathname: "/app/finance/payroll/settings",
+            title: "Settings",
+            permissions: ["finance.manage"],
           },
         ],
       },
@@ -316,7 +341,7 @@ const menu: Array<Menu | "divider"> = [
             icon: "Settings",
             pathname: "/app/finance/settings",
             title: "Finance Settings",
-            permissions: ["settings.manage"],
+            permissions: ["finance.manage"],
           },
           {
             icon: "BookOpen",
@@ -344,8 +369,7 @@ const menu: Array<Menu | "divider"> = [
   },
   {
     icon: "UserCheck",
-    title: "HR Admin",
-    permissions: ["users.manage"],
+    title: "People",
     moduleKey: "hr",
     subMenu: [
       {
@@ -403,9 +427,8 @@ const menu: Array<Menu | "divider"> = [
     ],
   },
   {
-    icon: "Users",
+    icon: "ShieldCheck",
     title: "Admin",
-    permissions: ["settings.manage"],
     moduleKey: "admin",
     subMenu: [
       {
@@ -416,40 +439,52 @@ const menu: Array<Menu | "divider"> = [
         permissions: ["users.manage"],
       },
       {
-        icon: "Folder",
-        pathname: "/app/admin/files",
-        title: "Media",
-      },
-      {
-        icon: "Kanban",
-        pathname: "/app/admin/projects",
-        title: "Projects",
-      },
-      {
-        icon: "BookOpen",
-        pathname: "/app/admin/documents",
-        title: "Documents",
-      },
-      {
-        icon: "ClipboardList",
-        pathname: "/app/admin/forms",
-        title: "Forms",
-      },
-      {
         icon: "ShieldCheck",
         pathname: "/app/admin/roles",
         title: "Roles & Permissions",
         permissions: ["roles.manage"],
       },
       {
+        icon: "Users",
+        pathname: "/app/admin/groups",
+        title: "Groups",
+        permissions: ["groups.manage"],
+      },
+      {
+        icon: "Folder",
+        pathname: "/app/admin/files",
+        title: "Media",
+        permissions: ["settings.manage"],
+      },
+      {
+        icon: "Kanban",
+        pathname: "/app/admin/projects",
+        title: "Projects",
+        permissions: ["projects.manage"],
+      },
+      {
+        icon: "BookOpen",
+        pathname: "/app/admin/documents",
+        title: "Documents",
+        permissions: ["settings.manage"],
+      },
+      {
+        icon: "ClipboardList",
+        pathname: "/app/admin/forms",
+        title: "Forms",
+        permissions: ["settings.manage"],
+      },
+      {
         icon: "Settings2",
         pathname: "/app/admin/policies",
         title: "Policies",
+        permissions: ["settings.manage"],
       },
       {
         icon: "Settings2",
         pathname: "/app/admin/settings",
         title: "Settings",
+        permissions: ["settings.manage"],
       },
     ],
   },

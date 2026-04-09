@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import Table from "@/components/Base/Table";
+import TomSelect from "@/components/Base/TomSelect";
 import { Dialog } from "@/components/Base/Headless";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
-import { listOrganizations } from "@/services/organizations";
+import { listMyOrganizations } from "@/services/organizations";
 import { listProjects } from "@/services/projects";
 import { listTeams } from "@/services/teams";
 import { listFinanceFunds, listFinanceGrants } from "@/services/financeAccounting";
@@ -16,6 +17,9 @@ import {
   updateMyProjectTimesheet,
 } from "@/services/payroll";
 import { formatDisplayDate } from "@/utils/formatting";
+import { useAppSelector } from "@/stores/hooks";
+import { selectAuthState } from "@/stores/authSlice";
+import { getMyProfile } from "@/services/profile";
 
 const emptyForm = {
   organization_id: "",
@@ -29,6 +33,7 @@ const emptyForm = {
 };
 
 function MyTimesheetsPage() {
+  const auth = useAppSelector(selectAuthState);
   const [rows, setRows] = useState<any[]>([]);
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
@@ -40,20 +45,43 @@ function MyTimesheetsPage() {
   const [editingId, setEditingId] = useState("");
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const showOrganizationField = organizations.length > 1;
+  const showTeamField = teams.length > 1;
+
+  useEffect(() => {
+    const primaryOrganizationId = (auth.user as any)?.primaryOrganizationId;
+    const primaryTeamId = (auth.user as any)?.employee_profile?.primaryTeamId ?? (auth.user as any)?.primaryTeamId;
+    if (organizations.length === 1 && !form.organization_id) {
+      setForm((prev) => ({ ...prev, organization_id: String(organizations[0].id) }));
+    } else if (!showOrganizationField && primaryOrganizationId && !form.organization_id) {
+      setForm((prev) => ({ ...prev, organization_id: String(primaryOrganizationId) }));
+    }
+    if (teams.length === 1 && !form.team_id) {
+      setForm((prev) => ({ ...prev, team_id: String(teams[0].id) }));
+    } else if (!showTeamField && primaryTeamId && !form.team_id) {
+      setForm((prev) => ({ ...prev, team_id: String(primaryTeamId) }));
+    }
+  }, [auth.user, form.organization_id, form.team_id, organizations, showOrganizationField, showTeamField, teams]);
 
   const load = async () => {
     try {
       const [timesheetRows, orgRows, teamRows, projectRows, fundRows, grantRows] = await Promise.all([
         listMyProjectTimesheets(),
-        listOrganizations({ is_active: true }).catch(() => []),
+        listMyOrganizations().catch(() => []),
         listTeams({ active_only: true }).catch(() => []),
         listProjects({ active_only: false }).catch(() => []),
         listFinanceFunds().catch(() => []),
         listFinanceGrants().catch(() => []),
       ]);
+      const myProfile = await getMyProfile().catch(() => null);
+      const nextUserId = myProfile?.id ? String(myProfile.id) : "";
+      const myTeams =
+        nextUserId.length > 0
+          ? teamRows.filter((team: any) => (team.members || []).some((member: any) => String(member.userId) === nextUserId))
+          : [];
       setRows(timesheetRows);
-      setOrganizations(orgRows);
-      setTeams(teamRows);
+      setOrganizations(orgRows.map((row: any) => row.organization ?? row).filter(Boolean));
+      setTeams(myTeams);
       setProjects(projectRows);
       setFunds(fundRows);
       setGrants(grantRows);
@@ -179,6 +207,8 @@ function MyTimesheetsPage() {
                       <Button
                         size="sm"
                         variant="outline-secondary"
+                        aria-label={`Edit timesheet entry for ${formatDisplayDate(row.work_date)}`}
+                        title="Edit timesheet entry"
                         onClick={() => {
                           setEditingId(row.id);
                           setForm({
@@ -198,7 +228,13 @@ function MyTimesheetsPage() {
                       </Button>
                     ) : null}
                     {["draft", "rejected"].includes(row.status) ? (
-                      <Button size="sm" variant="outline-primary" onClick={() => void submit(row.id)}>
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        aria-label={`Submit timesheet entry for ${formatDisplayDate(row.work_date)}`}
+                        title="Submit timesheet entry"
+                        onClick={() => void submit(row.id)}
+                      >
                         <Lucide icon="Send" className="w-4 h-4" />
                       </Button>
                     ) : null}
@@ -221,11 +257,11 @@ function MyTimesheetsPage() {
           <Dialog.Description className="grid grid-cols-12 gap-4">
             <div className="col-span-12 md:col-span-4"><FormLabel>Work Date</FormLabel><FormInput type="date" value={form.work_date} onChange={(e) => setForm((prev) => ({ ...prev, work_date: e.target.value }))} /></div>
             <div className="col-span-12 md:col-span-4"><FormLabel>Hours</FormLabel><FormInput type="number" value={form.hours} onChange={(e) => setForm((prev) => ({ ...prev, hours: e.target.value }))} /></div>
-            <div className="col-span-12 md:col-span-4"><FormLabel>Organization</FormLabel><FormSelect value={form.organization_id} onChange={(e) => setForm((prev) => ({ ...prev, organization_id: e.target.value }))}><option value="">None</option>{organizations.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
-            <div className="col-span-12 md:col-span-4"><FormLabel>Team</FormLabel><FormSelect value={form.team_id} onChange={(e) => setForm((prev) => ({ ...prev, team_id: e.target.value }))}><option value="">None</option>{teams.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
-            <div className="col-span-12 md:col-span-4"><FormLabel>Project</FormLabel><FormSelect value={form.project_id} onChange={(e) => setForm((prev) => ({ ...prev, project_id: e.target.value }))}><option value="">None</option>{projects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
-            <div className="col-span-12 md:col-span-4"><FormLabel>Fund</FormLabel><FormSelect value={form.fund_id} onChange={(e) => setForm((prev) => ({ ...prev, fund_id: e.target.value }))}><option value="">None</option>{funds.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
-            <div className="col-span-12 md:col-span-6"><FormLabel>Grant</FormLabel><FormSelect value={form.grant_id} onChange={(e) => setForm((prev) => ({ ...prev, grant_id: e.target.value }))}><option value="">None</option>{grants.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</FormSelect></div>
+            {showOrganizationField ? <div className="col-span-12 md:col-span-4"><FormLabel>Organization</FormLabel><TomSelect value={form.organization_id} onChange={(e) => setForm((prev) => ({ ...prev, organization_id: e.target.value }))}><option value="">None</option>{organizations.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div> : null}
+            {showTeamField ? <div className="col-span-12 md:col-span-4"><FormLabel>Team</FormLabel><TomSelect value={form.team_id} onChange={(e) => setForm((prev) => ({ ...prev, team_id: e.target.value }))}><option value="">None</option>{teams.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div> : null}
+            <div className="col-span-12 md:col-span-4"><FormLabel>Project</FormLabel><TomSelect value={form.project_id} onChange={(e) => setForm((prev) => ({ ...prev, project_id: e.target.value }))}><option value="">None</option>{projects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div>
+            <div className="col-span-12 md:col-span-4"><FormLabel>Fund</FormLabel><TomSelect value={form.fund_id} onChange={(e) => setForm((prev) => ({ ...prev, fund_id: e.target.value }))}><option value="">None</option>{funds.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div>
+            <div className="col-span-12 md:col-span-6"><FormLabel>Grant</FormLabel><TomSelect value={form.grant_id} onChange={(e) => setForm((prev) => ({ ...prev, grant_id: e.target.value }))}><option value="">None</option>{grants.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</TomSelect></div>
             <div className="col-span-12"><FormLabel>Description</FormLabel><FormTextarea rows={3} value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} /></div>
           </Dialog.Description>
           <Dialog.Footer>

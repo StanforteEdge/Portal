@@ -38,7 +38,10 @@ const REQUEST_TYPE = {
   categoryKey: TAXONOMY.key,
   description: 'Standard leave request workflow',
   approvalFlowJson: {
-    steps: [{ role: 'team_lead' }, { role: 'hr' }],
+    steps: [
+      { approver: { type: 'relation', value: 'requester_team_lead_or_manager' } },
+      { approver: { type: 'permission', value: 'hr.approve' } },
+    ],
   },
 };
 
@@ -196,7 +199,7 @@ async function main() {
     });
 
     const users = await prisma.profile.findMany({
-      where: { isActive: true },
+      where: { status: 'active' },
       select: { id: true, email: true },
       orderBy: { id: 'asc' },
     });
@@ -245,4 +248,3 @@ main().catch((err) => {
   console.error('HR leave system seed failed:', err);
   process.exit(1);
 });
-

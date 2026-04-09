@@ -47,7 +47,11 @@ export class CreateTypeDto {
     type: 'object',
     additionalProperties: true,
     example: {
-      steps: [{ role: 'team_lead' }, { role: 'accountant' }, { role: 'coo', min_amount: 500000 }]
+      steps: [
+        { approver: { type: 'relation', value: 'requester_team_lead' } },
+        { approver: { type: 'permission', value: 'finance.approve' } },
+        { approver: { type: 'office', value: 'coo' }, min_amount: 500000 }
+      ]
     }
   })
   @IsOptional()

@@ -7,7 +7,8 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
   build: {
     commonjsOptions: {
-      include: ["tailwind.config.js", "node_modules/**"],
+      include: [/node_modules/, /tailwind\.config\.js/],
+      transformMixedEsModules: true,
     },
   },
   optimizeDeps: {
@@ -15,6 +16,7 @@ export default defineConfig({
   },
   plugins: [react(), splitVendorChunkPlugin()],
   resolve: {
+    dedupe: ["react", "react-dom", "react-router", "react-router-dom"],
     alias: {
       "@": fileURLToPath(new URL("./src", import.meta.url)),
       "tailwind-config": fileURLToPath(

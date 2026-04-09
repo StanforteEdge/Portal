@@ -122,10 +122,10 @@ function MyPayslipsPage() {
               const isTarget = targetRunId === row.run_id || targetItemId === row.id;
               return (
                 <Table.Tr key={row.id} className={isTarget ? "bg-primary/5" : undefined}>
-                  <Table.Td>
+                  <Table.RowHeader>
                     <div className="font-medium">{row.run_name}</div>
                     <div className="text-xs text-slate-500">{row.month}/{row.year}</div>
-                  </Table.Td>
+                  </Table.RowHeader>
                   <Table.Td className="capitalize">{String(row.status || "").replaceAll("_", " ")}</Table.Td>
                   <Table.Td className="text-right">{formatMoney(row.gross_pay)}</Table.Td>
                   <Table.Td className="text-right">{formatMoney(row.net_pay)}</Table.Td>

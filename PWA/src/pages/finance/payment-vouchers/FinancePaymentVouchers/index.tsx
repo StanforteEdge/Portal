@@ -125,8 +125,11 @@ function FinancePaymentVouchersPage() {
               {rows.map((row) => (
                 <Table.Tr key={row.id}>
                   <Table.Td>
-                    <div className="font-medium">{row.voucher_number}</div>
+                    <Link className="font-medium text-primary hover:underline" to={`/app/finance/requests/request/${row.request_id}?voucher_id=${row.id}`}>
+                      {row.voucher_number}
+                    </Link>
                     <div className="text-xs text-slate-500">{row.method || "-"}</div>
+                    <div className="text-xs text-slate-500">Click to view or edit</div>
                   </Table.Td>
                   <Table.Td>
                     <Link className="font-semibold text-primary hover:underline" to={`/app/finance/requests/request/${row.request_id}`}>
@@ -166,6 +169,7 @@ function FinancePaymentVouchersPage() {
         <div className="flex flex-wrap items-center justify-between p-5 border-t border-slate-200/60 dark:border-darkmode-400 mt-4">
           <div className="text-slate-500 text-sm">Showing {rows.length} of {meta.total} vouchers</div>
           <div className="flex items-center gap-3">
+            <FormLabel className="sr-only">Items per page</FormLabel>
             <FormSelect
               className="w-auto"
               value={filters.per_page}

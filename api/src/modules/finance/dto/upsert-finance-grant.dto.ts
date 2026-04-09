@@ -26,6 +26,11 @@ export class UpsertFinanceGrantDto {
   @IsUUID()
   fund_id?: string;
 
+  @ApiPropertyOptional({ example: '7' })
+  @IsOptional()
+  @IsString()
+  project_id?: string;
+
   @ApiPropertyOptional({ example: '2026-01-01' })
   @IsOptional()
   @IsDateString()

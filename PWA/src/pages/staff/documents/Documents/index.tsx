@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Button from "@/components/Base/Button";
 import Table from "@/components/Base/Table";
-import { FormInput, FormSelect } from "@/components/Base/Form";
+import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import { Dialog } from "@/components/Base/Headless";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
@@ -104,6 +104,7 @@ function DocumentsPage() {
             <option value="draft">Draft</option>
             <option value="archived">Archived</option>
           </FormSelect>
+          <FormLabel className="sr-only">Search documents</FormLabel>
           <FormInput
             value={search}
             onChange={(e) => setSearch(e.target.value)}

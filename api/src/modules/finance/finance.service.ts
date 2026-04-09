@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
 import { DisburseRequestDto } from './dto/disburse-request.dto';
@@ -20,6 +20,7 @@ import { CreateFinanceBillDto } from './dto/create-finance-bill.dto';
 import { CreateFinanceReceiptDto } from './dto/create-finance-receipt.dto';
 import { CreateFinanceVendorPaymentDto } from './dto/create-finance-vendor-payment.dto';
 import { UpsertFinanceReportNoteDto } from './dto/upsert-finance-report-note.dto';
+import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
 import { MailService } from '../../common/mail/mail.service';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
@@ -132,6 +133,7 @@ export class FinanceService {
     ]);
 
     const pendingFinanceRoleSlugs = new Set(['accountant', 'finance_manager']);
+    const pendingFinancePermissionSlugs = new Set(['finance.approve']);
     const approvalInstanceIds = rows
       .filter((row) => row.status === 'approval' && row.workflowInstanceId)
       .map((row) => row.workflowInstanceId as string);
@@ -152,8 +154,12 @@ export class FinanceService {
       for (const instance of instances) {
         const hasFinanceApprover = (instance.currentStep?.approvers ?? []).some(
           (approver) =>
-            approver.approverType === 'role' &&
-            pendingFinanceRoleSlugs.has(String(approver.approverId || '').trim().toLowerCase())
+            (
+              (approver.approverType === 'role' &&
+                pendingFinanceRoleSlugs.has(String(approver.approverId || '').trim().toLowerCase())) ||
+              (approver.approverType === 'permission' &&
+                pendingFinancePermissionSlugs.has(String(approver.approverId || '').trim().toLowerCase()))
+            )
         );
         const progressedPastFirstStep = (instance.currentStep?.order ?? 1) > 1;
         if (hasFinanceApprover || progressedPastFirstStep) financeApprovalInstanceIds.add(instance.id);
@@ -382,6 +388,16 @@ export class FinanceService {
         paidFromAccount: {
           select: { id: true, name: true, code: true, accountType: true }
         },
+        corrections: {
+          where: { status: 'pending' },
+          orderBy: { createdAt: 'desc' },
+          take: 1,
+          include: {
+            proposer: {
+              select: { id: true, firstName: true, lastName: true, username: true, email: true }
+            }
+          }
+        }
       },
       orderBy: { disbursedAt: 'asc' }
     });
@@ -457,6 +473,7 @@ export class FinanceService {
               account_type: voucher.paidFromAccount.accountType
             }
           : null,
+        pending_correction: this.serializeVoucherCorrection(voucher.corrections?.[0] ?? null),
         retirement_files: (() => {
           const metadata =
             voucher.metadata && typeof voucher.metadata === 'object' && !Array.isArray(voucher.metadata)
@@ -475,6 +492,551 @@ export class FinanceService {
         })()
       };
     });
+  }
+
+  async updatePaymentVoucher(
+    requestId: string,
+    voucherId: string,
+    dto: UpdatePaymentVoucherDto,
+    actorId?: string,
+    actorPermissions: string[] = []
+  ) {
+    const id = this.parseId(requestId, 'request id');
+    const voucher = await this.prisma.financePaymentVoucher.findFirst({
+      where: { id: voucherId, requestId: id },
+      include: {
+        request: {
+          select: {
+            id: true,
+            status: true,
+            organizationId: true,
+            teamId: true,
+            workflowInstanceId: true,
+          }
+        },
+      },
+    });
+    if (!voucher) throw new NotFoundException('Payment voucher not found');
+    const permissionSet = new Set((actorPermissions ?? []).map((permission) => String(permission).toLowerCase()));
+    const canCorrectCompleted = permissionSet.has('*') || permissionSet.has('finance.correct_completed');
+    const prepared = await this.preparePaymentVoucherUpdate(voucher, dto);
+
+    if (voucher.request.status === 'completed' && !canCorrectCompleted) {
+      const correction = await this.submitPaymentVoucherCorrection(voucher, prepared, dto.correction_reason, actorId);
+      const updated = await this.listPaymentVouchers(requestId);
+      const matched = updated.find((row) => row.id === voucherId);
+      if (!matched) throw new NotFoundException('Payment voucher not found after correction request');
+      return {
+        mode: 'pending_approval' as const,
+        voucher: matched,
+        correction: this.serializeVoucherCorrection(correction)
+      };
+    }
+
+    await this.applyPaymentVoucherUpdate(voucher, prepared, actorId);
+    const updated = await this.listPaymentVouchers(requestId);
+    const matched = updated.find((row) => row.id === voucherId);
+    if (!matched) throw new NotFoundException('Payment voucher not found after update');
+    return {
+      mode: 'updated' as const,
+      voucher: matched
+    };
+  }
+
+  async approvePaymentVoucherCorrection(requestId: string, voucherId: string, correctionId: string, actorId?: string) {
+    const id = this.parseId(requestId, 'request id');
+    const correction = await this.prisma.financePaymentVoucherCorrection.findFirst({
+      where: { id: correctionId, voucherId, requestId: id, status: 'pending' },
+      include: {
+        voucher: {
+          include: {
+            request: {
+              select: {
+                id: true,
+                status: true,
+                organizationId: true,
+                teamId: true,
+                workflowInstanceId: true,
+              }
+            }
+          }
+        }
+      }
+    });
+    if (!correction) throw new NotFoundException('Pending payment voucher correction not found');
+
+    const proposed = this.correctionSnapshotToDto(correction.proposedSnapshot);
+    const prepared = await this.preparePaymentVoucherUpdate(correction.voucher, proposed);
+    await this.applyPaymentVoucherUpdate(correction.voucher, prepared, actorId);
+
+    await this.prisma.financePaymentVoucherCorrection.update({
+      where: { id: correction.id },
+      data: {
+        status: 'approved',
+        reviewedBy: actorId ? toBigInt(actorId) : null,
+        reviewedAt: new Date(),
+      }
+    });
+
+    await this.notificationsService.create({
+      userId: correction.proposedBy,
+      type: 'finance',
+      title: 'Payment voucher correction approved',
+      message: `Your correction for voucher ${correction.voucher.voucherNumber} has been approved.`,
+      link: `/app/finance/requests/request/${requestId}?voucher_id=${voucherId}`,
+      data: { voucher_id: voucherId, correction_id: correction.id, status: 'approved' } as Prisma.InputJsonValue
+    }).catch(() => undefined);
+
+    const updated = await this.listPaymentVouchers(requestId);
+    return {
+      mode: 'approved' as const,
+      voucher: updated.find((row) => row.id === voucherId) ?? null,
+      correction_id: correction.id
+    };
+  }
+
+  async rejectPaymentVoucherCorrection(requestId: string, voucherId: string, correctionId: string, actorId?: string, comment?: string) {
+    const id = this.parseId(requestId, 'request id');
+    const correction = await this.prisma.financePaymentVoucherCorrection.findFirst({
+      where: { id: correctionId, voucherId, requestId: id, status: 'pending' },
+      include: { voucher: true }
+    });
+    if (!correction) throw new NotFoundException('Pending payment voucher correction not found');
+
+    await this.prisma.financePaymentVoucherCorrection.update({
+      where: { id: correction.id },
+      data: {
+        status: 'rejected',
+        reviewedBy: actorId ? toBigInt(actorId) : null,
+        reviewedAt: new Date(),
+        reviewComment: comment?.trim() || null
+      }
+    });
+
+    await this.notificationsService.create({
+      userId: correction.proposedBy,
+      type: 'warning',
+      title: 'Payment voucher correction rejected',
+      message: comment?.trim()
+        ? `Your correction for voucher ${correction.voucher.voucherNumber} was rejected: ${comment.trim()}`
+        : `Your correction for voucher ${correction.voucher.voucherNumber} was rejected.`,
+      link: `/app/finance/requests/request/${requestId}?voucher_id=${voucherId}`,
+      data: { voucher_id: voucherId, correction_id: correction.id, status: 'rejected' } as Prisma.InputJsonValue
+    }).catch(() => undefined);
+
+    const updated = await this.listPaymentVouchers(requestId);
+    return {
+      mode: 'rejected' as const,
+      voucher: updated.find((row) => row.id === voucherId) ?? null,
+      correction_id: correction.id
+    };
+  }
+
+  private serializeVoucherCorrection(
+    correction:
+      | (Prisma.FinancePaymentVoucherCorrectionGetPayload<{ include: { proposer: { select: { id: true; firstName: true; lastName: true; username: true; email: true } } } }>)
+      | null
+  ) {
+    if (!correction) return null;
+    const proposed = correction.proposedSnapshot && typeof correction.proposedSnapshot === 'object' && !Array.isArray(correction.proposedSnapshot)
+      ? (correction.proposedSnapshot as Record<string, unknown>)
+      : {};
+    const proposerName =
+      `${String(correction.proposer?.firstName ?? '').trim()} ${String(correction.proposer?.lastName ?? '').trim()}`.trim() ||
+      correction.proposer?.username ||
+      correction.proposer?.email ||
+      '-';
+    return {
+      id: correction.id,
+      status: correction.status,
+      reason: correction.reason,
+      created_at: correction.createdAt,
+      proposed_by: {
+        id: correction.proposer?.id?.toString?.() ?? String(correction.proposedBy),
+        name: proposerName,
+        email: correction.proposer?.email ?? null
+      },
+      proposed_snapshot: {
+        amount: typeof proposed.amount === 'number' ? proposed.amount : Number(proposed.amount ?? 0),
+        paid_from_account_id: typeof proposed.paid_from_account_id === 'string' ? proposed.paid_from_account_id : null,
+        disbursed_at: typeof proposed.disbursed_at === 'string' ? proposed.disbursed_at : null,
+        method: typeof proposed.method === 'string' ? proposed.method : null,
+        transaction_ref: typeof proposed.transaction_ref === 'string' ? proposed.transaction_ref : null,
+        note: typeof proposed.note === 'string' ? proposed.note : null,
+        evidence_file_ids: Array.isArray(proposed.evidence_file_ids) ? proposed.evidence_file_ids.map((value) => String(value)) : []
+      }
+    };
+  }
+
+  private correctionSnapshotToDto(snapshot: Prisma.JsonValue): UpdatePaymentVoucherDto {
+    const record = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot)
+      ? (snapshot as Record<string, unknown>)
+      : {};
+    return {
+      amount: Number(record.amount ?? 0),
+      paid_from_account_id: typeof record.paid_from_account_id === 'string' ? record.paid_from_account_id : undefined,
+      disbursed_at: typeof record.disbursed_at === 'string' ? record.disbursed_at : undefined,
+      method: typeof record.method === 'string' ? record.method : undefined,
+      transaction_ref: typeof record.transaction_ref === 'string' ? record.transaction_ref : undefined,
+      note: typeof record.note === 'string' ? record.note : undefined,
+      evidence_file_id: Array.isArray(record.evidence_file_ids) && record.evidence_file_ids.length > 0 ? String(record.evidence_file_ids[0]) : undefined,
+      evidence_file_ids: Array.isArray(record.evidence_file_ids) ? record.evidence_file_ids.map((value) => String(value)) : [],
+    };
+  }
+
+  private async preparePaymentVoucherUpdate(
+    voucher: Prisma.FinancePaymentVoucherGetPayload<{
+      include: {
+        request: {
+          select: {
+            id: true;
+            status: true;
+            organizationId: true;
+            teamId: true;
+            workflowInstanceId: true;
+          }
+        }
+      }
+    }>,
+    dto: UpdatePaymentVoucherDto
+  ) {
+    const evidenceFileIds = Array.from(
+      new Set([dto.evidence_file_id ?? null, ...(dto.evidence_file_ids ?? [])].filter((fileId): fileId is string => Boolean(fileId)))
+    );
+    if (evidenceFileIds.length > 0) {
+      const fileExists = await this.prisma.fileAsset.count({ where: { id: { in: evidenceFileIds } } });
+      if (fileExists !== evidenceFileIds.length) {
+        throw new BadRequestException('Invalid payment voucher evidence file');
+      }
+    }
+
+    const nextAmount = dto.amount ?? Number(voucher.amount);
+    if (Number.isNaN(nextAmount) || nextAmount <= 0) {
+      throw new BadRequestException('Payment voucher amount must be greater than zero');
+    }
+    const retiredAmount = Number(voucher.retiredAmount ?? 0);
+    if (nextAmount < retiredAmount) {
+      throw new BadRequestException('Payment voucher amount cannot be less than the retired amount');
+    }
+
+    let disbursedAt = voucher.disbursedAt;
+    if (dto.disbursed_at) {
+      disbursedAt = new Date(dto.disbursed_at);
+      if (Number.isNaN(disbursedAt.getTime())) throw new BadRequestException('Invalid disbursed_at date');
+    }
+
+    let paidFromAccountId = dto.paid_from_account_id ?? voucher.paidFromAccountId;
+    let paidFromAccount: { id: string; currency: string; isActive: boolean } | null = null;
+    if (paidFromAccountId) {
+      paidFromAccount = await this.prisma.financeAccount.findUnique({
+        where: { id: paidFromAccountId },
+        select: { id: true, currency: true, isActive: true }
+      });
+      if (!paidFromAccount || !paidFromAccount.isActive) throw new BadRequestException('Invalid paid_from_account_id');
+    } else {
+      paidFromAccountId = null;
+    }
+
+    const nextNote = dto.note ?? voucher.note;
+    const nextMethod = dto.method ?? voucher.method;
+    const nextTransactionRef = dto.transaction_ref ?? voucher.transactionRef;
+    const changeSummary: Record<string, { from: string | number | null; to: string | number | null }> = {};
+    if (Number(voucher.amount) !== nextAmount) changeSummary.amount = { from: Number(voucher.amount), to: nextAmount };
+    if ((voucher.paidFromAccountId ?? null) !== (paidFromAccountId ?? null)) {
+      changeSummary.paid_from_account_id = { from: voucher.paidFromAccountId ?? null, to: paidFromAccountId ?? null };
+    }
+    if (voucher.disbursedAt.toISOString() !== disbursedAt.toISOString()) {
+      changeSummary.disbursed_at = { from: voucher.disbursedAt.toISOString(), to: disbursedAt.toISOString() };
+    }
+    if ((voucher.method ?? null) !== (nextMethod ?? null)) changeSummary.method = { from: voucher.method ?? null, to: nextMethod ?? null };
+    if ((voucher.transactionRef ?? null) !== (nextTransactionRef ?? null)) {
+      changeSummary.transaction_ref = { from: voucher.transactionRef ?? null, to: nextTransactionRef ?? null };
+    }
+    if ((voucher.note ?? null) !== (nextNote ?? null)) changeSummary.note = { from: voucher.note ?? null, to: nextNote ?? null };
+
+    return {
+      evidenceFileIds,
+      nextAmount,
+      disbursedAt,
+      paidFromAccountId,
+      paidFromAccount,
+      nextNote,
+      nextMethod,
+      nextTransactionRef,
+      changeSummary,
+      currentSnapshot: {
+        amount: Number(voucher.amount),
+        paid_from_account_id: voucher.paidFromAccountId ?? null,
+        disbursed_at: voucher.disbursedAt.toISOString(),
+        method: voucher.method ?? null,
+        transaction_ref: voucher.transactionRef ?? null,
+        note: voucher.note ?? null,
+        evidence_file_ids: voucher.evidenceFileId ? [voucher.evidenceFileId] : []
+      } as Prisma.InputJsonValue,
+      proposedSnapshot: {
+        amount: nextAmount,
+        paid_from_account_id: paidFromAccountId ?? null,
+        disbursed_at: disbursedAt.toISOString(),
+        method: nextMethod ?? null,
+        transaction_ref: nextTransactionRef ?? null,
+        note: nextNote ?? null,
+        evidence_file_ids: evidenceFileIds
+      } as Prisma.InputJsonValue
+    };
+  }
+
+  private async applyPaymentVoucherUpdate(
+    voucher: Prisma.FinancePaymentVoucherGetPayload<{
+      include: {
+        request: {
+          select: {
+            id: true;
+            status: true;
+            organizationId: true;
+            teamId: true;
+            workflowInstanceId: true;
+          }
+        }
+      }
+    }>,
+    prepared: Awaited<ReturnType<FinanceService['preparePaymentVoucherUpdate']>>,
+    actorId?: string
+  ) {
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financePaymentVoucher.update({
+        where: { id: voucher.id },
+        data: {
+          note: prepared.nextNote,
+          method: prepared.nextMethod,
+          transactionRef: prepared.nextTransactionRef,
+          evidenceFileId: prepared.evidenceFileIds[0] ?? null,
+          amount: prepared.nextAmount,
+          paidFromAccountId: prepared.paidFromAccountId,
+          disbursedAt: prepared.disbursedAt,
+        },
+      });
+
+      await tx.financePaymentVoucherFile.deleteMany({
+        where: { voucherId: voucher.id, fileKind: 'evidence' },
+      });
+
+      if (prepared.evidenceFileIds.length > 0) {
+        await tx.financePaymentVoucherFile.createMany({
+          data: prepared.evidenceFileIds.map((fileId, index) => ({
+            voucherId: voucher.id,
+            fileId,
+            fileKind: 'evidence',
+            sortOrder: index,
+          })),
+        });
+      }
+
+      await tx.financePaymentVoucherCorrection.updateMany({
+        where: { voucherId: voucher.id, status: 'pending' },
+        data: { status: 'superseded', reviewedBy: actorId ? toBigInt(actorId) : null, reviewedAt: new Date() }
+      });
+
+      await tx.financeLedgerEntry.deleteMany({
+        where: { sourceType: 'finance_payment_voucher', sourceId: voucher.id },
+      });
+
+      if (prepared.paidFromAccountId && prepared.paidFromAccount) {
+        await tx.financeLedgerEntry.create({
+          data: {
+            accountId: prepared.paidFromAccountId,
+            direction: 'out',
+            amount: prepared.nextAmount,
+            currency: prepared.paidFromAccount.currency || 'NGN',
+            entryDate: prepared.disbursedAt,
+            description: `Disbursement ${voucher.voucherNumber} for request ${voucher.request.id.toString()}`,
+            sourceType: 'finance_payment_voucher',
+            sourceId: voucher.id,
+            createdBy: actorId ? toBigInt(actorId) : null,
+            metadata: {
+              request_id: voucher.request.id.toString(),
+              voucher_number: voucher.voucherNumber
+            } as Prisma.InputJsonValue
+          }
+        });
+      }
+
+      await tx.financeJournalEntry.deleteMany({
+        where: { sourceType: 'finance_payment_voucher', sourceId: voucher.id },
+      });
+
+      if (prepared.paidFromAccountId) {
+        const refreshedVoucher = await tx.financePaymentVoucher.findUnique({ where: { id: voucher.id } });
+        if (!refreshedVoucher) throw new NotFoundException('Payment voucher not found after update');
+        const period = await this.ensureReportingPeriod(prepared.disbursedAt, actorId);
+        const bankAccount = await this.ensureFinanceAccountChartAccount(prepared.paidFromAccountId, actorId);
+        const advanceAccount = await this.getRequiredChartAccount('1200');
+        await this.createJournalEntryTx(tx, {
+          entryDate: prepared.disbursedAt,
+          periodId: period.id,
+          sourceType: 'finance_payment_voucher',
+          sourceId: voucher.id,
+          memo: `Payment voucher ${voucher.voucherNumber}`,
+          currency: 'NGN',
+          postedBy: actorId,
+          lines: [
+            {
+              chartAccountId: advanceAccount.id,
+              organizationId: voucher.request.organizationId ?? null,
+              teamId: voucher.request.teamId ?? null,
+              fundId: refreshedVoucher.fundId,
+              grantId: refreshedVoucher.grantId,
+              debit: prepared.nextAmount,
+              credit: 0,
+              description: `Advance for ${voucher.voucherNumber}`
+            },
+            {
+              chartAccountId: bankAccount.id,
+              organizationId: voucher.request.organizationId ?? null,
+              teamId: voucher.request.teamId ?? null,
+              fundId: refreshedVoucher.fundId,
+              grantId: refreshedVoucher.grantId,
+              debit: 0,
+              credit: prepared.nextAmount,
+              description: `Bank settlement ${voucher.voucherNumber}`
+            }
+          ]
+        });
+      }
+    });
+
+    if (voucher.request.workflowInstanceId) {
+      await this.prisma.workflowHistory.create({
+        data: {
+          instanceId: voucher.request.workflowInstanceId,
+          action: 'pv_corrected',
+          performedBy: actorId ? toBigInt(actorId) : null,
+          data: {
+            request_id: voucher.request.id.toString(),
+            voucher_id: voucher.id,
+            voucher_number: voucher.voucherNumber,
+            changes: prepared.changeSummary
+          } as Prisma.InputJsonValue
+        }
+      });
+    }
+  }
+
+  private async submitPaymentVoucherCorrection(
+    voucher: Prisma.FinancePaymentVoucherGetPayload<{
+      include: {
+        request: {
+          select: {
+            id: true;
+            status: true;
+            organizationId: true;
+            teamId: true;
+            workflowInstanceId: true;
+          }
+        }
+      }
+    }>,
+    prepared: Awaited<ReturnType<FinanceService['preparePaymentVoucherUpdate']>>,
+    reason?: string,
+    actorId?: string
+  ) {
+    if (!actorId) throw new ForbiddenException('Authenticated user required');
+
+    const existingPending = await this.prisma.financePaymentVoucherCorrection.findFirst({
+      where: { voucherId: voucher.id, status: 'pending' },
+      include: {
+        proposer: {
+          select: { id: true, firstName: true, lastName: true, username: true, email: true }
+        }
+      }
+    });
+
+    const correction = existingPending
+      ? await this.prisma.financePaymentVoucherCorrection.update({
+          where: { id: existingPending.id },
+          data: {
+            reason: reason?.trim() || null,
+            currentSnapshot: prepared.currentSnapshot,
+            proposedSnapshot: prepared.proposedSnapshot,
+            proposedBy: toBigInt(actorId),
+            reviewedBy: null,
+            reviewedAt: null,
+            reviewComment: null,
+          },
+          include: {
+            proposer: {
+              select: { id: true, firstName: true, lastName: true, username: true, email: true }
+            }
+          }
+        })
+      : await this.prisma.financePaymentVoucherCorrection.create({
+          data: {
+            voucherId: voucher.id,
+            requestId: voucher.request.id,
+            status: 'pending',
+            reason: reason?.trim() || null,
+            currentSnapshot: prepared.currentSnapshot,
+            proposedSnapshot: prepared.proposedSnapshot,
+            proposedBy: toBigInt(actorId),
+          },
+          include: {
+            proposer: {
+              select: { id: true, firstName: true, lastName: true, username: true, email: true }
+            }
+          }
+        });
+
+    const approvers = await this.prisma.userRole.findMany({
+      where: {
+        role: {
+          OR: [
+            { slug: { in: ['administrator', 'admin'] } },
+            { permissions: { some: { permission: { slug: 'finance.correct_completed' } } } }
+          ]
+        }
+      },
+      select: { profileId: true },
+      distinct: ['profileId']
+    });
+
+    await Promise.all(
+      approvers
+        .filter((row) => row.profileId.toString() !== String(actorId))
+        .map((row) =>
+          this.notificationsService.create({
+            userId: row.profileId,
+            type: 'finance',
+            title: 'Payment voucher correction awaiting approval',
+            message: `Voucher ${voucher.voucherNumber} has a correction request awaiting approval.`,
+            link: `/app/finance/requests/request/${voucher.request.id.toString()}?voucher_id=${voucher.id}`,
+            data: {
+              voucher_id: voucher.id,
+              correction_id: correction.id,
+              request_id: voucher.request.id.toString(),
+              status: 'pending'
+            } as Prisma.InputJsonValue
+          }).catch(() => undefined)
+        )
+    );
+
+    if (voucher.request.workflowInstanceId) {
+      await this.prisma.workflowHistory.create({
+        data: {
+          instanceId: voucher.request.workflowInstanceId,
+          action: 'pv_correction_requested',
+          performedBy: toBigInt(actorId),
+          data: {
+            request_id: voucher.request.id.toString(),
+            voucher_id: voucher.id,
+            voucher_number: voucher.voucherNumber,
+            correction_id: correction.id,
+            changes: prepared.changeSummary,
+            reason: reason?.trim() || null
+          } as Prisma.InputJsonValue
+        }
+      });
+    }
+
+    return correction;
   }
 
   async listAllPaymentVouchers(query: Record<string, any>) {
@@ -1688,6 +2250,7 @@ export class FinanceService {
     const rows = await this.prisma.financeFund.findMany({
       where: {
         ...(query.organization_id ? { organizationId: this.parseId(String(query.organization_id), 'organization_id') } : {}),
+        ...(query.project_id ? { projectId: this.parseId(String(query.project_id), 'project_id') } : {}),
         ...(query.restriction_type ? { restrictionType: String(query.restriction_type) } : {}),
         ...(query.is_active !== undefined ? { isActive: String(query.is_active) !== 'false' } : {})
       },
@@ -1699,10 +2262,12 @@ export class FinanceService {
 
   async createFund(dto: any, actorId?: string) {
     const donor = dto.donor_id ? await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.donor_id && !donor) throw new BadRequestException('Invalid donor_id');
     const row = await this.prisma.financeFund.create({
       data: {
         organizationId: null,
+        projectId,
         donorId: donor?.id ?? null,
         code: dto.code.trim().toUpperCase(),
         name: dto.name.trim(),
@@ -1722,10 +2287,12 @@ export class FinanceService {
     const existing = await this.prisma.financeFund.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Fund not found');
     const donor = dto.donor_id ? await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.donor_id && !donor) throw new BadRequestException('Invalid donor_id');
     const row = await this.prisma.financeFund.update({
       where: { id },
       data: {
+        projectId: dto.project_id !== undefined ? projectId : existing.projectId,
         donorId: dto.donor_id !== undefined ? donor?.id ?? null : existing.donorId,
         code: dto.code.trim().toUpperCase(),
         name: dto.name.trim(),
@@ -1744,6 +2311,7 @@ export class FinanceService {
     const rows = await this.prisma.financeGrant.findMany({
       where: {
         ...(query.organization_id ? { organizationId: this.parseId(String(query.organization_id), 'organization_id') } : {}),
+        ...(query.project_id ? { projectId: this.parseId(String(query.project_id), 'project_id') } : {}),
         ...(query.status ? { status: String(query.status) } : {})
       },
       include: { donor: true, fund: true },
@@ -1755,11 +2323,13 @@ export class FinanceService {
   async createGrant(dto: any, actorId?: string) {
     const donor = dto.donor_id ? await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } }) : null;
     const fund = dto.fund_id ? await this.prisma.financeFund.findUnique({ where: { id: dto.fund_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.donor_id && !donor) throw new BadRequestException('Invalid donor_id');
     if (dto.fund_id && !fund) throw new BadRequestException('Invalid fund_id');
     const row = await this.prisma.financeGrant.create({
       data: {
         organizationId: null,
+        projectId,
         donorId: donor?.id ?? null,
         fundId: fund?.id ?? null,
         code: dto.code.trim().toUpperCase(),
@@ -1786,11 +2356,13 @@ export class FinanceService {
     if (!existing) throw new NotFoundException('Grant not found');
     const donor = dto.donor_id ? await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } }) : null;
     const fund = dto.fund_id ? await this.prisma.financeFund.findUnique({ where: { id: dto.fund_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.donor_id && !donor) throw new BadRequestException('Invalid donor_id');
     if (dto.fund_id && !fund) throw new BadRequestException('Invalid fund_id');
     const row = await this.prisma.financeGrant.update({
       where: { id },
       data: {
+        projectId: dto.project_id !== undefined ? projectId : existing.projectId,
         donorId: dto.donor_id !== undefined ? donor?.id ?? null : existing.donorId,
         fundId: dto.fund_id !== undefined ? fund?.id ?? null : existing.fundId,
         code: dto.code.trim().toUpperCase(),
@@ -1819,12 +2391,19 @@ export class FinanceService {
         ...(query.project_id ? { projectId: this.parseId(String(query.project_id), 'project_id') } : {}),
         ...(query.fund_id ? { fundId: String(query.fund_id) } : {}),
         ...(query.grant_id ? { grantId: String(query.grant_id) } : {}),
+        ...(query.scope_type ? { scopeType: String(query.scope_type) } : {}),
+        ...(query.period_type ? { periodType: String(query.period_type) } : {}),
+        ...(query.fiscal_year ? { fiscalYear: Number(query.fiscal_year) } : {}),
+        ...(query.quarter ? { quarter: Number(query.quarter) } : {}),
+        ...(query.month ? { month: Number(query.month) } : {}),
         ...(query.status ? { status: String(query.status) } : {}),
         ...(query.budget_type ? { budgetType: String(query.budget_type) } : {})
       },
       include: {
         fund: true,
         grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
         lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
       },
       orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }]
@@ -1838,11 +2417,32 @@ export class FinanceService {
       include: {
         fund: true,
         grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
         lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
       }
     });
     if (!row) throw new NotFoundException('Budget not found');
     return this.serializeBudget(row);
+  }
+
+  async exportBudget(id: string, format = 'csv') {
+    const normalizedFormat = String(format || 'csv').trim().toLowerCase();
+    if (!['csv'].includes(normalizedFormat)) {
+      throw new BadRequestException('Unsupported export format');
+    }
+
+    const budget = await this.getBudget(id);
+    const rows = this.buildBudgetExportRows(budget);
+    if (!rows.length) {
+      throw new BadRequestException('Budget export has no rows');
+    }
+    const csv = this.toCsv(rows);
+    return {
+      file_name: `${String(budget.name || 'budget').replace(/[^a-z0-9]+/gi, '-').toLowerCase() || 'budget'}.${normalizedFormat}`,
+      mime_type: 'text/csv; charset=utf-8',
+      content_base64: Buffer.from(`\uFEFF${csv}`, 'utf8').toString('base64'),
+    };
   }
 
   async createBudget(dto: any, actorId?: string) {
@@ -1853,31 +2453,117 @@ export class FinanceService {
     return this.upsertBudget(id, dto, actorId);
   }
 
+  async approveBudget(id: string, actorId?: string) {
+    const row = await this.prisma.financeBudget.update({
+      where: { id },
+      data: {
+        status: 'approved',
+        approvedBy: actorId ? toBigInt(actorId) : null,
+        approvedAt: new Date(),
+        updatedBy: actorId ? toBigInt(actorId) : null,
+      },
+      include: {
+        fund: true,
+        grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+      },
+    });
+    return this.serializeBudget(row);
+  }
+
+  async reopenBudget(id: string, actorId?: string) {
+    const row = await this.prisma.financeBudget.update({
+      where: { id },
+      data: {
+        status: 'draft',
+        approvedBy: null,
+        approvedAt: null,
+        updatedBy: actorId ? toBigInt(actorId) : null,
+      },
+      include: {
+        fund: true,
+        grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+      },
+    });
+    return this.serializeBudget(row);
+  }
+
+  async recalculateBudget(id: string) {
+    const budget = await this.prisma.financeBudget.findUnique({
+      where: { id },
+      include: {
+        fund: true,
+        grant: true,
+        assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+      },
+    });
+    if (!budget) throw new NotFoundException('Budget not found');
+
+    const { expenseTotal, incomeTotal } = await this.computeBudgetActuals(budget);
+    const lineUpdates = budget.lines.map((line) => {
+      const planned = Number(line.totalAmount ?? line.amount ?? 0);
+      const actual = line.section === 'income' ? incomeTotal : expenseTotal;
+      const variance = actual - planned;
+      return this.prisma.financeBudgetLine.update({
+        where: { id: line.id },
+        data: {
+          totalAmount: planned,
+          actualTotalAmount: actual,
+          varianceAmount: variance,
+        },
+      });
+    });
+    await this.prisma.$transaction([
+      ...lineUpdates,
+      this.prisma.financeBudget.update({
+        where: { id: budget.id },
+        data: { totalBudget: budget.lines.reduce((sum, line) => sum + Number(line.totalAmount ?? line.amount ?? 0), 0) },
+      }),
+    ]);
+    return this.getBudget(id);
+  }
+
   private async upsertBudget(id: string | null, dto: any, actorId?: string) {
-    const startDate = new Date(dto.start_date);
-    const endDate = new Date(dto.end_date);
-    if (Number.isNaN(startDate.getTime())) throw new BadRequestException('Invalid start_date');
-    if (Number.isNaN(endDate.getTime())) throw new BadRequestException('Invalid end_date');
-    if (endDate < startDate) throw new BadRequestException('end_date cannot be before start_date');
+    const scopeType = String(dto.scope_type || dto.budget_type || 'project').trim();
+    const budgetType = String(dto.budget_type || scopeType || 'project').trim();
+    const periodType = String(dto.period_type || 'annual').trim();
+    const fiscalYear = dto.fiscal_year !== undefined && dto.fiscal_year !== null ? Number(dto.fiscal_year) : null;
+    const quarter = dto.quarter !== undefined && dto.quarter !== null && dto.quarter !== '' ? Number(dto.quarter) : null;
+    const month = dto.month !== undefined && dto.month !== null && dto.month !== '' ? Number(dto.month) : null;
+    const { startDate, endDate } = this.resolveBudgetDates(dto.start_date, dto.end_date, periodType, fiscalYear, quarter, month);
     const fund = dto.fund_id ? await this.prisma.financeFund.findUnique({ where: { id: dto.fund_id } }) : null;
     const grant = dto.grant_id ? await this.prisma.financeGrant.findUnique({ where: { id: dto.grant_id } }) : null;
+    const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
     if (dto.fund_id && !fund) throw new BadRequestException('Invalid fund_id');
     if (dto.grant_id && !grant) throw new BadRequestException('Invalid grant_id');
-    if (fund && grant && grant.fundId && grant.fundId !== fund.id) throw new BadRequestException('grant_id does not belong to fund_id');
+    this.validateScope(scopeType, dto);
+    await this.validateBudgetDimensionCompatibility({ projectId, fund, grant });
     const lines = Array.isArray(dto.lines) ? dto.lines : [];
-    if (!lines.length) throw new BadRequestException('At least one budget line is required');
-    const totalBudget = lines.reduce((sum: number, line: any) => sum + Number(line.amount || 0), 0);
-    if (totalBudget <= 0) throw new BadRequestException('Budget total must be greater than zero');
-    if (!['project', 'fund', 'grant'].includes(String(dto.budget_type || 'project'))) {
-      throw new BadRequestException('budget_type must be project, fund, or grant');
+    const assumptions = Array.isArray(dto.assumptions) ? dto.assumptions : [];
+    const portfolio = Array.isArray(dto.portfolio) ? dto.portfolio : [];
+    if (portfolio.length) {
+      await Promise.all(portfolio.map((entry: any) => this.ensureProjectExists(String(entry.project_id), 'portfolio project_id')));
     }
-    if (String(dto.budget_type || 'project') === 'project' && !dto.project_id) {
+    if (!lines.length) throw new BadRequestException('At least one budget line is required');
+    const totalBudget = lines.reduce((sum: number, line: any) => sum + this.resolveLineTotal(line), 0);
+    if (totalBudget <= 0) throw new BadRequestException('Budget total must be greater than zero');
+    if (!['organization', 'team', 'project', 'fund', 'grant'].includes(budgetType)) {
+      throw new BadRequestException('budget_type must be organization, team, project, fund, or grant');
+    }
+    if (budgetType === 'project' && !dto.project_id) {
       throw new BadRequestException('project_id is required for project budgets');
     }
-    if (String(dto.budget_type || 'project') === 'fund' && !dto.fund_id) {
+    if (budgetType === 'fund' && !dto.fund_id) {
       throw new BadRequestException('fund_id is required for fund budgets');
     }
-    if (String(dto.budget_type || 'project') === 'grant' && !dto.grant_id) {
+    if (budgetType === 'grant' && !dto.grant_id) {
       throw new BadRequestException('grant_id is required for grant budgets');
     }
 
@@ -1893,12 +2579,19 @@ export class FinanceService {
             data: {
               organizationId: dto.organization_id ? this.parseId(String(dto.organization_id), 'organization_id') : null,
               teamId: dto.team_id ? this.parseId(String(dto.team_id), 'team_id') : null,
-              projectId: dto.project_id ? this.parseId(String(dto.project_id), 'project_id') : null,
+              projectId,
               fundId: fund?.id ?? null,
               grantId: grant?.id ?? null,
+              parentBudgetId: dto.parent_budget_id || null,
               name: String(dto.name || '').trim(),
-              budgetType: String(dto.budget_type || 'project').trim(),
+              scopeType,
+              budgetType,
+              periodType,
+              fiscalYear,
+              quarter,
+              month,
               currency: String(dto.currency || 'NGN').toUpperCase(),
+              exchangeRate: dto.exchange_rate !== undefined && dto.exchange_rate !== null ? Number(dto.exchange_rate) : null,
               startDate,
               endDate,
               status: String(dto.status || 'draft').trim(),
@@ -1911,12 +2604,19 @@ export class FinanceService {
             data: {
               organizationId: dto.organization_id ? this.parseId(String(dto.organization_id), 'organization_id') : null,
               teamId: dto.team_id ? this.parseId(String(dto.team_id), 'team_id') : null,
-              projectId: dto.project_id ? this.parseId(String(dto.project_id), 'project_id') : null,
+              projectId,
               fundId: fund?.id ?? null,
               grantId: grant?.id ?? null,
+              parentBudgetId: dto.parent_budget_id || null,
               name: String(dto.name || '').trim(),
-              budgetType: String(dto.budget_type || 'project').trim(),
+              scopeType,
+              budgetType,
+              periodType,
+              fiscalYear,
+              quarter,
+              month,
               currency: String(dto.currency || 'NGN').toUpperCase(),
+              exchangeRate: dto.exchange_rate !== undefined && dto.exchange_rate !== null ? Number(dto.exchange_rate) : null,
               startDate,
               endDate,
               status: String(dto.status || 'draft').trim(),
@@ -1928,14 +2628,60 @@ export class FinanceService {
           });
 
       await tx.financeBudgetLine.deleteMany({ where: { budgetId: budget.id } });
+      await tx.financeBudgetAssumption.deleteMany({ where: { budgetId: budget.id } });
+      await tx.financeBudgetPortfolio.deleteMany({ where: { budgetId: budget.id } });
       if (lines.length) {
         await tx.financeBudgetLine.createMany({
           data: lines.map((line: any, index: number) => ({
             budgetId: budget.id,
-            lineLabel: String(line.line_label || '').trim(),
-            amount: Number(line.amount || 0),
+            chartAccountId: line.chart_account_id || null,
+            projectId: line.project_id ? this.parseId(String(line.project_id), 'line project_id') : null,
+            fundId: line.fund_id || null,
+            grantId: line.grant_id || null,
+            section: String(line.section || 'expenditure').trim(),
+            groupName: line.group_name ? String(line.group_name).trim() : null,
+            lineLabel: String(line.line_name || line.line_label || '').trim(),
+            amount: this.resolveLineTotal(line),
+            period1Amount: line.period_1_amount !== undefined && line.period_1_amount !== null ? Number(line.period_1_amount) : null,
+            period2Amount: line.period_2_amount !== undefined && line.period_2_amount !== null ? Number(line.period_2_amount) : null,
+            period3Amount: line.period_3_amount !== undefined && line.period_3_amount !== null ? Number(line.period_3_amount) : null,
+            period4Amount: line.period_4_amount !== undefined && line.period_4_amount !== null ? Number(line.period_4_amount) : null,
+            totalAmount: this.resolveLineTotal(line),
+            notes: line.notes ? String(line.notes).trim() : null,
             sortOrder: Number(line.sort_order ?? index),
           }))
+        });
+      }
+      if (assumptions.length) {
+        await tx.financeBudgetAssumption.createMany({
+          data: assumptions.map((entry: any, index: number) => ({
+            budgetId: budget.id,
+            section: entry.section ? String(entry.section).trim() : null,
+            label: String(entry.label || '').trim(),
+            value: String(entry.value || '').trim(),
+            notes: entry.notes ? String(entry.notes).trim() : null,
+            sortOrder: Number(entry.sort_order ?? index),
+          })),
+        });
+      }
+      if (portfolio.length) {
+        await tx.financeBudgetPortfolio.createMany({
+          data: portfolio.map((entry: any, index: number) => ({
+            budgetId: budget.id,
+            projectId: this.parseId(String(entry.project_id), 'portfolio project_id'),
+            fundId: entry.fund_id || null,
+            grantId: entry.grant_id || null,
+            funderName: entry.funder_name ? String(entry.funder_name).trim() : null,
+            status: entry.status ? String(entry.status).trim() : null,
+            period1Amount: entry.period_1_amount !== undefined && entry.period_1_amount !== null ? Number(entry.period_1_amount) : null,
+            period2Amount: entry.period_2_amount !== undefined && entry.period_2_amount !== null ? Number(entry.period_2_amount) : null,
+            period3Amount: entry.period_3_amount !== undefined && entry.period_3_amount !== null ? Number(entry.period_3_amount) : null,
+            period4Amount: entry.period_4_amount !== undefined && entry.period_4_amount !== null ? Number(entry.period_4_amount) : null,
+            periodTotal: this.resolvePortfolioTotal(entry),
+            totalBudget: entry.total_budget !== undefined && entry.total_budget !== null ? Number(entry.total_budget) : this.resolvePortfolioTotal(entry),
+            notes: entry.notes ? String(entry.notes).trim() : null,
+            sortOrder: Number(entry.sort_order ?? index),
+          })),
         });
       }
       return tx.financeBudget.findUnique({
@@ -1943,6 +2689,8 @@ export class FinanceService {
         include: {
           fund: true,
           grant: true,
+          assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+          portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
           lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
         }
       });
@@ -2826,6 +3574,8 @@ export class FinanceService {
       include: {
         fund: true,
         grant: true,
+        assumptions: true,
+        portfolio: true,
         lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
       }
     });
@@ -2834,8 +3584,41 @@ export class FinanceService {
     const { expenseTotal, incomeTotal } = await this.computeBudgetActuals(budget);
     const totalBudget = Number(budget.totalBudget || 0);
     const actualAmount = budget.budgetType === 'project' ? expenseTotal : expenseTotal;
+    const lines = budget.lines.map((line) => ({
+      id: line.id,
+      section: line.section,
+      group_name: line.groupName,
+      line_label: line.lineLabel,
+      planned_amount: Number(line.totalAmount ?? line.amount ?? 0),
+      revised_amount: line.revisedTotalAmount != null ? Number(line.revisedTotalAmount) : null,
+      actual_amount: line.actualTotalAmount != null ? Number(line.actualTotalAmount) : null,
+      variance_amount: line.varianceAmount != null ? Number(line.varianceAmount) : null,
+      sort_order: line.sortOrder,
+    }));
+    const sectionBudgetTotals = lines.reduce(
+      (acc, line) => {
+        const key = line.section === 'income' ? 'income' : 'expenditure';
+        acc[key] += line.planned_amount;
+        return acc;
+      },
+      { income: 0, expenditure: 0 }
+    );
+    const sections = {
+      income: {
+        planned: sectionBudgetTotals.income,
+        actual: incomeTotal,
+        variance: sectionBudgetTotals.income - incomeTotal,
+      },
+      expenditure: {
+        planned: sectionBudgetTotals.expenditure,
+        actual: expenseTotal,
+        variance: sectionBudgetTotals.expenditure - expenseTotal,
+      },
+    };
     return {
       budget: this.serializeBudget(budget),
+      lines,
+      sections,
       actuals: {
         total_budget: totalBudget,
         total_actual: actualAmount,
@@ -3248,6 +4031,120 @@ export class FinanceService {
     }
   }
 
+  private resolveBudgetDates(
+    startDateValue: string | undefined,
+    endDateValue: string | undefined,
+    periodType: string,
+    fiscalYear: number | null,
+    quarter: number | null,
+    month: number | null
+  ) {
+    if (startDateValue && endDateValue) {
+      const startDate = new Date(startDateValue);
+      const endDate = new Date(endDateValue);
+      if (Number.isNaN(startDate.getTime())) throw new BadRequestException('Invalid start_date');
+      if (Number.isNaN(endDate.getTime())) throw new BadRequestException('Invalid end_date');
+      if (endDate < startDate) throw new BadRequestException('end_date cannot be before start_date');
+      return { startDate, endDate };
+    }
+
+    if (!fiscalYear) {
+      throw new BadRequestException('fiscal_year is required when start_date/end_date are omitted');
+    }
+
+    if (periodType === 'annual') {
+      return { startDate: new Date(Date.UTC(fiscalYear, 0, 1)), endDate: new Date(Date.UTC(fiscalYear, 11, 31)) };
+    }
+
+    if (periodType === 'quarterly') {
+      if (!quarter || quarter < 1 || quarter > 4) throw new BadRequestException('quarter is required for quarterly budgets');
+      const startMonth = (quarter - 1) * 3;
+      return {
+        startDate: new Date(Date.UTC(fiscalYear, startMonth, 1)),
+        endDate: new Date(Date.UTC(fiscalYear, startMonth + 3, 0)),
+      };
+    }
+
+    if (periodType === 'monthly') {
+      if (!month || month < 1 || month > 12) throw new BadRequestException('month is required for monthly budgets');
+      return {
+        startDate: new Date(Date.UTC(fiscalYear, month - 1, 1)),
+        endDate: new Date(Date.UTC(fiscalYear, month, 0)),
+      };
+    }
+
+    throw new BadRequestException('period_type must be annual, quarterly, or monthly');
+  }
+
+  private validateScope(scopeType: string, dto: Record<string, any>) {
+    if (!['organization', 'team', 'project'].includes(scopeType)) {
+      throw new BadRequestException('scope_type must be organization, team, or project');
+    }
+    if (scopeType === 'organization' && !dto.organization_id) {
+      throw new BadRequestException('organization_id is required for organization budgets');
+    }
+    if (scopeType === 'team' && (!dto.organization_id || !dto.team_id)) {
+      throw new BadRequestException('organization_id and team_id are required for team budgets');
+    }
+    if (scopeType === 'project' && !dto.project_id) {
+      throw new BadRequestException('project_id is required for project budgets');
+    }
+  }
+
+  private resolveLineTotal(line: Record<string, any>) {
+    if (line.total_amount !== undefined && line.total_amount !== null && line.total_amount !== '') {
+      return Number(line.total_amount || 0);
+    }
+    const periodValues = ['period_1_amount', 'period_2_amount', 'period_3_amount', 'period_4_amount']
+      .map((key) => Number(line[key] ?? 0))
+      .filter((value) => Number.isFinite(value));
+    if (periodValues.some((value) => value !== 0)) {
+      return periodValues.reduce((sum, value) => sum + value, 0);
+    }
+    return Number(line.amount || 0);
+  }
+
+  private resolvePortfolioTotal(entry: Record<string, any>) {
+    if (entry.period_total !== undefined && entry.period_total !== null && entry.period_total !== '') {
+      return Number(entry.period_total || 0);
+    }
+    return ['period_1_amount', 'period_2_amount', 'period_3_amount', 'period_4_amount']
+      .map((key) => Number(entry[key] ?? 0))
+      .reduce((sum, value) => sum + value, 0);
+  }
+
+  private async ensureProjectExists(value: string, label: string) {
+    const projectId = this.parseId(value, label);
+    const project = await this.prisma.group.findUnique({ where: { id: projectId } });
+    if (!project || project.type !== 'project') {
+      throw new BadRequestException(`Invalid ${label}`);
+    }
+    return projectId;
+  }
+
+  private async validateBudgetDimensionCompatibility({
+    projectId,
+    fund,
+    grant,
+  }: {
+    projectId: bigint | null;
+    fund: Prisma.FinanceFundGetPayload<{}> | null;
+    grant: Prisma.FinanceGrantGetPayload<{}> | null;
+  }) {
+    if (fund && grant && grant.fundId && grant.fundId !== fund.id) {
+      throw new BadRequestException('grant_id does not belong to fund_id');
+    }
+    if (projectId && fund?.projectId && fund.projectId !== projectId) {
+      throw new BadRequestException('fund_id does not belong to project_id');
+    }
+    if (projectId && grant?.projectId && grant.projectId !== projectId) {
+      throw new BadRequestException('grant_id does not belong to project_id');
+    }
+    if (fund?.projectId && grant?.projectId && fund.projectId !== grant.projectId) {
+      throw new BadRequestException('fund_id and grant_id do not belong to the same project');
+    }
+  }
+
   private async nextVoucherNumber(requestId: bigint, year: number) {
     const count = await this.prisma.financePaymentVoucher.count({
       where: { requestId }
@@ -3378,6 +4275,7 @@ export class FinanceService {
   ) {
     return {
       id: row.id,
+      project_id: row.projectId ? row.projectId.toString() : null,
       code: row.code,
       name: row.name,
       fund_type: row.fundType,
@@ -3396,6 +4294,7 @@ export class FinanceService {
   ) {
     return {
       id: row.id,
+      project_id: row.projectId ? row.projectId.toString() : null,
       code: row.code,
       name: row.name,
       restriction_type: row.restrictionType,
@@ -3415,19 +4314,21 @@ export class FinanceService {
   }
 
   private serializeBudget(
-    row: Prisma.FinanceBudgetGetPayload<{ include: { fund: true; grant: true; lines: true } }>
+    row: Prisma.FinanceBudgetGetPayload<{ include: { fund: true; grant: true; lines: true; assumptions: true; portfolio: true } }>
   ) {
     return {
       id: row.id,
       organization_id: row.organizationId ? row.organizationId.toString() : null,
       team_id: row.teamId ? row.teamId.toString() : null,
       project_id: row.projectId ? row.projectId.toString() : null,
+      parent_budget_id: row.parentBudgetId,
       fund: row.fund
         ? {
             id: row.fund.id,
             code: row.fund.code,
             name: row.fund.name,
             restriction_type: row.fund.restrictionType,
+            project_id: row.fund.projectId ? row.fund.projectId.toString() : null,
           }
         : null,
       grant: row.grant
@@ -3437,29 +4338,78 @@ export class FinanceService {
             name: row.grant.name,
             restriction_type: row.grant.restrictionType,
             status: row.grant.status,
+            project_id: row.grant.projectId ? row.grant.projectId.toString() : null,
           }
         : null,
       name: row.name,
+      scope_type: row.scopeType,
       budget_type: row.budgetType,
+      period_type: row.periodType,
+      fiscal_year: row.fiscalYear,
+      quarter: row.quarter,
+      month: row.month,
       currency: row.currency,
+      exchange_rate: row.exchangeRate != null ? Number(row.exchangeRate) : null,
       start_date: row.startDate,
       end_date: row.endDate,
       status: row.status,
       total_budget: Number(row.totalBudget),
       notes: row.notes,
+      assumptions: row.assumptions.map((entry) => ({
+        id: entry.id,
+        section: entry.section,
+        label: entry.label,
+        value: entry.value,
+        notes: entry.notes,
+        sort_order: entry.sortOrder,
+      })),
+      portfolio: row.portfolio.map((entry) => ({
+        id: entry.id,
+        project_id: entry.projectId.toString(),
+        fund_id: entry.fundId,
+        grant_id: entry.grantId,
+        funder_name: entry.funderName,
+        status: entry.status,
+        period_1_amount: entry.period1Amount != null ? Number(entry.period1Amount) : null,
+        period_2_amount: entry.period2Amount != null ? Number(entry.period2Amount) : null,
+        period_3_amount: entry.period3Amount != null ? Number(entry.period3Amount) : null,
+        period_4_amount: entry.period4Amount != null ? Number(entry.period4Amount) : null,
+        period_total: entry.periodTotal != null ? Number(entry.periodTotal) : null,
+        total_budget: entry.totalBudget != null ? Number(entry.totalBudget) : null,
+        notes: entry.notes,
+        sort_order: entry.sortOrder,
+      })),
       lines: row.lines.map((line) => ({
         id: line.id,
+        section: line.section,
+        group_name: line.groupName,
         line_label: line.lineLabel,
+        line_name: line.lineLabel,
+        chart_account_id: line.chartAccountId,
+        project_id: line.projectId ? line.projectId.toString() : null,
+        fund_id: line.fundId,
+        grant_id: line.grantId,
+        period_1_amount: line.period1Amount != null ? Number(line.period1Amount) : null,
+        period_2_amount: line.period2Amount != null ? Number(line.period2Amount) : null,
+        period_3_amount: line.period3Amount != null ? Number(line.period3Amount) : null,
+        period_4_amount: line.period4Amount != null ? Number(line.period4Amount) : null,
+        total_amount: line.totalAmount != null ? Number(line.totalAmount) : Number(line.amount),
+        revised_total_amount: line.revisedTotalAmount != null ? Number(line.revisedTotalAmount) : null,
+        actual_total_amount: line.actualTotalAmount != null ? Number(line.actualTotalAmount) : null,
+        variance_amount: line.varianceAmount != null ? Number(line.varianceAmount) : null,
         amount: Number(line.amount),
+        notes: line.notes,
         sort_order: line.sortOrder,
       })),
+      approved_by: row.approvedBy ? row.approvedBy.toString() : null,
+      approved_at: row.approvedAt,
       created_at: row.createdAt,
       updated_at: row.updatedAt,
     };
   }
 
   private async computeBudgetActuals(
-    budget: Prisma.FinanceBudgetGetPayload<{ include: { fund: true; grant: true; lines: true } }>
+    budget: Prisma.FinanceBudgetGetPayload<{ include: { fund: true; grant: true; lines: true; assumptions: true; portfolio: true } }>
   ) {
     const dateRange = {
       gte: budget.startDate,
@@ -3488,7 +4438,9 @@ export class FinanceService {
     const fundGrantFilter =
       budget.budgetType === 'grant'
         ? { grantId: budget.grantId ?? undefined }
-        : { fundId: budget.fundId ?? undefined };
+        : budget.budgetType === 'fund'
+          ? { fundId: budget.fundId ?? undefined }
+          : {};
 
     const [incomeRows, voucherRows] = await Promise.all([
       this.prisma.financeIncomeEntry.findMany({
@@ -3518,9 +4470,7 @@ export class FinanceService {
     const grant = grantId ? await this.prisma.financeGrant.findUnique({ where: { id: grantId } }) : null;
     if (fundId && !fund) throw new BadRequestException('Invalid fund_id');
     if (grantId && !grant) throw new BadRequestException('Invalid grant_id');
-    if (grant?.fundId && fund && grant.fundId !== fund.id) {
-      throw new BadRequestException('grant_id does not belong to fund_id');
-    }
+    await this.validateBudgetDimensionCompatibility({ projectId: null, fund, grant });
     return { fund, grant };
   }
 
@@ -4396,6 +5346,149 @@ export class FinanceService {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2
     }).format(amount);
+  }
+
+  private buildBudgetExportRows(budget: any) {
+    const rows: Record<string, string | number>[] = [
+      {
+        record_type: 'budget',
+        name: budget.name || '',
+        scope_type: budget.scope_type || '',
+        budget_type: budget.budget_type || '',
+        period_type: budget.period_type || '',
+        fiscal_year: budget.fiscal_year ?? '',
+        quarter: budget.quarter ?? '',
+        month: budget.month ?? '',
+        currency: budget.currency || '',
+        exchange_rate: budget.exchange_rate ?? '',
+        status: budget.status || '',
+        organization_id: budget.organization_id || '',
+        team_id: budget.team_id || '',
+        project_id: budget.project_id || '',
+        fund_id: budget.fund?.id || '',
+        grant_id: budget.grant?.id || '',
+        parent_budget_id: budget.parent_budget_id || '',
+        start_date: this.formatDate(budget.start_date),
+        end_date: this.formatDate(budget.end_date),
+        notes: budget.notes || '',
+      },
+    ];
+
+    for (const entry of budget.assumptions || []) {
+      rows.push({
+        record_type: 'assumption',
+        section: entry.section || '',
+        label: entry.label || '',
+        value: entry.value || '',
+        notes: entry.notes || '',
+      });
+    }
+
+    for (const entry of budget.portfolio || []) {
+      rows.push({
+        record_type: 'portfolio',
+        project_id: entry.project_id || '',
+        fund_id: entry.fund_id || '',
+        grant_id: entry.grant_id || '',
+        funder_name: entry.funder_name || '',
+        status: entry.status || '',
+        period_1_amount: entry.period_1_amount ?? '',
+        period_2_amount: entry.period_2_amount ?? '',
+        period_3_amount: entry.period_3_amount ?? '',
+        period_4_amount: entry.period_4_amount ?? '',
+        period_total: entry.period_total ?? '',
+        total_budget: entry.total_budget ?? '',
+        notes: entry.notes || '',
+      });
+    }
+
+    for (const line of budget.lines || []) {
+      rows.push({
+        record_type: 'line',
+        section: line.section || '',
+        group_name: line.group_name || '',
+        line_name: line.line_name || line.line_label || '',
+        chart_account_id: line.chart_account_id || '',
+        project_id: line.project_id || '',
+        fund_id: line.fund_id || '',
+        grant_id: line.grant_id || '',
+        period_1_amount: line.period_1_amount ?? '',
+        period_2_amount: line.period_2_amount ?? '',
+        period_3_amount: line.period_3_amount ?? '',
+        period_4_amount: line.period_4_amount ?? '',
+        total_amount: line.total_amount ?? line.amount ?? '',
+        actual_total_amount: line.actual_total_amount ?? '',
+        variance_amount: line.variance_amount ?? '',
+        notes: line.notes || '',
+      });
+    }
+
+    return rows;
+  }
+
+  private toCsv(rows: Record<string, string | number>[]) {
+    const preferredHeaders = [
+      'record_type',
+      'name',
+      'scope_type',
+      'budget_type',
+      'period_type',
+      'fiscal_year',
+      'quarter',
+      'month',
+      'currency',
+      'exchange_rate',
+      'status',
+      'organization_id',
+      'team_id',
+      'project_id',
+      'fund_id',
+      'grant_id',
+      'parent_budget_id',
+      'start_date',
+      'end_date',
+      'section',
+      'group_name',
+      'line_name',
+      'chart_account_id',
+      'label',
+      'value',
+      'funder_name',
+      'period_1_amount',
+      'period_2_amount',
+      'period_3_amount',
+      'period_4_amount',
+      'period_total',
+      'total_amount',
+      'total_budget',
+      'actual_total_amount',
+      'variance_amount',
+      'notes',
+    ];
+
+    const seenHeaders = rows.reduce((set, row) => {
+      Object.keys(row).forEach((key) => set.add(key));
+      return set;
+    }, new Set<string>());
+
+    const headers = [
+      ...preferredHeaders.filter((header) => seenHeaders.has(header)),
+      ...Array.from(seenHeaders).filter((header) => !preferredHeaders.includes(header)).sort(),
+    ];
+
+    const escape = (value: unknown) => {
+      const text = value == null ? '' : String(value);
+      if (/[",\n]/.test(text)) {
+        return `"${text.replace(/"/g, '""')}"`;
+      }
+      return text;
+    };
+
+    const lines = [
+      headers.join(','),
+      ...rows.map((row) => headers.map((header) => escape(row[header])).join(',')),
+    ];
+    return lines.join('\r\n');
   }
 
   private async postIncomeJournal(row: Prisma.FinanceIncomeEntryGetPayload<{}>, actorId?: string) {

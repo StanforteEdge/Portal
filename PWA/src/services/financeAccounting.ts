@@ -216,3 +216,23 @@ export async function updateFinanceBudget(id: string, payload: Record<string, un
   const response = await apiClient.post(`/finance/budgets/${id}`, payload);
   return response.data?.data;
 }
+
+export async function approveFinanceBudget(id: string) {
+  const response = await apiClient.post(`/finance/budgets/${id}/approve`);
+  return response.data?.data;
+}
+
+export async function reopenFinanceBudget(id: string) {
+  const response = await apiClient.post(`/finance/budgets/${id}/reopen`);
+  return response.data?.data;
+}
+
+export async function recalculateFinanceBudget(id: string) {
+  const response = await apiClient.post(`/finance/budgets/${id}/recalculate`);
+  return response.data?.data;
+}
+
+export async function exportFinanceBudget(id: string, params?: { format?: string }) {
+  const response = await apiClient.get(`/finance/budgets/${id}/export`, { params });
+  return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
+}

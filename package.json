@@ -3,14 +3,23 @@
   "private": true,
   "workspaces": [
     "PWA",
+    "apps/pwa",
+    "apps/shared",
     "api"
   ],
   "scripts": {
     "dev": "npm run dev -w api",
     "dev:pwa": "npm run dev -w PWA",
+    "dev:pwa2": "npm run dev -w apps/pwa",
     "dev:api": "npm run dev -w api",
     "build": "npm run build -w api",
     "build:pwa": "npm run build -w PWA",
-    "build:api": "npm run build -w api"
+    "build:pwa2": "npm run build -w apps/pwa",
+    "build:api": "npm run build -w api",
+    "deploy:server": "npm run deploy:server -w api"
+  },
+  "overrides": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
   }
 }

@@ -14,11 +14,11 @@ const menu: Array<Menu | "divider"> = [
       {
         icon: "List",
         pathname: "/app/requests",
-        title: "All Requests",
+        title: "Requests",
       },
       {
         icon: "CheckCheck",
-        pathname: "/app/requests/approvals",
+        pathname: "/app/approvals",
         title: "Approvals",
         permissions: ["requests.approve"],
       },
@@ -48,6 +48,23 @@ const menu: Array<Menu | "divider"> = [
   },
   {
     icon: "Trello",
+    title: "Work",
+    permissions: ["work.view"],
+    subMenu: [
+      {
+        icon: "BarChart2",
+        pathname: "/app/work/performance",
+        title: "Performance",
+      },
+      {
+        icon: "ListChecks",
+        pathname: "/app/work",
+        title: "Tracker",
+      },
+    ],
+  },
+  {
+    icon: "User",
     title: "Profile",
     pathname: "/app/profile",
   },

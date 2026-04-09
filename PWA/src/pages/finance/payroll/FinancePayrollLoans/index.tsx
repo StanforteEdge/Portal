@@ -107,7 +107,7 @@ function FinancePayrollLoansPage() {
                 <Table.Td>{row.monthly_recovery_amount ? formatMoney(row.monthly_recovery_amount) : row.recovery_rate ? `${Number(row.recovery_rate) * 100}% of payroll` : "-"}</Table.Td>
                 <Table.Td className="capitalize">{row.status}</Table.Td>
                 <Table.Td className="text-right">
-                  <Button size="sm" variant="outline-secondary" onClick={() => {
+                  <Button size="sm" variant="outline-secondary" aria-label={`Edit ${row.loan_type === "salary_advance" ? "salary advance" : "loan"} for ${row.worker?.full_name || "worker"}`} title="Edit loan or advance" onClick={() => {
                     setEditingId(row.id);
                     setForm({
                       worker_id: row.worker_id,

@@ -7,7 +7,7 @@ import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import Pagination from "@/components/Base/Pagination";
 import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
-import { approveRequest, listApprovals, rejectRequest, type RequestRecord } from "@/services/requests";
+import { approveRequest, getRequestActions, listApprovals, rejectRequest, type RequestRecord } from "@/services/requests";
 import { formatDisplayDate, formatMoney, formatPersonName, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
 
 function RequestApprovalsPage() {
@@ -75,6 +75,15 @@ function RequestApprovalsPage() {
   const handleAction = async (id: string, action: "approve" | "reject") => {
     try {
       setActingId(id);
+      const availableActions: string[] = await getRequestActions(id).catch(() => []);
+      if (!availableActions.includes(action)) {
+        await load();
+        setNotice({
+          tone: "error",
+          message: "This request is no longer awaiting your approval. We refreshed the queue for you.",
+        });
+        return;
+      }
       if (action === "approve") {
         await approveRequest(id, "Approved from approvals queue");
       } else {
@@ -84,6 +93,9 @@ function RequestApprovalsPage() {
       }
       await load();
     } catch (error: any) {
+      if (String(error?.response?.data?.error?.message || "").includes("not an allowed approver")) {
+        await load();
+      }
       setNotice({
         tone: "error",
         message: error?.response?.data?.error?.message || `Unable to ${action} request.`,
@@ -222,11 +234,11 @@ function RequestApprovalsPage() {
                     String(req.request_type?.name ?? "").toLowerCase().includes("leave");
                   return (
                     <Table.Tr key={req.id}>
-                      <Table.Td>
+                      <Table.RowHeader>
                         <Link className="font-semibold text-primary hover:underline" to={`/app/requests/request/${req.id}`}>
                           {formatRequestNumber(req.request_number)}
                         </Link>
-                      </Table.Td>
+                      </Table.RowHeader>
                       <Table.Td className="capitalize">{isLeave ? "Leave" : "Financial"}</Table.Td>
                       <Table.Td>{req.request_type?.name || "-"}</Table.Td>
                       <Table.Td>{formatMoney(req.total_amount)}</Table.Td>

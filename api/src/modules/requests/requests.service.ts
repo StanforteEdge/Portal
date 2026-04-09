@@ -14,6 +14,7 @@ import { CreateManualRequestDto } from './dto/create-manual-request.dto';
 import { DownloadRequestDto } from './dto/download-request.dto';
 import { toBigInt } from '../../common/utils/ids';
 import { WorkflowService } from '../workflow/workflow.service';
+import { normalizeWorkflowStepApprover } from '../workflow/workflow-approvers';
 import { FormsService } from '../forms/forms.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GroupUserRole, Prisma } from '@prisma/client';
@@ -28,6 +29,7 @@ import { MailService } from '../../common/mail/mail.service';
 const MANUAL_REQUEST_ID_MIN = BigInt(1);
 const MANUAL_REQUEST_ID_MAX = BigInt(3000);
 const STAFF_REQUEST_ID_MIN = BigInt(3001);
+const STAFF_REQUEST_SEQUENCE_START = BigInt(3050);
 
 @Injectable()
 export class RequestsService {
@@ -266,12 +268,26 @@ export class RequestsService {
       .filter((step) => step && typeof step === 'object' && !Array.isArray(step))
       .map((step) => ({ ...(step as Record<string, unknown>) }));
 
+    const targetApprover =
+      requiredRoleSlug.toLowerCase() === 'coo'
+        ? { approverType: 'office', approverId: 'coo' }
+        : normalizeWorkflowStepApprover({ role: requiredRoleSlug });
+
     const hasRequiredRole = normalizedSteps.some((step) => {
-      const role = String(step.role ?? '').trim().toLowerCase();
-      return role === requiredRoleSlug.toLowerCase();
+      const approver = normalizeWorkflowStepApprover(step);
+      return approver.approverType === targetApprover.approverType && approver.approverId === targetApprover.approverId;
     });
     if (!hasRequiredRole) {
-      normalizedSteps.push({ role: requiredRoleSlug });
+      if (targetApprover.approverType === 'office' || targetApprover.approverType === 'permission' || targetApprover.approverType === 'relation') {
+        normalizedSteps.push({
+          approver: {
+            type: targetApprover.approverType,
+            value: targetApprover.approverId,
+          },
+        });
+      } else {
+        normalizedSteps.push({ role: requiredRoleSlug });
+      }
     }
 
     return {
@@ -321,6 +337,8 @@ export class RequestsService {
     }
 
     const created = await this.prisma.$transaction(async (tx) => {
+      await this.ensureStaffRequestSequenceFloor(tx);
+
       const computedTotal = dto.items && dto.items.length
         ? dto.items.reduce((sum, item) => sum + (item.amount * (item.quantity ?? 1)), 0)
         : dto.total_amount;
@@ -538,9 +556,7 @@ export class RequestsService {
       }
 
       if (explicitRequestId) {
-        await tx.$executeRawUnsafe(
-          "SELECT setval(pg_get_serial_sequence('sta_request_instances','id'), (SELECT COALESCE(MAX(id), 1) FROM sta_request_instances), true)"
-        );
+        await this.ensureStaffRequestSequenceFloor(tx);
       }
 
       return request;
@@ -738,9 +754,7 @@ export class RequestsService {
 
       if (isRequestIdChanged) {
         await tx.requestInstance.delete({ where: { id: existing.id } });
-        await tx.$executeRawUnsafe(
-          "SELECT setval(pg_get_serial_sequence('sta_request_instances','id'), (SELECT COALESCE(MAX(id), 1) FROM sta_request_instances), true)"
-        );
+        await this.ensureStaffRequestSequenceFloor(tx);
       }
     });
 
@@ -3801,42 +3815,7 @@ export class RequestsService {
     if (!instance || instance.status !== 'pending' || !instance.currentStep) return false;
 
     for (const approver of instance.currentStep.approvers) {
-      if (approver.approverType !== 'role') continue;
-      const approverId = String(approver.approverId || '').trim().toLowerCase();
-      if (!approverId) continue;
-
-      if (approverId === 'team_lead') {
-        if (!request.teamId) continue;
-        const lead = await this.prisma.groupUser.count({
-          where: {
-            groupId: request.teamId,
-            userId: toBigInt(userId),
-            role: GroupUserRole.moderator
-          }
-        });
-        if (lead > 0) return true;
-        continue;
-      }
-
-      const hasRole = await this.prisma.userRole.count({
-        where: {
-          profileId: toBigInt(userId),
-          role: { slug: approverId }
-        }
-      });
-      if (hasRole > 0) return true;
-
-      const hasPermission = await this.prisma.rolePermission.count({
-        where: {
-          permission: { slug: approverId },
-          role: {
-            users: {
-              some: { profileId: toBigInt(userId) }
-            }
-          }
-        }
-      });
-      if (hasPermission > 0) return true;
+      if (await this.userMatchesCurrentApprover({ approverType: approver.approverType, approverId: approver.approverId }, request.teamId, userId)) return true;
     }
 
     return false;
@@ -3856,44 +3835,203 @@ export class RequestsService {
 
     const userIds = new Set<string>();
     for (const approver of instance.currentStep.approvers) {
-      if (approver.approverType !== 'role') continue;
-      const approverId = String(approver.approverId || '').trim().toLowerCase();
-      if (!approverId) continue;
-
-      if (approverId === 'team_lead' || approverId === 'team_lead_or_manager') {
-        if (!request.teamId) continue;
-        const allowedRoles =
-          approverId === 'team_lead'
-            ? [GroupUserRole.moderator]
-            : [GroupUserRole.moderator, GroupUserRole.admin];
-        const rows = await this.prisma.groupUser.findMany({
-          where: { groupId: request.teamId, role: { in: allowedRoles } },
-          select: { userId: true }
-        });
-        for (const row of rows) userIds.add(row.userId.toString());
-        continue;
-      }
-
-      const directRoleUsers = await this.prisma.userRole.findMany({
-        where: { role: { slug: approverId } },
-        select: { profileId: true }
-      });
-      for (const row of directRoleUsers) userIds.add(row.profileId.toString());
-
-      const permissionUsers = await this.prisma.userRole.findMany({
-        where: {
-          role: {
-            permissions: {
-              some: { permission: { slug: approverId } }
-            }
-          }
-        },
-        select: { profileId: true }
-      });
-      for (const row of permissionUsers) userIds.add(row.profileId.toString());
+      const currentIds = await this.listUsersForCurrentApprover(
+        { approverType: approver.approverType, approverId: approver.approverId },
+        request.teamId,
+      );
+      for (const id of currentIds) userIds.add(id);
     }
 
     return Array.from(userIds);
+  }
+
+  private async userMatchesCurrentApprover(
+    approver: { approverType: string; approverId: string | null },
+    teamId: bigint | null,
+    userId: string,
+  ) {
+    const approverType = String(approver.approverType || '').trim().toLowerCase();
+    const approverId = String(approver.approverId || '').trim().toLowerCase();
+    if (!approverId) return false;
+
+    if (
+      (approverType === 'relation' && approverId === 'requester_team_lead') ||
+      (approverType === 'role' && approverId === 'team_lead')
+    ) {
+      if (!teamId) return false;
+      return (
+        (await this.prisma.groupUser.count({
+          where: {
+            groupId: teamId,
+            userId: toBigInt(userId),
+            role: GroupUserRole.moderator,
+          },
+        })) > 0
+      );
+    }
+
+    if (
+      (approverType === 'relation' && approverId === 'requester_team_lead_or_manager') ||
+      (approverType === 'role' && (approverId === 'team_lead_or_manager' || approverId === 'manager'))
+    ) {
+      if (teamId) {
+        const leadOrManager = await this.prisma.groupUser.count({
+          where: {
+            groupId: teamId,
+            userId: toBigInt(userId),
+            role: { in: [GroupUserRole.moderator, GroupUserRole.admin] },
+          },
+        });
+        if (leadOrManager > 0) return true;
+      }
+
+      return (
+        (await this.prisma.userRole.count({
+          where: {
+            profileId: toBigInt(userId),
+            role: { slug: 'manager' },
+          },
+        })) > 0
+      );
+    }
+
+    if (approverType === 'office' || approverType === 'role') {
+      const roleSlugs =
+        approverType === 'role' && approverId === 'accountant'
+          ? ['accountant', 'finance_manager']
+          : [approverId];
+      const hasRole = await this.prisma.userRole.count({
+        where: {
+          profileId: toBigInt(userId),
+          role: { slug: { in: roleSlugs } },
+        },
+      });
+      if (hasRole > 0) return true;
+    }
+
+    if (
+      approverType === 'permission' ||
+      (approverType === 'role' && (approverId.includes('.') || approverId === 'accountant' || approverId === 'hr'))
+    ) {
+      const permissionSlug =
+        approverType === 'permission'
+          ? approverId
+          : approverId === 'accountant'
+            ? 'finance.approve'
+            : approverId === 'hr'
+              ? 'hr.approve'
+              : approverId;
+
+      const hasPermission = await this.prisma.rolePermission.count({
+        where: {
+          permission: { slug: permissionSlug },
+          role: {
+            users: {
+              some: { profileId: toBigInt(userId) },
+            },
+          },
+        },
+      });
+      if (hasPermission > 0) return true;
+
+      const isAdmin = await this.prisma.userRole.count({
+        where: {
+          profileId: toBigInt(userId),
+          role: { slug: { in: ['administrator', 'admin'] } },
+        },
+      });
+      if (isAdmin > 0) return true;
+    }
+
+    return false;
+  }
+
+  private async listUsersForCurrentApprover(
+    approver: { approverType: string; approverId: string | null },
+    teamId: bigint | null,
+  ): Promise<string[]> {
+    const approverType = String(approver.approverType || '').trim().toLowerCase();
+    const approverId = String(approver.approverId || '').trim().toLowerCase();
+    if (!approverId) return [];
+
+    if (
+      (approverType === 'relation' && approverId === 'requester_team_lead') ||
+      (approverType === 'role' && approverId === 'team_lead')
+    ) {
+      if (!teamId) return [];
+      const rows = await this.prisma.groupUser.findMany({
+        where: { groupId: teamId, role: GroupUserRole.moderator },
+        select: { userId: true },
+      });
+      return rows.map((row) => row.userId.toString());
+    }
+
+    if (
+      (approverType === 'relation' && approverId === 'requester_team_lead_or_manager') ||
+      (approverType === 'role' && (approverId === 'team_lead_or_manager' || approverId === 'manager'))
+    ) {
+      const ids = new Set<string>();
+      if (teamId) {
+        const rows = await this.prisma.groupUser.findMany({
+          where: { groupId: teamId, role: { in: [GroupUserRole.moderator, GroupUserRole.admin] } },
+          select: { userId: true },
+        });
+        for (const row of rows) ids.add(row.userId.toString());
+      }
+
+      const managers = await this.prisma.userRole.findMany({
+        where: { role: { slug: 'manager' } },
+        select: { profileId: true },
+      });
+      for (const row of managers) ids.add(row.profileId.toString());
+      return Array.from(ids);
+    }
+
+    const ids = new Set<string>();
+
+    if (approverType === 'office' || approverType === 'role') {
+      const roleSlugs =
+        approverType === 'role' && approverId === 'accountant'
+          ? ['accountant', 'finance_manager']
+          : [approverId];
+      const directRoleUsers = await this.prisma.userRole.findMany({
+        where: { role: { slug: { in: roleSlugs } } },
+        select: { profileId: true },
+      });
+      for (const row of directRoleUsers) ids.add(row.profileId.toString());
+    }
+
+    if (
+      approverType === 'permission' ||
+      (approverType === 'role' && (approverId.includes('.') || approverId === 'accountant' || approverId === 'hr'))
+    ) {
+      const permissionSlug =
+        approverType === 'permission'
+          ? approverId
+          : approverId === 'accountant'
+            ? 'finance.approve'
+            : approverId === 'hr'
+              ? 'hr.approve'
+              : approverId;
+      const permissionUsers = await this.prisma.userRole.findMany({
+        where: {
+          OR: [
+            { role: { slug: { in: ['administrator', 'admin'] } } },
+            {
+              role: {
+                permissions: {
+                  some: { permission: { slug: permissionSlug } },
+                },
+              },
+            },
+          ],
+        },
+        select: { profileId: true },
+      });
+      for (const row of permissionUsers) ids.add(row.profileId.toString());
+    }
+
+    return Array.from(ids);
   }
 
   private async notifyCurrentApprovers(
@@ -3936,5 +4074,12 @@ export class RequestsService {
         data: (data ?? {}) as Prisma.InputJsonValue
       }
     });
+  }
+
+  private async ensureStaffRequestSequenceFloor(db: Prisma.TransactionClient | PrismaService) {
+    const floor = (STAFF_REQUEST_SEQUENCE_START - BigInt(1)).toString();
+    await db.$executeRawUnsafe(
+      `SELECT setval(pg_get_serial_sequence('sta_request_instances','id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM sta_request_instances), ${floor}), true)`
+    );
   }
 }

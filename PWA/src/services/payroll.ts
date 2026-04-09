@@ -98,7 +98,18 @@ export async function updatePayrollTaxTable(id: string, payload: Record<string, 
 
 export async function listPayrollWorkers(params?: Record<string, unknown>) {
   const response = await apiClient.get("/payroll/workers", { params });
-  return response.data?.data as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
+  const payload = response.data ?? {};
+  const nested = payload.data ?? {};
+  if (Array.isArray(nested)) {
+    return {
+      data: nested,
+      meta: payload.meta ?? { page: 1, per_page: nested.length, total: nested.length, last_page: 1 },
+    } as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
+  }
+  return {
+    data: nested.data ?? [],
+    meta: nested.meta ?? payload.meta ?? { page: 1, per_page: 0, total: 0, last_page: 1 },
+  } as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
 }
 
 export async function getPayrollWorker(id: string) {
@@ -116,6 +127,11 @@ export async function updatePayrollWorker(id: string, payload: Record<string, un
   return response.data?.data;
 }
 
+export async function deletePayrollWorker(id: string) {
+  const response = await apiClient.delete(`/payroll/workers/${id}`);
+  return response.data?.data as { action: "deleted" | "deactivated"; reason?: string };
+}
+
 export async function listPayrollComponents(params?: Record<string, unknown>) {
   const response = await apiClient.get("/payroll/components", { params });
   return (response.data?.data ?? []) as any[];
@@ -129,6 +145,11 @@ export async function createPayrollComponent(payload: Record<string, unknown>) {
 export async function updatePayrollComponent(id: string, payload: Record<string, unknown>) {
   const response = await apiClient.post(`/payroll/components/${id}`, payload);
   return response.data?.data;
+}
+
+export async function deletePayrollComponent(id: string) {
+  const response = await apiClient.delete(`/payroll/components/${id}`);
+  return response.data?.data as { action: "deleted" | "deactivated"; reason?: string; component?: any };
 }
 
 export async function listPayrollLoans(params?: Record<string, unknown>) {
@@ -178,12 +199,28 @@ export async function rejectProjectTimesheet(id: string) {
 
 export async function listPayrollRuns(params?: Record<string, unknown>) {
   const response = await apiClient.get("/payroll/runs", { params });
-  return response.data?.data as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
+  const payload = response.data ?? {};
+  const nested = payload.data ?? {};
+  if (Array.isArray(nested)) {
+    return {
+      data: nested,
+      meta: payload.meta ?? { page: 1, per_page: nested.length, total: nested.length, last_page: 1 },
+    } as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
+  }
+  return {
+    data: nested.data ?? [],
+    meta: nested.meta ?? payload.meta ?? { page: 1, per_page: 0, total: 0, last_page: 1 },
+  } as { data: any[]; meta: { page: number; per_page: number; total: number; last_page: number } };
 }
 
 export async function getPayrollRun(id: string) {
   const response = await apiClient.get(`/payroll/runs/${id}`);
   return response.data?.data;
+}
+
+export async function deletePayrollRun(id: string) {
+  const response = await apiClient.delete(`/payroll/runs/${id}`);
+  return response.data?.data as { action: "deleted" };
 }
 
 export async function createPayrollRun(payload: Record<string, unknown>) {

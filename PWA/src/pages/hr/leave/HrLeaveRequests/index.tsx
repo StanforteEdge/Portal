@@ -224,11 +224,11 @@ function HrLeaveRequestsPage() {
                   );
                   return (
                     <Table.Tr key={row.id}>
-                      <Table.Td>
+                      <Table.RowHeader>
                         <Link className="font-semibold text-primary hover:underline" to={`/app/requests/request/${row.id}`}>
                           {formatRequestNumber(row.request_number)}
                         </Link>
-                      </Table.Td>
+                      </Table.RowHeader>
                       <Table.Td>
                         <div className="font-medium">{formatPersonName(row.creator)}</div>
                         <div className="text-xs text-slate-500">{row.creator?.email || "-"}</div>
@@ -243,7 +243,7 @@ function HrLeaveRequestsPage() {
                       </Table.Td>
                       <Table.Td>
                         <Link to={`/app/requests/request/${row.id}`}>
-                          <Button size="sm" variant="outline-secondary">
+                          <Button size="sm" variant="outline-secondary" aria-label={`View leave request ${formatRequestNumber(row.request_number)}`} title="View leave request">
                             <Lucide icon="Eye" className="w-4 h-4 mr-1" />
                             View
                           </Button>

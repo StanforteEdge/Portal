@@ -2,13 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { GroupUserRole } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
-
-type WorkflowStepConfig = {
-  role?: string;
-  action?: string;
-  min_amount?: number;
-  approval_limit?: number;
-};
+import {
+  WorkflowStepConfig,
+  getWorkflowApproverLabel,
+  isLeadOrManagerApprover,
+  normalizeWorkflowStepApprover,
+} from './workflow-approvers';
 
 @Injectable()
 export class WorkflowService {
@@ -51,11 +50,12 @@ export class WorkflowService {
       });
 
       const workflowSteps = await Promise.all(
-        steps.map((step, index) =>
-          tx.workflowStep.create({
+        steps.map((step, index) => {
+          const approver = normalizeWorkflowStepApprover(step);
+          return tx.workflowStep.create({
             data: {
               workflowId: workflow.id,
-              name: step.role ? `${step.role} approval` : `Step ${index + 1}`,
+              name: getWorkflowApproverLabel(approver.approverType, approver.approverId) || `Step ${index + 1}`,
               stepType: 'approval',
               order: index + 1,
               isInitial: index === 0,
@@ -64,24 +64,25 @@ export class WorkflowService {
               createdBy: toBigInt(params.initiatedBy),
               updatedBy: toBigInt(params.initiatedBy)
             }
-          })
-        )
+          });
+        })
       );
 
       await Promise.all(
-        workflowSteps.map((step, index) =>
-          tx.workflowStepApprover.create({
+        workflowSteps.map((step, index) => {
+          const approver = normalizeWorkflowStepApprover(steps[index]);
+          return tx.workflowStepApprover.create({
             data: {
               stepId: step.id,
-              approverType: 'role',
-              approverId: steps[index].role ?? 'requests.approve',
+              approverType: approver.approverType,
+              approverId: approver.approverId,
               isRequired: true,
               approvalOrder: 1,
               createdBy: toBigInt(params.initiatedBy),
               updatedBy: toBigInt(params.initiatedBy)
             }
-          })
-        )
+          });
+        })
       );
 
       for (let i = 0; i < workflowSteps.length - 1; i += 1) {
@@ -117,7 +118,7 @@ export class WorkflowService {
       let workflowStatus: 'pending' | 'approved' = 'pending';
       let autoApprovedInitial = false;
 
-      if (steps[0]?.role === 'team_lead' || steps[0]?.role === 'team_lead_or_manager') {
+      if (steps[0] && isLeadOrManagerApprover(steps[0])) {
         const isLeadOrManager = await this.isTeamLeadOrManagerForRequestIdTx(tx, params.requestId, params.initiatedBy);
         if (isLeadOrManager) {
           autoApprovedInitial = true;
@@ -335,28 +336,35 @@ export class WorkflowService {
     if (!key.includes('leave')) return steps;
 
     const next = [...steps];
-    const isLeadOrManagerStep = (role?: string) =>
-      role === 'team_lead' || role === 'manager' || role === 'team_lead_or_manager';
-    const leadOrManagerIndex = next.findIndex((step) => isLeadOrManagerStep(step.role));
-    const hrIndex = next.findIndex((step) => step.role === 'hr');
+    const leadOrManagerIndex = next.findIndex((step) => {
+      const approver = normalizeWorkflowStepApprover(step);
+      return approver.approverType === 'relation' && approver.approverId === 'requester_team_lead_or_manager';
+    });
+    const hrIndex = next.findIndex((step) => {
+      const approver = normalizeWorkflowStepApprover(step);
+      return approver.approverType === 'permission' && approver.approverId === 'hr.approve';
+    });
 
     if (leadOrManagerIndex === -1 && hrIndex === -1) {
-      next.push({ role: 'team_lead_or_manager' }, { role: 'hr' });
+      next.push(
+        { approver: { type: 'relation', value: 'requester_team_lead_or_manager' } },
+        { approver: { type: 'permission', value: 'hr.approve' } },
+      );
       return next;
     }
 
     if (leadOrManagerIndex === -1 && hrIndex >= 0) {
-      next.splice(hrIndex, 0, { role: 'team_lead_or_manager' });
+      next.splice(hrIndex, 0, { approver: { type: 'relation', value: 'requester_team_lead_or_manager' } });
       return next;
     }
 
     if (hrIndex === -1) {
-      next.push({ role: 'hr' });
+      next.push({ approver: { type: 'permission', value: 'hr.approve' } });
       return next;
     }
 
     if (leadOrManagerIndex > hrIndex) {
-      next.splice(hrIndex, 0, { role: 'team_lead_or_manager' });
+      next.splice(hrIndex, 0, { approver: { type: 'relation', value: 'requester_team_lead_or_manager' } });
     }
 
     return next;
@@ -372,31 +380,54 @@ export class WorkflowService {
   ) {
     if (!instance.currentStep) return false;
     for (const approver of instance.currentStep.approvers) {
-      if (approver.approverType !== 'role') continue;
-      const approverId = approver.approverId?.trim();
+      const approverType = String(approver.approverType || '').trim().toLowerCase();
+      const approverId = approver.approverId?.trim().toLowerCase();
       if (!approverId) continue;
 
-      if (approverId === 'team_lead') {
+      if (
+        (approverType === 'relation' && approverId === 'requester_team_lead') ||
+        (approverType === 'role' && approverId === 'team_lead')
+      ) {
         const isLead = await this.isTeamLeadForRequest(instance, userId);
         if (isLead) return true;
         continue;
       }
 
-      if (approverId === 'team_lead_or_manager') {
+      if (
+        (approverType === 'relation' && approverId === 'requester_team_lead_or_manager') ||
+        (approverType === 'role' && (approverId === 'team_lead_or_manager' || approverId === 'manager'))
+      ) {
         const isLeadOrManager = await this.isTeamLeadOrManagerForRequest(instance, userId);
         if (isLeadOrManager) return true;
         continue;
       }
 
-      const hasRole = await this.prisma.userRole.count({
-        where: {
-          profileId: toBigInt(userId),
-          role: { slug: approverId }
-        }
-      });
-      if (hasRole > 0) return true;
+      if (approverType === 'office' || approverType === 'role') {
+        const roleSlugs =
+          approverType === 'role' && approverId === 'accountant'
+            ? ['accountant', 'finance_manager']
+            : [approverId];
+        const hasRole = await this.prisma.userRole.count({
+          where: {
+            profileId: toBigInt(userId),
+            role: { slug: { in: roleSlugs } }
+          }
+        });
+        if (hasRole > 0) return true;
+      }
 
-      if (approverId.includes('.')) {
+      if (
+        approverType === 'permission' ||
+        (approverType === 'role' && (approverId.includes('.') || approverId === 'accountant' || approverId === 'hr'))
+      ) {
+        const permissionSlug =
+          approverType === 'permission'
+            ? approverId
+            : approverId === 'accountant'
+              ? 'finance.approve'
+              : approverId === 'hr'
+                ? 'hr.approve'
+                : approverId;
         const hasPermission = await this.prisma.rolePermission.count({
           where: {
             role: {
@@ -404,10 +435,18 @@ export class WorkflowService {
                 some: { profileId: toBigInt(userId) }
               }
             },
-            permission: { slug: approverId }
+            permission: { slug: permissionSlug }
           }
         });
         if (hasPermission > 0) return true;
+
+        const isAdmin = await this.prisma.userRole.count({
+          where: {
+            profileId: toBigInt(userId),
+            role: { slug: { in: ['administrator', 'admin'] } }
+          }
+        });
+        if (isAdmin > 0) return true;
       }
     }
 

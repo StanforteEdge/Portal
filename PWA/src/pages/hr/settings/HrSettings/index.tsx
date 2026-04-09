@@ -10,6 +10,12 @@ import { listOrganizations, type OrganizationRecord } from "@/services/organizat
 import { listTeams, type TeamOption } from "@/services/teams";
 import { listUsers, type UserListItem } from "@/services/users";
 import { listRequestTypes, type RequestTypeOption } from "@/services/requests";
+import {
+  createAttendanceOfficeLocation,
+  listAttendanceOfficeLocations,
+  updateAttendanceOfficeLocation,
+  type OfficeLocation,
+} from "@/services/hr";
 
 type ScopeType = "organization" | "team" | "staff_type" | "user";
 type SettingsTab = "attendance" | "leave";
@@ -22,6 +28,9 @@ type AttendanceConfig = {
   max_past_days: string;
   earliest_clock_in_minutes_before_start: string;
   latest_clock_out_minutes_after_end: string;
+  onsite_weekdays: string;
+  remote_weekdays: string;
+  required_extra_onsite_day_count: string;
 };
 
 type LeaveEntitlementRow = { leave_type_key: string; days: string };
@@ -32,6 +41,18 @@ type OverrideForm = {
   priority: string;
 };
 
+type OfficeLocationForm = {
+  id?: string;
+  name: string;
+  address: string;
+  latitude: string;
+  longitude: string;
+  radius_meters: string;
+  is_active: boolean;
+  organization_ids: string[];
+  primary_organization_id: string;
+};
+
 const defaultAttendance: AttendanceConfig = {
   start_time: "09:00",
   end_time: "17:00",
@@ -40,6 +61,9 @@ const defaultAttendance: AttendanceConfig = {
   max_past_days: "7",
   earliest_clock_in_minutes_before_start: "240",
   latest_clock_out_minutes_after_end: "720",
+  onsite_weekdays: "1,5",
+  remote_weekdays: "2,3,4",
+  required_extra_onsite_day_count: "1",
 };
 
 const defaultLeave: LeaveEntitlementRow[] = [
@@ -68,6 +92,17 @@ const defaultOverrideForm: OverrideForm = {
   priority: "100",
 };
 
+const defaultOfficeLocationForm: OfficeLocationForm = {
+  name: "",
+  address: "",
+  latitude: "",
+  longitude: "",
+  radius_meters: "150",
+  is_active: true,
+  organization_ids: [],
+  primary_organization_id: "",
+};
+
 function mapAttendanceConfig(config: unknown): AttendanceConfig {
   const raw = config && typeof config === "object" ? (config as Record<string, unknown>) : {};
   return {
@@ -82,6 +117,15 @@ function mapAttendanceConfig(config: unknown): AttendanceConfig {
     latest_clock_out_minutes_after_end: String(
       raw.latest_clock_out_minutes_after_end ?? defaultAttendance.latest_clock_out_minutes_after_end
     ),
+    onsite_weekdays: Array.isArray(raw.onsite_weekdays)
+      ? raw.onsite_weekdays.join(",")
+      : String(raw.onsite_weekdays ?? defaultAttendance.onsite_weekdays),
+    remote_weekdays: Array.isArray(raw.remote_weekdays)
+      ? raw.remote_weekdays.join(",")
+      : String(raw.remote_weekdays ?? defaultAttendance.remote_weekdays),
+    required_extra_onsite_day_count: String(
+      raw.required_extra_onsite_day_count ?? defaultAttendance.required_extra_onsite_day_count
+    ),
   };
 }
 
@@ -92,6 +136,14 @@ function mapLeaveRows(config: unknown): LeaveEntitlementRow[] {
     days: String(Number(days ?? 0)),
   }));
   return rows.length > 0 ? rows : defaultLeave;
+}
+
+function parseWeekdays(value: string) {
+  return value
+    .split(",")
+    .map((item) => Number(item.trim()))
+    .filter((item) => Number.isFinite(item) && item >= 0 && item <= 6)
+    .map((item) => Math.trunc(item));
 }
 
 function HrSettingsPage() {
@@ -116,6 +168,8 @@ function HrSettingsPage() {
   const [organizations, setOrganizations] = useState<OrganizationRecord[]>([]);
   const [teams, setTeams] = useState<TeamOption[]>([]);
   const [users, setUsers] = useState<UserListItem[]>([]);
+  const [officeLocations, setOfficeLocations] = useState<OfficeLocation[]>([]);
+  const [officeLocationForm, setOfficeLocationForm] = useState<OfficeLocationForm>(defaultOfficeLocationForm);
 
   const [loading, setLoading] = useState(false);
   const [savingAttendance, setSavingAttendance] = useState(false);
@@ -123,6 +177,7 @@ function HrSettingsPage() {
   const [savingAttendanceOverride, setSavingAttendanceOverride] = useState(false);
   const [savingLeaveOverride, setSavingLeaveOverride] = useState(false);
   const [savingLeaveRequestType, setSavingLeaveRequestType] = useState(false);
+  const [savingOfficeLocation, setSavingOfficeLocation] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
 
   const hasAnyLeaveType = useMemo(
@@ -133,12 +188,13 @@ function HrSettingsPage() {
   const load = async () => {
     try {
       setLoading(true);
-      const [attendanceGlobalRes, leaveGlobalRes, leaveRequestTypeRes, attendanceOverridesRes, leaveOverridesRes] = await Promise.all([
+      const [attendanceGlobalRes, leaveGlobalRes, leaveRequestTypeRes, attendanceOverridesRes, leaveOverridesRes, officeLocationRes] = await Promise.all([
         listPolicies({ module: "attendance", policy_key: "schedule", scope_type: "global", per_page: 1 }),
         listPolicies({ module: "leave", policy_key: "leave_entitlements", scope_type: "global", per_page: 1 }),
         listPolicies({ module: "leave", policy_key: "leave_request_type", scope_type: "global", per_page: 1 }),
         listPolicies({ module: "attendance", policy_key: "schedule", is_active: true, per_page: 200 }),
         listPolicies({ module: "leave", policy_key: "leave_entitlements", is_active: true, per_page: 200 }),
+        listAttendanceOfficeLocations({ is_active: true }),
       ]);
 
       const attendanceGlobal = attendanceGlobalRes.data?.[0] ?? null;
@@ -159,6 +215,7 @@ function HrSettingsPage() {
         (attendanceOverridesRes.data ?? []).filter((row) => row.scope_type !== "global")
       );
       setLeaveOverrides((leaveOverridesRes.data ?? []).filter((row) => row.scope_type !== "global"));
+      setOfficeLocations(officeLocationRes.data ?? []);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load HR settings." });
     } finally {
@@ -202,6 +259,9 @@ function HrSettingsPage() {
       max_past_days: toNum(attendance.max_past_days),
       earliest_clock_in_minutes_before_start: toNum(attendance.earliest_clock_in_minutes_before_start),
       latest_clock_out_minutes_after_end: toNum(attendance.latest_clock_out_minutes_after_end),
+      onsite_weekdays: parseWeekdays(attendance.onsite_weekdays),
+      remote_weekdays: parseWeekdays(attendance.remote_weekdays),
+      required_extra_onsite_day_count: toNum(attendance.required_extra_onsite_day_count),
     };
 
     if (!payloadConfig.start_time || !payloadConfig.end_time) {
@@ -351,6 +411,9 @@ function HrSettingsPage() {
       max_past_days: Number(attendanceOverrideConfig.max_past_days || 0),
       earliest_clock_in_minutes_before_start: Number(attendanceOverrideConfig.earliest_clock_in_minutes_before_start || 0),
       latest_clock_out_minutes_after_end: Number(attendanceOverrideConfig.latest_clock_out_minutes_after_end || 0),
+      onsite_weekdays: parseWeekdays(attendanceOverrideConfig.onsite_weekdays),
+      remote_weekdays: parseWeekdays(attendanceOverrideConfig.remote_weekdays),
+      required_extra_onsite_day_count: Number(attendanceOverrideConfig.required_extra_onsite_day_count || 0),
     };
 
     try {
@@ -424,6 +487,70 @@ function HrSettingsPage() {
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to deactivate override." });
     }
+  };
+
+  const saveOfficeLocation = async () => {
+    if (
+      !officeLocationForm.name.trim() ||
+      !officeLocationForm.latitude.trim() ||
+      !officeLocationForm.longitude.trim() ||
+      officeLocationForm.organization_ids.length === 0
+    ) {
+      setNotice({ tone: "warning", message: "Office location name, coordinates, and at least one organization are required." });
+      return;
+    }
+
+    try {
+      setSavingOfficeLocation(true);
+      const payload = {
+        name: officeLocationForm.name.trim(),
+        address: officeLocationForm.address.trim() || undefined,
+        latitude: Number(officeLocationForm.latitude),
+        longitude: Number(officeLocationForm.longitude),
+        radius_meters: Number(officeLocationForm.radius_meters || 150),
+        is_active: officeLocationForm.is_active,
+        organization_ids: officeLocationForm.organization_ids,
+        primary_organization_id: officeLocationForm.primary_organization_id || officeLocationForm.organization_ids[0],
+      };
+      if (officeLocationForm.id) await updateAttendanceOfficeLocation(officeLocationForm.id, payload);
+      else await createAttendanceOfficeLocation(payload);
+      setOfficeLocationForm(defaultOfficeLocationForm);
+      setNotice({ tone: "success", message: `Office location ${officeLocationForm.id ? "updated" : "created"}.` });
+      await load();
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save office location." });
+    } finally {
+      setSavingOfficeLocation(false);
+    }
+  };
+
+  const editOfficeLocation = (row: OfficeLocation) => {
+    setOfficeLocationForm({
+      id: row.id,
+      name: row.name,
+      address: row.address || "",
+      latitude: String(row.latitude),
+      longitude: String(row.longitude),
+      radius_meters: String(row.radius_meters),
+      is_active: row.is_active,
+      organization_ids: row.organizations.map((entry) => entry.id),
+      primary_organization_id: row.organizations.find((entry) => entry.is_primary)?.id || row.organizations[0]?.id || "",
+    });
+  };
+
+  const toggleOfficeLocationOrganization = (organizationId: string, checked: boolean) => {
+    setOfficeLocationForm((prev) => {
+      const nextIds = checked
+        ? Array.from(new Set([...prev.organization_ids, organizationId]))
+        : prev.organization_ids.filter((id) => id !== organizationId);
+      return {
+        ...prev,
+        organization_ids: nextIds,
+        primary_organization_id: nextIds.includes(prev.primary_organization_id)
+          ? prev.primary_organization_id
+          : nextIds[0] || "",
+      };
+    });
   };
 
   return (
@@ -507,7 +634,128 @@ function HrSettingsPage() {
                   onChange={(e) => setAttendance((p) => ({ ...p, latest_clock_out_minutes_after_end: e.target.value }))}
                 />
               </div>
+              <div className="col-span-12 md:col-span-4">
+                <FormLabel>Onsite Weekdays</FormLabel>
+                <FormInput value={attendance.onsite_weekdays} onChange={(e) => setAttendance((p) => ({ ...p, onsite_weekdays: e.target.value }))} placeholder="1,5" />
+              </div>
+              <div className="col-span-12 md:col-span-4">
+                <FormLabel>Remote Weekdays</FormLabel>
+                <FormInput value={attendance.remote_weekdays} onChange={(e) => setAttendance((p) => ({ ...p, remote_weekdays: e.target.value }))} placeholder="2,3,4" />
+              </div>
+              <div className="col-span-12 md:col-span-4">
+                <FormLabel>Extra Onsite Days</FormLabel>
+                <FormInput type="number" min={0} value={attendance.required_extra_onsite_day_count} onChange={(e) => setAttendance((p) => ({ ...p, required_extra_onsite_day_count: e.target.value }))} />
+              </div>
             </div>
+          </div>
+
+          <div className="box p-5 mt-5 mb-10">
+            <div className="flex items-center">
+              <h3 className="mr-auto text-base font-medium">Office Locations</h3>
+              <div className="flex gap-2">
+                {officeLocationForm.id ? (
+                  <Button variant="outline-secondary" onClick={() => setOfficeLocationForm(defaultOfficeLocationForm)}>
+                    <Lucide icon="XCircle" className="w-4 h-4 mr-1" /> Cancel Edit
+                  </Button>
+                ) : null}
+                <Button variant="primary" onClick={() => void saveOfficeLocation()} disabled={savingOfficeLocation}>
+                  <Lucide icon="Plus" className="w-4 h-4 mr-1" />
+                  {savingOfficeLocation ? "Saving..." : officeLocationForm.id ? "Update Location" : "Add Location"}
+                </Button>
+              </div>
+            </div>
+            <div className="text-xs text-slate-500 mt-2">
+              Support multiple office sites per organization and shared offices across organizations.
+            </div>
+            <div className="grid grid-cols-12 gap-3 mt-4">
+              <div className="col-span-12 md:col-span-4">
+                <FormLabel>Name</FormLabel>
+                <FormInput value={officeLocationForm.name} onChange={(e) => setOfficeLocationForm((prev) => ({ ...prev, name: e.target.value }))} placeholder="HQ Lagos" />
+              </div>
+              <div className="col-span-12 md:col-span-4">
+                <FormLabel>Address</FormLabel>
+                <FormInput value={officeLocationForm.address} onChange={(e) => setOfficeLocationForm((prev) => ({ ...prev, address: e.target.value }))} placeholder="Office address" />
+              </div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel>Latitude</FormLabel>
+                <FormInput value={officeLocationForm.latitude} onChange={(e) => setOfficeLocationForm((prev) => ({ ...prev, latitude: e.target.value }))} placeholder="6.5244" />
+              </div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel>Longitude</FormLabel>
+                <FormInput value={officeLocationForm.longitude} onChange={(e) => setOfficeLocationForm((prev) => ({ ...prev, longitude: e.target.value }))} placeholder="3.3792" />
+              </div>
+              <div className="col-span-12 md:col-span-3">
+                <FormLabel>Radius (meters)</FormLabel>
+                <FormInput type="number" min={10} value={officeLocationForm.radius_meters} onChange={(e) => setOfficeLocationForm((prev) => ({ ...prev, radius_meters: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-3">
+                <FormLabel>Primary Organization</FormLabel>
+                <FormSelect value={officeLocationForm.primary_organization_id} onChange={(e) => setOfficeLocationForm((prev) => ({ ...prev, primary_organization_id: e.target.value }))}>
+                  <option value="">Select primary organization</option>
+                  {organizations
+                    .filter((row) => officeLocationForm.organization_ids.includes(row.id))
+                    .map((row) => (
+                      <option key={row.id} value={row.id}>{row.name}</option>
+                    ))}
+                </FormSelect>
+              </div>
+              <div className="col-span-12 md:col-span-3">
+                <FormLabel>Status</FormLabel>
+                <FormSelect value={officeLocationForm.is_active ? "true" : "false"} onChange={(e) => setOfficeLocationForm((prev) => ({ ...prev, is_active: e.target.value === "true" }))}>
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </FormSelect>
+              </div>
+              <div className="col-span-12">
+                <FormLabel>Organizations Served</FormLabel>
+                <div className="grid grid-cols-12 gap-2 mt-2">
+                  {organizations.map((row) => (
+                    <label key={row.id} className="col-span-12 md:col-span-4 flex items-center gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={officeLocationForm.organization_ids.includes(row.id)}
+                        onChange={(e) => toggleOfficeLocationOrganization(row.id, e.target.checked)}
+                      />
+                      <span>{row.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <Table className="mt-4">
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Name</Table.Th>
+                  <Table.Th>Organizations</Table.Th>
+                  <Table.Th>Radius</Table.Th>
+                  <Table.Th>Status</Table.Th>
+                  <Table.Th>Action</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {officeLocations.length ? officeLocations.map((row) => (
+                  <Table.Tr key={row.id}>
+                    <Table.Td>
+                      <div className="font-medium">{row.name}</div>
+                      <div className="text-xs text-slate-500">{row.address || "No address"}</div>
+                    </Table.Td>
+                    <Table.Td>{row.organizations.map((entry) => entry.name).join(", ") || "-"}</Table.Td>
+                    <Table.Td>{row.radius_meters}m</Table.Td>
+                    <Table.Td>{row.is_active ? "Active" : "Inactive"}</Table.Td>
+                    <Table.Td>
+                      <Button variant="outline-secondary" size="sm" onClick={() => editOfficeLocation(row)}>
+                        <Lucide icon="FilePenLine" className="w-4 h-4 mr-1" /> Edit
+                      </Button>
+                    </Table.Td>
+                  </Table.Tr>
+                )) : (
+                  <Table.Tr>
+                    <Table.Td colSpan={5} className="text-slate-500">No office locations yet.</Table.Td>
+                  </Table.Tr>
+                )}
+              </Table.Tbody>
+            </Table>
           </div>
 
           <div className="box p-5 mt-5 mb-10">
@@ -553,11 +801,38 @@ function HrSettingsPage() {
             <div className="grid grid-cols-12 gap-3 mt-3">
               <div className="col-span-12 md:col-span-2"><FormInput type="time" value={attendanceOverrideConfig.start_time} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, start_time: e.target.value }))} /></div>
               <div className="col-span-12 md:col-span-2"><FormInput type="time" value={attendanceOverrideConfig.end_time} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, end_time: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-2"><FormInput type="number" min={0} placeholder="Grace" value={attendanceOverrideConfig.grace_minutes} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, grace_minutes: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-2"><FormInput type="number" min={0} placeholder="Future" value={attendanceOverrideConfig.max_future_minutes} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, max_future_minutes: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-2"><FormInput type="number" min={0} placeholder="Backdate" value={attendanceOverrideConfig.max_past_days} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, max_past_days: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-1"><FormInput type="number" min={0} placeholder="Early" value={attendanceOverrideConfig.earliest_clock_in_minutes_before_start} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, earliest_clock_in_minutes_before_start: e.target.value }))} /></div>
-              <div className="col-span-12 md:col-span-1"><FormInput type="number" min={0} placeholder="Late" value={attendanceOverrideConfig.latest_clock_out_minutes_after_end} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, latest_clock_out_minutes_after_end: e.target.value }))} /></div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel className="sr-only">Grace minutes</FormLabel>
+                <FormInput type="number" min={0} placeholder="Grace" value={attendanceOverrideConfig.grace_minutes} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, grace_minutes: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel className="sr-only">Future minutes</FormLabel>
+                <FormInput type="number" min={0} placeholder="Future" value={attendanceOverrideConfig.max_future_minutes} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, max_future_minutes: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel className="sr-only">Backdate days</FormLabel>
+                <FormInput type="number" min={0} placeholder="Backdate" value={attendanceOverrideConfig.max_past_days} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, max_past_days: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-1">
+                <FormLabel className="sr-only">Early clock-in minutes</FormLabel>
+                <FormInput type="number" min={0} placeholder="Early" value={attendanceOverrideConfig.earliest_clock_in_minutes_before_start} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, earliest_clock_in_minutes_before_start: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-1">
+                <FormLabel className="sr-only">Late clock-out minutes</FormLabel>
+                <FormInput type="number" min={0} placeholder="Late" value={attendanceOverrideConfig.latest_clock_out_minutes_after_end} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, latest_clock_out_minutes_after_end: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel className="sr-only">Onsite weekdays</FormLabel>
+                <FormInput value={attendanceOverrideConfig.onsite_weekdays} placeholder="Onsite days" onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, onsite_weekdays: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel className="sr-only">Remote weekdays</FormLabel>
+                <FormInput value={attendanceOverrideConfig.remote_weekdays} placeholder="Remote days" onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, remote_weekdays: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-2">
+                <FormLabel className="sr-only">Extra onsite days</FormLabel>
+                <FormInput type="number" min={0} placeholder="Extra onsite" value={attendanceOverrideConfig.required_extra_onsite_day_count} onChange={(e) => setAttendanceOverrideConfig((p) => ({ ...p, required_extra_onsite_day_count: e.target.value }))} />
+              </div>
             </div>
 
             <Table className="mt-4">
@@ -576,7 +851,7 @@ function HrSettingsPage() {
                     <Table.Td>{scopeLabel(row.scope_type, row.scope_id)}</Table.Td>
                     <Table.Td>{row.priority}</Table.Td>
                     <Table.Td>
-                      <Button variant="outline-danger" size="sm" onClick={() => void deactivateOverride(row.id)}>
+                      <Button variant="outline-danger" size="sm" aria-label={`Disable attendance override for ${scopeLabel(row.scope_type, row.scope_id)}`} title="Disable override" onClick={() => void deactivateOverride(row.id)}>
                         <Lucide icon="Trash2" className="w-3 h-3 mr-1" /> Disable
                       </Button>
                     </Table.Td>
@@ -680,9 +955,10 @@ function HrSettingsPage() {
             <div className="space-y-2 mt-4">
               {leaveEntitlements.map((row, index) => (
                 <div key={`${row.leave_type_key}-${index}`} className="grid grid-cols-12 gap-2">
-                  <div className="col-span-8">
-                    <FormInput
-                      value={row.leave_type_key}
+                <div className="col-span-8">
+                  <FormLabel className="sr-only">Leave entitlement key</FormLabel>
+                  <FormInput
+                    value={row.leave_type_key}
                       onChange={(e) =>
                         setLeaveEntitlements((prev) =>
                           prev.map((item, i) => (i === index ? { ...item, leave_type_key: e.target.value } : item))
@@ -691,9 +967,10 @@ function HrSettingsPage() {
                       placeholder="e.g. annual_leave"
                     />
                   </div>
-                  <div className="col-span-3">
-                    <FormInput
-                      type="number"
+                <div className="col-span-3">
+                  <FormLabel className="sr-only">Leave entitlement days</FormLabel>
+                  <FormInput
+                    type="number"
                       min={0}
                       step="0.5"
                       value={row.days}
@@ -709,6 +986,8 @@ function HrSettingsPage() {
                       type="button"
                       variant="outline-danger"
                       className="w-full"
+                      aria-label={`Remove leave entitlement row ${index + 1}`}
+                      title="Remove row"
                       onClick={() => setLeaveEntitlements((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}
                     >
                       <Lucide icon="XCircle" className="w-4 h-4" />
@@ -782,6 +1061,8 @@ function HrSettingsPage() {
                       type="button"
                       variant="outline-danger"
                       className="w-full"
+                      aria-label={`Remove leave override row ${index + 1}`}
+                      title="Remove row"
                       onClick={() => setLeaveOverrideRows((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : prev))}
                     >
                       <Lucide icon="XCircle" className="w-4 h-4" />
@@ -807,7 +1088,7 @@ function HrSettingsPage() {
                     <Table.Td>{scopeLabel(row.scope_type, row.scope_id)}</Table.Td>
                     <Table.Td>{row.priority}</Table.Td>
                     <Table.Td>
-                      <Button variant="outline-danger" size="sm" onClick={() => void deactivateOverride(row.id)}>
+                      <Button variant="outline-danger" size="sm" aria-label={`Disable leave override for ${scopeLabel(row.scope_type, row.scope_id)}`} title="Disable override" onClick={() => void deactivateOverride(row.id)}>
                         <Lucide icon="Trash2" className="w-3 h-3 mr-1" /> Disable
                       </Button>
                     </Table.Td>

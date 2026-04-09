@@ -23,6 +23,10 @@ const UpdateProfile = lazy(() => import("../pages/staff/profile/UpdateProfile"))
 const ChangePassword = lazy(() => import("../pages/staff/security/ChangePassword"));
 const MyPayslipsPage = lazy(() => import("../pages/profile/MyPayslips"));
 const MyTimesheetsPage = lazy(() => import("../pages/profile/MyTimesheets"));
+const MyWorkPage = lazy(() => import("../pages/profile/MyWork"));
+const PerformanceOverviewPage = lazy(
+  () => import("../pages/work/PerformanceOverview")
+);
 const HelpHomePage = lazy(() => import("../pages/help/HelpHome"));
 const FinanceHelpPage = lazy(() => import("../pages/help/FinanceHelp"));
 const FinanceSettings = lazy(
@@ -167,6 +171,9 @@ const AdminFilesPage = lazy(() => import("../pages/admin/files/AdminFiles"));
 const AdminProjectsPage = lazy(
   () => import("../pages/admin/projects/AdminProjects")
 );
+const AdminGroupsPage = lazy(
+  () => import("../pages/admin/groups/AdminGroups")
+);
 const AdminDocumentsPage = lazy(
   () => import("../pages/admin/documents/AdminDocuments")
 );
@@ -186,6 +193,9 @@ const HrOnboardingPage = lazy(() => import("../pages/hr/onboarding/HrOnboarding"
 const HrAttendancePage = lazy(() => import("../pages/hr/attendance/HrAttendance"));
 const HrLeaveTrackerPage = lazy(() => import("../pages/hr/leave/HrLeaveTracker"));
 const HrLeaveRequestsPage = lazy(() => import("../pages/hr/leave/HrLeaveRequests"));
+const HrWorkManagementPage = lazy(
+  () => import("../pages/hr/work/HrWorkManagement")
+);
 const HrSettingsPage = lazy(() => import("../pages/hr/settings/HrSettings"));
 const HrLeaveSettingsPage = lazy(
   () => import("../pages/hr/settings/HrLeaveSettings")
@@ -272,6 +282,22 @@ function Router() {
             <ModuleRoute moduleKey="finance">
               {page(<MyTimesheetsPage />)}
             </ModuleRoute>
+          ),
+        },
+        {
+          path: "work",
+          element: (
+            <PermissionRoute requiredPermissions={["work.view"]}>
+              {page(<MyWorkPage />)}
+            </PermissionRoute>
+          ),
+        },
+        {
+          path: "work/performance",
+          element: (
+            <PermissionRoute requiredPermissions={["work.view"]}>
+              {page(<PerformanceOverviewPage />)}
+            </PermissionRoute>
           ),
         },
         {
@@ -379,7 +405,7 @@ function Router() {
           ),
         },
         {
-          path: "requests/approvals",
+          path: "approvals",
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["requests.approve"]}>
@@ -389,7 +415,7 @@ function Router() {
           ),
         },
         {
-          path: "requests/approvals/:id",
+          path: "approvals/:id",
           element: (
             <ModuleRoute moduleKey="finance">
               <PermissionRoute requiredPermissions={["requests.approve"]}>
@@ -397,6 +423,14 @@ function Router() {
               </PermissionRoute>
             </ModuleRoute>
           ),
+        },
+        {
+          path: "requests/approvals",
+          element: <Navigate to="/app/approvals" replace />,
+        },
+        {
+          path: "requests/approvals/:id",
+          element: <Navigate to="/app/approvals" replace />,
         },
         {
           path: "requests/attendance",
@@ -708,7 +742,7 @@ function Router() {
           path: "finance/payroll/workers",
           element: (
             <ModuleRoute moduleKey="finance">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["finance.manage"]}>
                 {financePage("payroll", <FinancePayrollWorkersPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -718,7 +752,7 @@ function Router() {
           path: "finance/payroll/inbox",
           element: (
             <ModuleRoute moduleKey="finance">
-              <AnyPermissionRoute requiredPermissions={["requests.approve", "settings.manage"]}>
+              <AnyPermissionRoute requiredPermissions={["requests.approve", "finance.manage"]}>
                 {financePage("payroll", <FinancePayrollInboxPage />)}
               </AnyPermissionRoute>
             </ModuleRoute>
@@ -738,7 +772,7 @@ function Router() {
           path: "finance/payroll/components",
           element: (
             <ModuleRoute moduleKey="finance">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["finance.manage"]}>
                 {financePage("payroll", <FinancePayrollComponentsPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -748,7 +782,7 @@ function Router() {
           path: "finance/payroll/timesheets",
           element: (
             <ModuleRoute moduleKey="finance">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["finance.manage"]}>
                 {financePage("payroll", <FinancePayrollTimesheetsPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -758,7 +792,7 @@ function Router() {
           path: "finance/payroll/loans",
           element: (
             <ModuleRoute moduleKey="finance">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["finance.manage"]}>
                 {financePage("payroll", <FinancePayrollLoansPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -778,7 +812,7 @@ function Router() {
           path: "finance/payroll/approvals",
           element: (
             <ModuleRoute moduleKey="finance">
-              <AnyPermissionRoute requiredPermissions={["requests.approve", "settings.manage"]}>
+              <AnyPermissionRoute requiredPermissions={["requests.approve", "finance.manage"]}>
                 {financePage("payroll", <FinancePayrollApprovalsPage />)}
               </AnyPermissionRoute>
             </ModuleRoute>
@@ -788,7 +822,7 @@ function Router() {
           path: "finance/payroll/settings",
           element: (
             <ModuleRoute moduleKey="finance">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["finance.manage"]}>
                 {financePage("payroll", <FinancePayrollSettingsPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -808,7 +842,7 @@ function Router() {
           path: "finance/payroll/import",
           element: (
             <ModuleRoute moduleKey="finance">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["finance.manage"]}>
                 {financePage("payroll", <FinancePayrollImportPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -937,10 +971,20 @@ function Router() {
           ),
         },
         {
+          path: "admin/groups",
+          element: (
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["groups.manage"]}>
+                {page(<AdminGroupsPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
           path: "admin/projects",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["projects.manage"]}>
                 {page(<AdminProjectsPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -1086,6 +1130,16 @@ function Router() {
             <ModuleRoute moduleKey="hr">
               <PermissionRoute requiredPermissions={["users.manage"]}>
                 {page(<HrAttendancePage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "hr/work",
+          element: (
+            <ModuleRoute moduleKey="hr">
+              <PermissionRoute requiredPermissions={["work.manage"]}>
+                {page(<HrWorkManagementPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),

@@ -72,6 +72,37 @@ enum OnboardingStatus {
   completed
 }
 
+enum WorkItemType {
+  weekly_task
+  daily_task
+  project_activity
+  recurring_responsibility
+  ad_hoc
+}
+
+enum WorkItemStatus {
+  planned
+  in_progress
+  completed
+  blocked
+  carried_over
+  cancelled
+}
+
+enum WorkPriority {
+  low
+  medium
+  high
+  critical
+}
+
+enum WorkLogApprovalStatus {
+  draft
+  submitted
+  approved
+  rejected
+}
+
 model Profile {
   id                    BigInt    @id @default(autoincrement())
   wpUserId              BigInt?   @map("wp_user_id")
@@ -114,6 +145,12 @@ model Profile {
   employeeMeta                   EmployeeMeta[]
   attendanceEntries              AttendanceEntry[]
   attendanceDaily                AttendanceDaily[]
+  attendanceSubjectCorrections   AttendanceCorrection[] @relation("AttendanceCorrectionUser")
+  attendanceCorrections          AttendanceCorrection[] @relation("AttendanceCorrectionRequestedBy")
+  attendanceCorrectionReviews    AttendanceCorrection[] @relation("AttendanceCorrectionReviewedBy")
+  attendanceSubjectExceptions    AttendanceException[]  @relation("AttendanceExceptionUser")
+  attendanceExceptions           AttendanceException[]  @relation("AttendanceExceptionCreatedBy")
+  attendanceExceptionReviews     AttendanceException[]  @relation("AttendanceExceptionReviewedBy")
   leaveBalanceLedger             LeaveBalanceLedger[]
   acknowledgements               Acknowledgement[]
   documentAcknowledgements       DocumentAcknowledgement[]
@@ -140,6 +177,8 @@ model Profile {
   createdFinanceVendorPayments   FinanceVendorPayment[]     @relation("FinanceVendorPaymentCreatedBy")
   createdFinanceReportNotes      FinanceReportNote[]        @relation("FinanceReportNoteCreatedBy")
   updatedFinanceReportNotes      FinanceReportNote[]        @relation("FinanceReportNoteUpdatedBy")
+  proposedVoucherCorrections     FinancePaymentVoucherCorrection[] @relation("FinancePaymentVoucherCorrectionProposedBy")
+  reviewedVoucherCorrections     FinancePaymentVoucherCorrection[] @relation("FinancePaymentVoucherCorrectionReviewedBy")
   payrollWorkers                 PayrollWorker[]            @relation("PayrollWorkerProfile")
   payrollRunsPrepared            PayrollRun[]               @relation("PayrollRunPreparedBy")
   payrollRunsReviewed            PayrollRun[]               @relation("PayrollRunReviewedBy")
@@ -152,6 +191,17 @@ model Profile {
   payrollSettingsUpdated         PayrollSetting[]           @relation("PayrollSettingUpdatedBy")
   projectTimesheetsApproved      ProjectTimesheetEntry[]    @relation("ProjectTimesheetApprovedBy")
   projectTimesheetsCreated       ProjectTimesheetEntry[]    @relation("ProjectTimesheetCreatedBy")
+  createdWorkItems               WorkItem[]                 @relation("WorkItemCreatedBy")
+  assignedWorkItems              WorkItem[]                 @relation("WorkItemAssignedTo")
+  plannedWorkItems               WorkItem[]                 @relation("WorkItemAssignedBy")
+  workLogs                       WorkLog[]                  @relation("WorkLogStaff")
+  approvedWorkLogs               WorkLog[]                  @relation("WorkLogApprovedBy")
+  ownedTeamGoals                 TeamGoal[]                 @relation("TeamGoalOwner")
+  createdTeamGoals               TeamGoal[]                 @relation("TeamGoalCreatedBy")
+  ownedTeamObjectives            TeamObjective[]            @relation("TeamObjectiveOwner")
+  createdTeamObjectives          TeamObjective[]            @relation("TeamObjectiveCreatedBy")
+  ownedTeamKpis                  TeamKpi[]                  @relation("TeamKpiOwner")
+  createdTeamKpis                TeamKpi[]                  @relation("TeamKpiCreatedBy")
 
   @@map("sta_profiles")
 }
@@ -209,6 +259,11 @@ model AttendanceEntry {
   entryType String   @map("entry_type") @db.VarChar(30)
   entryAt   DateTime @map("entry_at")
   workDate  DateTime @map("work_date") @db.Date
+  attendanceMode String? @map("attendance_mode") @db.VarChar(30)
+  officeLocationId BigInt? @map("office_location_id")
+  latitude  Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
+  geofenceStatus String? @map("geofence_status") @db.VarChar(30)
   source    String   @default("web") @db.VarChar(30)
   metadata  Json?
   createdBy BigInt?  @map("created_by")
@@ -216,6 +271,9 @@ model AttendanceEntry {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+  corrections AttendanceCorrection[]
+  exceptions AttendanceException[]
 
   @@index([userId, workDate])
   @@index([entryType, entryAt])
@@ -227,6 +285,11 @@ model AttendanceDaily {
   userId           BigInt    @map("user_id")
   workDate         DateTime  @map("work_date") @db.Date
   status           String    @default("absent") @db.VarChar(20)
+  attendanceMode   String?   @map("attendance_mode") @db.VarChar(30)
+  expectedMode     String?   @map("expected_mode") @db.VarChar(30)
+  reconciliationStatus String? @map("reconciliation_status") @db.VarChar(30)
+  officeLocationId BigInt?   @map("office_location_id")
+  geofenceStatus   String?   @map("geofence_status") @db.VarChar(30)
   scheduledMinutes Int       @default(0) @map("scheduled_minutes")
   workedMinutes    Int       @default(0) @map("worked_minutes")
   lateMinutes      Int       @default(0) @map("late_minutes")
@@ -239,10 +302,141 @@ model AttendanceDaily {
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+  corrections AttendanceCorrection[]
+  exceptions AttendanceException[]
 
   @@unique([userId, workDate], name: "unique_attendance_daily")
   @@index([status])
   @@map("sta_attendance_daily")
+}
+
+model OfficeLocation {
+  id            BigInt    @id @default(autoincrement())
+  name          String    @db.VarChar(255)
+  address       String?   @db.VarChar(255)
+  latitude      Decimal   @db.Decimal(10, 7)
+  longitude     Decimal   @db.Decimal(10, 7)
+  radiusMeters  Int       @default(150) @map("radius_meters")
+  isActive      Boolean   @default(true) @map("is_active")
+  metadata      Json?
+  createdBy     BigInt?   @map("created_by")
+  updatedBy     BigInt?   @map("updated_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  organizations   OrganizationOfficeLocation[]
+  attendanceEntries AttendanceEntry[]
+  attendanceDaily   AttendanceDaily[]
+  attendanceCorrections AttendanceCorrection[]
+  proposedAttendanceCorrections AttendanceCorrection[] @relation("AttendanceCorrectionProposedOfficeLocation")
+  attendanceExceptions AttendanceException[]
+  attendanceHolidays   AttendanceHoliday[]
+
+  @@map("sta_office_locations")
+}
+
+model OrganizationOfficeLocation {
+  id               BigInt   @id @default(autoincrement())
+  organizationId   BigInt   @map("organization_id")
+  officeLocationId BigInt   @map("office_location_id")
+  isPrimary        Boolean  @default(false) @map("is_primary")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  officeLocation OfficeLocation @relation(fields: [officeLocationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, officeLocationId], name: "unique_org_office_location")
+  @@index([officeLocationId])
+  @@map("sta_organization_office_locations")
+}
+
+model AttendanceHoliday {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   BigInt?   @map("organization_id")
+  officeLocationId BigInt?   @map("office_location_id")
+  holidayDate      DateTime  @map("holiday_date") @db.Date
+  name             String    @db.VarChar(255)
+  isRecurring      Boolean   @default(false) @map("is_recurring")
+  isActive         Boolean   @default(true) @map("is_active")
+  createdBy        BigInt?   @map("created_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, holidayDate])
+  @@index([officeLocationId, holidayDate])
+  @@map("sta_attendance_holidays")
+}
+
+model AttendanceCorrection {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           BigInt    @map("user_id")
+  attendanceDailyId String?  @map("attendance_daily_id") @db.Uuid
+  attendanceEntryId String?  @map("attendance_entry_id") @db.Uuid
+  officeLocationId BigInt?   @map("office_location_id")
+  requestType      String    @map("request_type") @db.VarChar(40)
+  status           String    @default("pending") @db.VarChar(20)
+  requestedAt      DateTime  @default(now()) @map("requested_at")
+  requestedBy      BigInt    @map("requested_by")
+  reviewedAt       DateTime? @map("reviewed_at")
+  reviewedBy       BigInt?   @map("reviewed_by")
+  reason           String
+  workDate         DateTime  @map("work_date") @db.Date
+  proposedAt       DateTime? @map("proposed_at")
+  proposedMode     String?   @map("proposed_mode") @db.VarChar(30)
+  proposedOfficeLocationId BigInt? @map("proposed_office_location_id")
+  proposedLatitude Decimal?  @map("proposed_latitude") @db.Decimal(10, 7)
+  proposedLongitude Decimal? @map("proposed_longitude") @db.Decimal(10, 7)
+  reviewNotes      String?   @map("review_notes")
+  snapshotJson     Json?     @map("snapshot_json")
+  metadata         Json?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user          Profile         @relation("AttendanceCorrectionUser", fields: [userId], references: [id], onDelete: Cascade)
+  requester     Profile         @relation("AttendanceCorrectionRequestedBy", fields: [requestedBy], references: [id], onDelete: Cascade)
+  reviewer      Profile?        @relation("AttendanceCorrectionReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  attendanceDaily AttendanceDaily? @relation(fields: [attendanceDailyId], references: [id], onDelete: SetNull)
+  attendanceEntry AttendanceEntry? @relation(fields: [attendanceEntryId], references: [id], onDelete: SetNull)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+  proposedOfficeLocation OfficeLocation? @relation("AttendanceCorrectionProposedOfficeLocation", fields: [proposedOfficeLocationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, workDate])
+  @@index([status, requestedAt])
+  @@map("sta_attendance_corrections")
+}
+
+model AttendanceException {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           BigInt    @map("user_id")
+  attendanceDailyId String?  @map("attendance_daily_id") @db.Uuid
+  attendanceEntryId String?  @map("attendance_entry_id") @db.Uuid
+  officeLocationId BigInt?   @map("office_location_id")
+  exceptionType    String    @map("exception_type") @db.VarChar(40)
+  status           String    @default("active") @db.VarChar(20)
+  workDate         DateTime  @map("work_date") @db.Date
+  attendanceMode   String?   @map("attendance_mode") @db.VarChar(30)
+  reason           String
+  notes            String?
+  createdBy        BigInt    @map("created_by")
+  reviewedBy       BigInt?   @map("reviewed_by")
+  reviewedAt       DateTime? @map("reviewed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user           Profile         @relation("AttendanceExceptionUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator        Profile         @relation("AttendanceExceptionCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  reviewer       Profile?        @relation("AttendanceExceptionReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  attendanceDaily AttendanceDaily? @relation(fields: [attendanceDailyId], references: [id], onDelete: SetNull)
+  attendanceEntry AttendanceEntry? @relation(fields: [attendanceEntryId], references: [id], onDelete: SetNull)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, workDate])
+  @@index([status, exceptionType])
+  @@map("sta_attendance_exceptions")
 }
 
 model LeaveBalanceLedger {
@@ -303,6 +497,10 @@ model Organization {
   profiles             ProfileOrganization[]
   userRoles            UserRole[]
   groups               Group[]
+  groupMappings        GroupOrganization[] @relation("GroupOrganizationOrganization")
+  groupMemberScopes    GroupUserOrganizationScope[]
+  officeLocations      OrganizationOfficeLocation[]
+  attendanceHolidays   AttendanceHoliday[]
   requests             RequestInstance[]
   requestGroups        RequestGroup[]
   fileAssets           FileAsset[]
@@ -323,6 +521,11 @@ model Organization {
   payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
   projectTimesheetEntries ProjectTimesheetEntry[]
   payrollSettings      PayrollSetting[]
+  workItems            WorkItem[]
+  workLogs             WorkLog[]
+  teamGoals            TeamGoal[]
+  teamObjectives       TeamObjective[]
+  teamKpis             TeamKpi[]
 
   @@map("sta_organizations")
 }
@@ -490,6 +693,7 @@ model Group {
   children Group[] @relation("GroupParent")
 
   organization Organization? @relation(fields: [organizationId], references: [id])
+  organizationMappings GroupOrganization[] @relation("GroupOrganizationGroup")
 
   members              GroupUser[]
   employeeProfiles     EmployeeProfile[]
@@ -497,6 +701,14 @@ model Group {
   financeJournalLines  FinanceJournalLine[]
   financeSalesInvoices FinanceSalesInvoice[]
   financeBillHeaders   FinanceBillHeader[]
+  ownedWorkItems       WorkItem[] @relation("WorkItemOwnerTeam")
+  supportWorkItems     WorkItem[] @relation("WorkItemSecondaryTeam")
+  workItemProjects     WorkItem[] @relation("WorkItemProject")
+  workLogs             WorkLog[]  @relation("WorkLogTeam")
+  workLogProjects      WorkLog[]  @relation("WorkLogProject")
+  teamGoals            TeamGoal[]
+  teamObjectives       TeamObjective[]
+  teamKpis             TeamKpi[]
 
   @@map("sta_groups")
 }
@@ -511,9 +723,40 @@ model GroupUser {
 
   group Group   @relation(fields: [groupId], references: [id])
   user  Profile @relation(fields: [userId], references: [id])
+  organizationScopes GroupUserOrganizationScope[]
 
   @@unique([groupId, userId], name: "unique_group_user")
   @@map("sta_group_users")
+}
+
+model GroupOrganization {
+  id             BigInt   @id @default(autoincrement())
+  groupId        BigInt   @map("group_id")
+  organizationId BigInt   @map("organization_id")
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  group        Group        @relation("GroupOrganizationGroup", fields: [groupId], references: [id], onDelete: Cascade)
+  organization Organization @relation("GroupOrganizationOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, organizationId], name: "unique_group_organization")
+  @@index([organizationId])
+  @@map("sta_group_organizations")
+}
+
+model GroupUserOrganizationScope {
+  id             BigInt   @id @default(autoincrement())
+  groupUserId    BigInt   @map("group_user_id")
+  organizationId BigInt   @map("organization_id")
+  scopeRole      String?  @map("scope_role") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  groupUser     GroupUser     @relation(fields: [groupUserId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([groupUserId, organizationId], name: "unique_group_user_organization_scope")
+  @@index([organizationId])
+  @@map("sta_group_user_organization_scopes")
 }
 
 model RequestGroup {
@@ -580,6 +823,7 @@ model RequestInstance {
   creator            Profile                 @relation("RequestCreatedBy", fields: [createdBy], references: [id])
   items              RequestItem[]
   paymentVouchers    FinancePaymentVoucher[]
+  paymentVoucherCorrections FinancePaymentVoucherCorrection[]
   leaveBalanceLedger LeaveBalanceLedger[]
 
   @@index([requestTypeId])
@@ -703,6 +947,7 @@ model FinanceDonor {
 model FinanceFund {
   id              String   @id @default(uuid()) @db.Uuid
   organizationId  BigInt?  @map("organization_id")
+  projectId       BigInt?  @map("project_id")
   donorId         String?  @map("donor_id") @db.Uuid
   code            String   @db.VarChar(50)
   name            String   @db.VarChar(150)
@@ -730,9 +975,12 @@ model FinanceFund {
   payrollRunItemAllocations PayrollRunItemAllocation[]
   payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
   projectTimesheetEntries ProjectTimesheetEntry[]
+  workItems          WorkItem[]
+  workLogs           WorkLog[]
 
   @@unique([organizationId, code], name: "unique_finance_fund_code_per_org")
   @@index([organizationId])
+  @@index([projectId])
   @@index([restrictionType])
   @@index([isActive])
   @@map("sta_finance_funds")
@@ -741,6 +989,7 @@ model FinanceFund {
 model FinanceGrant {
   id               String    @id @default(uuid()) @db.Uuid
   organizationId   BigInt?   @map("organization_id")
+  projectId        BigInt?   @map("project_id")
   donorId          String?   @map("donor_id") @db.Uuid
   fundId           String?   @map("fund_id") @db.Uuid
   code             String    @db.VarChar(60)
@@ -774,9 +1023,12 @@ model FinanceGrant {
   payrollRunItemAllocations PayrollRunItemAllocation[]
   payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
   projectTimesheetEntries ProjectTimesheetEntry[]
+  workItems          WorkItem[]
+  workLogs           WorkLog[]
 
   @@unique([organizationId, code], name: "unique_finance_grant_code_per_org")
   @@index([organizationId])
+  @@index([projectId])
   @@index([donorId])
   @@index([fundId])
   @@index([status])
@@ -1331,9 +1583,16 @@ model FinanceBudget {
   projectId     BigInt?   @map("project_id")
   fundId        String?   @map("fund_id") @db.Uuid
   grantId       String?   @map("grant_id") @db.Uuid
+  parentBudgetId String?  @map("parent_budget_id") @db.Uuid
   name          String    @db.VarChar(180)
+  scopeType     String    @default("project") @map("scope_type") @db.VarChar(30)
   budgetType    String    @default("project") @map("budget_type") @db.VarChar(30)
+  periodType    String    @default("annual") @map("period_type") @db.VarChar(30)
+  fiscalYear    Int?      @map("fiscal_year")
+  quarter       Int?      @db.SmallInt
+  month         Int?      @db.SmallInt
   currency      String    @default("NGN") @db.VarChar(3)
+  exchangeRate  Decimal?  @map("exchange_rate") @db.Decimal(15, 4)
   startDate     DateTime  @map("start_date") @db.Date
   endDate       DateTime  @map("end_date") @db.Date
   status        String    @default("draft") @db.VarChar(30)
@@ -1342,37 +1601,112 @@ model FinanceBudget {
   metadata      Json?
   createdBy     BigInt?   @map("created_by")
   updatedBy     BigInt?   @map("updated_by")
+  approvedBy    BigInt?   @map("approved_by")
+  approvedAt    DateTime? @map("approved_at")
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
   fund          FinanceFund?          @relation(fields: [fundId], references: [id], onDelete: SetNull)
   grant         FinanceGrant?         @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  parentBudget  FinanceBudget?        @relation("FinanceBudgetChildren", fields: [parentBudgetId], references: [id], onDelete: SetNull)
+  childBudgets  FinanceBudget[]       @relation("FinanceBudgetChildren")
   lines         FinanceBudgetLine[]
+  assumptions   FinanceBudgetAssumption[]
+  portfolio     FinanceBudgetPortfolio[]
 
   @@index([organizationId])
   @@index([teamId])
   @@index([projectId])
   @@index([fundId])
   @@index([grantId])
+  @@index([parentBudgetId])
   @@index([budgetType, status])
+  @@index([scopeType, periodType])
+  @@index([fiscalYear, quarter, month])
   @@index([startDate, endDate])
   @@map("sta_finance_budgets")
 }
 
 model FinanceBudgetLine {
+  id                String   @id @default(uuid()) @db.Uuid
+  budgetId          String   @map("budget_id") @db.Uuid
+  chartAccountId    String?  @map("chart_account_id") @db.Uuid
+  projectId         BigInt?  @map("project_id")
+  fundId            String?  @map("fund_id") @db.Uuid
+  grantId           String?  @map("grant_id") @db.Uuid
+  section           String   @default("expenditure") @db.VarChar(20)
+  groupName         String?  @map("group_name") @db.VarChar(120)
+  lineLabel         String   @map("line_label") @db.VarChar(180)
+  amount            Decimal  @db.Decimal(15, 2)
+  period1Amount     Decimal? @map("period_1_amount") @db.Decimal(15, 2)
+  period2Amount     Decimal? @map("period_2_amount") @db.Decimal(15, 2)
+  period3Amount     Decimal? @map("period_3_amount") @db.Decimal(15, 2)
+  period4Amount     Decimal? @map("period_4_amount") @db.Decimal(15, 2)
+  totalAmount       Decimal? @map("total_amount") @db.Decimal(15, 2)
+  revisedTotalAmount Decimal? @map("revised_total_amount") @db.Decimal(15, 2)
+  actualTotalAmount Decimal? @map("actual_total_amount") @db.Decimal(15, 2)
+  varianceAmount    Decimal? @map("variance_amount") @db.Decimal(15, 2)
+  notes             String?
+  sortOrder         Int      @default(0) @map("sort_order")
+  metadata          Json?
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  budget FinanceBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId, sortOrder])
+  @@index([chartAccountId])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@index([section])
+  @@map("sta_finance_budget_lines")
+}
+
+model FinanceBudgetAssumption {
   id         String   @id @default(uuid()) @db.Uuid
   budgetId   String   @map("budget_id") @db.Uuid
-  lineLabel  String   @map("line_label") @db.VarChar(180)
-  amount     Decimal  @db.Decimal(15, 2)
+  section    String?  @db.VarChar(60)
+  label      String   @db.VarChar(120)
+  value      String   @db.VarChar(255)
+  notes      String?
   sortOrder  Int      @default(0) @map("sort_order")
-  metadata   Json?
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
   budget FinanceBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
 
   @@index([budgetId, sortOrder])
-  @@map("sta_finance_budget_lines")
+  @@map("sta_finance_budget_assumptions")
+}
+
+model FinanceBudgetPortfolio {
+  id               String   @id @default(uuid()) @db.Uuid
+  budgetId         String   @map("budget_id") @db.Uuid
+  projectId        BigInt   @map("project_id")
+  fundId           String?  @map("fund_id") @db.Uuid
+  grantId          String?  @map("grant_id") @db.Uuid
+  funderName       String?  @map("funder_name") @db.VarChar(180)
+  status           String?  @db.VarChar(40)
+  period1Amount    Decimal? @map("period_1_amount") @db.Decimal(15, 2)
+  period2Amount    Decimal? @map("period_2_amount") @db.Decimal(15, 2)
+  period3Amount    Decimal? @map("period_3_amount") @db.Decimal(15, 2)
+  period4Amount    Decimal? @map("period_4_amount") @db.Decimal(15, 2)
+  periodTotal      Decimal? @map("period_total") @db.Decimal(15, 2)
+  totalBudget      Decimal? @map("total_budget") @db.Decimal(15, 2)
+  notes            String?
+  sortOrder        Int      @default(0) @map("sort_order")
+  metadata         Json?
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  budget FinanceBudget @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+
+  @@index([budgetId, sortOrder])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@map("sta_finance_budget_portfolio")
 }
 
 model PayrollWorker {
@@ -1761,6 +2095,7 @@ model PayrollLoanRepayment {
 
 model ProjectTimesheetEntry {
   id                 String    @id @default(uuid()) @db.Uuid
+  sourceWorkLogId    String?   @unique @map("source_work_log_id") @db.Uuid
   workerId           String    @map("worker_id") @db.Uuid
   componentId        String?   @map("component_id") @db.Uuid
   organizationId     BigInt?   @map("organization_id")
@@ -1779,12 +2114,13 @@ model ProjectTimesheetEntry {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
-  worker       PayrollWorker     @relation(fields: [workerId], references: [id], onDelete: Cascade)
-  component    PayrollComponent? @relation(fields: [componentId], references: [id], onDelete: SetNull)
-  organization Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
-  fund         FinanceFund?      @relation(fields: [fundId], references: [id], onDelete: SetNull)
-  grant        FinanceGrant?     @relation(fields: [grantId], references: [id], onDelete: SetNull)
-  syncedRun    PayrollRun?       @relation("ProjectTimesheetSyncedRun", fields: [syncedRunId], references: [id], onDelete: SetNull)
+  sourceWorkLog   WorkLog?         @relation(fields: [sourceWorkLogId], references: [id], onDelete: SetNull)
+  worker          PayrollWorker    @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  component       PayrollComponent? @relation(fields: [componentId], references: [id], onDelete: SetNull)
+  organization    Organization?     @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  fund            FinanceFund?      @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant           FinanceGrant?     @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  syncedRun       PayrollRun?       @relation("ProjectTimesheetSyncedRun", fields: [syncedRunId], references: [id], onDelete: SetNull)
   approvedByUser Profile?        @relation("ProjectTimesheetApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
   createdByUser  Profile?        @relation("ProjectTimesheetCreatedBy", fields: [createdBy], references: [id], onDelete: SetNull)
 
@@ -1794,7 +2130,200 @@ model ProjectTimesheetEntry {
   @@index([grantId])
   @@index([status])
   @@index([syncedRunId])
+  @@index([sourceWorkLogId])
   @@map("sta_project_timesheet_entries")
+}
+
+model TeamGoal {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  teamId         BigInt?  @map("team_id")
+  ownerUserId    BigInt?  @map("owner_user_id")
+  createdById    BigInt?  @map("created_by_id")
+  title          String   @db.VarChar(255)
+  description    String?
+  periodYear     Int      @map("period_year")
+  periodType     String   @default("annual") @map("period_type") @db.VarChar(20)
+  periodLabel    String?  @map("period_label") @db.VarChar(80)
+  status         String   @default("draft") @db.VarChar(20)
+  weight         Decimal? @db.Decimal(8, 2)
+  startDate      DateTime? @map("start_date") @db.Date
+  endDate        DateTime? @map("end_date") @db.Date
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  team         Group?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  owner        Profile?      @relation("TeamGoalOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy    Profile?      @relation("TeamGoalCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  objectives   TeamObjective[]
+  kpis         TeamKpi[]
+  workItems    WorkItem[]
+
+  @@index([teamId, periodYear])
+  @@index([organizationId])
+  @@map("sta_team_goals")
+}
+
+model TeamObjective {
+  id             String   @id @default(uuid()) @db.Uuid
+  goalId         String?  @map("goal_id") @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  teamId         BigInt?  @map("team_id")
+  ownerUserId    BigInt?  @map("owner_user_id")
+  createdById    BigInt?  @map("created_by_id")
+  title          String   @db.VarChar(255)
+  description    String?
+  status         String   @default("draft") @db.VarChar(20)
+  weight         Decimal? @db.Decimal(8, 2)
+  dueDate        DateTime? @map("due_date") @db.Date
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  goal         TeamGoal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  organization Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  team         Group?        @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  owner        Profile?      @relation("TeamObjectiveOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy    Profile?      @relation("TeamObjectiveCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  kpis         TeamKpi[]
+  workItems    WorkItem[]
+
+  @@index([goalId])
+  @@index([teamId])
+  @@map("sta_team_objectives")
+}
+
+model TeamKpi {
+  id             String   @id @default(uuid()) @db.Uuid
+  goalId         String?  @map("goal_id") @db.Uuid
+  objectiveId    String?  @map("objective_id") @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  teamId         BigInt?  @map("team_id")
+  ownerUserId    BigInt?  @map("owner_user_id")
+  createdById    BigInt?  @map("created_by_id")
+  title          String   @db.VarChar(255)
+  description    String?
+  targetType     String?  @map("target_type") @db.VarChar(30)
+  targetValue    Decimal? @map("target_value") @db.Decimal(15, 2)
+  unitLabel      String?  @map("unit_label") @db.VarChar(50)
+  periodYear     Int?     @map("period_year")
+  quarter        Int?
+  status         String   @default("draft") @db.VarChar(20)
+  weight         Decimal? @db.Decimal(8, 2)
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  goal         TeamGoal?      @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  objective    TeamObjective? @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
+  organization Organization?  @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  team         Group?         @relation(fields: [teamId], references: [id], onDelete: SetNull)
+  owner        Profile?       @relation("TeamKpiOwner", fields: [ownerUserId], references: [id], onDelete: SetNull)
+  createdBy    Profile?       @relation("TeamKpiCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  workItems    WorkItem[]
+
+  @@index([goalId])
+  @@index([objectiveId])
+  @@index([teamId, periodYear, quarter])
+  @@map("sta_team_kpis")
+}
+
+model WorkItem {
+  id                 String         @id @default(uuid()) @db.Uuid
+  title              String         @db.VarChar(255)
+  description        String?
+  itemType           WorkItemType   @default(weekly_task) @map("item_type")
+  status             WorkItemStatus @default(planned)
+  priority           WorkPriority   @default(medium)
+  organizationId     BigInt?        @map("organization_id")
+  ownerTeamId        BigInt?        @map("owner_team_id")
+  secondaryTeamId    BigInt?        @map("secondary_team_id")
+  projectId          BigInt?        @map("project_id")
+  fundId             String?        @map("fund_id") @db.Uuid
+  grantId            String?        @map("grant_id") @db.Uuid
+  goalId             String?        @map("goal_id") @db.Uuid
+  objectiveId        String?        @map("objective_id") @db.Uuid
+  kpiId              String?        @map("kpi_id") @db.Uuid
+  assignedToId       BigInt?        @map("assigned_to_id")
+  assignedById       BigInt?        @map("assigned_by_id")
+  createdById        BigInt?        @map("created_by_id")
+  plannedStartDate   DateTime?      @map("planned_start_date") @db.Date
+  dueDate            DateTime?      @map("due_date") @db.Date
+  expectedHours      Decimal?       @map("expected_hours") @db.Decimal(10, 2)
+  weekStartDate      DateTime?      @map("week_start_date") @db.Date
+  isStaffAdded       Boolean        @default(false) @map("is_staff_added")
+  requiresManagerAck Boolean        @default(false) @map("requires_manager_ack")
+  metadata           Json?
+  createdAt          DateTime       @default(now()) @map("created_at")
+  updatedAt          DateTime       @updatedAt @map("updated_at")
+
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  ownerTeam     Group?        @relation("WorkItemOwnerTeam", fields: [ownerTeamId], references: [id], onDelete: SetNull)
+  secondaryTeam Group?        @relation("WorkItemSecondaryTeam", fields: [secondaryTeamId], references: [id], onDelete: SetNull)
+  project       Group?        @relation("WorkItemProject", fields: [projectId], references: [id], onDelete: SetNull)
+  fund          FinanceFund?  @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant         FinanceGrant? @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  goal          TeamGoal?     @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  objective     TeamObjective? @relation(fields: [objectiveId], references: [id], onDelete: SetNull)
+  kpi           TeamKpi?      @relation(fields: [kpiId], references: [id], onDelete: SetNull)
+  assignedTo    Profile?      @relation("WorkItemAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  assignedBy    Profile?      @relation("WorkItemAssignedBy", fields: [assignedById], references: [id], onDelete: SetNull)
+  createdBy     Profile?      @relation("WorkItemCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  logs          WorkLog[]
+
+  @@index([assignedToId, status])
+  @@index([ownerTeamId, weekStartDate])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@index([goalId])
+  @@index([objectiveId])
+  @@index([kpiId])
+  @@map("sta_work_items")
+}
+
+model WorkLog {
+  id                 String                @id @default(uuid()) @db.Uuid
+  workItemId         String                @map("work_item_id") @db.Uuid
+  staffId            BigInt                @map("staff_id")
+  organizationId     BigInt?               @map("organization_id")
+  teamId             BigInt?               @map("team_id")
+  projectId          BigInt?               @map("project_id")
+  fundId             String?               @map("fund_id") @db.Uuid
+  grantId            String?               @map("grant_id") @db.Uuid
+  logDate            DateTime              @map("log_date") @db.Date
+  hoursSpent         Decimal               @default(0) @map("hours_spent") @db.Decimal(10, 2)
+  status             WorkItemStatus        @default(in_progress)
+  progressPercent    Decimal?              @map("progress_percent") @db.Decimal(5, 2)
+  note               String?
+  blockerNote        String?               @map("blocker_note")
+  carriedOver        Boolean               @default(false) @map("carried_over")
+  carryOverToDate    DateTime?             @map("carry_over_to_date") @db.Date
+  approvalStatus     WorkLogApprovalStatus @default(draft) @map("approval_status")
+  approvedById       BigInt?               @map("approved_by_id")
+  approvedAt         DateTime?             @map("approved_at")
+  metadata           Json?
+  createdAt          DateTime              @default(now()) @map("created_at")
+  updatedAt          DateTime              @updatedAt @map("updated_at")
+
+  workItem      WorkItem      @relation(fields: [workItemId], references: [id], onDelete: Cascade)
+  staff         Profile       @relation("WorkLogStaff", fields: [staffId], references: [id], onDelete: Cascade)
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  team          Group?        @relation("WorkLogTeam", fields: [teamId], references: [id], onDelete: SetNull)
+  project       Group?        @relation("WorkLogProject", fields: [projectId], references: [id], onDelete: SetNull)
+  fund          FinanceFund?  @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant         FinanceGrant? @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  approvedBy    Profile?      @relation("WorkLogApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  projectTimesheet ProjectTimesheetEntry?
+
+  @@index([staffId, logDate])
+  @@index([approvalStatus, logDate])
+  @@index([projectId])
+  @@index([fundId])
+  @@index([grantId])
+  @@map("sta_work_logs")
 }
 
 model PayrollTaxTable {
@@ -2104,6 +2633,7 @@ model FinancePaymentVoucher {
   fund            FinanceFund?         @relation(fields: [fundId], references: [id], onDelete: SetNull)
   grant           FinanceGrant?        @relation(fields: [grantId], references: [id], onDelete: SetNull)
   attachments     FinancePaymentVoucherFile[]
+  corrections     FinancePaymentVoucherCorrection[]
 
   @@index([requestId])
   @@index([paidFromAccountId])
@@ -2130,6 +2660,33 @@ model FinancePaymentVoucherFile {
   @@index([voucherId, fileKind, sortOrder])
   @@index([fileId])
   @@map("sta_finance_payment_voucher_files")
+}
+
+model FinancePaymentVoucherCorrection {
+  id               String    @id @default(uuid()) @db.Uuid
+  voucherId        String    @map("voucher_id") @db.Uuid
+  requestId        BigInt    @map("request_id")
+  status           String    @default("pending") @db.VarChar(20)
+  reason           String?
+  currentSnapshot  Json      @map("current_snapshot")
+  proposedSnapshot Json      @map("proposed_snapshot")
+  proposedBy       BigInt    @map("proposed_by")
+  reviewedBy       BigInt?   @map("reviewed_by")
+  reviewedAt       DateTime? @map("reviewed_at")
+  reviewComment    String?   @map("review_comment")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  voucher      FinancePaymentVoucher @relation(fields: [voucherId], references: [id], onDelete: Cascade)
+  request      RequestInstance       @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  proposer     Profile               @relation("FinancePaymentVoucherCorrectionProposedBy", fields: [proposedBy], references: [id], onDelete: Cascade)
+  reviewer     Profile?              @relation("FinancePaymentVoucherCorrectionReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+
+  @@index([voucherId, status])
+  @@index([requestId, status])
+  @@index([proposedBy])
+  @@index([reviewedBy])
+  @@map("sta_finance_payment_voucher_corrections")
 }
 
 model Taxonomy {

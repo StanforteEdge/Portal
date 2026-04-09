@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
@@ -69,7 +69,7 @@ export class PayrollController {
   }
 
   @Get('settings')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   settings(@Query() query: Record<string, any>) {
     return this.payrollService.getSettings(query);
   }
@@ -87,7 +87,7 @@ export class PayrollController {
   }
 
   @Post('settings')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   upsertSettings(@Req() req: any, @Body() dto: UpsertPayrollSettingDto) {
     return this.payrollService.upsertSettings(dto, req.user?.id);
   }
@@ -105,15 +105,21 @@ export class PayrollController {
   }
 
   @Post('workers')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   createWorker(@Req() req: any, @Body() dto: UpsertPayrollWorkerDto) {
     return this.payrollService.createWorker(dto, req.user?.id);
   }
 
   @Post('workers/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   updateWorker(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertPayrollWorkerDto) {
     return this.payrollService.updateWorker(id, dto, req.user?.id);
+  }
+
+  @Delete('workers/:id')
+  @Permissions('finance.manage')
+  deleteWorker(@Param('id') id: string) {
+    return this.payrollService.deleteWorker(id);
   }
 
   @Get('loans')
@@ -123,13 +129,13 @@ export class PayrollController {
   }
 
   @Post('loans')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   createLoan(@Body() dto: UpsertPayrollLoanDto) {
     return this.payrollService.createLoan(dto);
   }
 
   @Post('loans/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   updateLoan(@Param('id') id: string, @Body() dto: UpsertPayrollLoanDto) {
     return this.payrollService.updateLoan(id, dto);
   }
@@ -141,31 +147,31 @@ export class PayrollController {
   }
 
   @Post('timesheets')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   createTimesheet(@Req() req: any, @Body() dto: UpsertProjectTimesheetEntryDto) {
     return this.payrollService.createProjectTimesheet(dto, req.user?.id);
   }
 
   @Post('timesheets/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   updateTimesheet(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertProjectTimesheetEntryDto) {
     return this.payrollService.updateProjectTimesheet(id, dto, req.user?.id);
   }
 
   @Post('timesheets/:id/submit')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   submitTimesheet(@Param('id') id: string) {
     return this.payrollService.submitProjectTimesheet(id);
   }
 
   @Post('timesheets/:id/approve')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   approveTimesheet(@Req() req: any, @Param('id') id: string) {
     return this.payrollService.approveProjectTimesheet(id, req.user?.id);
   }
 
   @Post('timesheets/:id/reject')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   rejectTimesheet(@Param('id') id: string) {
     return this.payrollService.rejectProjectTimesheet(id);
   }
@@ -177,13 +183,13 @@ export class PayrollController {
   }
 
   @Post('tax-tables')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   createTaxTable(@Body() dto: UpsertPayrollTaxTableDto) {
     return this.payrollService.createTaxTable(dto);
   }
 
   @Post('tax-tables/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   updateTaxTable(@Param('id') id: string, @Body() dto: UpsertPayrollTaxTableDto) {
     return this.payrollService.updateTaxTable(id, dto);
   }
@@ -195,15 +201,21 @@ export class PayrollController {
   }
 
   @Post('components')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   createComponent(@Body() dto: UpsertPayrollComponentDto) {
     return this.payrollService.createComponent(dto);
   }
 
   @Post('components/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   updateComponent(@Param('id') id: string, @Body() dto: UpsertPayrollComponentDto) {
     return this.payrollService.updateComponent(id, dto);
+  }
+
+  @Delete('components/:id')
+  @Permissions('finance.manage')
+  deleteComponent(@Param('id') id: string) {
+    return this.payrollService.deleteComponent(id);
   }
 
   @Get('runs')
@@ -218,62 +230,68 @@ export class PayrollController {
     return this.payrollService.getRun(id);
   }
 
+  @Delete('runs/:id')
+  @Permissions('finance.manage')
+  deleteRun(@Param('id') id: string) {
+    return this.payrollService.deleteRun(id);
+  }
+
   @Post('runs')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   createRun(@Req() req: any, @Body() dto: CreatePayrollRunDto) {
     return this.payrollService.createRun(dto, req.user?.id);
   }
 
   @Post('runs/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   updateRun(@Req() req: any, @Param('id') id: string, @Body() dto: CreatePayrollRunDto) {
     return this.payrollService.updateRun(id, dto, req.user?.id);
   }
 
   @Post('runs/:id/generate')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   generateRun(@Req() req: any, @Param('id') id: string) {
     return this.payrollService.generateRun(id, req.user?.id);
   }
 
   @Post('runs/:id/submit')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   submitRun(@Req() req: any, @Param('id') id: string) {
     return this.payrollService.submitRun(id, req.user?.id);
   }
 
   @Post('runs/:id/review')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   reviewRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
     return this.payrollService.reviewRun(id, dto, req.user?.id);
   }
 
   @Post('runs/:id/approve')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   approveRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
     return this.payrollService.approveRun(id, dto, req.user?.id);
   }
 
   @Post('runs/:id/reject')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   rejectRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
     return this.payrollService.rejectRun(id, dto, req.user?.id);
   }
 
   @Post('runs/:id/reopen')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   reopenRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
     return this.payrollService.reopenRun(id, dto, req.user?.id);
   }
 
   @Post('runs/:id/close')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   closeRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
     return this.payrollService.closeRun(id, dto, req.user?.id);
   }
 
   @Post('runs/:id/pay')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   payRun(@Req() req: any, @Param('id') id: string, @Body() dto: PayPayrollRunDto) {
     return this.payrollService.payRun(id, dto, req.user?.id);
   }
@@ -309,13 +327,13 @@ export class PayrollController {
   }
 
   @Post('runs/:id/items/:itemId')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   updateRunItem(@Req() req: any, @Param('id') id: string, @Param('itemId') itemId: string, @Body() dto: UpdatePayrollRunItemDto) {
     return this.payrollService.updateRunItem(id, itemId, dto, req.user?.id);
   }
 
   @Post('runs/:id/items/:itemId/allocations')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   updateRunItemAllocations(
     @Req() req: any,
     @Param('id') id: string,
@@ -326,7 +344,7 @@ export class PayrollController {
   }
 
   @Post('runs/:id/workers/:workerId/timesheet-allocations')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   updateRunWorkerTimesheetAllocations(
     @Req() req: any,
     @Param('id') id: string,
@@ -337,31 +355,31 @@ export class PayrollController {
   }
 
   @Post('import/validate')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   validateImport(@Body() dto: PayrollImportDto) {
     return this.payrollService.validateImport(dto);
   }
 
   @Get('import/jobs')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   listImportJobs(@Query() query: Record<string, any>) {
     return this.payrollService.listImportJobs(query);
   }
 
   @Get('import/jobs/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   getImportJob(@Param('id') id: string) {
     return this.payrollService.getImportJob(id);
   }
 
   @Post('import/commit')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   commitImport(@Req() req: any, @Body() dto: PayrollImportDto) {
     return this.payrollService.commitImport(dto, req.user?.id);
   }
 
   @Post('import/jobs/:id/retry-failed')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   retryFailedImport(@Req() req: any, @Param('id') id: string) {
     return this.payrollService.retryFailedImport(id, req.user?.id);
   }

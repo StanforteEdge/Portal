@@ -25,6 +25,7 @@ import { UpsertFinanceDonorDto } from './dto/upsert-finance-donor.dto';
 import { UpsertFinanceFundDto } from './dto/upsert-finance-fund.dto';
 import { UpsertFinanceGrantDto } from './dto/upsert-finance-grant.dto';
 import { UpsertFinanceBudgetDto } from './dto/upsert-finance-budget.dto';
+import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -41,14 +42,14 @@ export class FinanceController {
   }
 
   @Get('settings')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Get finance document/signatory settings' })
   settings() {
     return this.financeService.getSettings();
   }
 
   @Post('settings')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Update finance document/signatory settings' })
   @ApiBody({
     type: UpdateFinanceSettingsDto,
@@ -95,14 +96,14 @@ export class FinanceController {
   }
 
   @Post('chart-accounts')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Create finance chart account' })
   createChartAccount(@Req() req: any, @Body() dto: UpsertFinanceChartAccountDto) {
     return this.financeService.createChartAccount(dto, req.user?.id);
   }
 
   @Post('chart-accounts/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Update finance chart account' })
   updateChartAccount(@Param('id') id: string, @Body() dto: UpsertFinanceChartAccountDto) {
     return this.financeService.updateChartAccount(id, dto);
@@ -116,28 +117,28 @@ export class FinanceController {
   }
 
   @Post('reporting-periods')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Create or upsert finance reporting period' })
   createReportingPeriod(@Req() req: any, @Body() dto: UpsertFinanceReportingPeriodDto) {
     return this.financeService.createReportingPeriod(dto, req.user?.id);
   }
 
   @Post('reporting-periods/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Update finance reporting period' })
   updateReportingPeriod(@Param('id') id: string, @Body() dto: UpsertFinanceReportingPeriodDto) {
     return this.financeService.updateReportingPeriod(id, dto);
   }
 
   @Post('reporting-periods/:id/close')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Close finance reporting period' })
   closeReportingPeriod(@Param('id') id: string) {
     return this.financeService.closeReportingPeriod(id);
   }
 
   @Post('reporting-periods/:id/reopen')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Reopen finance reporting period' })
   reopenReportingPeriod(@Param('id') id: string) {
     return this.financeService.reopenReportingPeriod(id);
@@ -200,14 +201,14 @@ export class FinanceController {
   }
 
   @Post('donors')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Create finance donor' })
   createDonor(@Req() req: any, @Body() dto: UpsertFinanceDonorDto) {
     return this.financeService.createDonor(dto, req.user?.id);
   }
 
   @Post('donors/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Update finance donor' })
   updateDonor(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceDonorDto) {
     return this.financeService.updateDonor(id, dto, req.user?.id);
@@ -221,14 +222,14 @@ export class FinanceController {
   }
 
   @Post('funds')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Create finance fund' })
   createFund(@Req() req: any, @Body() dto: UpsertFinanceFundDto) {
     return this.financeService.createFund(dto, req.user?.id);
   }
 
   @Post('funds/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Update finance fund' })
   updateFund(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceFundDto) {
     return this.financeService.updateFund(id, dto, req.user?.id);
@@ -242,14 +243,14 @@ export class FinanceController {
   }
 
   @Post('grants')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Create finance grant' })
   createGrant(@Req() req: any, @Body() dto: UpsertFinanceGrantDto) {
     return this.financeService.createGrant(dto, req.user?.id);
   }
 
   @Post('grants/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Update finance grant' })
   updateGrant(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceGrantDto) {
     return this.financeService.updateGrant(id, dto, req.user?.id);
@@ -269,18 +270,46 @@ export class FinanceController {
     return this.financeService.getBudget(id);
   }
 
+  @Get('budgets/:id/export')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Export finance budget' })
+  exportBudget(@Param('id') id: string, @Query('format') format?: string) {
+    return this.financeService.exportBudget(id, format);
+  }
+
   @Post('budgets')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Create finance budget' })
   createBudget(@Req() req: any, @Body() dto: UpsertFinanceBudgetDto) {
     return this.financeService.createBudget(dto, req.user?.id);
   }
 
   @Post('budgets/:id')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Update finance budget' })
   updateBudget(@Param('id') id: string, @Req() req: any, @Body() dto: UpsertFinanceBudgetDto) {
     return this.financeService.updateBudget(id, dto, req.user?.id);
+  }
+
+  @Post('budgets/:id/approve')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Approve finance budget' })
+  approveBudget(@Param('id') id: string, @Req() req: any) {
+    return this.financeService.approveBudget(id, req.user?.id);
+  }
+
+  @Post('budgets/:id/reopen')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Reopen finance budget' })
+  reopenBudget(@Param('id') id: string, @Req() req: any) {
+    return this.financeService.reopenBudget(id, req.user?.id);
+  }
+
+  @Post('budgets/:id/recalculate')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Recalculate finance budget totals and variance' })
+  recalculateBudget(@Param('id') id: string) {
+    return this.financeService.recalculateBudget(id);
   }
 
   @Get('accounts/:id')
@@ -495,6 +524,43 @@ export class FinanceController {
     return this.financeService.listPaymentVouchers(id);
   }
 
+  @Post('requests/:requestId/payment-vouchers/:voucherId')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update payment voucher evidence and metadata' })
+  updatePaymentVoucher(
+    @Req() req: any,
+    @Param('requestId') requestId: string,
+    @Param('voucherId') voucherId: string,
+    @Body() dto: UpdatePaymentVoucherDto
+  ) {
+    return this.financeService.updatePaymentVoucher(requestId, voucherId, dto, req.user?.id, req.user?.permissions ?? []);
+  }
+
+  @Post('requests/:requestId/payment-vouchers/:voucherId/corrections/:correctionId/approve')
+  @Permissions('finance.correct_completed')
+  @ApiOperation({ summary: 'Approve a pending payment voucher correction' })
+  approvePaymentVoucherCorrection(
+    @Req() req: any,
+    @Param('requestId') requestId: string,
+    @Param('voucherId') voucherId: string,
+    @Param('correctionId') correctionId: string
+  ) {
+    return this.financeService.approvePaymentVoucherCorrection(requestId, voucherId, correctionId, req.user?.id);
+  }
+
+  @Post('requests/:requestId/payment-vouchers/:voucherId/corrections/:correctionId/reject')
+  @Permissions('finance.correct_completed')
+  @ApiOperation({ summary: 'Reject a pending payment voucher correction' })
+  rejectPaymentVoucherCorrection(
+    @Req() req: any,
+    @Param('requestId') requestId: string,
+    @Param('voucherId') voucherId: string,
+    @Param('correctionId') correctionId: string,
+    @Body('comment') comment?: string
+  ) {
+    return this.financeService.rejectPaymentVoucherCorrection(requestId, voucherId, correctionId, req.user?.id, comment);
+  }
+
   @Get('payment-vouchers')
   @Permissions('requests.view')
   @ApiOperation({ summary: 'List payment vouchers/disbursements across requests' })
@@ -510,7 +576,7 @@ export class FinanceController {
   }
 
   @Post('report-notes')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Create finance report note override' })
   upsertReportNote(@Req() req: any, @Body() dto: UpsertFinanceReportNoteDto) {
     return this.financeService.upsertReportNote(dto, req.user?.id);
@@ -580,7 +646,7 @@ export class FinanceController {
   }
 
   @Post('accounting/backfill')
-  @Permissions('settings.manage')
+  @Permissions('finance.manage')
   @ApiOperation({ summary: 'Backfill accounting journals from historical finance records' })
   backfillAccounting(@Req() req: any) {
     return this.financeService.backfillAccounting(req.user?.id);

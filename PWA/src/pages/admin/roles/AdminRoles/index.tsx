@@ -2,6 +2,7 @@ import { type MouseEvent, useEffect, useMemo, useState } from "react";
 import Button from "@/components/Base/Button";
 import Lucide from "@/components/Base/Lucide";
 import { FormInput, FormLabel, FormSelect, FormTextarea } from "@/components/Base/Form";
+import { Dialog } from "@/components/Base/Headless";
 import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import {
@@ -50,10 +51,10 @@ function AdminRolesPage() {
   const [roles, setRoles] = useState<RoleRecord[]>([]);
   const [permissions, setPermissions] = useState<PermissionRecord[]>([]);
   const [form, setForm] = useState(emptyForm);
-  const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
   const [permissionSearch, setPermissionSearch] = useState("");
   const [roleSearch, setRoleSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "active" | "inactive">("all");
@@ -62,8 +63,6 @@ function AdminRolesPage() {
   const [deletingRoleId, setDeletingRoleId] = useState("");
   const [deletingPermissionId, setDeletingPermissionId] = useState("");
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
-
-  const selectedRole = useMemo(() => roles.find((row) => row.id === selectedRoleId), [roles, selectedRoleId]);
 
   const groupedPermissions = useMemo(() => {
     const filtered = permissions.filter((permission) => {
@@ -132,21 +131,33 @@ function AdminRolesPage() {
     void load();
   }, []);
 
-  useEffect(() => {
-    if (!selectedRole) {
-      setForm(emptyForm);
-      setSelectedPermissions([]);
-      return;
-    }
+  const openCreateRoleModal = () => {
+    setForm(emptyForm);
+    setSelectedPermissions([]);
+    setPermissionSearch("");
+    setShowRoleModal(true);
+  };
+
+  const openEditRoleModal = (role: RoleRecord) => {
     setForm({
-      id: selectedRole.id,
-      name: selectedRole.name,
-      slug: selectedRole.slug,
-      description: selectedRole.description || "",
-      is_active: selectedRole.is_active,
+      id: role.id,
+      name: role.name,
+      slug: role.slug,
+      description: role.description || "",
+      is_active: role.is_active,
     });
-    setSelectedPermissions((selectedRole.permissions || []).map((item) => item.id));
-  }, [selectedRole]);
+    setSelectedPermissions((role.permissions || []).map((item) => item.id));
+    setPermissionSearch("");
+    setShowRoleModal(true);
+  };
+
+  const closeRoleModal = () => {
+    if (saving) return;
+    setShowRoleModal(false);
+    setForm(emptyForm);
+    setSelectedPermissions([]);
+    setPermissionSearch("");
+  };
 
   const togglePermission = (permissionId: string) => {
     setSelectedPermissions((prev) =>
@@ -179,7 +190,13 @@ function AdminRolesPage() {
           is_active: form.is_active,
           permission_ids: selectedPermissions,
         });
-        setSelectedRoleId(created.id);
+        setForm({
+          id: created.id,
+          name: created.name,
+          slug: created.slug,
+          description: created.description || "",
+          is_active: created.is_active,
+        });
       } else {
         await updateRbacRole(form.id, {
           name: form.name.trim(),
@@ -190,6 +207,10 @@ function AdminRolesPage() {
         await setRbacRolePermissions(form.id, selectedPermissions);
       }
       await load();
+      setShowRoleModal(false);
+      setForm(emptyForm);
+      setSelectedPermissions([]);
+      setPermissionSearch("");
       setNotice({ tone: "success", message: "Role saved." });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save role." });
@@ -266,9 +287,6 @@ function AdminRolesPage() {
         await deleteRbacRoleWithReplacement(role.id, chosen.trim());
       } else {
         await deleteRbacRole(role.id);
-      }
-      if (selectedRoleId === role.id) {
-        setSelectedRoleId("");
       }
       await load();
       setNotice({ tone: "success", message: "Role deleted." });
@@ -366,264 +384,260 @@ function AdminRolesPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-12 gap-5 mt-5">
-        <div className="col-span-12 lg:col-span-5 box p-4">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-medium">Roles Management</h3>
-            <Button
-              variant="primary"
-              onClick={() => {
-                setSelectedRoleId("");
-                setForm(emptyForm);
-                setSelectedPermissions([]);
-              }}
-            >
-              <Lucide icon="Plus" className="w-4 h-4 mr-2" />
-              Create Role
-            </Button>
+      <div className="mt-5 box p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-medium">Roles Management</h3>
+          <Button variant="primary" onClick={openCreateRoleModal}>
+            <Lucide icon="Plus" className="w-4 h-4 mr-2" />
+            Create Role
+          </Button>
+        </div>
+        <div className="grid grid-cols-12 gap-2 mb-4">
+          <div className="col-span-12 md:col-span-8">
+            <FormInput value={roleSearch} onChange={(event) => setRoleSearch(event.target.value)} placeholder="Search roles..." />
           </div>
-          <div className="grid grid-cols-12 gap-2 mb-4">
-            <div className="col-span-12 md:col-span-8">
-              <FormInput value={roleSearch} onChange={(event) => setRoleSearch(event.target.value)} placeholder="Search roles..." />
-            </div>
-            <div className="col-span-12 md:col-span-4">
-              <FormSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "inactive")}>
-                <option value="all">All Statuses</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </FormSelect>
-            </div>
-          </div>
-          <div className="overflow-x-auto">
-            <Table className="table-report w-full" striped hover>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Name</Table.Th>
-                  <Table.Th className="text-center">Users</Table.Th>
-                  <Table.Th className="text-center">Permissions</Table.Th>
-                  <Table.Th>Status</Table.Th>
-                  <Table.Th className="text-right">Actions</Table.Th>
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {filteredRoles.map((role) => (
-                  <Table.Tr
-                    key={role.id}
-                    onClick={() => setSelectedRoleId(role.id)}
-                    className={role.id === selectedRoleId ? "bg-primary/10" : ""}
-                    style={{ cursor: "pointer" }}
-                  >
-                    <Table.Td>
-                      <div className="font-medium">{role.name}</div>
-                      <div className="text-xs text-slate-500">{role.slug}</div>
-                    </Table.Td>
-                    <Table.Td className="text-center">{role.users?.length ?? 0}</Table.Td>
-                    <Table.Td className="text-center">{role.permissions?.length ?? 0}</Table.Td>
-                    <Table.Td className={role.is_active ? "text-success" : "text-slate-500"}>
-                      {role.is_active ? "Active" : "Inactive"}
-                    </Table.Td>
-                    <Table.Td>
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline-primary"
-                          onClick={(event: MouseEvent<HTMLButtonElement>) => {
-                            event.stopPropagation();
-                            setSelectedRoleId(role.id);
-                          }}
-                        >
-                          Edit
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant="outline-danger"
-                          disabled={deletingRoleId === role.id}
-                          onClick={(event: MouseEvent<HTMLButtonElement>) => {
-                            event.stopPropagation();
-                            void onDeleteRole(role);
-                          }}
-                        >
-                          {deletingRoleId === role.id ? "Deleting..." : "Delete"}
-                        </Button>
-                      </div>
-                    </Table.Td>
-                  </Table.Tr>
-                ))}
-                {!loading && filteredRoles.length === 0 ? (
-                  <Table.Tr>
-                    <Table.Td colSpan={5} className="text-slate-500">
-                      No roles found.
-                    </Table.Td>
-                  </Table.Tr>
-                ) : null}
-              </Table.Tbody>
-            </Table>
+          <div className="col-span-12 md:col-span-4">
+            <FormSelect value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as "all" | "active" | "inactive")}>
+              <option value="all">All Statuses</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+            </FormSelect>
           </div>
         </div>
+        <div className="overflow-x-auto">
+          <Table className="table-report w-full" striped hover>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Name</Table.Th>
+                <Table.Th className="text-center">Users</Table.Th>
+                <Table.Th className="text-center">Permissions</Table.Th>
+                <Table.Th>Status</Table.Th>
+                <Table.Th className="text-right">Actions</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {filteredRoles.map((role) => (
+                <Table.Tr key={role.id}>
+                  <Table.RowHeader>
+                    <div className="font-medium">{role.name}</div>
+                    <div className="text-xs text-slate-500">{role.slug}</div>
+                  </Table.RowHeader>
+                  <Table.Td className="text-center">{role.users?.length ?? 0}</Table.Td>
+                  <Table.Td className="text-center">{role.permissions?.length ?? 0}</Table.Td>
+                  <Table.Td className={role.is_active ? "text-success" : "text-slate-500"}>
+                    {role.is_active ? "Active" : "Inactive"}
+                  </Table.Td>
+                  <Table.Td>
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        size="sm"
+                        variant="outline-primary"
+                        onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                          event.stopPropagation();
+                          openEditRoleModal(role);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline-danger"
+                        disabled={deletingRoleId === role.id}
+                        onClick={(event: MouseEvent<HTMLButtonElement>) => {
+                          event.stopPropagation();
+                          void onDeleteRole(role);
+                        }}
+                      >
+                        {deletingRoleId === role.id ? "Deleting..." : "Delete"}
+                      </Button>
+                    </div>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+              {!loading && filteredRoles.length === 0 ? (
+                <Table.Tr>
+                  <Table.Td colSpan={5} className="text-slate-500">
+                    No roles found.
+                  </Table.Td>
+                </Table.Tr>
+              ) : null}
+            </Table.Tbody>
+          </Table>
+        </div>
+      </div>
 
-        <div className="col-span-12 lg:col-span-7 box p-4 space-y-4">
-          <h3 className="font-medium">{form.id ? "Edit Role" : "Create Role"}</h3>
-          <div className="grid grid-cols-12 gap-4">
-            <div className="col-span-12 md:col-span-5">
+      <div className="mt-5 box p-4">
+        <div className="rounded-md border p-4 mb-4">
+          <div className="font-medium mb-3">{permissionForm.id ? "Edit Permission" : "Create Permission"}</div>
+          <div className="grid grid-cols-12 gap-3">
+            <div className="col-span-12 md:col-span-4">
               <FormLabel>Name</FormLabel>
-              <FormInput value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
+              <FormInput
+                value={permissionForm.name}
+                onChange={(e) =>
+                  setPermissionForm((prev) => ({
+                    ...prev,
+                    name: e.target.value,
+                    slug: prev.slug ? prev.slug : normalizeSlug(e.target.value),
+                  }))
+                }
+                placeholder="e.g. View Leave Requests"
+              />
             </div>
             <div className="col-span-12 md:col-span-4">
               <FormLabel>Slug</FormLabel>
-              <FormInput value={form.slug} onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))} />
+              <FormInput
+                value={permissionForm.slug}
+                onChange={(e) => setPermissionForm((prev) => ({ ...prev, slug: normalizeSlug(e.target.value) }))}
+                placeholder="e.g. leave.view"
+              />
             </div>
-            <div className="col-span-12 md:col-span-3">
-              <FormLabel>Status</FormLabel>
-              <FormSelect
-                value={form.is_active ? "true" : "false"}
-                onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.value === "true" }))}
-              >
-                <option value="true">Active</option>
-                <option value="false">Inactive</option>
-              </FormSelect>
+            <div className="col-span-12 md:col-span-4">
+              <FormLabel>Module</FormLabel>
+              <FormInput
+                value={permissionForm.module}
+                onChange={(e) => setPermissionForm((prev) => ({ ...prev, module: e.target.value.toLowerCase() }))}
+                placeholder="e.g. hr"
+              />
             </div>
             <div className="col-span-12">
               <FormLabel>Description</FormLabel>
               <FormTextarea
                 rows={2}
-                value={form.description}
-                onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                value={permissionForm.description}
+                onChange={(e) => setPermissionForm((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="Optional description"
               />
             </div>
           </div>
-
-          <div className="border-t pt-4">
-            <div className="rounded-md border p-4 mb-4">
-              <div className="font-medium mb-3">{permissionForm.id ? "Edit Permission" : "Create Permission"}</div>
-              <div className="grid grid-cols-12 gap-3">
-                <div className="col-span-12 md:col-span-4">
-                  <FormLabel>Name</FormLabel>
-                  <FormInput
-                    value={permissionForm.name}
-                    onChange={(e) =>
-                      setPermissionForm((prev) => ({
-                        ...prev,
-                        name: e.target.value,
-                        slug: prev.slug ? prev.slug : normalizeSlug(e.target.value),
-                      }))
-                    }
-                    placeholder="e.g. View Leave Requests"
-                  />
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <FormLabel>Slug</FormLabel>
-                  <FormInput
-                    value={permissionForm.slug}
-                    onChange={(e) => setPermissionForm((prev) => ({ ...prev, slug: normalizeSlug(e.target.value) }))}
-                    placeholder="e.g. leave.view"
-                  />
-                </div>
-                <div className="col-span-12 md:col-span-4">
-                  <FormLabel>Module</FormLabel>
-                  <FormInput
-                    value={permissionForm.module}
-                    onChange={(e) => setPermissionForm((prev) => ({ ...prev, module: e.target.value.toLowerCase() }))}
-                    placeholder="e.g. hr"
-                  />
-                </div>
-                <div className="col-span-12">
-                  <FormLabel>Description</FormLabel>
-                  <FormTextarea
-                    rows={2}
-                    value={permissionForm.description}
-                    onChange={(e) => setPermissionForm((prev) => ({ ...prev, description: e.target.value }))}
-                    placeholder="Optional description"
-                  />
-                </div>
-              </div>
-              <div className="mt-3 flex justify-end">
-                {permissionForm.id ? (
-                  <Button
-                    variant="outline-secondary"
-                    className="mr-2"
-                    onClick={() => setPermissionForm(emptyPermissionForm)}
-                  >
-                    Cancel
-                  </Button>
-                ) : null}
-                <Button onClick={() => void createPermission()} disabled={savingPermission}>
-                  <Lucide icon={permissionForm.id ? "CheckCircle2" : "Plus"} className="w-4 h-4 mr-2" />
-                  {savingPermission ? "Saving..." : permissionForm.id ? "Save Permission" : "Create Permission"}
-                </Button>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <div className="font-medium">Permissions</div>
-              <div className="flex gap-2">
-                <FormInput
-                  value={permissionSearch}
-                  onChange={(e) => setPermissionSearch(e.target.value)}
-                  placeholder="Search permissions..."
-                  className="max-w-xs"
-                />
-                <Button
-                  variant="outline-secondary"
-                  onClick={() => addPermissions(groupedPermissions.flatMap(([, items]) => items.map((item) => item.id)))}
-                >
-                  Select Visible
-                </Button>
-                <Button
-                  variant="outline-secondary"
-                  onClick={() => removePermissions(groupedPermissions.flatMap(([, items]) => items.map((item) => item.id)))}
-                >
-                  Clear Visible
-                </Button>
-              </div>
-            </div>
-
-            <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
-              {groupedPermissions.map(([module, items]) => (
-                <div key={module} className="border rounded-md p-3">
-                  <div className="flex items-center justify-between gap-2 mb-2">
-                    <div className="font-medium capitalize">{module.replaceAll("_", " ")}</div>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        variant="outline-secondary"
-                        onClick={() => addPermissions(items.map((item) => item.id))}
-                      >
-                        Select All
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline-secondary"
-                        onClick={() => removePermissions(items.map((item) => item.id))}
-                      >
-                        Clear
-                      </Button>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-12 gap-2">
-                    {items.map((permission) => (
-                      <label key={permission.id} className="col-span-12 md:col-span-6 flex items-center gap-2 text-sm">
-                        <input
-                          type="checkbox"
-                          checked={selectedPermissions.includes(permission.id)}
-                          onChange={() => togglePermission(permission.id)}
-                        />
-                        <span>{permission.name}</span>
-                        <span className="text-xs text-slate-500">{permission.slug}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="flex gap-2">
-            <Button onClick={() => void saveRoleMeta()} disabled={saving}>
-              {saving ? "Saving..." : "Save Role"}
+          <div className="mt-3 flex justify-end">
+            {permissionForm.id ? (
+              <Button
+                variant="outline-secondary"
+                className="mr-2"
+                onClick={() => setPermissionForm(emptyPermissionForm)}
+              >
+                Cancel
+              </Button>
+            ) : null}
+            <Button onClick={() => void createPermission()} disabled={savingPermission}>
+              <Lucide icon={permissionForm.id ? "CheckCircle2" : "Plus"} className="w-4 h-4 mr-2" />
+              {savingPermission ? "Saving..." : permissionForm.id ? "Save Permission" : "Create Permission"}
             </Button>
           </div>
         </div>
       </div>
+
+      <Dialog open={showRoleModal} onClose={closeRoleModal} size="xl">
+        <Dialog.Panel>
+          <Dialog.Title>
+            <h2 className="mr-auto text-base font-medium">{form.id ? "Edit Role" : "New Role"}</h2>
+          </Dialog.Title>
+          <Dialog.Description className="space-y-4">
+            <div className="grid grid-cols-12 gap-4">
+              <div className="col-span-12 md:col-span-5">
+                <FormLabel>Name</FormLabel>
+                <FormInput value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-4">
+                <FormLabel>Slug</FormLabel>
+                <FormInput value={form.slug} onChange={(e) => setForm((prev) => ({ ...prev, slug: e.target.value }))} />
+              </div>
+              <div className="col-span-12 md:col-span-3">
+                <FormLabel>Status</FormLabel>
+                <FormSelect
+                  value={form.is_active ? "true" : "false"}
+                  onChange={(e) => setForm((prev) => ({ ...prev, is_active: e.target.value === "true" }))}
+                >
+                  <option value="true">Active</option>
+                  <option value="false">Inactive</option>
+                </FormSelect>
+              </div>
+              <div className="col-span-12">
+                <FormLabel>Description</FormLabel>
+                <FormTextarea
+                  rows={2}
+                  value={form.description}
+                  onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))}
+                />
+              </div>
+            </div>
+
+            <div className="border-t pt-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="font-medium">Permissions</div>
+                <div className="flex gap-2">
+                  <FormInput
+                    value={permissionSearch}
+                    onChange={(e) => setPermissionSearch(e.target.value)}
+                    placeholder="Search permissions..."
+                    className="max-w-xs"
+                  />
+                  <Button
+                    variant="outline-secondary"
+                    onClick={() => addPermissions(groupedPermissions.flatMap(([, items]) => items.map((item) => item.id)))}
+                  >
+                    Select Visible
+                  </Button>
+                  <Button
+                    variant="outline-secondary"
+                    onClick={() => removePermissions(groupedPermissions.flatMap(([, items]) => items.map((item) => item.id)))}
+                  >
+                    Clear Visible
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-3 max-h-[420px] overflow-auto pr-1">
+                {groupedPermissions.map(([module, items]) => (
+                  <div key={module} className="border rounded-md p-3">
+                    <div className="flex items-center justify-between gap-2 mb-2">
+                      <div className="font-medium capitalize">{module.replaceAll("_", " ")}</div>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => addPermissions(items.map((item) => item.id))}
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline-secondary"
+                          onClick={() => removePermissions(items.map((item) => item.id))}
+                        >
+                          Clear
+                        </Button>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-12 gap-2">
+                      {items.map((permission) => (
+                        <label key={permission.id} className="col-span-12 md:col-span-6 flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={selectedPermissions.includes(permission.id)}
+                            onChange={() => togglePermission(permission.id)}
+                          />
+                          <span>{permission.name}</span>
+                          <span className="text-xs text-slate-500">{permission.slug}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Dialog.Description>
+          <Dialog.Footer>
+            <Button variant="outline-secondary" onClick={closeRoleModal}>
+              Cancel
+            </Button>
+            <Button onClick={() => void saveRoleMeta()} disabled={saving}>
+              {saving ? "Saving..." : form.id ? "Save Role" : "Create Role"}
+            </Button>
+          </Dialog.Footer>
+        </Dialog.Panel>
+      </Dialog>
 
       <div className="mt-5 box p-4">
         <div className="flex items-center justify-between mb-3">

@@ -62,7 +62,7 @@ function Main() {
           <nav className="side-nav hidden w-[80px] overflow-x-hidden pb-16 pr-5 md:block xl:w-[230px]">
             <Link to="/" className="flex items-center pt-4 pl-5 intro-x">
                 <img
-                  alt="Midone Tailwind HTML Admin Template"
+                  alt="Stanforte Edge"
                   className="w-6"
                   src={BRAND_LOGO_ICON_WHITE}
                 />
@@ -76,6 +76,13 @@ function Main() {
               {formattedMenu.map((menu, menuKey) =>
                 menu == "divider" ? (
                   <li className="my-6 side-nav__divider" key={menuKey}></li>
+                ) : menu.isSectionLabel ? (
+                  <li
+                    key={menuKey}
+                    className="px-5 pt-1 pb-2 text-xs font-semibold uppercase tracking-[0.2em] text-white/60 xl:text-white/70"
+                  >
+                    {menu.title}
+                  </li>
                 ) : (
                   <li key={menuKey}>
                     {menu.subMenu ? (
@@ -92,6 +99,8 @@ function Main() {
                           linkTo(menu, navigate);
                           setFormattedMenu([...formattedMenu]);
                         }}
+                        aria-label={menu.title}
+                        title={menu.title}
                         className={clsx("side-menu", {
                           "side-menu--active": menu.active,
                           "side-menu--open": Boolean(menu.activeDropdown),
@@ -126,6 +135,8 @@ function Main() {
                           linkTo(menu, navigate);
                           setFormattedMenu([...formattedMenu]);
                         }}
+                        aria-label={menu.title}
+                        title={menu.title}
                         className={clsx([
                           menu.active ? "side-menu side-menu--active" : "side-menu",
                         ])}
@@ -165,6 +176,8 @@ function Main() {
                                     linkTo(subMenu, navigate);
                                     setFormattedMenu([...formattedMenu]);
                                   }}
+                                  aria-label={subMenu.title}
+                                  title={subMenu.title}
                                   className={clsx("side-menu", {
                                     "side-menu--active": subMenu.active,
                                     "side-menu--open": Boolean(subMenu.activeDropdown),
@@ -202,6 +215,8 @@ function Main() {
                                     linkTo(subMenu, navigate);
                                     setFormattedMenu([...formattedMenu]);
                                   }}
+                                  aria-label={subMenu.title}
+                                  title={subMenu.title}
                                   className={clsx([
                                     subMenu.active ? "side-menu side-menu--active" : "side-menu",
                                   ])}
@@ -242,6 +257,8 @@ function Main() {
                                               linkTo(lastSubMenu, navigate);
                                               setFormattedMenu([...formattedMenu]);
                                             }}
+                                            aria-label={lastSubMenu.title}
+                                            title={lastSubMenu.title}
                                             className={clsx([
                                               lastSubMenu.active
                                                 ? "side-menu side-menu--active"

@@ -7,6 +7,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/main.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
+    "prepare:runtime": "prisma migrate deploy && prisma generate",
+    "deploy:server": "npm run prepare:runtime && npm run build",
     "seed:rbac": "node scripts/seed-rbac.js",
     "seed:first-user": "node scripts/seed-first-user.js",
     "seed:finance-requests": "node scripts/seed-finance-requests.js",
@@ -15,6 +17,7 @@
     "seed:hr-leave-system": "node scripts/seed-hr-leave-system.js",
     "seed:release-baseline": "node scripts/seed-release-baseline.js",
     "seed:grant-all-roles": "node scripts/grant-all-roles.js",
+    "repair:request-workflows": "node scripts/repair-request-workflow-links.js",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy"

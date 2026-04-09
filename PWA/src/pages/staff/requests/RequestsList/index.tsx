@@ -256,6 +256,7 @@ function RequestsPage() {
         <div className="p-5 border-b border-slate-200/60 dark:border-darkmode-400">
           <div className="flex flex-wrap items-end justify-center gap-3">
             <div className="w-auto">
+              <FormLabel className="sr-only">Items per page</FormLabel>
               <FormSelect className="w-auto" value={perPage} onChange={(e) => setPerPage(Number(e.target.value))}>
                 <option value={10}>10</option>
                 <option value={25}>25</option>
@@ -263,9 +264,11 @@ function RequestsPage() {
               </FormSelect>
             </div>
             <div className="w-auto">
+              <FormLabel className="sr-only">Due date</FormLabel>
               <FormInput className="w-auto" type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
             </div>
             <div className="w-auto">
+              <FormLabel className="sr-only">Project</FormLabel>
               <FormSelect className="w-auto" value={project} onChange={(e) => setProject(e.target.value)}>
                 <option value="">All projects</option>
                 {projectOptions.map((option) => (
@@ -277,6 +280,7 @@ function RequestsPage() {
             </div>
             {showTeamFilterAndColumn ? (
               <div className="min-w-[190px]">
+                <FormLabel className="sr-only">Team</FormLabel>
                 <FormSelect className="w-auto" value={team} onChange={(e) => setTeam(e.target.value)}>
                   <option value="">All teams</option>
                   {availableTeamOptions.map((option) => (
@@ -289,6 +293,7 @@ function RequestsPage() {
             ) : null}
             {showOrganizationFilterAndColumn ? (
               <div className="min-w-[190px]">
+                <FormLabel className="sr-only">Organization</FormLabel>
                 <FormSelect className="w-auto" value={organization} onChange={(e) => setOrganization(e.target.value)}>
                   <option value="">All organizations</option>
                   {organizationOptions.map((option) => (
@@ -300,6 +305,7 @@ function RequestsPage() {
               </div>
             ) : null}
             <div className="w-auto">
+              <FormLabel className="sr-only">Order by</FormLabel>
               <FormSelect className="w-auto" value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
                 <option value="">Order by</option>
                 <option value="created_at">Created Date</option>
@@ -310,6 +316,7 @@ function RequestsPage() {
               </FormSelect>
             </div>
             <div className="w-auto">
+              <FormLabel className="sr-only">Sort order</FormLabel>
               <FormSelect className="w-auto" value={sortOrder} onChange={(e) => setSortOrder(e.target.value as "asc" | "desc")}>
                 <option value="">Order</option>
                 <option value="desc">Descending</option>
@@ -317,6 +324,7 @@ function RequestsPage() {
               </FormSelect>
             </div>
             <div className="w-auto">
+              <FormLabel className="sr-only">Request status</FormLabel>
               <FormSelect className="w-auto" value={status} onChange={(e) => setStatus(e.target.value)}>
                 <option value="">All statuses</option>
                 <option value="draft">Draft</option>
@@ -332,6 +340,7 @@ function RequestsPage() {
               </FormSelect>
             </div>
             <div className="w-auto">
+              <FormLabel className="sr-only">Search requests</FormLabel>
               <FormInput className="w-auto"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}

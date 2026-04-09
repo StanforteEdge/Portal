@@ -1,4 +1,4 @@
-import { IsBoolean, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsOptional, IsString } from 'class-validator';
 
 export class UpdateTeamDto {
   @IsOptional()
@@ -12,6 +12,15 @@ export class UpdateTeamDto {
   @IsOptional()
   @IsString()
   organization_id?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  organization_ids?: string[];
+
+  @IsOptional()
+  @IsString()
+  primary_organization_id?: string;
 
   @IsOptional()
   @IsBoolean()

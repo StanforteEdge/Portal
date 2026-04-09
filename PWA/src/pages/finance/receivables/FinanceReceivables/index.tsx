@@ -383,8 +383,9 @@ function FinanceReceivablesPage() {
           </FormSelect>
         </div>
         <div className="col-span-12 md:col-span-1 flex items-end">
-          <Button variant="primary" className="w-full" onClick={() => void load()}>
-            <Lucide icon="Search" className="w-4 h-4" />
+          <Button variant="primary" className="w-full" aria-label="Apply receivables filters" title="Apply filters" onClick={() => void load()}>
+            <Lucide icon="Search" className="w-4 h-4 mr-1" />
+            Apply
           </Button>
         </div>
       </div>
@@ -608,7 +609,7 @@ function FinanceReceivablesPage() {
                   <FormInput type="number" min="0" value={line.unit_price} onChange={(e) => updateLine(index, "unit_price", e.target.value)} />
                 </div>
                 <div className="col-span-12 md:col-span-1 flex md:justify-end">
-                  <Button size="sm" variant="soft-danger" onClick={() => removeLine(index)}>
+                  <Button size="sm" variant="soft-danger" aria-label={`Remove invoice line ${index + 1}`} title="Remove line" onClick={() => removeLine(index)}>
                     <Lucide icon="Trash2" className="w-4 h-4" />
                   </Button>
                 </div>
@@ -714,7 +715,7 @@ function FinanceReceivablesPage() {
                       />
                     </div>
                     <div className="col-span-2 md:col-span-1 flex md:justify-end">
-                      <Button size="sm" variant="soft-danger" onClick={() => removeReceiptAllocation(index)}>
+                      <Button size="sm" variant="soft-danger" aria-label={`Remove receipt allocation ${index + 1}`} title="Remove allocation" onClick={() => removeReceiptAllocation(index)}>
                         <Lucide icon="Trash2" className="w-4 h-4" />
                       </Button>
                     </div>

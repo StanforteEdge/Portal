@@ -142,7 +142,11 @@ export class PayrollService {
 
   async getInbox(userId: string, permissions: string[] = []) {
     const actorId = toBigInt(userId);
-    const canManage = permissions.includes('settings.manage') || permissions.includes('requests.approve');
+    const canManage =
+      permissions.includes('finance.manage') ||
+      permissions.includes('payroll.approve') ||
+      permissions.includes('requests.approve') ||
+      permissions.includes('settings.manage');
 
     const [approvals, corrections, payments, importJobs, failedDistributions, notifications] = await this.prisma.$transaction([
       this.prisma.payrollRun.findMany({
@@ -410,6 +414,31 @@ export class PayrollService {
     });
   }
 
+  async deleteWorker(id: string) {
+    const existing = await this.prisma.payrollWorker.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Payroll worker not found');
+
+    const usage = await this.prisma.$transaction([
+      this.prisma.payrollRunItem.count({ where: { workerId: id } }),
+      this.prisma.projectTimesheetEntry.count({ where: { workerId: id } }),
+      this.prisma.payrollLoan.count({ where: { workerId: id } }),
+      this.prisma.payrollRunTimesheetAllocation.count({ where: { workerId: id } }),
+      this.prisma.payrollPayslipDistribution.count({ where: { workerId: id } }),
+    ]);
+
+    const totalUsage = usage.reduce((sum, count) => sum + count, 0);
+    if (totalUsage > 0) {
+      await this.prisma.payrollWorker.update({
+        where: { id },
+        data: { status: 'inactive' },
+      });
+      return { action: 'deactivated', reason: 'worker has payroll history and was marked inactive instead of deleted' };
+    }
+
+    await this.prisma.payrollWorker.delete({ where: { id } });
+    return { action: 'deleted' };
+  }
+
   async listLoans(query: Record<string, any>) {
     const rows = await this.prisma.payrollLoan.findMany({
       where: {
@@ -626,6 +655,31 @@ export class PayrollService {
     return this.serializeComponent(row);
   }
 
+  async deleteComponent(id: string) {
+    const existing = await this.prisma.payrollComponent.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Payroll component not found');
+
+    const usage = await this.prisma.$transaction([
+      this.prisma.payrollWorkerProfileComponent.count({ where: { componentId: id } }),
+      this.prisma.payrollRunItemLine.count({ where: { componentId: id } }),
+      this.prisma.payrollLoan.count({ where: { componentId: id } }),
+      this.prisma.projectTimesheetEntry.count({ where: { componentId: id } }),
+    ]);
+
+    const totalUsage = usage.reduce((sum, count) => sum + count, 0);
+    if (totalUsage > 0) {
+      const row = await this.prisma.payrollComponent.update({
+        where: { id },
+        data: { isActive: false },
+        include: { chartAccount: { select: { id: true, code: true, name: true } } }
+      });
+      return { action: 'deactivated', component: this.serializeComponent(row), reason: 'component has payroll history and was deactivated instead of deleted' };
+    }
+
+    await this.prisma.payrollComponent.delete({ where: { id } });
+    return { action: 'deleted' };
+  }
+
   async listRuns(query: Record<string, any>) {
     const page = Math.max(1, Number(query.page ?? 1));
     const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
@@ -661,6 +715,31 @@ export class PayrollService {
     });
     if (!row) throw new NotFoundException('Payroll run not found');
     return this.serializeRun(row);
+  }
+
+  async deleteRun(id: string) {
+    const existing = await this.prisma.payrollRun.findUnique({
+      where: { id },
+      include: {
+        _count: {
+          select: {
+            postings: true,
+            loanRepayments: true,
+            payslipDistributions: true,
+          },
+        },
+      },
+    });
+    if (!existing) throw new NotFoundException('Payroll run not found');
+    if (!['draft', 'prepared'].includes(existing.status)) {
+      throw new BadRequestException('Only draft or prepared payroll runs can be deleted');
+    }
+    if ((existing as any)._count?.postings || (existing as any)._count?.loanRepayments || (existing as any)._count?.payslipDistributions) {
+      throw new BadRequestException('Cannot delete payroll run with payroll history or postings');
+    }
+
+    await this.prisma.payrollRun.delete({ where: { id } });
+    return { action: 'deleted' };
   }
 
   async createRun(dto: CreatePayrollRunDto, actorId?: string) {
@@ -2150,27 +2229,58 @@ export class PayrollService {
 
   private async syncWorkerChildrenTx(tx: Prisma.TransactionClient, workerId: string, dto: UpsertPayrollWorkerDto) {
     if (dto.profile) {
-      await tx.payrollWorkerProfile.create({
-        data: {
-          workerId,
-          payFrequency: dto.profile.pay_frequency || 'monthly',
-          baseAmount: dto.profile.base_amount ?? 0,
-          paymentMode: dto.profile.payment_mode || null,
-          effectiveFrom: new Date(dto.profile.effective_from),
-          effectiveTo: dto.profile.effective_to ? new Date(dto.profile.effective_to) : null,
-          components: dto.profile.components?.length
-            ? {
-                create: dto.profile.components.map((row) => ({
-                  componentId: row.component_id,
-                  amount: row.amount ?? null,
-                  rate: row.rate ?? null,
-                  formula: row.formula || null,
-                  isEnabled: row.is_enabled ?? true,
-                }))
-              }
-            : undefined,
-        }
+      const effectiveFrom = new Date(dto.profile.effective_from);
+      const existingProfile = await tx.payrollWorkerProfile.findFirst({
+        where: { workerId, effectiveFrom },
+        orderBy: { createdAt: 'desc' },
       });
+
+      if (existingProfile) {
+        await tx.payrollWorkerProfileComponent.deleteMany({ where: { profileId: existingProfile.id } });
+        await tx.payrollWorkerProfile.update({
+          where: { id: existingProfile.id },
+          data: {
+            payFrequency: dto.profile.pay_frequency || 'monthly',
+            baseAmount: dto.profile.base_amount ?? 0,
+            paymentMode: dto.profile.payment_mode || null,
+            effectiveFrom,
+            effectiveTo: dto.profile.effective_to ? new Date(dto.profile.effective_to) : null,
+            components: dto.profile.components?.length
+              ? {
+                  create: dto.profile.components.map((row) => ({
+                    componentId: row.component_id,
+                    amount: row.amount ?? null,
+                    rate: row.rate ?? null,
+                    formula: row.formula || null,
+                    isEnabled: row.is_enabled ?? true,
+                  }))
+                }
+              : undefined,
+          },
+        });
+      } else {
+        await tx.payrollWorkerProfile.create({
+          data: {
+            workerId,
+            payFrequency: dto.profile.pay_frequency || 'monthly',
+            baseAmount: dto.profile.base_amount ?? 0,
+            paymentMode: dto.profile.payment_mode || null,
+            effectiveFrom,
+            effectiveTo: dto.profile.effective_to ? new Date(dto.profile.effective_to) : null,
+            components: dto.profile.components?.length
+              ? {
+                  create: dto.profile.components.map((row) => ({
+                    componentId: row.component_id,
+                    amount: row.amount ?? null,
+                    rate: row.rate ?? null,
+                    formula: row.formula || null,
+                    isEnabled: row.is_enabled ?? true,
+                  }))
+                }
+              : undefined,
+          }
+        });
+      }
     }
 
     if (dto.allocations) {
@@ -2222,7 +2332,7 @@ export class PayrollService {
         include: {
           components: { include: { component: { include: { chartAccount: { select: { id: true, code: true, name: true } } } } } }
         },
-        orderBy: { effectiveFrom: 'desc' }
+        orderBy: [{ effectiveFrom: 'desc' }, { createdAt: 'desc' }]
       },
       allocations: {
         include: {

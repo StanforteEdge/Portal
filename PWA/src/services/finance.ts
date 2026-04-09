@@ -253,7 +253,93 @@ export async function listFinanceRequestPaymentVouchers(id: string) {
     evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
     evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
     retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+    pending_correction: {
+      id: string;
+      status: string;
+      reason: string | null;
+      created_at: string;
+      proposed_by: { id: string; name: string; email: string | null };
+      proposed_snapshot: {
+        amount: number;
+        paid_from_account_id: string | null;
+        disbursed_at: string | null;
+        method: string | null;
+        transaction_ref: string | null;
+        note: string | null;
+        evidence_file_ids: string[];
+      };
+    } | null;
   }>;
+}
+
+export async function updateFinanceRequestPaymentVoucher(
+  requestId: string,
+  voucherId: string,
+  payload: {
+    note?: string;
+    method?: string;
+    transaction_ref?: string;
+    evidence_file_id?: string;
+    evidence_file_ids?: string[];
+    amount?: number;
+    paid_from_account_id?: string;
+    disbursed_at?: string;
+    correction_reason?: string;
+  }
+) {
+  const response = await apiClient.post(`/finance/requests/${requestId}/payment-vouchers/${voucherId}`, payload);
+  return response.data?.data as {
+    mode: "updated" | "pending_approval";
+    voucher: Awaited<ReturnType<typeof listFinanceRequestPaymentVouchers>>[number];
+    correction?: {
+      id: string;
+      status: string;
+      reason: string | null;
+      created_at: string;
+      proposed_by: { id: string; name: string; email: string | null };
+      proposed_snapshot: {
+        amount: number;
+        paid_from_account_id: string | null;
+        disbursed_at: string | null;
+        method: string | null;
+        transaction_ref: string | null;
+        note: string | null;
+        evidence_file_ids: string[];
+      };
+    } | null;
+  };
+}
+
+export async function approveFinanceRequestPaymentVoucherCorrection(
+  requestId: string,
+  voucherId: string,
+  correctionId: string
+) {
+  const response = await apiClient.post(
+    `/finance/requests/${requestId}/payment-vouchers/${voucherId}/corrections/${correctionId}/approve`
+  );
+  return response.data?.data as {
+    mode: "approved";
+    voucher: Awaited<ReturnType<typeof listFinanceRequestPaymentVouchers>>[number] | null;
+    correction_id: string;
+  };
+}
+
+export async function rejectFinanceRequestPaymentVoucherCorrection(
+  requestId: string,
+  voucherId: string,
+  correctionId: string,
+  payload?: { comment?: string }
+) {
+  const response = await apiClient.post(
+    `/finance/requests/${requestId}/payment-vouchers/${voucherId}/corrections/${correctionId}/reject`,
+    payload ?? {}
+  );
+  return response.data?.data as {
+    mode: "rejected";
+    voucher: Awaited<ReturnType<typeof listFinanceRequestPaymentVouchers>>[number] | null;
+    correction_id: string;
+  };
 }
 
 export type FinancePaymentVoucherListRecord = {

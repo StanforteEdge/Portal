@@ -398,7 +398,7 @@ function FinanceAssetsPage() {
             <Table.Tbody>
               {rows.map((row) => (
                 <Table.Tr key={row.id}>
-                  <Table.Td>
+                  <Table.RowHeader>
                     <Link className="font-semibold text-primary hover:underline" to={`/app/finance/assets/${row.id}`}>
                       {row.asset_id}
                     </Link>
@@ -407,7 +407,7 @@ function FinanceAssetsPage() {
                       {row.category}
                       {row.serial_tag_no ? ` | ${row.serial_tag_no}` : ""}
                     </div>
-                  </Table.Td>
+                  </Table.RowHeader>
                   <Table.Td>
                     <div>{formatPersonName(row.assigned_to)}</div>
                     <div className="text-xs text-slate-500">
@@ -424,12 +424,12 @@ function FinanceAssetsPage() {
                   <Table.Td className="text-right">
                     <div className="flex gap-2 justify-end">
                       <Tippy content="View" as="div">
-                        <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/finance/assets/${row.id}`)}>
+                        <Button size="sm" variant="outline-primary" aria-label={`View asset ${row.asset_id}`} title="View asset" onClick={() => navigate(`/app/finance/assets/${row.id}`)}>
                           <Lucide icon="Eye" className="w-4 h-4" />
                         </Button>
                       </Tippy>
                       <Tippy content="Edit" as="div">
-                        <Button size="sm" variant="outline-secondary" onClick={() => navigate(`/app/finance/assets/${row.id}/edit`)}>
+                        <Button size="sm" variant="outline-secondary" aria-label={`Edit asset ${row.asset_id}`} title="Edit asset" onClick={() => navigate(`/app/finance/assets/${row.id}/edit`)}>
                           <Lucide icon="FilePenLine" className="w-4 h-4" />
                         </Button>
                       </Tippy>

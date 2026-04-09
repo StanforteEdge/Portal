@@ -12,7 +12,7 @@ import { listProjects } from "@/services/projects";
 import { listTeams } from "@/services/teams";
 import { listUsers } from "@/services/users";
 import { listFinanceFunds, listFinanceGrants } from "@/services/financeAccounting";
-import { createPayrollWorker, listPayrollComponents, listPayrollTaxTables, listPayrollWorkers, updatePayrollWorker } from "@/services/payroll";
+import { createPayrollWorker, deletePayrollWorker, listPayrollComponents, listPayrollTaxTables, listPayrollWorkers, updatePayrollWorker } from "@/services/payroll";
 
 const emptyAllocation: AllocationRowValue = {
   organization_id: "",
@@ -58,7 +58,7 @@ const emptyForm = {
   base_amount: "",
   effective_from: "",
   payment_mode: "bank_transfer",
-  profile_components: [] as Array<{ component_id: string; amount: string }>,
+  profile_components: [] as Array<{ component_id: string; amount: string; rate: string; formula: string }>,
   allocations: [emptyAllocation],
 };
 
@@ -86,10 +86,12 @@ function FinancePayrollWorkersPage() {
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [actionLoading, setActionLoading] = useState("");
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState("");
   const [search, setSearch] = useState("");
   const [workerType, setWorkerType] = useState("");
+  const [statusFilter, setStatusFilter] = useState("active");
   const [editorStep, setEditorStep] = useState<WorkerStep>("identity");
   const [form, setForm] = useState(emptyForm);
 
@@ -100,7 +102,13 @@ function FinancePayrollWorkersPage() {
     try {
       setLoading(true);
       const [workerRes, componentRows, orgRows, teamRows, projectRows, fundRows, grantRows, userRows, taxTableRows] = await Promise.allSettled([
-        listPayrollWorkers({ page: 1, per_page: 200, search: search || undefined, worker_type: workerType || undefined }),
+        listPayrollWorkers({
+          page: 1,
+          per_page: 200,
+          search: search || undefined,
+          worker_type: workerType || undefined,
+          status: statusFilter || undefined,
+        }),
         listPayrollComponents({ is_active: true }),
         listOrganizations({ is_active: true }),
         listTeams({ active_only: true }),
@@ -114,10 +122,6 @@ function FinancePayrollWorkersPage() {
       if (workerRes.status !== "fulfilled") {
         throw workerRes.reason;
       }
-
-      const lookupFailures = [componentRows, orgRows, teamRows, projectRows, fundRows, grantRows, userRows, taxTableRows].filter(
-        (result) => result.status === "rejected"
-      ).length;
 
       setRows(workerRes.value.data ?? []);
       setComponents(readSettledValue(componentRows, []));
@@ -133,13 +137,6 @@ function FinancePayrollWorkersPage() {
         }).data ?? []
       );
       setTaxTables(readSettledValue(taxTableRows, []));
-
-      if (lookupFailures > 0) {
-        setNotice({
-          tone: "warning",
-          message: `Payroll workers loaded with ${lookupFailures} supporting lookup${lookupFailures === 1 ? "" : "s"} unavailable.`,
-        });
-      }
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load payroll workers." });
     } finally {
@@ -173,6 +170,11 @@ function FinancePayrollWorkersPage() {
     };
   }, [organizations, teams, projects, funds, grants, components]);
 
+  const componentMap = useMemo(
+    () => new Map(components.map((component) => [String(component.id), component])),
+    [components]
+  );
+
   const summary = useMemo(
     () => ({
       total: rows.length,
@@ -187,6 +189,7 @@ function FinancePayrollWorkersPage() {
     () => (form.allocations || []).reduce((sum, row) => sum + Number(row.allocation_percent || 0), 0),
     [form.allocations]
   );
+  const busy = loading || saving || Boolean(actionLoading);
 
   const resetForm = () => {
     setEditingId("");
@@ -238,6 +241,8 @@ function FinancePayrollWorkersPage() {
         latestProfile?.components?.map((componentRow: any) => ({
           component_id: componentRow.component_id,
           amount: String(componentRow.amount ?? ""),
+          rate: componentRow.rate != null ? String(componentRow.rate) : "",
+          formula: componentRow.formula || "",
         })) || [],
       allocations:
         row.allocations?.length > 0
@@ -258,8 +263,14 @@ function FinancePayrollWorkersPage() {
     try {
       setSaving(true);
       const componentRows = (form.profile_components || [])
-        .filter((row: any) => row.component_id && Number(row.amount || 0) > 0)
-        .map((row: any) => ({ component_id: row.component_id, amount: Number(row.amount || 0) }));
+        .filter((row: any) => row.component_id)
+        .map((row: any) => ({
+          component_id: row.component_id,
+          amount: row.amount !== "" ? Number(row.amount || 0) : undefined,
+          rate: row.rate !== "" ? Number(row.rate || 0) : undefined,
+          formula: row.formula?.trim() || undefined,
+        }))
+        .filter((row: any) => row.amount !== undefined || row.rate !== undefined || row.formula);
       const payload = {
         profile_id: form.profile_id || undefined,
         worker_type: form.worker_type,
@@ -345,7 +356,7 @@ function FinancePayrollWorkersPage() {
             <Lucide icon="Undo2" className="w-4 h-4 mr-1" />
             Refresh
           </Button>
-          <Button variant="primary" onClick={resetForm}>
+          <Button variant="primary" onClick={resetForm} disabled={busy}>
             <Lucide icon="Plus" className="w-4 h-4 mr-1" />
             New Worker
           </Button>
@@ -403,10 +414,18 @@ function FinancePayrollWorkersPage() {
             <option value="consultant">Consultant</option>
           </FormSelect>
         </div>
-        <div className="col-span-12 md:col-span-3 flex items-end">
-          <Button variant="primary" className="w-full" onClick={() => void load()}>
+        <div className="col-span-12 md:col-span-3">
+          <FormLabel>Status</FormLabel>
+          <FormSelect value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            <option value="active">Active</option>
+            <option value="inactive">Inactive</option>
+            <option value="">All</option>
+          </FormSelect>
+        </div>
+        <div className="col-span-12 md:col-span-12 lg:col-span-3 flex items-end">
+          <Button variant="primary" className="w-full" onClick={() => void load()} disabled={loading}>
             <Lucide icon="Search" className="w-4 h-4 mr-1" />
-            Apply Filters
+            {loading ? "Loading..." : "Apply Filters"}
           </Button>
         </div>
       </div>
@@ -447,9 +466,37 @@ function FinancePayrollWorkersPage() {
                   <div className="text-xs text-slate-500">{row.default_grant?.name || labelMaps.grant.get(String(row.default_grant_id || "")) || "No default grant"}</div>
                 </Table.Td>
                 <Table.Td className="text-right">
-                  <Button size="sm" variant="outline-secondary" onClick={() => openEdit(row)}>
-                    <Lucide icon="FilePenLine" className="w-4 h-4" />
-                  </Button>
+                  <div className="flex justify-end gap-2">
+                    <Button size="sm" variant="outline-secondary" onClick={() => openEdit(row)} disabled={busy}>
+                      {actionLoading === `edit-worker-${row.id}` ? "Opening..." : <Lucide icon="FilePenLine" className="w-4 h-4" />}
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline-danger"
+                      disabled={busy}
+                      onClick={async () => {
+                        if (!window.confirm(`Delete payroll worker "${row.full_name}"? Workers with payroll history will be marked inactive instead.`)) return;
+                        try {
+                          setActionLoading(`delete-worker-${row.id}`);
+                          const result = await deletePayrollWorker(row.id);
+                          setNotice({
+                            tone: "success",
+                            message:
+                              result.action === "deleted"
+                                ? "Payroll worker deleted."
+                                : `Payroll worker marked inactive because they have payroll history${statusFilter === "active" ? ". The row will drop out of the active list after refresh." : "."}`,
+                          });
+                          await load();
+                        } catch (error: any) {
+                          setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete payroll worker." });
+                        } finally {
+                          setActionLoading("");
+                        }
+                      }}
+                    >
+                      {actionLoading === `delete-worker-${row.id}` ? "Deleting..." : <Lucide icon="Trash2" className="w-4 h-4" />}
+                    </Button>
+                  </div>
                 </Table.Td>
               </Table.Tr>
             ))}
@@ -558,10 +605,10 @@ function FinancePayrollWorkersPage() {
                 </div>
                 <div className="col-span-12 md:col-span-4">
                   <FormLabel>Project</FormLabel>
-                  <FormSelect value={form.project_id} onChange={(e) => setForm((prev: any) => ({ ...prev, project_id: e.target.value }))}>
+                  <TomSelect value={form.project_id} onChange={(e) => setForm((prev: any) => ({ ...prev, project_id: e.target.value }))}>
                     <option value="">Select project</option>
                     {projects.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                  </FormSelect>
+                  </TomSelect>
                 </div>
               </div>
             ) : null}
@@ -609,7 +656,12 @@ function FinancePayrollWorkersPage() {
                     <Button
                       size="sm"
                       variant="outline-secondary"
-                      onClick={() => setForm((prev: any) => ({ ...prev, profile_components: [...(prev.profile_components || []), { component_id: "", amount: "" }] }))}
+                      onClick={() =>
+                        setForm((prev: any) => ({
+                          ...prev,
+                          profile_components: [...(prev.profile_components || []), { component_id: "", amount: "", rate: "", formula: "" }],
+                        }))
+                      }
                     >
                       <Lucide icon="Plus" className="w-4 h-4 mr-1" />
                       Add Component
@@ -617,10 +669,19 @@ function FinancePayrollWorkersPage() {
                   </div>
                   <div className="mt-3 space-y-3">
                     {(form.profile_components || []).map((row: any, index: number) => (
-                      <div key={`component-${index}`} className="grid grid-cols-12 gap-3">
+                      <div key={`component-${index}`} className="grid grid-cols-12 gap-3 rounded border p-3">
+                        {(() => {
+                          const selectedComponent = componentMap.get(String(row.component_id));
+                          const calculationType = String(selectedComponent?.calculation_type || "fixed");
+                          const showAmount = calculationType === "fixed";
+                          const showRate = calculationType === "percentage";
+                          const showFormula = calculationType === "formula";
+
+                          return (
+                            <>
                         <div className="col-span-12 md:col-span-8">
                           <FormLabel>Component</FormLabel>
-                          <FormSelect
+                          <TomSelect
                             value={row.component_id}
                             onChange={(e) => setForm((prev: any) => ({
                               ...prev,
@@ -629,8 +690,21 @@ function FinancePayrollWorkersPage() {
                           >
                             <option value="">Select component</option>
                             {components.map((component) => <option key={component.id} value={component.id}>{component.name}</option>)}
-                          </FormSelect>
+                          </TomSelect>
+                          {row.component_id ? (
+                            <div className="mt-2 text-xs text-slate-500">
+                              {String(selectedComponent?.component_type || "earning").replaceAll("_", " ")}
+                              {" · "}
+                              {calculationType.replaceAll("_", " ")}
+                            </div>
+                          ) : null}
                         </div>
+                        <div className="col-span-2 md:col-span-1 flex items-end md:order-last">
+                          <Button variant="outline-danger" className="w-full" onClick={() => setForm((prev: any) => ({ ...prev, profile_components: (prev.profile_components || []).filter((_: unknown, entryIndex: number) => entryIndex !== index) }))}>
+                            <Lucide icon="Trash2" className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        {showAmount ? (
                         <div className="col-span-10 md:col-span-3">
                           <FormLabel>Amount</FormLabel>
                           <FormInput type="number" value={row.amount} onChange={(e) => setForm((prev: any) => ({
@@ -638,11 +712,62 @@ function FinancePayrollWorkersPage() {
                             profile_components: (prev.profile_components || []).map((entry: any, entryIndex: number) => entryIndex === index ? { ...entry, amount: e.target.value } : entry),
                           }))} />
                         </div>
-                        <div className="col-span-2 md:col-span-1 flex items-end">
-                          <Button variant="outline-danger" className="w-full" onClick={() => setForm((prev: any) => ({ ...prev, profile_components: (prev.profile_components || []).filter((_: unknown, entryIndex: number) => entryIndex !== index) }))}>
-                            <Lucide icon="Trash2" className="w-4 h-4" />
-                          </Button>
+                        ) : null}
+                        {showRate ? (
+                        <div className="col-span-10 md:col-span-3">
+                          <FormLabel>Rate / %</FormLabel>
+                          <FormInput
+                            type="number"
+                            value={row.rate}
+                            onChange={(e) =>
+                              setForm((prev: any) => ({
+                                ...prev,
+                                profile_components: (prev.profile_components || []).map((entry: any, entryIndex: number) =>
+                                  entryIndex === index ? { ...entry, rate: e.target.value } : entry
+                                ),
+                              }))
+                            }
+                            placeholder="e.g. 10"
+                          />
                         </div>
+                        ) : null}
+                        {showFormula ? (
+                        <div className="col-span-10 md:col-span-11">
+                          <FormLabel>Formula</FormLabel>
+                          <FormInput
+                            value={row.formula}
+                            onChange={(e) =>
+                              setForm((prev: any) => ({
+                                ...prev,
+                                profile_components: (prev.profile_components || []).map((entry: any, entryIndex: number) =>
+                                  entryIndex === index ? { ...entry, formula: e.target.value } : entry
+                                ),
+                              }))
+                            }
+                            placeholder="Optional formula expression"
+                          />
+                        </div>
+                        ) : null}
+                        {!row.component_id ? (
+                        <div className="col-span-10 md:col-span-3">
+                          <FormLabel>Amount</FormLabel>
+                          <FormInput
+                            type="number"
+                            value={row.amount}
+                            onChange={(e) =>
+                              setForm((prev: any) => ({
+                                ...prev,
+                                profile_components: (prev.profile_components || []).map((entry: any, entryIndex: number) =>
+                                  entryIndex === index ? { ...entry, amount: e.target.value } : entry
+                                ),
+                              }))
+                            }
+                          />
+                        </div>
+                        ) : null}
+                            </>
+                          );
+                        })()}
                       </div>
                     ))}
                     {!form.profile_components.length ? <div className="text-sm text-slate-500">No recurring components yet. You can still save a worker with only a base amount.</div> : null}
@@ -683,17 +808,17 @@ function FinancePayrollWorkersPage() {
                   <div className="mt-4 grid grid-cols-12 gap-4">
                     <div className="col-span-12 md:col-span-6">
                       <FormLabel>Default Fund</FormLabel>
-                      <FormSelect value={form.default_fund_id} onChange={(e) => setForm((prev: any) => ({ ...prev, default_fund_id: e.target.value }))}>
+                      <TomSelect value={form.default_fund_id} onChange={(e) => setForm((prev: any) => ({ ...prev, default_fund_id: e.target.value }))}>
                         <option value="">No default fund</option>
                         {funds.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                      </FormSelect>
+                      </TomSelect>
                     </div>
                     <div className="col-span-12 md:col-span-6">
                       <FormLabel>Default Grant</FormLabel>
-                      <FormSelect value={form.default_grant_id} onChange={(e) => setForm((prev: any) => ({ ...prev, default_grant_id: e.target.value }))}>
+                      <TomSelect value={form.default_grant_id} onChange={(e) => setForm((prev: any) => ({ ...prev, default_grant_id: e.target.value }))}>
                         <option value="">No default grant</option>
                         {grants.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}
-                      </FormSelect>
+                      </TomSelect>
                     </div>
                   </div>
                 </div>
@@ -730,7 +855,7 @@ function FinancePayrollWorkersPage() {
                     </label>
                     <div className="col-span-12 md:col-span-4">
                       <FormLabel>PAYE Tax Table Override</FormLabel>
-                      <FormSelect value={form.tax_table_id} onChange={(e) => setForm((prev: any) => ({ ...prev, tax_table_id: e.target.value }))}>
+                      <TomSelect value={form.tax_table_id} onChange={(e) => setForm((prev: any) => ({ ...prev, tax_table_id: e.target.value }))}>
                         <option value="">Use payroll default</option>
                         {taxTables
                           .filter((row) => ["employee", "all"].includes(String(row.worker_type || "employee")))
@@ -739,7 +864,7 @@ function FinancePayrollWorkersPage() {
                               {row.name}
                             </option>
                           ))}
-                      </FormSelect>
+                      </TomSelect>
                     </div>
                     <div className="col-span-12 md:col-span-3">
                       <FormLabel>Pension Rate Override</FormLabel>
@@ -792,10 +917,10 @@ function FinancePayrollWorkersPage() {
           <Dialog.Footer className="flex flex-wrap items-center justify-between gap-3">
             <div className="text-xs text-slate-500">Allocation total: {allocationTotal}%</div>
             <div className="flex gap-2">
-              <Button variant="outline-secondary" onClick={() => setShowEditor(false)}>Cancel</Button>
-              <Button variant="outline-secondary" onClick={() => setEditorStep(workerSteps[Math.max(0, workerSteps.findIndex((step) => step.id === editorStep) - 1)].id)} disabled={editorStep === "identity"}>Previous</Button>
+              <Button variant="outline-secondary" onClick={() => setShowEditor(false)} disabled={saving}>Cancel</Button>
+              <Button variant="outline-secondary" onClick={() => setEditorStep(workerSteps[Math.max(0, workerSteps.findIndex((step) => step.id === editorStep) - 1)].id)} disabled={editorStep === "identity" || saving}>Previous</Button>
               {editorStep !== "compliance" ? (
-                <Button variant="primary" onClick={() => setEditorStep(workerSteps[Math.min(workerSteps.length - 1, workerSteps.findIndex((step) => step.id === editorStep) + 1)].id)}>Next</Button>
+                <Button variant="primary" onClick={() => setEditorStep(workerSteps[Math.min(workerSteps.length - 1, workerSteps.findIndex((step) => step.id === editorStep) + 1)].id)} disabled={saving}>Next</Button>
               ) : null}
               <Button variant="primary" onClick={() => void saveWorker()} disabled={saving}>{saving ? "Saving..." : "Save Worker"}</Button>
             </div>
