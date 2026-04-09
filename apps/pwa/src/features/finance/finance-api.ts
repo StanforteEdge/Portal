@@ -76,3 +76,29 @@ export async function listFinancePaymentVouchers(params?: Record<string, unknown
 export async function listRequestPaymentVouchers(requestId: string) {
   return httpRequest<FinancePaymentVoucherRecord[]>(`/finance/requests/${requestId}/payment-vouchers`);
 }
+
+export async function updateRequestPaymentVoucher(
+  requestId: string,
+  voucherId: string,
+  payload: {
+    note?: string;
+    correction_reason?: string;
+    method?: string;
+    transaction_ref?: string;
+    evidence_file_id?: string;
+    evidence_file_ids?: string[];
+    amount?: number;
+    paid_from_account_id?: string;
+    disbursed_at?: string;
+  }
+) {
+  return httpRequest<{
+    mode: "updated" | "pending_approval" | "approved" | "rejected";
+    voucher: FinancePaymentVoucherRecord | null;
+    correction_id?: string | null;
+    correction?: unknown;
+  }>(`/finance/requests/${requestId}/payment-vouchers/${voucherId}`, {
+    method: "POST",
+    body: payload,
+  });
+}

@@ -43,6 +43,8 @@ import { listFileAssets, uploadFileAsset } from "./files-api";
 import {
   listFinanceAccounts,
   listRequestPaymentVouchers,
+  type FinancePaymentVoucherRecord,
+  updateRequestPaymentVoucher,
 } from "../finance/finance-api";
 import {
   formatDisplayDate,
@@ -93,14 +95,19 @@ function buildWorkflow(
     retired_amount?: number;
     retirement_status?: string;
   }>,
+  options?: { showDraftStep?: boolean },
 ): WorkflowStep[] {
-  const status = String(request?.status || "").toLowerCase();
+  const rawStatus = String(request?.status || "").toLowerCase();
   const stateEvents = Array.isArray(request?.data?.state_events)
     ? request.data.state_events
     : [];
   const doneEntries = Array.isArray(request?.approvals?.done)
     ? request.approvals.done
     : [];
+  const status =
+    rawStatus === "draft" && (doneEntries.length > 0 || pendingSteps.length > 0)
+      ? "approval"
+      : rawStatus;
   const requestTypeSteps = Array.isArray(
     request?.request_type?.approval_flow_json?.steps,
   )
@@ -136,7 +143,9 @@ function buildWorkflow(
   const retireCurrent = status === "confirmed";
   const completeCurrent = status === "retired" || requestComplete;
 
+  const showDraftStep = options?.showDraftStep ?? true;
   const draftedStatus: WorkflowStepStatus =
+    showDraftStep &&
     (status === "draft" ||
       stateEvents.some(
         (event: Record<string, unknown>) =>
@@ -217,11 +226,15 @@ function buildWorkflow(
   ];
 
   const steps: WorkflowStep[] = [
-    {
-      label: "Drafted",
-      detail: "Request initialized and saved.",
-      status: draftedStatus,
-    },
+    ...(showDraftStep
+      ? [
+          {
+            label: "Drafted",
+            detail: "Request initialized and saved.",
+            status: draftedStatus,
+          } satisfies WorkflowStep,
+        ]
+      : []),
     ...approvalSteps,
     ...financeSteps,
   ];
@@ -244,6 +257,8 @@ export function RequestDetailsPage() {
   const [actionBusy, setActionBusy] = useState<string>("");
   const [showDisburseDialog, setShowDisburseDialog] = useState(false);
   const [showRetireDialog, setShowRetireDialog] = useState(false);
+  const [disburseMode, setDisburseMode] = useState<"create" | "edit">("create");
+  const [editingVoucherId, setEditingVoucherId] = useState<string>("");
   const [disburseForm, setDisburseForm] = useState({
     amount: "",
     method: "bank_transfer",
@@ -390,6 +405,7 @@ export function RequestDetailsPage() {
     request,
     pendingApprovals,
     paymentVouchers ?? [],
+    { showDraftStep: detailView === "mine" },
   );
   const parentPath =
     detailView === "approvals"
@@ -615,6 +631,33 @@ export function RequestDetailsPage() {
       .join("\n");
   }, [availableActions, detailView, pendingApprovals, request]);
 
+  function openVoucherEditor(voucher: FinancePaymentVoucherRecord) {
+    setDisburseMode("edit");
+    setEditingVoucherId(voucher.id);
+    setDisburseFiles(
+      voucher.evidence_files?.map((file) => ({
+        id: file.id,
+        file_name: file.file_name,
+      })) ?? [],
+    );
+    setDisburseForm((current) => ({
+      ...current,
+      amount: String(voucher.amount ?? ""),
+      method: voucher.method || current.method,
+      transaction_ref: voucher.transaction_ref || current.transaction_ref,
+      paid_from_account_id: voucher.paid_from_account?.id || current.paid_from_account_id,
+      note: voucher.note || current.note,
+    }));
+    setShowDisbursementMediaPicker(false);
+    setShowDisburseDialog(true);
+  }
+
+  function closeDisburseDialog() {
+    setShowDisburseDialog(false);
+    setDisburseMode("create");
+    setEditingVoucherId("");
+  }
+
   const summaryCards = useMemo(() => {
     if (!request) return [];
     if (family === "leave") {
@@ -679,7 +722,8 @@ export function RequestDetailsPage() {
       icon: string;
     };
 
-    const created: ActivityItem[] = request?.created_at
+    const created: ActivityItem[] =
+      detailView === "mine" && request?.created_at
       ? [
           {
             title: "Request created",
@@ -713,9 +757,13 @@ export function RequestDetailsPage() {
 
     const stateActivity: ActivityItem[] = stateEvents
       .filter((event: Record<string, unknown>) =>
-        ["disburse", "retire", "retire_partial", "confirm", "complete"].includes(
-          String(event.action || "").toLowerCase(),
-        ),
+        [
+          "disburse",
+          "retire",
+          "retire_partial",
+          "confirm",
+          "complete",
+        ].includes(String(event.action || "").toLowerCase()),
       )
       .map((event: Record<string, unknown>) => {
         const action = String(event.action || "").toLowerCase();
@@ -731,7 +779,8 @@ export function RequestDetailsPage() {
                   : "Retirement updated",
           description: String(event.comment || "Workflow state updated."),
           time: formatDisplayDate(String(event.at || "")),
-          tone: to === "disbursed" || to === "completed" ? "success" : "warning",
+          tone:
+            to === "disbursed" || to === "completed" ? "success" : "warning",
           icon:
             action === "disburse"
               ? "payments"
@@ -743,53 +792,65 @@ export function RequestDetailsPage() {
         };
       });
 
-    const voucherActivity: ActivityItem[] = (paymentVouchers ?? []).flatMap((voucher) => {
-      const items: ActivityItem[] = [
-        {
-          title: `${voucher.voucher_number} disbursed`,
-          description: [
-            formatCurrency(voucher.amount, request?.currency),
-            voucher.method ? `via ${formatRequestStatus(voucher.method)}` : null,
-            voucher.note || null,
-          ]
-            .filter(Boolean)
-            .join(" • "),
-          time: formatDisplayDate(voucher.disbursed_at),
-          tone: "success",
-          icon: "payments",
-        },
-      ];
-      if (voucher.retired_at) {
-        items.push({
-          title: `${voucher.voucher_number} retired`,
-          description:
-            voucher.retired_amount > 0
-              ? `Retired ${formatCurrency(voucher.retired_amount, request?.currency)}`
-              : "Retirement submitted.",
-          time: formatDisplayDate(voucher.retired_at),
-          tone: voucher.retirement_status === "verified" ? "success" : "warning",
-          icon:
-            voucher.retirement_status === "verified"
-              ? "verified"
-              : "receipt_long",
-        });
-      }
-      if (voucher.verified_at) {
-        items.push({
-          title: `${voucher.voucher_number} verified`,
-          description:
-            "Finance verified the retirement and closed the voucher.",
-          time: formatDisplayDate(voucher.verified_at),
-          tone: "success",
-          icon: "task_alt",
-        });
-      }
-      return items;
-    });
+    const voucherActivity: ActivityItem[] = (paymentVouchers ?? []).flatMap(
+      (voucher) => {
+        const items: ActivityItem[] = [
+          {
+            title: `${voucher.voucher_number} disbursed`,
+            description: [
+              formatCurrency(voucher.amount, request?.currency),
+              voucher.method
+                ? `via ${formatRequestStatus(voucher.method)}`
+                : null,
+              voucher.note || null,
+            ]
+              .filter(Boolean)
+              .join(" • "),
+            time: formatDisplayDate(voucher.disbursed_at),
+            tone: "success",
+            icon: "payments",
+          },
+        ];
+        if (voucher.retired_at) {
+          items.push({
+            title: `${voucher.voucher_number} retired`,
+            description:
+              voucher.retired_amount > 0
+                ? `Retired ${formatCurrency(voucher.retired_amount, request?.currency)}`
+                : "Retirement submitted.",
+            time: formatDisplayDate(voucher.retired_at),
+            tone:
+              voucher.retirement_status === "verified" ? "success" : "warning",
+            icon:
+              voucher.retirement_status === "verified"
+                ? "verified"
+                : "receipt_long",
+          });
+        }
+        if (voucher.verified_at) {
+          items.push({
+            title: `${voucher.voucher_number} verified`,
+            description:
+              "Finance verified the retirement and closed the voucher.",
+            time: formatDisplayDate(voucher.verified_at),
+            tone: "success",
+            icon: "task_alt",
+          });
+        }
+        return items;
+      },
+    );
 
-    return [...created, ...done, ...pending, ...stateActivity, ...voucherActivity];
+    return [
+      ...created,
+      ...done,
+      ...pending,
+      ...stateActivity,
+      ...voucherActivity,
+    ];
   }, [
     completedApprovals,
+    detailView,
     pendingApprovals,
     paymentVouchers,
     request?.created_at,
@@ -817,7 +878,7 @@ export function RequestDetailsPage() {
       } else if (action === "reject") {
         await rejectRequest(id, actionComment.trim() || undefined);
       } else if (action === "disburse") {
-        await disburseRequest(id, {
+        const disbursePayload = {
           amount: Number(disburseForm.amount || request?.total_amount || 0),
           method: disburseForm.method || undefined,
           transaction_ref: disburseForm.transaction_ref.trim() || undefined,
@@ -825,7 +886,12 @@ export function RequestDetailsPage() {
           note: disburseForm.note.trim() || undefined,
           evidence_file_id: disburseFiles[0]?.id,
           evidence_file_ids: disburseFiles.map((file) => file.id),
-        });
+        };
+        if (disburseMode === "edit" && editingVoucherId) {
+          await updateRequestPaymentVoucher(id, editingVoucherId, disbursePayload);
+        } else {
+          await disburseRequest(id, disbursePayload);
+        }
       } else if (action === "confirm") {
         await confirmRequest(id);
       } else if (action === "retire") {
@@ -845,6 +911,8 @@ export function RequestDetailsPage() {
       setActionComment("");
       setShowDisburseDialog(false);
       setShowRetireDialog(false);
+      setDisburseMode("create");
+      setEditingVoucherId("");
       setDisburseForm({
         amount: "",
         method: "bank_transfer",
@@ -874,7 +942,9 @@ export function RequestDetailsPage() {
               : action === "reject"
                 ? "Your rejection has been recorded."
                 : action === "disburse"
-                  ? "The request has been marked as disbursed."
+                  ? disburseMode === "edit"
+                    ? "The payment voucher has been updated."
+                    : "The request has been marked as disbursed."
                   : action === "confirm"
                     ? "Receipt confirmation has been recorded."
                     : action === "retire"
@@ -1139,7 +1209,7 @@ export function RequestDetailsPage() {
                                     ) : null}
                                   </div>
                                   <p className="mt-1 text-xs leading-5 text-slate-500">
-                                    {item.notes || "-"}
+                                    {item.notes || ""}
                                   </p>
                                 </div>
                               </td>
@@ -1200,28 +1270,7 @@ export function RequestDetailsPage() {
                                 <button
                                   type="button"
                                   className="text-left text-sm font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                                  onClick={() => {
-                                    setDisburseFiles(
-                                      voucher.evidence_files?.map((file) => ({
-                                        id: file.id,
-                                        file_name: file.file_name,
-                                      })) ?? [],
-                                    );
-                                    setDisburseForm((current) => ({
-                                      ...current,
-                                      amount: String(voucher.amount ?? ""),
-                                      method: voucher.method || current.method,
-                                      transaction_ref:
-                                        voucher.transaction_ref ||
-                                        current.transaction_ref,
-                                      paid_from_account_id:
-                                        voucher.paid_from_account?.id ||
-                                        current.paid_from_account_id,
-                                      note: voucher.note || current.note,
-                                    }));
-                                    setShowDisbursementMediaPicker(false);
-                                    setShowDisburseDialog(true);
-                                  }}
+                                  onClick={() => openVoucherEditor(voucher)}
                                 >
                                   {voucher.voucher_number}
                                 </button>
@@ -1266,28 +1315,7 @@ export function RequestDetailsPage() {
                                 <Button
                                   size="sm"
                                   variant="secondary"
-                                  onClick={() => {
-                                    setDisburseFiles(
-                                      voucher.evidence_files?.map((file) => ({
-                                        id: file.id,
-                                        file_name: file.file_name,
-                                      })) ?? [],
-                                    );
-                                    setDisburseForm((current) => ({
-                                      ...current,
-                                      amount: String(voucher.amount ?? ""),
-                                      method: voucher.method || current.method,
-                                      transaction_ref:
-                                        voucher.transaction_ref ||
-                                        current.transaction_ref,
-                                      paid_from_account_id:
-                                        voucher.paid_from_account?.id ||
-                                        current.paid_from_account_id,
-                                      note: voucher.note || current.note,
-                                    }));
-                                    setShowDisbursementMediaPicker(false);
-                                    setShowDisburseDialog(true);
-                                  }}
+                                  onClick={() => openVoucherEditor(voucher)}
                                 >
                                   View / Edit
                                 </Button>
@@ -1451,7 +1479,7 @@ export function RequestDetailsPage() {
                             : "Approving..."
                           : financeActionsVisible
                             ? "Clear Request"
-                            : "Approve Request"}
+                            : "Approve "}
                       </Button>
                       <Button
                         variant="danger"
@@ -1459,9 +1487,7 @@ export function RequestDetailsPage() {
                         onClick={() => void handleWorkflowAction("reject")}
                         disabled={actionBusy !== ""}
                       >
-                        {actionBusy === "reject"
-                          ? "Rejecting..."
-                          : "Reject Request"}
+                        {actionBusy === "reject" ? "Rejecting..." : "Reject "}
                       </Button>
                     </div>
                   </div>
@@ -1818,7 +1844,7 @@ export function RequestDetailsPage() {
             type="button"
             aria-label="Close disbursement dialog"
             className="absolute inset-0"
-            onClick={() => setShowDisburseDialog(false)}
+            onClick={() => closeDisburseDialog()}
           />
           <section
             role="dialog"
@@ -1836,16 +1862,17 @@ export function RequestDetailsPage() {
                     id="disburse-request-title"
                     className="mt-2 text-2xl font-semibold tracking-tight text-slate-950"
                   >
-                    Disburse Request
+                    {disburseMode === "edit" ? "Edit Payment Voucher" : "Disburse Request"}
                   </h2>
                   <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Capture the disbursement record, finance account,
-                    transaction reference, and supporting evidence.
+                    {disburseMode === "edit"
+                      ? "Update the existing payment voucher without creating a new disbursement."
+                      : "Capture the disbursement record, finance account, transaction reference, and supporting evidence."}
                   </p>
                 </div>
                 <button
                   type="button"
-                  onClick={() => setShowDisburseDialog(false)}
+                  onClick={() => closeDisburseDialog()}
                   className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
                 >
                   <Icon name="close" />
@@ -1987,7 +2014,7 @@ export function RequestDetailsPage() {
               <div className="flex flex-wrap justify-end gap-3">
                 <Button
                   variant="secondary"
-                  onClick={() => setShowDisburseDialog(false)}
+                  onClick={() => closeDisburseDialog()}
                   disabled={actionBusy !== ""}
                 >
                   Cancel
@@ -1997,9 +2024,11 @@ export function RequestDetailsPage() {
                   disabled={actionBusy !== ""}
                 >
                   {actionBusy === "disburse"
-                    ? "Disbursing..."
-                    : remainingDisbursement > 0
-                      ? "Confirm Disbursement"
+                    ? disburseMode === "edit"
+                      ? "Saving..."
+                      : "Disbursing..."
+                    : disburseMode === "edit"
+                      ? "Save Changes"
                       : "Confirm Disbursement"}
                 </Button>
               </div>
