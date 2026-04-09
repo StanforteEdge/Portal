@@ -145,6 +145,12 @@ model Profile {
   employeeMeta                   EmployeeMeta[]
   attendanceEntries              AttendanceEntry[]
   attendanceDaily                AttendanceDaily[]
+  attendanceSubjectCorrections   AttendanceCorrection[] @relation("AttendanceCorrectionUser")
+  attendanceCorrections          AttendanceCorrection[] @relation("AttendanceCorrectionRequestedBy")
+  attendanceCorrectionReviews    AttendanceCorrection[] @relation("AttendanceCorrectionReviewedBy")
+  attendanceSubjectExceptions    AttendanceException[]  @relation("AttendanceExceptionUser")
+  attendanceExceptions           AttendanceException[]  @relation("AttendanceExceptionCreatedBy")
+  attendanceExceptionReviews     AttendanceException[]  @relation("AttendanceExceptionReviewedBy")
   leaveBalanceLedger             LeaveBalanceLedger[]
   acknowledgements               Acknowledgement[]
   documentAcknowledgements       DocumentAcknowledgement[]
@@ -253,6 +259,11 @@ model AttendanceEntry {
   entryType String   @map("entry_type") @db.VarChar(30)
   entryAt   DateTime @map("entry_at")
   workDate  DateTime @map("work_date") @db.Date
+  attendanceMode String? @map("attendance_mode") @db.VarChar(30)
+  officeLocationId BigInt? @map("office_location_id")
+  latitude  Decimal? @db.Decimal(10, 7)
+  longitude Decimal? @db.Decimal(10, 7)
+  geofenceStatus String? @map("geofence_status") @db.VarChar(30)
   source    String   @default("web") @db.VarChar(30)
   metadata  Json?
   createdBy BigInt?  @map("created_by")
@@ -260,6 +271,9 @@ model AttendanceEntry {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+  corrections AttendanceCorrection[]
+  exceptions AttendanceException[]
 
   @@index([userId, workDate])
   @@index([entryType, entryAt])
@@ -271,6 +285,11 @@ model AttendanceDaily {
   userId           BigInt    @map("user_id")
   workDate         DateTime  @map("work_date") @db.Date
   status           String    @default("absent") @db.VarChar(20)
+  attendanceMode   String?   @map("attendance_mode") @db.VarChar(30)
+  expectedMode     String?   @map("expected_mode") @db.VarChar(30)
+  reconciliationStatus String? @map("reconciliation_status") @db.VarChar(30)
+  officeLocationId BigInt?   @map("office_location_id")
+  geofenceStatus   String?   @map("geofence_status") @db.VarChar(30)
   scheduledMinutes Int       @default(0) @map("scheduled_minutes")
   workedMinutes    Int       @default(0) @map("worked_minutes")
   lateMinutes      Int       @default(0) @map("late_minutes")
@@ -283,10 +302,141 @@ model AttendanceDaily {
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
   user Profile @relation(fields: [userId], references: [id], onDelete: Cascade)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+  corrections AttendanceCorrection[]
+  exceptions AttendanceException[]
 
   @@unique([userId, workDate], name: "unique_attendance_daily")
   @@index([status])
   @@map("sta_attendance_daily")
+}
+
+model OfficeLocation {
+  id            BigInt    @id @default(autoincrement())
+  name          String    @db.VarChar(255)
+  address       String?   @db.VarChar(255)
+  latitude      Decimal   @db.Decimal(10, 7)
+  longitude     Decimal   @db.Decimal(10, 7)
+  radiusMeters  Int       @default(150) @map("radius_meters")
+  isActive      Boolean   @default(true) @map("is_active")
+  metadata      Json?
+  createdBy     BigInt?   @map("created_by")
+  updatedBy     BigInt?   @map("updated_by")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  organizations   OrganizationOfficeLocation[]
+  attendanceEntries AttendanceEntry[]
+  attendanceDaily   AttendanceDaily[]
+  attendanceCorrections AttendanceCorrection[]
+  proposedAttendanceCorrections AttendanceCorrection[] @relation("AttendanceCorrectionProposedOfficeLocation")
+  attendanceExceptions AttendanceException[]
+  attendanceHolidays   AttendanceHoliday[]
+
+  @@map("sta_office_locations")
+}
+
+model OrganizationOfficeLocation {
+  id               BigInt   @id @default(autoincrement())
+  organizationId   BigInt   @map("organization_id")
+  officeLocationId BigInt   @map("office_location_id")
+  isPrimary        Boolean  @default(false) @map("is_primary")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  officeLocation OfficeLocation @relation(fields: [officeLocationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, officeLocationId], name: "unique_org_office_location")
+  @@index([officeLocationId])
+  @@map("sta_organization_office_locations")
+}
+
+model AttendanceHoliday {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   BigInt?   @map("organization_id")
+  officeLocationId BigInt?   @map("office_location_id")
+  holidayDate      DateTime  @map("holiday_date") @db.Date
+  name             String    @db.VarChar(255)
+  isRecurring      Boolean   @default(false) @map("is_recurring")
+  isActive         Boolean   @default(true) @map("is_active")
+  createdBy        BigInt?   @map("created_by")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  organization  Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, holidayDate])
+  @@index([officeLocationId, holidayDate])
+  @@map("sta_attendance_holidays")
+}
+
+model AttendanceCorrection {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           BigInt    @map("user_id")
+  attendanceDailyId String?  @map("attendance_daily_id") @db.Uuid
+  attendanceEntryId String?  @map("attendance_entry_id") @db.Uuid
+  officeLocationId BigInt?   @map("office_location_id")
+  requestType      String    @map("request_type") @db.VarChar(40)
+  status           String    @default("pending") @db.VarChar(20)
+  requestedAt      DateTime  @default(now()) @map("requested_at")
+  requestedBy      BigInt    @map("requested_by")
+  reviewedAt       DateTime? @map("reviewed_at")
+  reviewedBy       BigInt?   @map("reviewed_by")
+  reason           String
+  workDate         DateTime  @map("work_date") @db.Date
+  proposedAt       DateTime? @map("proposed_at")
+  proposedMode     String?   @map("proposed_mode") @db.VarChar(30)
+  proposedOfficeLocationId BigInt? @map("proposed_office_location_id")
+  proposedLatitude Decimal?  @map("proposed_latitude") @db.Decimal(10, 7)
+  proposedLongitude Decimal? @map("proposed_longitude") @db.Decimal(10, 7)
+  reviewNotes      String?   @map("review_notes")
+  snapshotJson     Json?     @map("snapshot_json")
+  metadata         Json?
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user          Profile         @relation("AttendanceCorrectionUser", fields: [userId], references: [id], onDelete: Cascade)
+  requester     Profile         @relation("AttendanceCorrectionRequestedBy", fields: [requestedBy], references: [id], onDelete: Cascade)
+  reviewer      Profile?        @relation("AttendanceCorrectionReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  attendanceDaily AttendanceDaily? @relation(fields: [attendanceDailyId], references: [id], onDelete: SetNull)
+  attendanceEntry AttendanceEntry? @relation(fields: [attendanceEntryId], references: [id], onDelete: SetNull)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+  proposedOfficeLocation OfficeLocation? @relation("AttendanceCorrectionProposedOfficeLocation", fields: [proposedOfficeLocationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, workDate])
+  @@index([status, requestedAt])
+  @@map("sta_attendance_corrections")
+}
+
+model AttendanceException {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           BigInt    @map("user_id")
+  attendanceDailyId String?  @map("attendance_daily_id") @db.Uuid
+  attendanceEntryId String?  @map("attendance_entry_id") @db.Uuid
+  officeLocationId BigInt?   @map("office_location_id")
+  exceptionType    String    @map("exception_type") @db.VarChar(40)
+  status           String    @default("active") @db.VarChar(20)
+  workDate         DateTime  @map("work_date") @db.Date
+  attendanceMode   String?   @map("attendance_mode") @db.VarChar(30)
+  reason           String
+  notes            String?
+  createdBy        BigInt    @map("created_by")
+  reviewedBy       BigInt?   @map("reviewed_by")
+  reviewedAt       DateTime? @map("reviewed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  user           Profile         @relation("AttendanceExceptionUser", fields: [userId], references: [id], onDelete: Cascade)
+  creator        Profile         @relation("AttendanceExceptionCreatedBy", fields: [createdBy], references: [id], onDelete: Cascade)
+  reviewer       Profile?        @relation("AttendanceExceptionReviewedBy", fields: [reviewedBy], references: [id], onDelete: SetNull)
+  attendanceDaily AttendanceDaily? @relation(fields: [attendanceDailyId], references: [id], onDelete: SetNull)
+  attendanceEntry AttendanceEntry? @relation(fields: [attendanceEntryId], references: [id], onDelete: SetNull)
+  officeLocation OfficeLocation? @relation(fields: [officeLocationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, workDate])
+  @@index([status, exceptionType])
+  @@map("sta_attendance_exceptions")
 }
 
 model LeaveBalanceLedger {
@@ -347,6 +497,10 @@ model Organization {
   profiles             ProfileOrganization[]
   userRoles            UserRole[]
   groups               Group[]
+  groupMappings        GroupOrganization[] @relation("GroupOrganizationOrganization")
+  groupMemberScopes    GroupUserOrganizationScope[]
+  officeLocations      OrganizationOfficeLocation[]
+  attendanceHolidays   AttendanceHoliday[]
   requests             RequestInstance[]
   requestGroups        RequestGroup[]
   fileAssets           FileAsset[]
@@ -539,6 +693,7 @@ model Group {
   children Group[] @relation("GroupParent")
 
   organization Organization? @relation(fields: [organizationId], references: [id])
+  organizationMappings GroupOrganization[] @relation("GroupOrganizationGroup")
 
   members              GroupUser[]
   employeeProfiles     EmployeeProfile[]
@@ -568,9 +723,40 @@ model GroupUser {
 
   group Group   @relation(fields: [groupId], references: [id])
   user  Profile @relation(fields: [userId], references: [id])
+  organizationScopes GroupUserOrganizationScope[]
 
   @@unique([groupId, userId], name: "unique_group_user")
   @@map("sta_group_users")
+}
+
+model GroupOrganization {
+  id             BigInt   @id @default(autoincrement())
+  groupId        BigInt   @map("group_id")
+  organizationId BigInt   @map("organization_id")
+  isPrimary      Boolean  @default(false) @map("is_primary")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  group        Group        @relation("GroupOrganizationGroup", fields: [groupId], references: [id], onDelete: Cascade)
+  organization Organization @relation("GroupOrganizationOrganization", fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, organizationId], name: "unique_group_organization")
+  @@index([organizationId])
+  @@map("sta_group_organizations")
+}
+
+model GroupUserOrganizationScope {
+  id             BigInt   @id @default(autoincrement())
+  groupUserId    BigInt   @map("group_user_id")
+  organizationId BigInt   @map("organization_id")
+  scopeRole      String?  @map("scope_role") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  groupUser     GroupUser     @relation(fields: [groupUserId], references: [id], onDelete: Cascade)
+  organization  Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([groupUserId, organizationId], name: "unique_group_user_organization_scope")
+  @@index([organizationId])
+  @@map("sta_group_user_organization_scopes")
 }
 
 model RequestGroup {

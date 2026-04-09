@@ -166,6 +166,11 @@ export type AttendanceEntry = {
   entry_type: "clock_in" | "clock_out" | string;
   entry_at: string;
   work_date: string;
+  attendance_mode?: string | null;
+  office_location_id?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  geofence_status?: string | null;
   source: string;
   metadata?: Record<string, unknown> | null;
   created_at: string;
@@ -176,6 +181,11 @@ export type AttendanceDaily = {
   user_id: string;
   work_date: string;
   status: string;
+  attendance_mode?: string | null;
+  expected_mode?: string | null;
+  reconciliation_status?: string | null;
+  office_location_id?: string | null;
+  geofence_status?: string | null;
   scheduled_minutes: number;
   worked_minutes: number;
   late_minutes: number;
@@ -185,12 +195,70 @@ export type AttendanceDaily = {
   computed_at: string;
 };
 
-export async function clockIn(payload?: { source?: string; at?: string }) {
+export type OfficeLocation = {
+  id: string;
+  name: string;
+  address: string | null;
+  latitude: number;
+  longitude: number;
+  radius_meters: number;
+  is_active: boolean;
+  organizations: Array<{ id: string; name: string; code: string | null; is_primary?: boolean }>;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AttendanceCorrection = {
+  id: string;
+  user_id: string | null;
+  request_type: string;
+  status: string;
+  work_date: string;
+  reason: string;
+  proposed_at: string | null;
+  proposed_mode: string | null;
+  proposed_office_location_id: string | null;
+  proposed_latitude: number | null;
+  proposed_longitude: number | null;
+  requested_at: string;
+  reviewed_at: string | null;
+  review_notes: string | null;
+  snapshot_json?: Record<string, unknown> | null;
+};
+
+export type AttendanceException = {
+  id: string;
+  user_id: string | null;
+  exception_type: string;
+  status: string;
+  work_date: string;
+  attendance_mode: string | null;
+  reason: string;
+  notes: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+};
+
+export async function clockIn(payload?: {
+  source?: string;
+  at?: string;
+  attendance_mode?: string;
+  office_location_id?: string;
+  latitude?: number;
+  longitude?: number;
+}) {
   const response = await apiClient.post("/hr/attendance/clock-in", payload ?? {});
   return response.data.data as { success: boolean; daily: AttendanceDaily };
 }
 
-export async function clockOut(payload?: { source?: string; at?: string }) {
+export async function clockOut(payload?: {
+  source?: string;
+  at?: string;
+  attendance_mode?: string;
+  office_location_id?: string;
+  latitude?: number;
+  longitude?: number;
+}) {
   const response = await apiClient.post("/hr/attendance/clock-out", payload ?? {});
   return response.data.data as { success: boolean; daily: AttendanceDaily };
 }
@@ -208,7 +276,17 @@ export async function getMyAttendance(params?: { from?: string; to?: string }) {
       reason?: string | null;
     };
     today?: AttendanceDaily | null;
-    policy?: { start_time: string; end_time: string; grace_minutes: number };
+    policy?: {
+      start_time: string;
+      end_time: string;
+      grace_minutes: number;
+      onsite_weekdays?: number[];
+      remote_weekdays?: number[];
+      required_extra_onsite_day_count?: number;
+    };
+    corrections?: AttendanceCorrection[];
+    exceptions?: AttendanceException[];
+    office_locations?: OfficeLocation[];
   };
 }
 
@@ -219,6 +297,109 @@ export async function getAttendanceSummary(params?: { from?: string; to?: string
     to: string;
     by_status: Record<string, number>;
   };
+}
+
+export async function listAttendanceOfficeLocations(params?: {
+  organization_id?: string;
+  is_active?: boolean;
+  search?: string;
+}) {
+  const response = await apiClient.get("/hr/attendance/office-locations", { params });
+  return response.data.data as { data: OfficeLocation[] };
+}
+
+export async function createAttendanceOfficeLocation(payload: {
+  name: string;
+  address?: string;
+  latitude: number;
+  longitude: number;
+  radius_meters?: number;
+  is_active?: boolean;
+  organization_ids?: string[];
+  primary_organization_id?: string;
+}) {
+  const response = await apiClient.post("/hr/attendance/office-locations", payload);
+  return response.data.data as { success: boolean; data: OfficeLocation };
+}
+
+export async function updateAttendanceOfficeLocation(
+  id: string,
+  payload: {
+    name: string;
+    address?: string;
+    latitude: number;
+    longitude: number;
+    radius_meters?: number;
+    is_active?: boolean;
+    organization_ids?: string[];
+    primary_organization_id?: string;
+  }
+) {
+  const response = await apiClient.post(`/hr/attendance/office-locations/${id}`, payload);
+  return response.data.data as { success: boolean; data: OfficeLocation };
+}
+
+export async function listAttendanceCorrections(params?: {
+  status?: string;
+  user_id?: string;
+  from?: string;
+  to?: string;
+  mine?: boolean;
+}) {
+  const response = await apiClient.get("/hr/attendance/corrections", { params });
+  return response.data.data as { data: AttendanceCorrection[] };
+}
+
+export async function createAttendanceCorrection(payload: {
+  work_date: string;
+  request_type: string;
+  reason: string;
+  proposed_at?: string;
+  proposed_mode?: string;
+  proposed_office_location_id?: string;
+  proposed_latitude?: number;
+  proposed_longitude?: number;
+}) {
+  const response = await apiClient.post("/hr/attendance/corrections", payload);
+  return response.data.data as { success: boolean; data: AttendanceCorrection };
+}
+
+export async function approveAttendanceCorrection(id: string, payload?: { review_notes?: string }) {
+  const response = await apiClient.post(`/hr/attendance/corrections/${id}/approve`, payload ?? {});
+  return response.data.data as { success: boolean; daily?: AttendanceDaily };
+}
+
+export async function rejectAttendanceCorrection(id: string, payload?: { review_notes?: string }) {
+  const response = await apiClient.post(`/hr/attendance/corrections/${id}/reject`, payload ?? {});
+  return response.data.data as { success: boolean };
+}
+
+export async function listAttendanceExceptions(params?: {
+  status?: string;
+  user_id?: string;
+  from?: string;
+  to?: string;
+}) {
+  const response = await apiClient.get("/hr/attendance/exceptions", { params });
+  return response.data.data as { data: AttendanceException[] };
+}
+
+export async function createAttendanceException(payload: {
+  user_id: string;
+  work_date: string;
+  exception_type: string;
+  reason: string;
+  notes?: string;
+  attendance_mode?: string;
+  office_location_id?: string;
+}) {
+  const response = await apiClient.post("/hr/attendance/exceptions", payload);
+  return response.data.data as { success: boolean; data: AttendanceException };
+}
+
+export async function resolveAttendanceException(id: string, payload?: { review_notes?: string }) {
+  const response = await apiClient.post(`/hr/attendance/exceptions/${id}/resolve`, payload ?? {});
+  return response.data.data as { success: boolean };
 }
 
 export async function getAttendanceRecords(params?: {

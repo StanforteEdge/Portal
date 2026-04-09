@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import Button from "@/components/Base/Button";
 import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import { Dialog, Tab } from "@/components/Base/Headless";
@@ -540,7 +541,7 @@ function AdminSettingsPage() {
                 </Tab>
                 <Tab>
                   <Tab.Button className="w-full py-2" as="button">
-                    Groups (Teams/Departments)
+                    Groups
                   </Tab.Button>
                 </Tab>
                 <Tab>
@@ -741,6 +742,15 @@ function AdminSettingsPage() {
                 </Tab.Panel>
 
                 <Tab.Panel className="p-5 space-y-4">
+                  <AppNotice
+                    tone="info"
+                    message="Group management now has a dedicated workspace. Use it for shared teams, multi-organization coverage, and member responsibility assignments."
+                  />
+                  <div className="flex justify-end">
+                    <Button as={Link as any} to="/app/admin/groups" variant="outline-primary">
+                      Open Groups Workspace
+                    </Button>
+                  </div>
                   <div className="flex justify-end">
                     <Button
                       variant="primary"

@@ -171,6 +171,9 @@ const AdminFilesPage = lazy(() => import("../pages/admin/files/AdminFiles"));
 const AdminProjectsPage = lazy(
   () => import("../pages/admin/projects/AdminProjects")
 );
+const AdminGroupsPage = lazy(
+  () => import("../pages/admin/groups/AdminGroups")
+);
 const AdminDocumentsPage = lazy(
   () => import("../pages/admin/documents/AdminDocuments")
 );
@@ -963,6 +966,16 @@ function Router() {
             <ModuleRoute moduleKey="admin">
               <PermissionRoute requiredPermissions={["settings.manage"]}>
                 {page(<AdminFilesPage />)}
+              </PermissionRoute>
+            </ModuleRoute>
+          ),
+        },
+        {
+          path: "admin/groups",
+          element: (
+            <ModuleRoute moduleKey="admin">
+              <PermissionRoute requiredPermissions={["groups.manage"]}>
+                {page(<AdminGroupsPage />)}
               </PermissionRoute>
             </ModuleRoute>
           ),

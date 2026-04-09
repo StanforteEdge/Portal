@@ -445,6 +445,12 @@ const menu: Array<Menu | "divider"> = [
         permissions: ["roles.manage"],
       },
       {
+        icon: "Users",
+        pathname: "/app/admin/groups",
+        title: "Groups",
+        permissions: ["groups.manage"],
+      },
+      {
         icon: "Folder",
         pathname: "/app/admin/files",
         title: "Media",

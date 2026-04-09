@@ -38,12 +38,19 @@ async function bootstrap() {
     expressApp.set('trust proxy', trustProxyRaw);
   }
 
-  const corsOrigins = (process.env.CORS_ORIGINS || '')
+  const corsOriginsFromEnv = (process.env.CORS_ORIGINS || '')
     .split(',')
     .map((item) => item.trim())
     .filter(Boolean);
+  const localDevCorsOrigins = [
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    'http://localhost:5173',
+    'http://127.0.0.1:5173'
+  ];
+  const corsOrigins = Array.from(new Set([...corsOriginsFromEnv, ...localDevCorsOrigins]));
   app.enableCors({
-    origin: corsOrigins.length > 0 ? corsOrigins : ['http://localhost:3000', 'http://localhost:5173'],
+    origin: corsOrigins,
     credentials: true
   });
 
