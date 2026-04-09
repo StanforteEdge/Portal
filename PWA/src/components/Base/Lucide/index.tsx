@@ -1,8 +1,10 @@
 import {
+  Activity,
   BadgeCheck,
   BarChart2,
   Bell,
   BookOpen,
+  CalendarDays,
   CheckCheck,
   CheckCircle2,
   ChevronDown,
@@ -10,6 +12,7 @@ import {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Circle,
   CircleDollarSign,
   Clipboard,
   ClipboardList,
@@ -57,10 +60,12 @@ import {
 import { twMerge } from "tailwind-merge";
 
 export const icons = {
+  Activity,
   BadgeCheck,
   BarChart2,
   Bell,
   BookOpen,
+  CalendarDays,
   CheckCheck,
   CheckCircle2,
   ChevronDown,
@@ -68,6 +73,7 @@ export const icons = {
   ChevronRight,
   ChevronsLeft,
   ChevronsRight,
+  Circle,
   CircleDollarSign,
   Clipboard,
   ClipboardList,

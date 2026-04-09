@@ -17,5 +17,9 @@
     "build:pwa2": "npm run build -w apps/pwa",
     "build:api": "npm run build -w api",
     "deploy:server": "npm run deploy:server -w api"
+  },
+  "overrides": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
   }
 }
