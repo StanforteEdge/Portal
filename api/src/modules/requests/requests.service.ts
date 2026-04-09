@@ -29,6 +29,7 @@ import { MailService } from '../../common/mail/mail.service';
 const MANUAL_REQUEST_ID_MIN = BigInt(1);
 const MANUAL_REQUEST_ID_MAX = BigInt(3000);
 const STAFF_REQUEST_ID_MIN = BigInt(3001);
+const STAFF_REQUEST_SEQUENCE_START = BigInt(3050);
 
 @Injectable()
 export class RequestsService {
@@ -336,6 +337,8 @@ export class RequestsService {
     }
 
     const created = await this.prisma.$transaction(async (tx) => {
+      await this.ensureStaffRequestSequenceFloor(tx);
+
       const computedTotal = dto.items && dto.items.length
         ? dto.items.reduce((sum, item) => sum + (item.amount * (item.quantity ?? 1)), 0)
         : dto.total_amount;
@@ -553,9 +556,7 @@ export class RequestsService {
       }
 
       if (explicitRequestId) {
-        await tx.$executeRawUnsafe(
-          "SELECT setval(pg_get_serial_sequence('sta_request_instances','id'), (SELECT COALESCE(MAX(id), 1) FROM sta_request_instances), true)"
-        );
+        await this.ensureStaffRequestSequenceFloor(tx);
       }
 
       return request;
@@ -753,9 +754,7 @@ export class RequestsService {
 
       if (isRequestIdChanged) {
         await tx.requestInstance.delete({ where: { id: existing.id } });
-        await tx.$executeRawUnsafe(
-          "SELECT setval(pg_get_serial_sequence('sta_request_instances','id'), (SELECT COALESCE(MAX(id), 1) FROM sta_request_instances), true)"
-        );
+        await this.ensureStaffRequestSequenceFloor(tx);
       }
     });
 
@@ -4075,5 +4074,12 @@ export class RequestsService {
         data: (data ?? {}) as Prisma.InputJsonValue
       }
     });
+  }
+
+  private async ensureStaffRequestSequenceFloor(db: Prisma.TransactionClient | PrismaService) {
+    const floor = (STAFF_REQUEST_SEQUENCE_START - BigInt(1)).toString();
+    await db.$executeRawUnsafe(
+      `SELECT setval(pg_get_serial_sequence('sta_request_instances','id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM sta_request_instances), ${floor}), true)`
+    );
   }
 }
