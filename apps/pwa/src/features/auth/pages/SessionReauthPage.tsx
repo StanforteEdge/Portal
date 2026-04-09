@@ -64,7 +64,7 @@ export default function SessionReauthPage() {
             </div>
           </label>
 
-          <Button className="w-full justify-center" disabled={loading}>
+          <Button type="submit" className="w-full justify-center" disabled={loading}>
             {loading ? "Checking..." : "Unlock Session"}
             {!loading ? <Icon name="arrow_forward" className="ml-2 text-[18px]" /> : null}
           </Button>

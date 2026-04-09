@@ -7,6 +7,7 @@ import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import Pagination from "@/components/Base/Pagination";
 import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import NewPortalNotice from "@/components/NewPortalNotice";
 import { listRequests, type RequestRecord } from "@/services/requests";
 import { listProjects } from "@/services/projects";
 import { listMyOrganizations } from "@/services/organizations";
@@ -221,6 +222,10 @@ function RequestsPage() {
             {kind === "leave" ? "Create Leave Request" : "Create Request"}
           </Button>
         </Link>
+      </div>
+
+      <div className="mt-5 intro-y">
+        <NewPortalNotice />
       </div>
 
       <div className="grid grid-cols-12 gap-6 mt-5">

@@ -45,8 +45,8 @@ export default function SettingsPage() {
       title="Settings"
       description="Manage security, notifications, and workspace defaults in one place."
     >
-      <div className="grid gap-6 xl:grid-cols-12">
-        <div className="space-y-6 xl:col-span-8">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-8">
           <SectionCard title="Notification Preferences" description="This reflects the same preference categories we’ll later bind to persistent settings.">
             <div className="grid gap-3">
               {[
@@ -99,7 +99,7 @@ export default function SettingsPage() {
           </SectionCard>
         </div>
 
-        <div className="space-y-6 xl:col-span-4">
+        <div className="space-y-6 lg:col-span-4">
           <StatCard label="Security" value="Active" tone="success" hint="Password change is now wired to the API." />
           <StatCard label="Notifications" value="Configured" tone="neutral" hint="Preference groups mirror the existing workspace behavior." />
         </div>

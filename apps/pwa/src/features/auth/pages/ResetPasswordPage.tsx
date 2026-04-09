@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button, Icon } from "@stanforte/shared";
 import { authApi } from "@/lib/core";
+import brandLogo from "../../../../../shared/assets/brand/stanforte-logo.png";
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams();
@@ -23,7 +24,7 @@ export default function ResetPasswordPage() {
 
       <section className="grid w-full max-w-5xl overflow-hidden rounded-3xl border border-white/70 bg-white/90 shadow-card backdrop-blur-xl lg:grid-cols-[1fr_1.2fr]">
         <aside className="hidden bg-primary-container p-8 text-white lg:block">
-          <img src="/stanforte-logo.png" alt="Stanforte Edge" className="h-10 w-auto rounded-md bg-white/90 p-1" />
+          <img src={brandLogo} alt="Stanforte Edge" className="h-11 w-auto object-contain" />
           <h2 className="mt-8 font-headline text-2xl font-bold leading-tight">Security Protocol</h2>
           <p className="mt-2 text-sm leading-6 text-white/90">
             Please ensure your new password meets the security requirements for professional access.
@@ -121,7 +122,7 @@ export default function ResetPasswordPage() {
               />
             </label>
 
-            <Button className="w-full justify-center py-4 text-base" disabled={loading}>
+            <Button type="submit" className="w-full justify-center py-4 text-base" disabled={loading}>
               {loading ? "Saving..." : "Save New Password"}
               {!loading ? <Icon name="arrow_forward" className="ml-2 text-[18px]" /> : null}
             </Button>

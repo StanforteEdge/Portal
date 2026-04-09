@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import NewPortalNotice from "@/components/NewPortalNotice";
 import Table from "@/components/Base/Table";
 import Lucide from "@/components/Base/Lucide";
 import { listRequests, listApprovals, type RequestRecord } from "@/services/requests";
@@ -146,6 +147,7 @@ function PortalDashboardPage() {
           </p>
         </div>
       </div>
+      <NewPortalNotice />
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
 
       <div className="grid grid-cols-12 gap-5 mt-5">

@@ -315,8 +315,8 @@ export function AttendancePage() {
 
         {error ? <div className="mb-6 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">{error}</div> : null}
 
-        <div className="grid gap-6 xl:grid-cols-12">
-          <div className="space-y-6 xl:col-span-8">
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="space-y-6 lg:col-span-8">
             <SectionCard title="Today's Attendance">
               <div className="space-y-5">
                 <div className="grid gap-3 sm:grid-cols-2">
@@ -332,7 +332,7 @@ export function AttendancePage() {
 
                 <div className="space-y-3">
                   <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">Select Attendance Mode</p>
-                  <div className="grid grid-cols-3 gap-3">
+                  <div className="grid grid-cols-3 gap-3" role="group" aria-label="Attendance mode">
                     {(["onsite", "remote", "field"] as AttendanceMode[]).map((mode) => {
                       const active = selectedMode === mode;
                       return (
@@ -340,6 +340,7 @@ export function AttendancePage() {
                           key={mode}
                           type="button"
                           onClick={() => setSelectedMode(mode)}
+                          aria-pressed={active}
                           className={[
                             "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition",
                             active
@@ -475,7 +476,7 @@ export function AttendancePage() {
             </SectionCard>
           </div>
 
-          <RightRail className="xl:col-span-4">
+          <RightRail className="lg:col-span-4">
             <SectionCard title="Activity Summary" action={<Chip variant="neutral">Last 30 Days</Chip>}>
               <div className="grid grid-cols-2 gap-3">
                 {stats.map((metric) => (
@@ -625,7 +626,7 @@ export function AttendancePage() {
 
             <div className="space-y-2">
               <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">Attendance Mode</p>
-              <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-2">
+              <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-2" role="group" aria-label="Attendance mode">
                 {(["onsite", "remote", "field"] as AttendanceMode[]).map((mode) => {
                   const active = selectedMode === mode;
                   return (
@@ -633,6 +634,7 @@ export function AttendancePage() {
                       key={mode}
                       type="button"
                       onClick={() => setSelectedMode(mode)}
+                      aria-pressed={active}
                       className={[
                         "flex items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-xs font-semibold transition",
                         active ? "bg-brand-900 text-white shadow-soft" : "text-slate-600",

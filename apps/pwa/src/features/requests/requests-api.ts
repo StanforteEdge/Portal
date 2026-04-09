@@ -175,6 +175,74 @@ export async function submitRequest(id: string, comment?: string) {
   });
 }
 
+export async function approveRequest(id: string, comment?: string) {
+  return httpRequest<RequestRecord>(`/requests/${id}/approve`, {
+    method: "POST",
+    body: { action: "approve", comment: comment || undefined },
+  });
+}
+
+export async function rejectRequest(id: string, comment?: string) {
+  return httpRequest<RequestRecord>(`/requests/${id}/reject`, {
+    method: "POST",
+    body: { action: "reject", comment: comment || undefined },
+  });
+}
+
+export async function confirmRequest(id: string) {
+  return httpRequest<RequestRecord>(`/requests/${id}/confirm`, {
+    method: "POST",
+  });
+}
+
+export async function completeRequest(id: string) {
+  return httpRequest<RequestRecord>(`/requests/${id}/complete`, {
+    method: "POST",
+  });
+}
+
+export const confirmRequestDisbursement = confirmRequest;
+
+export async function retireRequest(
+  id: string,
+  payload?: {
+    notes?: string;
+    voucher_id?: string;
+    retired_amount?: number;
+    retirement_file_ids?: string[];
+    breakdown?: Record<string, unknown>;
+  }
+) {
+  return httpRequest<RequestRecord>(`/requests/${id}/retire`, {
+    method: "POST",
+    body: {
+      notes: payload?.notes || undefined,
+      voucher_id: payload?.voucher_id || undefined,
+      retired_amount: payload?.retired_amount ?? undefined,
+      retirement_file_ids: payload?.retirement_file_ids?.length ? payload.retirement_file_ids : undefined,
+      breakdown: payload?.breakdown || undefined,
+    },
+  });
+}
+
+export async function disburseRequest(
+  id: string,
+  payload?: {
+    note?: string;
+    amount?: number;
+    method?: string;
+    transaction_ref?: string;
+    evidence_file_id?: string;
+    evidence_file_ids?: string[];
+    paid_from_account_id?: string;
+  }
+) {
+  return httpRequest<RequestRecord>(`/finance/requests/${id}/disburse`, {
+    method: "POST",
+    body: payload ?? {},
+  });
+}
+
 export async function listProjects() {
   return httpRequest<ProjectOption[]>("/projects?active_only=true");
 }

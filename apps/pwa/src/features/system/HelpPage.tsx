@@ -14,8 +14,8 @@ export default function HelpPage() {
       title="Help Center"
       description="Find support channels, quick guides, and operational help across the portal."
     >
-      <div className="grid gap-6 xl:grid-cols-12">
-        <div className="space-y-6 xl:col-span-8">
+      <div className="grid gap-6 lg:grid-cols-12">
+        <div className="space-y-6 lg:col-span-8">
           <SectionCard title="Popular Topics" description="Based on the existing help center structure.">
             <div className="grid gap-4 md:grid-cols-2">
               {[
@@ -48,7 +48,7 @@ export default function HelpPage() {
           </SectionCard>
         </div>
 
-        <div className="space-y-6 xl:col-span-4">
+        <div className="space-y-6 lg:col-span-4">
           <SectionCard title="Need human support?">
             <p className="text-sm leading-6 text-slate-600">
               Use the help center for operational guidance. Each major workspace section can later link back here with contextual guides.

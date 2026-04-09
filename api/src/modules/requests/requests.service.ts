@@ -1338,7 +1338,15 @@ export class RequestsService {
 
     const generatedAt = new Date();
     const totalAmount = this.resolveTotalAmount(request);
-    const voucherNo = `PV/${generatedAt.getFullYear()}/${request.id.toString()}`;
+    const voucherCount = await this.prisma.financePaymentVoucher.count({
+      where: {
+        disbursedAt: {
+          gte: new Date(generatedAt.getFullYear(), 0, 1),
+          lt: new Date(generatedAt.getFullYear() + 1, 0, 1)
+        }
+      }
+    });
+    const voucherNo = `PV/${generatedAt.getFullYear()}/${String(voucherCount + 1).padStart(3, '0')}`;
     const signatories = await this.getFinanceSignatories();
     const fileName = `${this.zipSafeName(voucherNo)}.pdf`;
 

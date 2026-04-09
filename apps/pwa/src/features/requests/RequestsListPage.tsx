@@ -378,7 +378,7 @@ function ListFilters({
       </div>
 
       {moreFiltersOpen ? (
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-4 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
           <label className="grid gap-2 text-sm text-slate-600">
             <span className="font-semibold text-slate-700">Search</span>
             <input
@@ -473,6 +473,7 @@ function ListFilters({
 
 function RequestsListTable({
   activeFamily,
+  detailView,
   rows,
   loading,
   error,
@@ -485,6 +486,7 @@ function RequestsListTable({
   onPageChange,
 }: {
   activeFamily: RequestFamily;
+  detailView: RequestScope;
   rows: UiRequestRow[];
   loading: boolean;
   error: string | null;
@@ -572,7 +574,7 @@ function RequestsListTable({
                 </td>
                 <td className="rounded-r-2xl px-3 py-4 text-right">
                   <Link
-                    to={`/requests/details?id=${row.requestId}`}
+                    to={`/requests/details?id=${row.requestId}&view=${detailView === "approvals" ? "approvals" : "mine"}`}
                     className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-brand-900 transition hover:bg-brand-900/5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                   >
                     View Details
@@ -638,11 +640,13 @@ function RequestsListTable({
 }
 
 function RequestsMobileList({
+  detailView,
   rows,
   loading,
   error,
   onRetry,
 }: {
+  detailView: RequestScope;
   rows: UiRequestRow[];
   loading: boolean;
   error: string | null;
@@ -668,7 +672,7 @@ function RequestsMobileList({
       {rows.map((row) => (
         <Link
           key={row.id}
-          to={`/requests/details?id=${row.requestId}`}
+          to={`/requests/details?id=${row.requestId}&view=${detailView === "approvals" ? "approvals" : "mine"}`}
           className="flex w-full items-start justify-between gap-3 rounded-[22px] border border-slate-100 bg-white px-4 py-4 text-left shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
         >
           <div className="flex min-w-0 gap-3">
@@ -1079,8 +1083,8 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
           ))}
         </nav>
 
-        <div className="grid gap-6 xl:grid-cols-12">
-          <div className="space-y-6 xl:col-span-8">
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="space-y-6 lg:col-span-8">
             <div className="grid gap-4 md:grid-cols-3">
               {stats.map((stat) => (
                 <StatCard
@@ -1127,6 +1131,7 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
             />
             <RequestsListTable
               activeFamily={activeFamily}
+              detailView={activeScope}
               rows={requestsError ? [] : pagedRows}
               loading={loadingRequests}
               error={requestsError}
@@ -1144,7 +1149,7 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
             <EfficientApprovalsCard />
           </div>
 
-          <RightRail className="xl:col-span-4">
+          <RightRail className="lg:col-span-4">
             <HelpPanel />
             <SectionCard title="Quick Actions">
               <ActivityFeed
@@ -1222,6 +1227,7 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
         </section>
 
         <RequestsMobileList
+          detailView={activeScope}
           rows={pagedRows}
           loading={loadingRequests}
           error={requestsError}

@@ -122,8 +122,8 @@ export function RequestTypePage() {
           description="Start by choosing a request family, then select the exact subtype you want to submit."
         />
 
-        <div className="grid gap-6 xl:grid-cols-12">
-          <div className="space-y-6 xl:col-span-8">
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="space-y-6 lg:col-span-8">
             <section className="grid gap-5 md:grid-cols-3">
               {familyCards.map((card) => (
                 <button
@@ -197,7 +197,7 @@ export function RequestTypePage() {
             </SectionCard>
           </div>
 
-          <div className="space-y-6 xl:col-span-4">
+          <div className="space-y-6 lg:col-span-4">
             <SectionCard title="How this works">
               <div className="space-y-3 text-sm leading-6 text-slate-600">
                 <p>1. Choose the request family.</p>

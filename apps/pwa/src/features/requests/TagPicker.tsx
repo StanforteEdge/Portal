@@ -7,6 +7,7 @@ type TagPickerProps = {
   value: TagTerm[];
   onChange: (tags: TagTerm[]) => void;
   placeholder?: string;
+  label?: string;
 };
 
 export function TagPicker({
@@ -14,6 +15,7 @@ export function TagPicker({
   value,
   onChange,
   placeholder = "Add tags",
+  label = "Tags",
 }: TagPickerProps) {
   const [query, setQuery] = useState("");
   const [suggestions, setSuggestions] = useState<TagTerm[]>([]);
@@ -67,6 +69,7 @@ export function TagPicker({
 
   return (
     <div className="space-y-3">
+      <span className="field-label">{label}</span>
       <div className="flex flex-wrap gap-2">
         {value.map((tag) => (
           <span
@@ -76,7 +79,8 @@ export function TagPicker({
             {tag.label}
             <button
               type="button"
-              className="text-slate-500 transition hover:text-slate-900"
+              className="text-slate-500 transition hover:text-slate-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+              aria-label={`Remove tag ${tag.label}`}
               onClick={() => onChange(value.filter((item) => item.id !== tag.id))}
             >
               <Icon name="close" className="text-[14px]" />
@@ -90,6 +94,7 @@ export function TagPicker({
         value={query}
         className="input-base"
         placeholder={placeholder}
+        aria-label={label}
         onChange={(event) => setQuery(event.target.value)}
         onKeyDown={(event) => {
           if (event.key === "Enter" || event.key === ",") {
@@ -100,11 +105,11 @@ export function TagPicker({
       />
 
       {query.trim() ? (
-        <div className="rounded-[20px] border border-slate-200 bg-white p-2 shadow-soft">
+        <div className="rounded-[20px] border border-slate-200 bg-white p-2 shadow-soft" role="listbox" aria-label={`${label} suggestions`}>
           <Button
             type="button"
             variant="ghost"
-            className="w-full justify-between rounded-2xl px-3 py-2"
+            className="w-full justify-between rounded-2xl px-3 py-2 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
             onClick={addCustomTag}
           >
             <span>Create tag "{query.trim()}"</span>
@@ -114,8 +119,10 @@ export function TagPicker({
             <button
               key={item.id}
               type="button"
-              className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50"
+              className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
               onClick={() => addTag(item)}
+              role="option"
+              aria-selected="false"
             >
               <span>{item.label}</span>
               <Icon name="sell" className="text-[18px] text-slate-400" />

@@ -7,6 +7,7 @@ import { FormInput, FormLabel, FormSelect } from "@/components/Base/Form";
 import Pagination from "@/components/Base/Pagination";
 import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
+import NewPortalNotice from "@/components/NewPortalNotice";
 import { approveRequest, getRequestActions, listApprovals, rejectRequest, type RequestRecord } from "@/services/requests";
 import { formatDisplayDate, formatMoney, formatPersonName, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
 
@@ -117,6 +118,9 @@ function RequestApprovalsPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">My Approvals</h2>
+      </div>
+      <div className="mt-5 intro-y">
+        <NewPortalNotice />
       </div>
       <div className="flex gap-2 mt-4">
         {[

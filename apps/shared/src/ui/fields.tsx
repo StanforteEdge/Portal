@@ -1,21 +1,36 @@
-import type { InputHTMLAttributes, ReactNode, SelectHTMLAttributes, TextareaHTMLAttributes } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useId,
+  type InputHTMLAttributes,
+  type ReactNode,
+  type SelectHTMLAttributes,
+  type TextareaHTMLAttributes,
+} from "react";
 
 type FieldShellProps = {
   label: string;
   helpText?: string;
   error?: string;
+  fieldId: string;
+  helpId?: string;
+  errorId?: string;
   children: ReactNode;
 };
 
-function FieldShell({ label, helpText, error, children }: FieldShellProps) {
+function FieldShell({ label, helpText, error, fieldId, helpId, errorId, children }: FieldShellProps) {
   return (
-    <label className="block">
+    <label className="block" htmlFor={fieldId}>
       <span className="field-label">{label}</span>
       {children}
       {error ? (
-        <p className="field-help mt-2 text-danger">{error}</p>
+        <p id={errorId} className="field-help mt-2 text-danger">
+          {error}
+        </p>
       ) : helpText ? (
-        <p className="field-help">{helpText}</p>
+        <p id={helpId} className="field-help">
+          {helpText}
+        </p>
       ) : null}
     </label>
   );
@@ -32,11 +47,24 @@ export function TextField({
   helpText,
   error,
   className,
+  id,
   ...props
 }: InputProps) {
+  const autoId = useId();
+  const fieldId = id || autoId;
+  const helpId = helpText ? `${fieldId}-help` : undefined;
+  const errorId = error ? `${fieldId}-error` : undefined;
   return (
-    <FieldShell label={label} helpText={helpText} error={error}>
-      <input className={["input-base", className].filter(Boolean).join(" ")} {...props} />
+    <FieldShell label={label} helpText={helpText} error={error} fieldId={fieldId} helpId={helpId} errorId={errorId}>
+      {isValidElement(<input />)
+        ? cloneElement(<input />, {
+            id: fieldId,
+            className: ["input-base", className].filter(Boolean).join(" "),
+            "aria-invalid": error ? true : undefined,
+            "aria-describedby": [helpId, errorId].filter(Boolean).join(" ") || undefined,
+            ...props,
+          })
+        : null}
     </FieldShell>
   );
 }
@@ -53,13 +81,23 @@ export function SelectField({
   error,
   className,
   children,
+  id,
   ...props
 }: SelectProps) {
+  const autoId = useId();
+  const fieldId = id || autoId;
+  const helpId = helpText ? `${fieldId}-help` : undefined;
+  const errorId = error ? `${fieldId}-error` : undefined;
   return (
-    <FieldShell label={label} helpText={helpText} error={error}>
-      <select className={["input-base", className].filter(Boolean).join(" ")} {...props}>
-        {children}
-      </select>
+    <FieldShell label={label} helpText={helpText} error={error} fieldId={fieldId} helpId={helpId} errorId={errorId}>
+      {cloneElement(<select>{children}</select>, {
+        id: fieldId,
+        className: ["input-base", className].filter(Boolean).join(" "),
+        "aria-invalid": error ? true : undefined,
+        "aria-describedby": [helpId, errorId].filter(Boolean).join(" ") || undefined,
+        ...props,
+        children,
+      })}
     </FieldShell>
   );
 }
@@ -75,14 +113,22 @@ export function TextAreaField({
   helpText,
   error,
   className,
+  id,
   ...props
 }: TextareaProps) {
+  const autoId = useId();
+  const fieldId = id || autoId;
+  const helpId = helpText ? `${fieldId}-help` : undefined;
+  const errorId = error ? `${fieldId}-error` : undefined;
   return (
-    <FieldShell label={label} helpText={helpText} error={error}>
-      <textarea
-        className={["input-base min-h-22 resize-y", className].filter(Boolean).join(" ")}
-        {...props}
-      />
+    <FieldShell label={label} helpText={helpText} error={error} fieldId={fieldId} helpId={helpId} errorId={errorId}>
+      {cloneElement(<textarea />, {
+        id: fieldId,
+        className: ["input-base min-h-22 resize-y", className].filter(Boolean).join(" "),
+        "aria-invalid": error ? true : undefined,
+        "aria-describedby": [helpId, errorId].filter(Boolean).join(" ") || undefined,
+        ...props,
+      })}
     </FieldShell>
   );
 }

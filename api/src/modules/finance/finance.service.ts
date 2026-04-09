@@ -242,8 +242,7 @@ export class FinanceService {
     const disbursementEvents = Array.isArray(existingData.disbursement_events)
       ? (existingData.disbursement_events as unknown[])
       : [];
-    const voucherNumber =
-      await this.nextVoucherNumber(id, now.getFullYear());
+    const voucherNumber = await this.nextVoucherNumber(now.getFullYear());
 
     const disbursementPayload = {
       note: dto.note ?? null,
@@ -4145,11 +4144,18 @@ export class FinanceService {
     }
   }
 
-  private async nextVoucherNumber(requestId: bigint, year: number) {
+  private async nextVoucherNumber(year: number) {
+    const start = new Date(year, 0, 1);
+    const end = new Date(year + 1, 0, 1);
     const count = await this.prisma.financePaymentVoucher.count({
-      where: { requestId }
+      where: {
+        disbursedAt: {
+          gte: start,
+          lt: end
+        }
+      }
     });
-    return `PV/${year}/${requestId.toString()}/${String(count + 1).padStart(3, '0')}`;
+    return `PV/${year}/${String(count + 1).padStart(3, '0')}`;
   }
 
   private async getFormattedRequestNumber(requestId: bigint): Promise<string> {

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { MobileBottomNav, roleLabel, sortRoles } from "@stanforte/shared";
+import { roleLabel, sortRoles } from "@stanforte/shared";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useCachedQuery } from "@/lib/core";
 import {
@@ -10,6 +10,7 @@ import {
   markAllWorkspaceNotificationsRead,
   markWorkspaceNotificationRead,
 } from "@/features/system/workspace-api";
+import { MobileBottomNav } from "./MobileBottomNav";
 import { Sidebar, type SidebarItem } from "./Sidebar";
 import { DesktopTopBar, MobileTopBar } from "./TopBar";
 
@@ -21,7 +22,9 @@ type UserInfo = {
 type MobileNavItem = {
   label: string;
   icon: string;
+  path?: string;
   active?: boolean;
+  onClick?: () => void;
 };
 
 type AppShellProps = {
@@ -121,8 +124,9 @@ export function AppShell({
         unreadCount={unreadCount ?? 0}
         onMarkNotificationRead={handleMarkNotificationRead}
         onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
+        onSignOut={() => signOut()}
       />
-      <MobileTopBar user={shellUser} unreadCount={unreadCount ?? 0} />
+      <MobileTopBar user={shellUser} unreadCount={unreadCount ?? 0} onSignOut={() => signOut()} />
       <Sidebar
         navigation={navigation}
         activeLabel={activeLabel}
@@ -136,7 +140,15 @@ export function AppShell({
         </main>
       </div>
 
-      {mobileNav ? <MobileBottomNav items={mobileNav} /> : null}
+      {mobileNav ? (
+        <MobileBottomNav
+          items={mobileNav}
+          navigation={navigation}
+          activeLabel={activeLabel}
+          user={shellUser}
+          onSignOut={() => signOut()}
+        />
+      ) : null}
     </div>
   );
 }

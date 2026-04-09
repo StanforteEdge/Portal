@@ -599,8 +599,11 @@ export function RequestFormPage() {
             title="Choose a request type first"
             description="Start from the request selector so we can load the right form structure."
           />
-          <Link to="/requests/new" className="inline-flex">
-            <Button>Back to New Request</Button>
+          <Link
+            to="/requests/new"
+            className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+          >
+            Back to New Request
           </Link>
         </div>
       </AppShell>
@@ -626,17 +629,18 @@ export function RequestFormPage() {
           }
           description={familyDescription(family)}
           actions={
-            <Link to="/requests/new" className="inline-flex">
-              <Button variant="secondary" className="gap-2">
-                <Icon name="arrow_back" className="text-[18px]" />
-                Change Type
-              </Button>
+            <Link
+              to="/requests/new"
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+            >
+              <Icon name="arrow_back" className="text-[18px]" />
+              Change Type
             </Link>
           }
         />
 
-        <div className="grid gap-6 xl:grid-cols-12">
-          <div className="space-y-6 xl:col-span-8">
+        <div className="grid gap-6 lg:grid-cols-12">
+          <div className="space-y-6 lg:col-span-8">
             <SectionCard
               title="Request Setup"
               description="Confirm the request subtype and primary timing details."
@@ -722,15 +726,13 @@ export function RequestFormPage() {
                       className="h-5 w-5 rounded border-slate-300 text-brand-900 focus:ring-brand-900"
                     />
                   </label>
-                  <div className="">
-                    <span className="field-label">Tags</span>
-                    <TagPicker
-                      taxonomyKey="request_tags"
-                      value={tags}
-                      onChange={setTags}
-                      placeholder="Add tags"
-                    />
-                  </div>
+                  <TagPicker
+                    taxonomyKey="request_tags"
+                    value={tags}
+                    onChange={setTags}
+                    placeholder="Add tags"
+                    label="Tags"
+                  />
                 </div>
               ) : null}
             </SectionCard>
@@ -1107,7 +1109,7 @@ export function RequestFormPage() {
             )}
           </div>
 
-          <RightRail className="self-start xl:col-span-4 xl:sticky xl:top-28">
+          <RightRail className="self-start lg:col-span-4 lg:sticky lg:top-28">
             <section className="section-card bg-brand-900 p-5 text-white">
               <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
                 {family === "leave" ? "Request Type" : "Current Total"}
@@ -1249,15 +1251,13 @@ export function RequestFormPage() {
                   </option>
                 ))}
               </SelectField>
-              <div>
-                <span className="field-label">Tags</span>
-                <TagPicker
-                  taxonomyKey="request_tags"
-                  value={tags}
-                  onChange={setTags}
-                  placeholder="Add tags"
-                />
-              </div>
+              <TagPicker
+                taxonomyKey="request_tags"
+                value={tags}
+                onChange={setTags}
+                placeholder="Add tags"
+                label="Tags"
+              />
             </div>
           ) : null}
         </SectionCard>

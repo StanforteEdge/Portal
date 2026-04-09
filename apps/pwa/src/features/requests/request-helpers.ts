@@ -48,6 +48,33 @@ export function formatRequestStatus(status?: string | null) {
   return String(status || "draft").replaceAll("_", " ");
 }
 
+export function formatViewerRequestStatus(
+  status?: string | null,
+  actions: string[] = [],
+  pendingStep?: string | null
+) {
+  const normalizedActions = actions.map((entry) => entry.toLowerCase());
+  if (normalizedActions.includes("approve") || normalizedActions.includes("reject")) {
+    return "Awaiting Your Approval";
+  }
+  if (normalizedActions.includes("submit")) {
+    return "Draft";
+  }
+  if (normalizedActions.includes("confirm")) {
+    return "Awaiting Your Confirmation";
+  }
+  if (normalizedActions.includes("retire")) {
+    return "Retirement Required";
+  }
+  if (normalizedActions.includes("complete")) {
+    return "Ready to Close";
+  }
+  if (pendingStep && ["approval", "submitted", "sent", "under_review", "review"].includes(String(status || "").toLowerCase())) {
+    return `Awaiting ${pendingStep}`;
+  }
+  return formatRequestStatus(status);
+}
+
 export function requestStatusTone(status?: string | null): "success" | "warning" | "pending" | "danger" | "neutral" {
   const key = String(status || "").toLowerCase();
   if (["approved", "completed", "paid", "disbursed", "confirmed"].includes(key)) return "success";

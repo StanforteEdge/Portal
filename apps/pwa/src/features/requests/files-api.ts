@@ -7,7 +7,58 @@ export type FileAssetRecord = {
   file_size: number | null;
   storage_path: string;
   public_url: string | null;
+  usage?: {
+    attached: boolean;
+    request_items: number;
+    pv_evidence: number;
+    retirement_refs: number;
+  };
 };
+
+export async function listFileAssets(params?: {
+  search?: string;
+  include_usage?: boolean;
+  page?: number;
+  per_page?: number;
+  uploaded_by?: string;
+  file_type?: "images" | "videos" | "documents";
+  attached?: boolean;
+}) {
+  const query = new URLSearchParams();
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") return;
+      query.set(key, String(value));
+    });
+  }
+
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const response = await httpRequest<Array<any>>(`/files${suffix}`);
+  return response.map(
+    (row) =>
+      ({
+        id: String(row.id),
+        file_name: String(row.file_name ?? row.fileName ?? ""),
+        mime_type: (row.mime_type ?? row.mimeType ?? null) as string | null,
+        file_size:
+          row.file_size !== undefined && row.file_size !== null
+            ? Number(row.file_size)
+            : row.fileSize !== undefined && row.fileSize !== null
+              ? Number(row.fileSize)
+              : null,
+        storage_path: String(row.storage_path ?? row.storagePath ?? ""),
+        public_url: (row.public_url ?? row.publicUrl ?? null) as string | null,
+        usage: row.usage
+          ? {
+              attached: Boolean(row.usage.attached),
+              request_items: Number(row.usage.request_items ?? 0),
+              pv_evidence: Number(row.usage.pv_evidence ?? 0),
+              retirement_refs: Number(row.usage.retirement_refs ?? 0),
+            }
+          : undefined,
+      }) satisfies FileAssetRecord
+  );
+}
 
 export async function uploadFileAsset(
   file: File,
