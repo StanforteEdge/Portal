@@ -3,6 +3,13 @@ import {
   EmptyState,
   PageHeader,
   SectionCard,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
   StatCard,
   formatCurrency,
 } from "@stanforte/shared";
@@ -56,7 +63,7 @@ export default function FinancePaymentVouchersPage() {
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
-      activeLabel="Finance"
+      activeLabel="Payment Vouchers"
       user={{ name: userName, role: profile?.employee_profile?.job_title || "Staff" }}
       mobileNav={buildAppMobileNav("Finance")}
     >
@@ -88,54 +95,54 @@ export default function FinancePaymentVouchersPage() {
           ) : error ? (
             <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">{error}</div>
           ) : rows.length ? (
-            <div className="overflow-hidden rounded-[22px] border border-slate-200">
-              <table className="min-w-full text-left">
-                <thead className="bg-slate-50">
-                  <tr className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">
-                    <th className="px-4 py-3">Voucher</th>
-                    <th className="px-4 py-3">Request</th>
-                    <th className="px-4 py-3">Amount</th>
-                    <th className="px-4 py-3">Disbursed</th>
-                    <th className="px-4 py-3">Retirement</th>
-                    <th className="px-4 py-3 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+              <Table caption="Payment vouchers">
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Voucher</TableHeaderCell>
+                    <TableHeaderCell>Request</TableHeaderCell>
+                    <TableHeaderCell>Amount</TableHeaderCell>
+                    <TableHeaderCell>Disbursed</TableHeaderCell>
+                    <TableHeaderCell>Retirement</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Action</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
                   {rows.map((row) => (
-                    <tr key={row.id} className="border-t border-slate-100 bg-white">
-                      <td className="px-4 py-4">
+                    <TableRow key={row.id}>
+                      <TableCell>
                         <p className="text-sm font-semibold text-slate-950">{row.voucher_number}</p>
                         <p className="mt-1 text-xs text-slate-500">{row.method || "Disbursement"}</p>
-                      </td>
-                      <td className="px-4 py-4">
+                      </TableCell>
+                      <TableCell>
                         <p className="text-sm font-semibold text-slate-950">{row.request_number}</p>
                         <p className="mt-1 text-xs text-slate-500">{row.request_creator_name}</p>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
+                      </TableCell>
+                      <TableCell className="text-sm text-slate-700">
                         {formatCurrency(row.amount, "NGN")}
                         <p className="mt-1 text-xs text-slate-500">
                           Retired: {formatCurrency(row.retired_amount, "NGN")}
                         </p>
-                      </td>
-                      <td className="px-4 py-4 text-sm text-slate-700">
+                      </TableCell>
+                      <TableCell className="text-sm text-slate-700">
                         {formatDisplayDate(row.disbursed_at)}
                         <p className="mt-1 text-xs text-slate-500">{formatRequestStatus(row.request_status)}</p>
-                      </td>
-                      <td className="px-4 py-4">
+                      </TableCell>
+                      <TableCell>
                         <Chip variant={retirementTone(row.retirement_status)}>{retirementLabel(row.retirement_status)}</Chip>
-                      </td>
-                      <td className="px-4 py-4 text-right">
+                      </TableCell>
+                      <TableCell className="text-right">
                         <Link
                           to={`/requests/details?id=${row.request_id}&view=finance`}
                           className="text-sm font-semibold text-brand-900 transition hover:underline"
                         >
                           Open request
                         </Link>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           ) : (
             <EmptyState

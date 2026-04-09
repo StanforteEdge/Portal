@@ -1,12 +1,5 @@
 import apiClient from "@/utils/httpClient";
-import { persistSession, clearSession } from "@/utils/authStorage";
-import { normalizeTokens } from "@/utils/authTokens";
-
-export interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
-  expires_in?: number;
-}
+import { clearSession } from "@/utils/authStorage";
 
 export interface LoginResponse {
   user: {
@@ -15,7 +8,6 @@ export interface LoginResponse {
     enabled_modules?: string[];
     [key: string]: unknown;
   };
-  tokens: AuthTokens;
   message?: string;
 }
 
@@ -33,11 +25,8 @@ export interface StatusResponse {
 export async function login(email: string, password: string) {
   const response = await apiClient.post("/auth/login", { email, password });
   const payload = response?.data?.data ?? {};
-  const tokens = normalizeTokens(payload);
   const user = payload?.user;
-
-  persistSession(tokens.access_token, tokens.refresh_token, tokens.expires_in);
-  return { tokens, user };
+  return { user };
 }
 
 export async function logout() {

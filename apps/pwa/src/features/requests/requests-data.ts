@@ -61,9 +61,21 @@ export type RequestLineItem = {
 export function buildRequestsNavigation(options?: {
   includeDetails?: boolean;
   detailsPath?: string;
+  detailsParent?: "requests" | "finance";
 }): SidebarItem[] {
   const includeDetails = options?.includeDetails ?? false;
   const detailsPath = options?.detailsPath ?? "/requests/details";
+  const detailsParent = options?.detailsParent ?? "requests";
+  const requestDetailsItem = {
+    label: "Request Details",
+    icon: "description",
+    path: detailsPath,
+  };
+  const financeRequestDetailsItem = {
+    label: "Finance Request Details",
+    icon: "description",
+    path: detailsPath,
+  };
 
   return [
     { label: "Dashboard", icon: "grid_view", path: "/", section: "Staff" },
@@ -74,9 +86,11 @@ export function buildRequestsNavigation(options?: {
       section: "Staff",
       children: [
         { label: "My Requests", icon: "list_alt", path: "/requests" },
-        { label: "Approvals", icon: "task_alt", path: "/requests/approvals" },
+        { label: "Approvals", icon: "task_alt", path: "/requests/approvals", permissions: ["requests.approve"], requiresTeamLeadAssignment: true },
         { label: "New Request", icon: "add_circle", path: "/requests/new" },
-        ...(includeDetails ? [{ label: "Request Details", icon: "description", path: detailsPath }] : []),
+        ...(includeDetails && detailsParent === "requests"
+          ? [requestDetailsItem]
+          : []),
       ],
     },
     {
@@ -90,10 +104,14 @@ export function buildRequestsNavigation(options?: {
       label: "Finance",
       icon: "account_balance_wallet",
       section: "Admin",
+      moduleKey: "finance",
       children: [
-        { label: "Dashboard", icon: "grid_view", path: "/finance" },
-        { label: "Requests", icon: "receipt_long", path: "/finance/requests" },
+        { label: "Finance Dashboard", icon: "grid_view", path: "/finance" },
+        { label: "Finance Requests", icon: "receipt_long", path: "/finance/requests" },
         { label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers" },
+        ...(includeDetails && detailsParent === "finance"
+          ? [financeRequestDetailsItem]
+          : []),
       ],
     },
   ];

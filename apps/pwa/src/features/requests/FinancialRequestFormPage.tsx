@@ -8,6 +8,13 @@ import {
   SelectField,
   TextAreaField,
   TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
 } from "@stanforte/shared";
 import { AppShell } from "@/components/layout/AppShell";
 import {
@@ -135,31 +142,31 @@ function FinancialRequestItems() {
       </div>
 
       <div className="hidden overflow-x-auto rounded-[24px] border border-slate-200 lg:block">
-        <table className="min-w-full text-left">
-          <thead className="bg-slate-50">
-            <tr className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">
-              <th className="px-4 py-3">Item Details</th>
-              <th className="px-4 py-3">Unit Price</th>
-              <th className="px-4 py-3">Qty</th>
-              <th className="px-4 py-3">Amount</th>
-              <th className="px-4 py-3">Attachment</th>
-              <th className="px-4 py-3 text-right">Action</th>
-            </tr>
-          </thead>
-          <tbody>
+        <Table caption="Request items">
+          <TableHead>
+            <TableHeaderRow>
+              <TableHeaderCell>Item Details</TableHeaderCell>
+              <TableHeaderCell>Unit Price</TableHeaderCell>
+              <TableHeaderCell>Qty</TableHeaderCell>
+              <TableHeaderCell>Amount</TableHeaderCell>
+              <TableHeaderCell>Attachment</TableHeaderCell>
+              <TableHeaderCell className="text-right">Action</TableHeaderCell>
+            </TableHeaderRow>
+          </TableHead>
+          <TableBody>
             {financialRequestItems.map((item) => (
-              <tr key={item.item} className="border-t border-slate-100 bg-white">
-                <td className="px-4 py-4">
+              <TableRow key={item.item}>
+                <TableCell>
                   <p className="text-sm font-semibold text-slate-950">{item.item}</p>
                   <p className="mt-1 text-xs text-slate-500">{item.category}</p>
-                </td>
-                <td className="px-4 py-4 text-sm font-semibold text-slate-700">{item.unitPrice}</td>
-                <td className="px-4 py-4 text-sm font-semibold text-slate-700">{item.qty}</td>
-                <td className="px-4 py-4 text-sm font-semibold text-slate-700">{item.amount}</td>
-                <td className="px-4 py-4">
+                </TableCell>
+                <TableCell className="text-sm font-semibold text-slate-700">{item.unitPrice}</TableCell>
+                <TableCell className="text-sm font-semibold text-slate-700">{item.qty}</TableCell>
+                <TableCell className="text-sm font-semibold text-slate-700">{item.amount}</TableCell>
+                <TableCell>
                   <Chip variant={item.attachmentTone}>{item.attachment}</Chip>
-                </td>
-                <td className="px-4 py-4 text-right">
+                </TableCell>
+                <TableCell className="text-right">
                   <button
                     type="button"
                     aria-label={`Remove ${item.item}`}
@@ -167,11 +174,11 @@ function FinancialRequestItems() {
                   >
                     <Icon name="delete" className="text-[18px]" />
                   </button>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

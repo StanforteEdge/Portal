@@ -1,4 +1,4 @@
-import { IsArray, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsDateString, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class DisburseRequestDto {
@@ -37,4 +37,9 @@ export class DisburseRequestDto {
   @IsOptional()
   @IsUUID()
   paid_from_account_id?: string;
+
+  @ApiPropertyOptional({ example: '2026-04-09T10:30:00.000Z' })
+  @IsOptional()
+  @IsDateString()
+  disbursed_at?: string;
 }

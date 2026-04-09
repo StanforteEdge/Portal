@@ -195,7 +195,10 @@ export class FinanceService {
       throw new BadRequestException('Request is not in a disbursable state');
     }
 
-    const now = new Date();
+    const now = dto.disbursed_at ? new Date(dto.disbursed_at) : new Date();
+    if (Number.isNaN(now.getTime())) {
+      throw new BadRequestException('Invalid disbursed_at date');
+    }
     const requestTotal = request.totalAmount !== null ? Number(request.totalAmount) : 0;
     const disbursedAggregate = await this.prisma.financePaymentVoucher.aggregate({
       where: { requestId: id },
@@ -341,24 +344,39 @@ export class FinanceService {
       }
     });
 
-    await this.notificationsService.create({
-      userId: request.createdBy,
-      type: 'success',
-      title: 'Request disbursed',
-      message: `Your request #${request.id.toString()} has been disbursed.`,
-      data: {
-        requestId: request.id.toString(),
-        note: dto.note,
-        voucher_number: voucherNumber,
-        transaction_ref: dto.transaction_ref
-      },
-      notifiableType: 'request',
-      notifiableId: request.id,
-      emailSubject: `Request disbursed (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
-    });
+    try {
+      const formattedRequestNumber = await this.getFormattedRequestNumber(
+        request.id,
+      );
+      await this.notificationsService.create({
+        userId: request.createdBy,
+        type: 'success',
+        title: 'Request disbursed',
+        message: `Your request #${request.id.toString()} has been disbursed and is awaiting your confirmation.`,
+        data: {
+          requestId: request.id.toString(),
+          note: dto.note,
+          voucher_number: voucherNumber,
+          transaction_ref: dto.transaction_ref
+        },
+        notifiableType: 'request',
+        notifiableId: request.id,
+        emailSubject: `Request disbursed (${formattedRequestNumber})`,
+        emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
+      });
+    } catch (error) {
+      console.error('disburseRequest notification failed', error);
+    }
 
-    return updated;
+    return {
+      id: updated.id.toString(),
+      status: updated.status,
+      total_amount: updated.totalAmount !== null ? Number(updated.totalAmount) : 0,
+      currency: updated.currency,
+      created_at: updated.createdAt.toISOString(),
+      updated_at: updated.updatedAt.toISOString(),
+      data: updated.data
+    };
   }
 
   async listPaymentVouchers(requestId: string) {

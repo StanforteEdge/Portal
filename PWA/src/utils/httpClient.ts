@@ -1,7 +1,6 @@
 import axios from "axios";
 import { AxiosHeaders } from "axios";
-import { getStoredSession, updateSessionTokens, clearSession } from "./authStorage";
-import { normalizeTokens } from "./authTokens";
+import { clearSession } from "./authStorage";
 
 const apiBaseUrl =
   import.meta.env.VITE_API_BASE_URL ||
@@ -10,21 +9,10 @@ const apiBaseUrl =
 const apiClient = axios.create({
   baseURL: apiBaseUrl,
   timeout: 15000,
+  withCredentials: true,
 });
 
 apiClient.interceptors.request.use((config) => {
-  const { accessToken } = getStoredSession();
-
-  if (accessToken) {
-    if (config.headers instanceof AxiosHeaders) {
-      config.headers.set("Authorization", `Bearer ${accessToken}`);
-    } else {
-      const headers = (config.headers || {}) as Record<string, string>;
-      headers.Authorization = `Bearer ${accessToken}`;
-      config.headers = headers as any;
-    }
-  }
-
   return config;
 });
 
@@ -52,21 +40,6 @@ apiClient.interceptors.response.use(
         return new Promise((resolve, reject) => {
           enqueueRefresh(async () => {
             try {
-              const { accessToken } = getStoredSession();
-
-              if (!accessToken) {
-                reject(error);
-                return;
-              }
-
-              if (originalRequest.headers instanceof AxiosHeaders) {
-                originalRequest.headers.set("Authorization", `Bearer ${accessToken}`);
-              } else {
-                originalRequest.headers = {
-                  ...(originalRequest.headers || {}),
-                  Authorization: `Bearer ${accessToken}`,
-                };
-              }
               resolve(apiClient(originalRequest));
             } catch (retryError) {
               reject(retryError);
@@ -79,37 +52,12 @@ apiClient.interceptors.response.use(
       isRefreshing = true;
 
       try {
-        const session = getStoredSession();
-
-        if (!session.refreshToken) {
-          clearSession();
-          return Promise.reject(error);
-        }
-
         const refreshResponse = await axios.post(
           `${apiBaseUrl}/auth/refresh`,
-          {
-            refresh_token: session.refreshToken,
-          }
+          {},
+          { withCredentials: true }
         );
 
-        const payload = refreshResponse?.data?.data ?? {};
-        const tokens = normalizeTokens(payload);
-
-        updateSessionTokens(
-          tokens.access_token,
-          tokens.refresh_token,
-          tokens.expires_in
-        );
-
-        if (originalRequest.headers instanceof AxiosHeaders) {
-          originalRequest.headers.set("Authorization", `Bearer ${tokens.access_token}`);
-        } else {
-          originalRequest.headers = {
-            ...(originalRequest.headers || {}),
-            Authorization: `Bearer ${tokens.access_token}`,
-          };
-        }
         flushQueue();
         return apiClient(originalRequest);
       } catch (refreshError) {

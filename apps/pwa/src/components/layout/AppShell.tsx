@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { roleLabel, sortRoles } from "@stanforte/shared";
+import { hasAnyPermission, hasApprovalAccess, hasModuleAccess, roleLabel, sortRoles } from "@stanforte/shared";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { useCachedQuery } from "@/lib/core";
 import {
@@ -83,8 +83,51 @@ export function AppShell({
   }, [sidebarCollapsed]);
 
   const topNotifications = useMemo(() => (notifications ?? []).slice(0, 6), [notifications]);
+  const visibleNavigation = useMemo(
+    () =>
+      navigation.reduce<SidebarItem[]>((acc, item) => {
+        const teamLeadAssigned = Boolean(
+          [
+            ...(profile?.groups ?? []),
+            ...(profile?.teams ?? []),
+            ...(profile?.projects ?? []),
+          ].some((group) =>
+            String(group?.role ?? "").toLowerCase().includes("lead"),
+          ),
+        );
+        const canAccessItem =
+          (!item.moduleKey || hasModuleAccess(authUser, item.moduleKey)) &&
+          (!item.permissions?.length ||
+            hasAnyPermission(authUser, item.permissions) ||
+            (item.requiresTeamLeadAssignment && hasApprovalAccess(authUser))) &&
+          (!item.requiresTeamLeadAssignment ||
+            teamLeadAssigned ||
+            hasApprovalAccess(authUser));
+
+        const children = Array.isArray(item.children)
+          ? item.children.filter((child) => {
+              const canAccessChild =
+                (!child.permissions?.length ||
+                  hasAnyPermission(authUser, child.permissions) ||
+                  (child.requiresTeamLeadAssignment && hasApprovalAccess(authUser))) &&
+                (!item.moduleKey || hasModuleAccess(authUser, item.moduleKey)) &&
+                (!child.requiresTeamLeadAssignment ||
+                  teamLeadAssigned ||
+                  hasApprovalAccess(authUser));
+              return canAccessChild;
+            })
+          : undefined;
+
+        if (canAccessItem || (children?.length ?? 0) > 0) {
+          acc.push({ ...item, children });
+        }
+        return acc;
+      }, []),
+    [authUser, navigation, profile?.groups, profile?.projects, profile?.teams],
+  );
   const shellUser = useMemo(() => {
     const profileTitle = profile?.employee_profile?.job_title?.trim() || "";
+    const profileDisplayName = `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
     const authDisplayName = `${authUser?.first_name ?? ""} ${authUser?.last_name ?? ""}`.trim() || authUser?.username || authUser?.email || "";
     const roles = sortRoles(
       Array.from(
@@ -99,10 +142,10 @@ export function AppShell({
     const extraRoles = roles.slice(1).map(roleLabel);
 
     return {
-      name: authDisplayName || user.name,
+      name: profileDisplayName || authDisplayName || user.name,
       title: profileTitle || primaryRole,
     };
-  }, [authUser?.email, authUser?.first_name, authUser?.last_name, authUser?.roles, authUser?.username, profile?.employee_profile?.job_title, user.name, user.role]);
+  }, [authUser?.email, authUser?.first_name, authUser?.last_name, authUser?.roles, authUser?.username, profile?.employee_profile?.job_title, profile?.first_name, profile?.last_name, profile?.projects, profile?.teams, user.name, user.role]);
 
   async function handleMarkNotificationRead(id: string) {
     await markWorkspaceNotificationRead(id);
@@ -128,7 +171,7 @@ export function AppShell({
       />
       <MobileTopBar user={shellUser} unreadCount={unreadCount ?? 0} onSignOut={() => signOut()} />
       <Sidebar
-        navigation={navigation}
+        navigation={visibleNavigation}
         activeLabel={activeLabel}
         collapsed={sidebarCollapsed}
         onSignOut={() => signOut()}
@@ -143,7 +186,7 @@ export function AppShell({
       {mobileNav ? (
         <MobileBottomNav
           items={mobileNav}
-          navigation={navigation}
+          navigation={visibleNavigation}
           activeLabel={activeLabel}
           user={shellUser}
           onSignOut={() => signOut()}

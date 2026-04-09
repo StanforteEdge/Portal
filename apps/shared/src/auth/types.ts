@@ -12,6 +12,7 @@ export type AuthUser = {
   last_name?: string;
   roles?: string[];
   permissions?: string[];
+  enabled_modules?: string[];
   onboarding_status?: string | null;
   organization_id?: string | null;
   primary_organization_id?: string | null;

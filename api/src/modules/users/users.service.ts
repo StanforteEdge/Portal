@@ -609,7 +609,8 @@ export class UsersService {
       id: item.group.id.toString(),
       name: item.group.name,
       type: item.group.type,
-      role: item.role
+      role: item.role,
+      is_primary: Boolean(item.isPrimary ?? item.is_primary ?? false)
     }));
 
     return {
@@ -631,6 +632,7 @@ export class UsersService {
         code: item.organization.code,
         is_primary: item.isPrimary
       })),
+      groups: groupMemberships,
       teams: groupMemberships.filter((item: any) => String(item.type).toLowerCase() === 'team'),
       projects: groupMemberships.filter((item: any) => String(item.type).toLowerCase() === 'project'),
       employee_profile: user.employeeProfile

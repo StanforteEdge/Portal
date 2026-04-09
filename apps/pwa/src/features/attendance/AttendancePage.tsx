@@ -10,6 +10,13 @@ import {
   SelectField,
   TextAreaField,
   TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
   useToast,
 } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
@@ -434,34 +441,34 @@ export function AttendancePage() {
               title="Attendance History"
               action={<Chip variant="neutral">{recentDaily.length} days</Chip>}
             >
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-y-3 text-left">
-                  <thead>
-                    <tr className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">
-                      <th className="px-3 py-2">Date</th>
-                      <th className="px-3 py-2">Clock In</th>
-                      <th className="px-3 py-2">Clock Out</th>
-                      <th className="px-3 py-2">Mode</th>
-                      <th className="px-3 py-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
+                <Table caption="Attendance history">
+                  <TableHead>
+                    <TableHeaderRow>
+                      <TableHeaderCell>Date</TableHeaderCell>
+                      <TableHeaderCell>Clock In</TableHeaderCell>
+                      <TableHeaderCell>Clock Out</TableHeaderCell>
+                      <TableHeaderCell>Mode</TableHeaderCell>
+                      <TableHeaderCell>Status</TableHeaderCell>
+                    </TableHeaderRow>
+                  </TableHead>
+                  <TableBody>
                     {recentDaily.map((row) => (
-                      <tr key={row.id} className="rounded-2xl bg-slate-50">
-                        <td className="rounded-l-2xl px-3 py-4">
+                      <TableRow key={row.id}>
+                        <TableCell className="rounded-l-2xl">
                           <p className="text-sm font-semibold text-slate-950">{formatDate(row.work_date)}</p>
-                        </td>
-                        <td className="px-3 py-4 text-sm font-semibold text-slate-700">{formatClockTime(row.first_in_at)}</td>
-                        <td className="px-3 py-4 text-sm font-semibold text-slate-700">{formatClockTime(row.last_out_at)}</td>
-                        <td className="px-3 py-4">
+                        </TableCell>
+                        <TableCell className="text-sm font-semibold text-slate-700">{formatClockTime(row.first_in_at)}</TableCell>
+                        <TableCell className="text-sm font-semibold text-slate-700">{formatClockTime(row.last_out_at)}</TableCell>
+                        <TableCell>
                           <Chip variant="neutral">{humanize(String(row.attendance_mode || row.expected_mode || "-"))}</Chip>
-                        </td>
-                        <td className="rounded-r-2xl px-3 py-4">
+                        </TableCell>
+                        <TableCell className="rounded-r-2xl">
                           <Chip variant={toneFromStatus(row.status) === "neutral" ? "neutral" : toneFromStatus(row.status)}>
                             {humanize(row.status)}
                           </Chip>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
                     {!loading && recentDaily.length === 0 ? (
                       <tr>
@@ -470,8 +477,8 @@ export function AttendancePage() {
                         </td>
                       </tr>
                     ) : null}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </SectionCard>
           </div>

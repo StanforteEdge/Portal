@@ -235,6 +235,7 @@ export async function disburseRequest(
     evidence_file_id?: string;
     evidence_file_ids?: string[];
     paid_from_account_id?: string;
+    disbursed_at?: string;
   }
 ) {
   return httpRequest<RequestRecord>(`/finance/requests/${id}/disburse`, {
@@ -251,8 +252,10 @@ export async function listMyOrganizations() {
   return httpRequest<MyOrganization[]>("/organizations/my");
 }
 
-export async function listTeams() {
-  return httpRequest<TeamOption[]>("/teams?active_only=true");
+export async function listTeams(params?: { active_only?: boolean }) {
+  const query = new URLSearchParams();
+  query.set("active_only", params?.active_only === false ? "false" : "true");
+  return httpRequest<TeamOption[]>(`/teams?${query.toString()}`);
 }
 
 export async function getMyLeaveBalance(params?: { year?: number; leave_type_key?: string }) {

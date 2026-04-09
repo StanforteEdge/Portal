@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -9,6 +9,7 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { AuthStatusResponseDto, LoginResponseDto } from './dto/auth-response.dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
+import type { Response } from 'express';
 
 @Controller('auth')
 @ApiTags('Auth')
@@ -25,8 +26,8 @@ export class AuthController {
       }
     }
   })
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  login(@Body() dto: LoginDto, @Res({ passthrough: true }) res: Response) {
+    return this.authService.login(dto, res);
   }
 
   @Get('status')
@@ -40,8 +41,8 @@ export class AuthController {
   @Post('logout')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth('bearer')
-  logout(@Req() req: any) {
-    return this.authService.logout(req.user?.id);
+  logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    return this.authService.logout(req.user?.id, res);
   }
 
   @Post('change-password')
@@ -72,8 +73,8 @@ export class AuthController {
       }
     }
   })
-  refresh(@Body() dto: RefreshDto) {
-    return this.authService.refresh(dto);
+  refresh(@Req() req: any, @Body() dto: RefreshDto, @Res({ passthrough: true }) res: Response) {
+    return this.authService.refresh(dto, req, res);
   }
 
   @Post('forgot-password')

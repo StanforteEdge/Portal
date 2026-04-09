@@ -7,13 +7,22 @@ import {
   PageHeader,
   RightRail,
   SectionCard,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
   StatCard,
+  hasApprovalAccess,
 } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { useCachedQuery } from "@/lib/core";
 import { useAuth } from "@/features/auth/AuthProvider";
+import { getWorkspaceProfile } from "@/features/system/workspace-api";
 import { listApprovals, listRequests, listRequestTypes, type RequestRecord } from "./requests-api";
 import {
   buildRequestsNavigation,
@@ -96,7 +105,22 @@ function familyLabel(family: RequestFamily) {
 }
 
 function toRow(request: RequestRecord) {
+  const stateEvents = Array.isArray((request.data as any)?.state_events)
+    ? (((request.data as any)?.state_events as Array<Record<string, unknown>>) ??
+        [])
+    : [];
   const rawStatus = String(request.status || "Pending");
+  const normalizedStatus =
+    rawStatus.toLowerCase() === "draft" &&
+    (stateEvents.some((event) =>
+      ["submit", "workflow_start", "workflow_auto_approved"].includes(
+        String(event.action || "").toLowerCase(),
+      ),
+    ) ||
+      (request.approvals?.pending?.length ?? 0) > 0 ||
+      (request.approvals?.done?.length ?? 0) > 0)
+      ? "submitted"
+      : rawStatus;
   const requestType = request.request_type?.name || "General Request";
   const itemCount = Array.isArray(request.items) ? request.items.length : 0;
   const amountLabel = formatCurrency(request.total_amount, request.currency);
@@ -141,9 +165,9 @@ function toRow(request: RequestRecord) {
     organizationName,
     purpose,
     submitted: formatDate(request.created_at),
-    status: rawStatus.replaceAll("_", " "),
-    statusKey: rawStatus.toLowerCase(),
-    tone: toTone(rawStatus),
+    status: normalizedStatus.replaceAll("_", " "),
+    statusKey: normalizedStatus.toLowerCase(),
+    tone: toTone(normalizedStatus),
     icon,
     summary: itemCount > 0 ? `${itemCount} item${itemCount > 1 ? "s" : ""}` : "No line items",
     detail: amountLabel,
@@ -528,51 +552,51 @@ function RequestsListTable({
           </button>
         </div>
       ) : null}
-      <div className="overflow-x-auto">
-        <table className="min-w-full border-separate border-spacing-y-3 text-left">
-          <thead>
-            <tr className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">
-              <th className="px-3 py-2">Request ID</th>
-              {activeFamily === "all" ? <th className="px-3 py-2">Family</th> : null}
-              {activeFamily === "financial" ? <th className="px-3 py-2">Amount</th> : null}
-              {activeFamily === "financial" ? <th className="px-3 py-2">Project</th> : null}
-              {activeFamily === "leave" ? <th className="px-3 py-2">Leave Dates</th> : null}
-              {activeFamily === "leave" ? <th className="px-3 py-2">Duration</th> : null}
-              <th className="px-3 py-2">Submitted</th>
-              <th className="px-3 py-2">Status</th>
-              <th className="px-3 py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
+      <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
+        <Table caption="Requests list">
+          <TableHead>
+            <TableHeaderRow>
+              <TableHeaderCell>Request ID</TableHeaderCell>
+              {activeFamily === "all" ? <TableHeaderCell>Family</TableHeaderCell> : null}
+              {activeFamily === "financial" ? <TableHeaderCell>Amount</TableHeaderCell> : null}
+              {activeFamily === "financial" ? <TableHeaderCell>Project</TableHeaderCell> : null}
+              {activeFamily === "leave" ? <TableHeaderCell>Leave Dates</TableHeaderCell> : null}
+              {activeFamily === "leave" ? <TableHeaderCell>Duration</TableHeaderCell> : null}
+              <TableHeaderCell>Submitted</TableHeaderCell>
+              <TableHeaderCell>Status</TableHeaderCell>
+              <TableHeaderCell className="text-right">Actions</TableHeaderCell>
+            </TableHeaderRow>
+          </TableHead>
+          <TableBody>
             {rows.map((row) => (
-              <tr key={row.id} className="rounded-2xl bg-slate-50">
-                <td className="rounded-l-2xl px-3 py-4">
+              <TableRow key={row.id}>
+                <TableCell className="rounded-l-2xl">
                   <p className="text-sm font-semibold text-brand-900">{row.id}</p>
                   <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                     <Icon name={row.icon} className="text-[16px]" />
                     <span>{row.type}</span>
                   </div>
-                </td>
+                </TableCell>
                 {activeFamily === "all" ? (
-                  <td className="px-3 py-4 text-sm text-slate-600">{row.familyLabel}</td>
+                  <TableCell className="text-sm text-slate-600">{row.familyLabel}</TableCell>
                 ) : null}
                 {activeFamily === "financial" ? (
-                  <td className="px-3 py-4 text-sm text-slate-600">{row.detail}</td>
+                  <TableCell className="text-sm text-slate-600">{row.detail}</TableCell>
                 ) : null}
                 {activeFamily === "financial" ? (
-                  <td className="px-3 py-4 text-sm text-slate-600">{row.projectName || "-"}</td>
+                  <TableCell className="text-sm text-slate-600">{row.projectName || "-"}</TableCell>
                 ) : null}
                 {activeFamily === "leave" ? (
-                  <td className="px-3 py-4 text-sm text-slate-600">{formatLeaveDateRange(row)}</td>
+                  <TableCell className="text-sm text-slate-600">{formatLeaveDateRange(row)}</TableCell>
                 ) : null}
                 {activeFamily === "leave" ? (
-                  <td className="px-3 py-4 text-sm text-slate-600">{formatLeaveDuration(row)}</td>
+                  <TableCell className="text-sm text-slate-600">{formatLeaveDuration(row)}</TableCell>
                 ) : null}
-                <td className="px-3 py-4 text-sm text-slate-600">{row.submitted}</td>
-                <td className="px-3 py-4">
+                <TableCell className="text-sm text-slate-600">{row.submitted}</TableCell>
+                <TableCell>
                   <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
-                </td>
-                <td className="rounded-r-2xl px-3 py-4 text-right">
+                </TableCell>
+                <TableCell className="rounded-r-2xl text-right">
                   <Link
                     to={`/requests/details?id=${row.requestId}&view=${detailView === "approvals" ? "approvals" : "mine"}`}
                     className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-brand-900 transition hover:bg-brand-900/5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
@@ -580,11 +604,11 @@ function RequestsListTable({
                     View Details
                     <Icon name="arrow_forward" className="text-[18px]" />
                   </Link>
-                </td>
-              </tr>
+                </TableCell>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
       <div className="mt-4 flex items-center justify-between gap-4 text-sm text-slate-500">
@@ -735,6 +759,14 @@ function HelpPanel() {
 
 export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
   const { user } = useAuth();
+  const { data: profile } = useCachedQuery(
+    "requests:profile",
+    () => getWorkspaceProfile(),
+    {
+      ttlMs: 1000 * 60,
+      storage: "memory",
+    },
+  );
   const [searchParams, setSearchParams] = useSearchParams();
   const [status, setStatus] = useState("");
   const [selectedRequestTypeId, setSelectedRequestTypeId] = useState("all");
@@ -762,9 +794,21 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
 
   const permissions = (user?.permissions ?? []).map((entry) => entry.toLowerCase());
   const roles = (user?.roles ?? []).map((entry) => entry.toLowerCase());
+  const hasTeamLeadAssignment = Boolean(
+    Array.isArray(profile?.groups) &&
+      profile.groups.some((team) =>
+        String(team?.role ?? "").toLowerCase().includes("lead"),
+      ),
+  );
   const canSeeApprovals =
-    permissions.some((entry) => entry.includes("approve") || entry.includes("requests.manage")) ||
-    roles.some((entry) => ["team_lead", "manager", "admin", "finance", "finance_lead"].includes(entry));
+    hasApprovalAccess(user) ||
+    permissions.some((entry) => entry.includes("requests.manage")) ||
+    roles.some((entry) => ["manager", "admin", "finance", "finance_lead"].includes(entry)) ||
+    hasTeamLeadAssignment;
+
+  if (activeScope === "approvals" && !canSeeApprovals) {
+    return <Navigate to="/requests" replace />;
+  }
 
   const {
     data: requestsData,

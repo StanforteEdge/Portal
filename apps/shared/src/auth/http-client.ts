@@ -15,7 +15,7 @@ export type HttpRequest = <T = unknown>(path: string, options?: RequestOptions) 
 
 export function createHttpClient(config: {
   apiBaseUrl: string;
-  session: SessionStorageAdapter;
+  session?: SessionStorageAdapter;
 }): HttpRequest {
   const { apiBaseUrl, session } = config;
   let refreshPromise: Promise<string | null> | null = null;
@@ -29,16 +29,16 @@ export function createHttpClient(config: {
       return refreshPromise;
     }
 
-    const currentSession = session.getStoredSession();
-    if (!currentSession.refreshToken) {
-      session.clearSession();
-      return null;
-    }
+    const currentSession = session?.getStoredSession();
+    const hasStoredRefreshToken = Boolean(currentSession?.refreshToken);
 
     refreshPromise = fetch(`${apiBaseUrl}/auth/refresh`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: currentSession.refreshToken }),
+      headers: hasStoredRefreshToken ? { "Content-Type": "application/json" } : undefined,
+      body: hasStoredRefreshToken
+        ? JSON.stringify({ refresh_token: currentSession?.refreshToken })
+        : undefined,
+      credentials: "include",
     })
       .then(async (response) => {
         if (!response.ok) {
@@ -48,11 +48,13 @@ export function createHttpClient(config: {
         const json = await response.json();
         const payload = json?.data ?? json;
         const tokens = normalizeTokens(payload);
-        session.updateSessionTokens(tokens.access_token, tokens.refresh_token, tokens.expires_in);
+        if (session) {
+          session.updateSessionTokens(tokens.access_token, tokens.refresh_token, tokens.expires_in);
+        }
         return tokens.access_token;
       })
       .catch(() => {
-        session.clearSession();
+        session?.clearSession();
         return null;
       })
       .finally(() => {
@@ -91,12 +93,12 @@ export function createHttpClient(config: {
       retryOnUnauthorized = true,
     } = options;
 
-    const currentSession = session.getStoredSession();
+    const currentSession = session?.getStoredSession();
     const composedHeaders: Record<string, string> = {
       ...headers,
     };
 
-    if (auth && currentSession.accessToken) {
+    if (auth && currentSession?.accessToken) {
       composedHeaders.Authorization = `Bearer ${currentSession.accessToken}`;
     }
 
@@ -114,11 +116,12 @@ export function createHttpClient(config: {
       method,
       headers: composedHeaders,
       body: requestBody,
+      credentials: "include",
     });
 
     if (response.status === 401 && auth && retryOnUnauthorized) {
       const accessToken = await refreshAccessToken();
-      if (accessToken) {
+      if (accessToken || !session) {
         return httpRequest<T>(path, {
           ...options,
           retryOnUnauthorized: false,
