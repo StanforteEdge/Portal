@@ -1270,13 +1270,6 @@ export class RequestsService {
     const request = await this.getRequestOrThrow(id);
     const isOwner = request.createdBy === toBigInt(userId);
 
-    if (request.workflowInstanceId) {
-      if (['sent', 'approval'].includes(request.status)) {
-        const canAct = await this.isPendingApprovalForUser(id, userId);
-        return canAct ? ['approve', 'reject'] : [];
-      }
-      return [];
-    }
     if (request.status === 'draft') return isOwner ? ['submit'] : [];
     if (['sent', 'approval'].includes(request.status)) {
       const canAct = await this.isPendingApprovalForUser(id, userId);

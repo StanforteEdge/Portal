@@ -1114,9 +1114,7 @@ export function RequestDetailsPage() {
         `requests:actions:${id}`,
         `requests:detail:payment-vouchers:${id}`,
       ].forEach((key) => cacheStore.invalidateCache(key));
-      await refetch();
-      await refetchRequestActions();
-      await refetchPaymentVouchers();
+      await Promise.allSettled([refetch(), refetchRequestActions(), refetchPaymentVouchers()]);
       showToast({
         title: "Request updated",
         message:
