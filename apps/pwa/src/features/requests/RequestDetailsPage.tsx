@@ -26,7 +26,7 @@ import {
   type WorkflowStepStatus,
 } from "@stanforte/shared";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/features/auth/AuthProvider";
 import { cacheStore, useCachedQuery } from "@/lib/core";
@@ -470,6 +470,7 @@ export function RequestDetailsPage() {
     [paymentVouchers],
   );
   const remainingDisbursement = Math.max(0, requestTotal - disbursedTotal);
+  const defaultFinanceAccountId = financeAccounts?.[0]?.id ?? "";
   const pendingApprovals = request?.approvals?.pending ?? [];
   const completedApprovals = request?.approvals?.done ?? [];
   const workflowStatus = deriveRequestWorkflowStatus(request);
@@ -683,6 +684,23 @@ export function RequestDetailsPage() {
     disbursedTotal < requestTotal
       ? "Disburse More"
       : "Disburse Request";
+
+  useEffect(() => {
+    if (!showDisburseDialog) return;
+    if (disburseMode !== "create") return;
+    if (disburseForm.paid_from_account_id || !defaultFinanceAccountId) return;
+
+    setDisburseForm((current) => ({
+      ...current,
+      paid_from_account_id: defaultFinanceAccountId,
+    }));
+  }, [
+    defaultFinanceAccountId,
+    disburseForm.paid_from_account_id,
+    disburseMode,
+    showDisburseDialog,
+  ]);
+
   const retireableVoucher = useMemo(
     () =>
       (paymentVouchers ?? []).find(
@@ -2338,16 +2356,21 @@ export function RequestDetailsPage() {
                       paid_from_account_id: event.target.value,
                     }))
                   }
-                >
-                  <option value="">Select finance account</option>
-                  {(financeAccounts ?? []).map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
+                  >
+                    <option value="">Select finance account</option>
+                    {(financeAccounts ?? []).map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.name}
                       {account.code ? ` (${account.code})` : ""}
-                    </option>
-                  ))}
-                </SelectField>
-              </div>
+                      </option>
+                    ))}
+                  </SelectField>
+                  {!financeAccounts?.length ? (
+                    <p className="mt-1 text-xs text-amber-700">
+                      No active finance account is available. Disbursement cannot continue until one is configured.
+                    </p>
+                  ) : null}
+                </div>
 
               <div className="mt-4">
                 <TextAreaField
@@ -2420,7 +2443,7 @@ export function RequestDetailsPage() {
                 </Button>
                 <Button
                   onClick={() => void handleWorkflowAction("disburse")}
-                  disabled={actionBusy !== ""}
+                  disabled={actionBusy !== "" || (!financeAccounts?.length ? true : !disburseForm.paid_from_account_id)}
                 >
                   {actionBusy === "disburse"
                     ? disburseMode === "edit"
