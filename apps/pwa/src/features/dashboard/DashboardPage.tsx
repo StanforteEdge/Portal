@@ -306,7 +306,10 @@ export default function DashboardPage() {
                     )}
                   </div>
                   <Link to="/attendance" className="inline-flex">
-                    <Button className="bg-white text-brand-900 hover:bg-slate-100">
+                    <Button
+                      variant="secondary"
+                      className="!border-white/10 !bg-white !text-brand-900 hover:!bg-slate-100"
+                    >
                       Open Attendance
                     </Button>
                   </Link>

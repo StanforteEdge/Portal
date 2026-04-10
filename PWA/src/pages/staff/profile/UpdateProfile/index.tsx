@@ -128,7 +128,7 @@ function UpdateProfilePage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Profile</h2>
-        <Link className="btn btn-outline-secondary" to="/app/settings/security">
+        <Link className="btn btn-outline-secondary" to="/appOld/settings/security">
           Change Password
         </Link>
       </div>
@@ -241,7 +241,7 @@ function UpdateProfilePage() {
               <div className="mt-6">
                 <div className="flex items-center">
                   <h3 className="mr-auto text-base font-medium">Policies</h3>
-                  <Link className="text-primary" to="/app/documents">
+                  <Link className="text-primary" to="/appOld/documents">
                     View all
                   </Link>
                 </div>

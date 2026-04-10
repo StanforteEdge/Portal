@@ -112,7 +112,7 @@ function AdminDocumentEditorPage() {
         labels: newLabels,
       }).catch(() => undefined);
       setNotice({ tone: "success", message: "Document saved." });
-      if (isCreate) navigate(`/app/admin/documents/${saved.id}`, { replace: true });
+      if (isCreate) navigate(`/appOld/admin/documents/${saved.id}`, { replace: true });
       else await load();
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save document." });
@@ -127,7 +127,7 @@ function AdminDocumentEditorPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">{isCreate ? "Create Document" : "Edit Document"}</h2>
-        <Button variant="outline-secondary" onClick={() => navigate("/app/admin/documents")}>Back</Button>
+        <Button variant="outline-secondary" onClick={() => navigate("/appOld/admin/documents")}>Back</Button>
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}

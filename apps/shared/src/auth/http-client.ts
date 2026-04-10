@@ -20,6 +20,15 @@ export function createHttpClient(config: {
   const { apiBaseUrl, session } = config;
   let refreshPromise: Promise<string | null> | null = null;
 
+  function notifyAuthInvalidated(reason: string) {
+    if (typeof window === "undefined") return;
+    window.dispatchEvent(
+      new CustomEvent("se:auth-invalidated", {
+        detail: { reason },
+      }),
+    );
+  }
+
   function isFormData(value: unknown): value is FormData {
     return typeof FormData !== "undefined" && value instanceof FormData;
   }
@@ -55,6 +64,7 @@ export function createHttpClient(config: {
       })
       .catch(() => {
         session?.clearSession();
+        notifyAuthInvalidated("refresh_failed");
         return null;
       })
       .finally(() => {
@@ -127,6 +137,7 @@ export function createHttpClient(config: {
           retryOnUnauthorized: false,
         });
       }
+      notifyAuthInvalidated("unauthorized");
     }
 
     return parseResponse<T>(response);

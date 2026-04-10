@@ -1,9 +1,9 @@
 const roleRedirectMap: Array<{ roles: string[]; path: string }> = [
-  { roles: ["super-admin", "admin", "it-admin"], path: "/app/dashboard" },
-  { roles: ["hr-admin", "hr-manager", "hr"], path: "/app/hr" },
+  { roles: ["super-admin", "admin", "it-admin"], path: "/appOld/dashboard" },
+  { roles: ["hr-admin", "hr-manager", "hr"], path: "/appOld/hr" },
   {
     roles: ["finance-officer", "finance-manager", "finance_manager", "accountant"],
-    path: "/app/dashboard",
+    path: "/appOld/dashboard",
   },
 ];
 
@@ -14,7 +14,7 @@ export function resolveRedirectPath(roles: string[] = [], onboardingStatus?: str
       onboardingStatus
     )
   ) {
-    return "/app/onboarding";
+    return "/appOld/onboarding";
   }
 
   const normalizedRoles = roles.map((role) => role.toLowerCase());
@@ -25,5 +25,5 @@ export function resolveRedirectPath(roles: string[] = [], onboardingStatus?: str
     }
   }
 
-  return "/app/dashboard";
+  return "/appOld/dashboard";
 }

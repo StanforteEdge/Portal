@@ -126,12 +126,12 @@ function FinanceAssetDetailPage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Asset Details</h2>
         <div className="flex gap-2">
-          <Button variant="outline-secondary" onClick={() => navigate("/app/finance/assets")}>
+          <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/assets")}>
             <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" /> Back
           </Button>
           {asset?.status !== "disposed" ? (
             <>
-              <Button variant="outline-primary" onClick={() => navigate(`/app/finance/assets/${id}/edit`)}>
+              <Button variant="outline-primary" onClick={() => navigate(`/appOld/finance/assets/${id}/edit`)}>
                 <Lucide icon="FilePenLine" className="w-4 h-4 mr-1" /> Edit
               </Button>
               <Button variant="outline-secondary" onClick={() => setShowVerifyModal(true)}>

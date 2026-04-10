@@ -25,7 +25,7 @@ import {
   type WorkflowStep,
   type WorkflowStepStatus,
 } from "@stanforte/shared";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/features/auth/AuthProvider";
@@ -37,6 +37,8 @@ import {
 } from "./requests-data";
 import {
   approveRequest,
+  deleteRequest,
+  downloadRequestArtifact,
   completeRequest,
   confirmRequest,
   disburseRequest,
@@ -57,6 +59,7 @@ import {
   type FinancePaymentVoucherRecord,
   updateRequestPaymentVoucher,
 } from "../finance/finance-api";
+import { downloadBase64File } from "@/lib/download";
 import {
   formatDisplayDate,
   formatPersonName,
@@ -95,6 +98,7 @@ function normalizeWorkflowLabel(step: Record<string, any>, index: number) {
   if (role.includes("hr")) return "HR Approval";
   if (role.includes("coo")) return "COO Approval";
   if (role.includes("ed")) return "ED Approval";
+  if (role.includes("board")) return "Board Member Approval";
   return String(step.step || step.name || `Approval ${index + 1}`);
 }
 
@@ -313,6 +317,7 @@ function requestHasDraftHistory(request: any) {
 
 export function RequestDetailsPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [actionComment, setActionComment] = useState("");
   const [actionBusy, setActionBusy] = useState<string>("");
@@ -342,7 +347,10 @@ export function RequestDetailsPage() {
     retirement_file_ids: [] as string[],
   });
   const id = searchParams.get("id") || "";
-  const detailView = searchParams.get("view") || "mine";
+  const detailView =
+    location.pathname.startsWith("/finance/requests")
+      ? "finance"
+      : searchParams.get("view") || "mine";
   const { user } = useAuth();
   const currentUserId = user?.id ? String(user.id) : undefined;
   const { showToast } = useToast();
@@ -511,7 +519,7 @@ export function RequestDetailsPage() {
   const approvalActionsVisible =
     availableActions.includes("approve") || availableActions.includes("reject");
   const financeActionsVisible = detailView === "finance";
-  const ownerActionsVisible = detailView !== "approvals";
+  const ownerActionsVisible = detailView === "mine";
   const viewerStatus = useMemo(() => {
     if (!request)
       return { label: "Loading", hint: "", tone: "neutral" as const };
@@ -696,7 +704,9 @@ export function RequestDetailsPage() {
     const requestLabel = request.request_number || `Request #${request.id}`;
     const link =
       typeof window !== "undefined"
-        ? `${window.location.origin}/requests/details?id=${request.id}&view=${detailView}`
+        ? detailView === "finance"
+          ? `${window.location.origin}/finance/requests/details?id=${request.id}`
+          : `${window.location.origin}/requests/details?id=${request.id}&view=${detailView}`
         : "";
     return [
       `Hi, please take a look at ${requestLabel}.`,
@@ -736,6 +746,84 @@ export function RequestDetailsPage() {
     setShowDisburseDialog(false);
     setDisburseMode("create");
     setEditingVoucherId("");
+  }
+
+  async function handleDownloadArtifact(
+    action:
+      | "request_pdf"
+      | "full_document"
+      | "pv_pdf",
+    voucherId?: string,
+  ) {
+    if (!id) return;
+    const busyKey =
+      action === "request_pdf"
+        ? "download_request_pdf"
+        : action === "full_document"
+          ? "download_full_document"
+          : `download_pv:${voucherId || "default"}`;
+    try {
+      setActionBusy(busyKey);
+      const file = await downloadRequestArtifact(id, {
+        action,
+        voucher_id: voucherId,
+      });
+      downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+      showToast({
+        title: "Download ready",
+        message:
+          action === "request_pdf"
+            ? "The request PDF has been downloaded."
+            : action === "full_document"
+              ? "The full request document has been downloaded."
+              : "The payment voucher has been downloaded.",
+        tone: "success",
+      });
+    } catch (error) {
+      showToast({
+        title: "Download failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "We couldn't generate that download right now.",
+        tone: "danger",
+      });
+    } finally {
+      setActionBusy("");
+    }
+  }
+
+  async function handleDeleteDraft() {
+    if (!id) return;
+    const shouldDelete =
+      typeof window === "undefined"
+        ? false
+        : window.confirm("Delete this draft request? This cannot be undone.");
+    if (!shouldDelete) return;
+    try {
+      setActionBusy("delete");
+      await deleteRequest(id);
+      cacheStore.invalidateCache("requests:list:mine");
+      cacheStore.invalidateCache(`requests:detail:${id}`);
+      cacheStore.invalidateCache(`requests:actions:${id}`);
+      showToast({
+        title: "Draft deleted",
+        message: "The request draft has been removed.",
+        tone: "success",
+      });
+      navigate(parentPath, { replace: true });
+    } catch (error) {
+      showToast({
+        title: "Delete failed",
+        message:
+          error instanceof Error
+            ? error.message
+            : "We couldn't delete the draft right now.",
+        tone: "danger",
+      });
+    } finally {
+      setActionBusy("");
+    }
   }
 
   const summaryCards = useMemo(() => {
@@ -1426,13 +1514,30 @@ export function RequestDetailsPage() {
                                 )}
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  onClick={() => openVoucherEditor(voucher)}
-                                >
-                                  View / Edit
-                                </Button>
+                                <div className="inline-flex flex-wrap justify-end gap-2">
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() =>
+                                      void handleDownloadArtifact(
+                                        "pv_pdf",
+                                        voucher.id,
+                                      )
+                                    }
+                                    disabled={actionBusy !== ""}
+                                  >
+                                    {actionBusy === `download_pv:${voucher.id}`
+                                      ? "Downloading..."
+                                      : "Download PV"}
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="secondary"
+                                    onClick={() => openVoucherEditor(voucher)}
+                                  >
+                                    View / Edit
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -1680,10 +1785,47 @@ export function RequestDetailsPage() {
                   >
                     {actionBusy === "complete"
                       ? "Completing..."
-                      : "Complete Request"}
+                    : "Complete Request"}
                   </Button>
                 ) : null}
               </section>
+
+              <SectionCard title="Downloads & Draft">
+                <div className="space-y-3">
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-center"
+                    onClick={() => void handleDownloadArtifact("request_pdf")}
+                    disabled={actionBusy !== ""}
+                  >
+                    {actionBusy === "download_request_pdf"
+                      ? "Downloading..."
+                      : "Download Request PDF"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    className="w-full justify-center"
+                    onClick={() => void handleDownloadArtifact("full_document")}
+                    disabled={actionBusy !== ""}
+                  >
+                    {actionBusy === "download_full_document"
+                      ? "Downloading..."
+                      : "Download Full Document"}
+                  </Button>
+                  {canEditDraft ? (
+                    <Button
+                      variant="danger"
+                      className="w-full justify-center"
+                      onClick={() => void handleDeleteDraft()}
+                      disabled={actionBusy !== ""}
+                    >
+                      {actionBusy === "delete"
+                        ? "Deleting..."
+                        : "Delete Draft"}
+                    </Button>
+                  ) : null}
+                </div>
+              </SectionCard>
 
               {canShowNudge ? (
                 <section className="section-card p-5">
@@ -1852,6 +1994,9 @@ export function RequestDetailsPage() {
                         <TableHeaderCell>PV</TableHeaderCell>
                         <TableHeaderCell>Amount</TableHeaderCell>
                         <TableHeaderCell>Retirement</TableHeaderCell>
+                        <TableHeaderCell className="text-right">
+                          Action
+                        </TableHeaderCell>
                       </TableHeaderRow>
                     </TableHead>
                     <TableBody>
@@ -1871,6 +2016,23 @@ export function RequestDetailsPage() {
                                 )
                               : "-"}
                           </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              onClick={() =>
+                                void handleDownloadArtifact(
+                                  "pv_pdf",
+                                  voucher.id,
+                                )
+                              }
+                              disabled={actionBusy !== ""}
+                            >
+                              {actionBusy === `download_pv:${voucher.id}`
+                                ? "Downloading..."
+                                : "Download PV"}
+                            </Button>
+                          </TableCell>
                         </TableRow>
                       ))}
                     </TableBody>
@@ -1883,8 +2045,37 @@ export function RequestDetailsPage() {
               <WorkflowStepper steps={workflow} />
             </SectionCard>
 
-            {availableActions.length ? (
-              <SectionCard title="Actions">
+            <SectionCard title="Actions">
+                <Button
+                  variant="secondary"
+                  className="mb-3 w-full justify-center"
+                  onClick={() => void handleDownloadArtifact("request_pdf")}
+                  disabled={actionBusy !== ""}
+                >
+                  {actionBusy === "download_request_pdf"
+                    ? "Downloading..."
+                    : "Download Request PDF"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  className="mb-3 w-full justify-center"
+                  onClick={() => void handleDownloadArtifact("full_document")}
+                  disabled={actionBusy !== ""}
+                >
+                  {actionBusy === "download_full_document"
+                    ? "Downloading..."
+                    : "Download Full Document"}
+                </Button>
+                {canEditDraft ? (
+                  <Button
+                    variant="danger"
+                    className="mb-4 w-full justify-center"
+                    onClick={() => void handleDeleteDraft()}
+                    disabled={actionBusy !== ""}
+                  >
+                    {actionBusy === "delete" ? "Deleting..." : "Delete Draft"}
+                  </Button>
+                ) : null}
                 {ownerActionsVisible && availableActions.includes("retire") ? (
                   <Button
                     variant="secondary"
@@ -2002,7 +2193,6 @@ export function RequestDetailsPage() {
                   </Button>
                 ) : null}
               </SectionCard>
-            ) : null}
 
             {canShowNudge ? (
               <SectionCard title="Need a nudge?">

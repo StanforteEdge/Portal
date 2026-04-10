@@ -107,7 +107,7 @@ function HrLeaveRequestsPage() {
       <div className="mt-4 intro-y">
         <div className="box p-2">
           <div className="flex gap-2">
-            <Link to="/app/hr/leave">
+            <Link to="/appOld/hr/leave">
               <Button variant="outline-secondary">
                 <Lucide icon="BarChart2" className="w-4 h-4 mr-1" />
                 Tracker
@@ -117,7 +117,7 @@ function HrLeaveRequestsPage() {
               <Lucide icon="CheckCheck" className="w-4 h-4 mr-1" />
               Requests
             </Button>
-            <Link to="/app/hr/settings/leave">
+            <Link to="/appOld/hr/settings/leave">
               <Button variant="outline-secondary">
                 <Lucide icon="Settings" className="w-4 h-4 mr-1" />
                 Settings
@@ -225,7 +225,7 @@ function HrLeaveRequestsPage() {
                   return (
                     <Table.Tr key={row.id}>
                       <Table.RowHeader>
-                        <Link className="font-semibold text-primary hover:underline" to={`/app/requests/request/${row.id}`}>
+                        <Link className="font-semibold text-primary hover:underline" to={`/appOld/requests/request/${row.id}`}>
                           {formatRequestNumber(row.request_number)}
                         </Link>
                       </Table.RowHeader>
@@ -242,7 +242,7 @@ function HrLeaveRequestsPage() {
                         </span>
                       </Table.Td>
                       <Table.Td>
-                        <Link to={`/app/requests/request/${row.id}`}>
+                        <Link to={`/appOld/requests/request/${row.id}`}>
                           <Button size="sm" variant="outline-secondary" aria-label={`View leave request ${formatRequestNumber(row.request_number)}`} title="View leave request">
                             <Lucide icon="Eye" className="w-4 h-4 mr-1" />
                             View

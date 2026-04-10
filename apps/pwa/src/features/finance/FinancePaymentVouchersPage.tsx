@@ -133,7 +133,7 @@ export default function FinancePaymentVouchersPage() {
                       </TableCell>
                       <TableCell className="text-right">
                         <Link
-                          to={`/requests/details?id=${row.request_id}&view=finance`}
+                          to={`/finance/requests/details?id=${row.request_id}`}
                           className="text-sm font-semibold text-brand-900 transition hover:underline"
                         >
                           Open request

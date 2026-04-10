@@ -242,10 +242,10 @@ function Router() {
   const routes = [
     {
       path: "/",
-      element: <Navigate to="/app/dashboard" replace />,
+      element: <Navigate to="/appOld/dashboard" replace />,
     },
     {
-      path: "/app",
+      path: "/appOld",
       element: (
         <ProtectedRoute>
           <Layout />
@@ -386,7 +386,7 @@ function Router() {
         },
         {
           path: "requests/create",
-          element: <Navigate to="/app/requests/new" replace />,
+          element: <Navigate to="/appOld/requests/new" replace />,
         },
         {
           path: "requests/request/:id",
@@ -426,11 +426,11 @@ function Router() {
         },
         {
           path: "requests/approvals",
-          element: <Navigate to="/app/approvals" replace />,
+          element: <Navigate to="/appOld/approvals" replace />,
         },
         {
           path: "requests/approvals/:id",
-          element: <Navigate to="/app/approvals" replace />,
+          element: <Navigate to="/appOld/approvals" replace />,
         },
         {
           path: "requests/attendance",
@@ -900,11 +900,11 @@ function Router() {
         },
         {
           path: "finance/manualentry",
-          element: <Navigate to="/app/finance/manual-entry" replace />,
+          element: <Navigate to="/appOld/finance/manual-entry" replace />,
         },
         {
           path: "finance/settings/signatories",
-          element: <Navigate to="/app/finance/settings" replace />,
+          element: <Navigate to="/appOld/finance/settings" replace />,
         },
         {
           path: "admin/users",
@@ -948,7 +948,7 @@ function Router() {
         },
         {
           path: "admin/users/list",
-          element: <Navigate to="/app/admin/users" replace />,
+          element: <Navigate to="/appOld/admin/users" replace />,
         },
         {
           path: "admin/settings",
@@ -1102,7 +1102,7 @@ function Router() {
         },
         {
           path: "hr/employees/employee",
-          element: <Navigate to="/app/hr/employees/new" replace />,
+          element: <Navigate to="/appOld/hr/employees/new" replace />,
         },
         {
           path: "hr/employees/:id",
@@ -1288,35 +1288,35 @@ function Router() {
     },
     {
       path: "/update-profile",
-      element: <Navigate to="/app/profile" replace />,
+      element: <Navigate to="/appOld/profile" replace />,
     },
     {
       path: "/change-password",
-      element: <Navigate to="/app/settings/security" replace />,
+      element: <Navigate to="/appOld/settings/security" replace />,
     },
     {
       path: "/finance-settings",
-      element: <Navigate to="/app/finance/settings" replace />,
+      element: <Navigate to="/appOld/finance/settings" replace />,
     },
     {
       path: "/user-management",
-      element: <Navigate to="/app/admin/users" replace />,
+      element: <Navigate to="/appOld/admin/users" replace />,
     },
     {
-      path: "/app/profile/view",
-      element: <Navigate to="/app/profile" replace />,
+      path: "/appOld/profile/view",
+      element: <Navigate to="/appOld/profile" replace />,
     },
     {
-      path: "/app/profile/edit",
-      element: <Navigate to="/app/profile" replace />,
+      path: "/appOld/profile/edit",
+      element: <Navigate to="/appOld/profile" replace />,
     },
     {
-      path: "/app/profile/password",
-      element: <Navigate to="/app/settings/security" replace />,
+      path: "/appOld/profile/password",
+      element: <Navigate to="/appOld/settings/security" replace />,
     },
     {
-      path: "/app/requests/list",
-      element: <Navigate to="/app/requests" replace />,
+      path: "/appOld/requests/list",
+      element: <Navigate to="/appOld/requests" replace />,
     },
     {
       path: "/error-page",

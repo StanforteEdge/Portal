@@ -142,7 +142,7 @@ function HrAttendancePage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Attendance Monitoring</h2>
         <div className="flex gap-2">
-          <Button variant="outline-primary" onClick={() => navigate("/app/hr/settings?tab=attendance")}>
+          <Button variant="outline-primary" onClick={() => navigate("/appOld/hr/settings?tab=attendance")}>
             <Lucide icon="Settings" className="w-4 h-4 mr-1" /> Policy Settings
           </Button>
           <Button variant="outline-secondary" onClick={() => void load()} disabled={loading}>

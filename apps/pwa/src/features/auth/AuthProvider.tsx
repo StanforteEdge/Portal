@@ -8,14 +8,17 @@ import {
   type ReactNode,
 } from "react";
 import type { AuthUser } from "@stanforte/shared";
-import { authApi } from "@/lib/core";
+import { authApi, authSession } from "@/lib/core";
 
 type AuthStatus = "checking" | "authenticated" | "unauthenticated";
+type AuthIssue = "session_expired" | null;
 
 type AuthContextValue = {
   status: AuthStatus;
   user: AuthUser | null;
   initialized: boolean;
+  authIssue: AuthIssue;
+  lastKnownEmail: string | null;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshStatus: () => Promise<void>;
@@ -27,6 +30,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("checking");
   const [user, setUser] = useState<AuthUser | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [authIssue, setAuthIssue] = useState<AuthIssue>(null);
+  const [lastKnownEmail, setLastKnownEmail] = useState<string | null>(null);
 
   const refreshStatus = useCallback(async () => {
     setStatus("checking");
@@ -35,25 +40,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const result = await authApi.fetchStatus();
       if (result.authenticated && result.user) {
         setUser(result.user);
+        setLastKnownEmail(result.user.email || null);
         setStatus("authenticated");
+        setAuthIssue(null);
       } else {
         const fallbackUser = await authApi.fetchCurrentUser();
         if (fallbackUser) {
           setUser(fallbackUser);
+          setLastKnownEmail(fallbackUser.email || null);
           setStatus("authenticated");
+          setAuthIssue(null);
         } else {
           setUser(null);
           setStatus("unauthenticated");
+          setAuthIssue(null);
         }
       }
     } catch {
       const fallbackUser = await authApi.fetchCurrentUser();
       if (fallbackUser) {
         setUser(fallbackUser);
+        setLastKnownEmail(fallbackUser.email || null);
         setStatus("authenticated");
+        setAuthIssue(null);
       } else {
         setUser(null);
         setStatus("unauthenticated");
+        setAuthIssue(null);
       }
     } finally {
       setInitialized(true);
@@ -64,17 +77,43 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     void refreshStatus();
   }, [refreshStatus]);
 
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    function handleAuthInvalidated() {
+      setUser(null);
+      setStatus("unauthenticated");
+      setAuthIssue("session_expired");
+      setInitialized(true);
+    }
+
+    window.addEventListener("se:auth-invalidated", handleAuthInvalidated as EventListener);
+    return () => {
+      window.removeEventListener("se:auth-invalidated", handleAuthInvalidated as EventListener);
+    };
+  }, []);
+
   const signIn = useCallback(async (email: string, password: string) => {
-    const { user: authUser } = await authApi.login(email, password);
+    const { tokens, user: authUser } = await authApi.login(email, password);
+    authSession.persistSession(
+      tokens.access_token,
+      tokens.refresh_token,
+      tokens.expires_in,
+    );
     setUser(authUser);
+    setLastKnownEmail(authUser.email || email);
     setStatus("authenticated");
+    setAuthIssue(null);
     setInitialized(true);
   }, []);
 
   const signOut = useCallback(async () => {
     await authApi.logout();
+    authSession.clearSession();
     setUser(null);
     setStatus("unauthenticated");
+    setAuthIssue(null);
+    setLastKnownEmail(null);
     setInitialized(true);
   }, []);
 
@@ -83,11 +122,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       status,
       user,
       initialized,
+      authIssue,
+      lastKnownEmail,
       signIn,
       signOut,
       refreshStatus,
     }),
-    [initialized, refreshStatus, signIn, signOut, status, user]
+    [authIssue, initialized, lastKnownEmail, refreshStatus, signIn, signOut, status, user]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

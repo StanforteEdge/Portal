@@ -21,7 +21,7 @@ function PageGuide({ pageKey, className }: PageGuideProps) {
           </div>
           <p className="mt-2 text-sm text-slate-600">{entry.summary}</p>
         </div>
-        <Link to={`/app/help/finance#${entry.key}`} className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
+        <Link to={`/appOld/help/finance#${entry.key}`} className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline">
           Open finance guide
           <Lucide icon="ChevronRight" className="h-4 w-4" />
         </Link>

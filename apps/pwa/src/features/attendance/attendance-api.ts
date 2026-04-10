@@ -84,6 +84,7 @@ export type MyAttendanceResponse = {
   current_state: {
     is_clocked_in: boolean;
     last_clock_in_at: string | null;
+    last_clock_in_work_date?: string | null;
     can_clock_in?: boolean;
     can_clock_out?: boolean;
     reason?: string | null;

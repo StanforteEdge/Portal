@@ -1083,7 +1083,7 @@ function FinanceManualEntryPage() {
             <Lucide icon="FileText" className="w-4 h-4 mr-1" />
             {importingPreview ? "Reading..." : "Batch Import"}
           </Button>
-          <Button variant="outline-secondary" onClick={() => navigate("/app/finance")}>
+          <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance")}>
             <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" />
             Back
           </Button>

@@ -305,7 +305,7 @@ function FinanceRequestsPage() {
                   return (
                     <Table.Tr key={req.id}>
                       <Table.RowHeader>
-                        <Link className="font-semibold text-primary hover:underline" to={`/app/finance/requests/request/${req.id}`}>
+                        <Link className="font-semibold text-primary hover:underline" to={`/appOld/finance/requests/request/${req.id}`}>
                           {formatRequestNumber(req.request_number)}
                         </Link>
                       </Table.RowHeader>

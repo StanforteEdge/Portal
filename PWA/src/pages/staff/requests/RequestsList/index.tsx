@@ -216,7 +216,7 @@ function RequestsPage() {
         <h2 className="mr-auto text-lg font-medium">
           {kind === "leave" ? "Leave Requests" : kind === "financial" ? "Financial Requests" : "Requests"}
         </h2>
-        <Link to={`/app/requests/new${kind === "all" ? "" : `?kind=${kind}`}`}>
+        <Link to={`/appOld/requests/new${kind === "all" ? "" : `?kind=${kind}`}`}>
           <Button variant="primary">
             <Lucide icon="Plus" className="w-4 h-4 mr-2" />
             {kind === "leave" ? "Create Leave Request" : "Create Request"}
@@ -382,7 +382,7 @@ function RequestsPage() {
                   return (
                     <Table.Tr key={req.id}>
                       <Table.Td>
-                        <Link className="font-semibold text-primary hover:underline" to={`/app/requests/request/${req.id}`}>
+                        <Link className="font-semibold text-primary hover:underline" to={`/appOld/requests/request/${req.id}`}>
                           {formatRequestNumber(req.request_number)}
                         </Link>
                       </Table.Td>

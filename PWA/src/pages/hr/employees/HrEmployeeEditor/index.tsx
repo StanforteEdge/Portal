@@ -174,7 +174,7 @@ function HrEmployeeEditorPage() {
       if (isCreate) {
         const created = await createHrEmployee(payload);
         setNotice({ tone: "success", message: "Employee created." });
-        navigate(`/app/hr/employees/${created.id}`, { replace: true });
+        navigate(`/appOld/hr/employees/${created.id}`, { replace: true });
       } else if (employee) {
         await updateHrEmployee(employee.id, payload);
         setNotice({ tone: "success", message: "Employee updated." });
@@ -287,7 +287,7 @@ function HrEmployeeEditorPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">{isCreate ? "Create Employee" : "Employee"}</h2>
-        <Button variant="outline-secondary" onClick={() => navigate("/app/hr/employees")}>Back to Employees</Button>
+        <Button variant="outline-secondary" onClick={() => navigate("/appOld/hr/employees")}>Back to Employees</Button>
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}

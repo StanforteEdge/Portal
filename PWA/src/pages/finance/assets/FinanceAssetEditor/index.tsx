@@ -110,7 +110,7 @@ function FinanceAssetEditorPage() {
         notes: form.notes.trim() || undefined,
       };
       const saved = isEdit ? await updateFinanceAsset(id, payload) : await createFinanceAsset(payload);
-      navigate(`/app/finance/assets/${saved.id}`, { replace: true });
+      navigate(`/appOld/finance/assets/${saved.id}`, { replace: true });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save asset." });
     } finally {
@@ -122,7 +122,7 @@ function FinanceAssetEditorPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">{isEdit ? "Edit Asset" : "New Asset"}</h2>
-        <Button variant="outline-secondary" onClick={() => navigate(isEdit ? `/app/finance/assets/${id}` : "/app/finance/assets")}>
+        <Button variant="outline-secondary" onClick={() => navigate(isEdit ? `/appOld/finance/assets/${id}` : "/appOld/finance/assets")}>
           <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" /> Back
         </Button>
       </div>
@@ -238,7 +238,7 @@ function FinanceAssetEditorPage() {
           <Button variant="primary" disabled={saving || loading} onClick={() => void save()}>
             <Lucide icon="CheckCircle2" className="w-4 h-4 mr-1" /> {saving ? "Saving..." : isEdit ? "Save Changes" : "Create Asset"}
           </Button>
-          <Button variant="outline-secondary" onClick={() => navigate(isEdit ? `/app/finance/assets/${id}` : "/app/finance/assets")}>
+          <Button variant="outline-secondary" onClick={() => navigate(isEdit ? `/appOld/finance/assets/${id}` : "/appOld/finance/assets")}>
             Cancel
           </Button>
         </div>

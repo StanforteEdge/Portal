@@ -21,8 +21,16 @@ import {
 import { Link, useLocation } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { useAuth } from "@/features/auth/AuthProvider";
-import { buildAppMobileNav, buildRequestsNavigation } from "@/features/requests/requests-data";
-import { formatDisplayDate, formatPersonName, formatRequestStatus, requestStatusTone } from "@/features/requests/request-helpers";
+import {
+  buildAppMobileNav,
+  buildRequestsNavigation,
+} from "@/features/requests/requests-data";
+import {
+  formatDisplayDate,
+  formatPersonName,
+  formatRequestStatus,
+  requestStatusTone,
+} from "@/features/requests/request-helpers";
 import type { RequestRecord } from "@/features/requests/requests-api";
 import { getWorkspaceProfile } from "@/features/system/workspace-api";
 import { useCachedQuery } from "@/lib/core";
@@ -48,11 +56,19 @@ function requestTotal(entry: any) {
 export default function FinanceAdminPage() {
   const location = useLocation();
   const { user } = useAuth();
-  const { data: profile } = useCachedQuery("finance-admin:profile", () => getWorkspaceProfile(), {
-    ttlMs: 1000 * 60,
-    storage: "memory",
-  });
-  const { data: financeRequests, loading, error } = useCachedQuery("finance-admin:requests", () => listFinanceRequests(), {
+  const { data: profile } = useCachedQuery(
+    "finance-admin:profile",
+    () => getWorkspaceProfile(),
+    {
+      ttlMs: 1000 * 60,
+      storage: "memory",
+    },
+  );
+  const {
+    data: financeRequests,
+    loading,
+    error,
+  } = useCachedQuery("finance-admin:requests", () => listFinanceRequests(), {
     ttlMs: 1000 * 30,
     storage: "memory",
   });
@@ -63,26 +79,49 @@ export default function FinanceAdminPage() {
       ? (financeRequests as any).data
       : [];
   const isRequestsView = location.pathname === "/finance/requests";
-  const [statusFilter, setStatusFilter] = useState<"all" | "cleared" | "disbursed" | "confirmed" | "retired" | "completed">("all");
+  const [statusFilter, setStatusFilter] = useState<
+    "all" | "cleared" | "disbursed" | "confirmed" | "retired" | "completed"
+  >("all");
   const [staffFilter, setStaffFilter] = useState("");
   const [dueDateFilter, setDueDateFilter] = useState("");
   const [selectedProject, setSelectedProject] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
   const [selectedOrganization, setSelectedOrganization] = useState("all");
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
-  const cleared = queue.filter((entry: RequestRecord) => String(entry.status || "").toLowerCase() === "cleared").length;
-  const disbursed = queue.filter((entry: RequestRecord) => String(entry.status || "").toLowerCase() === "disbursed").length;
-  const confirmed = queue.filter((entry: RequestRecord) => String(entry.status || "").toLowerCase() === "confirmed").length;
-  const completed = queue.filter((entry: RequestRecord) => ["retired", "completed", "confirmed"].includes(String(entry.status || "").toLowerCase())).length;
-  const awaitingRetirement = queue.filter((entry: RequestRecord) => ["disbursed", "confirmed"].includes(String(entry.status || "").toLowerCase())).length;
-  const userName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.email || "Staff";
+  const cleared = queue.filter(
+    (entry: RequestRecord) =>
+      String(entry.status || "").toLowerCase() === "cleared",
+  ).length;
+  const disbursed = queue.filter(
+    (entry: RequestRecord) =>
+      String(entry.status || "").toLowerCase() === "disbursed",
+  ).length;
+  const confirmed = queue.filter(
+    (entry: RequestRecord) =>
+      String(entry.status || "").toLowerCase() === "confirmed",
+  ).length;
+  const completed = queue.filter((entry: RequestRecord) =>
+    ["retired", "completed", "confirmed"].includes(
+      String(entry.status || "").toLowerCase(),
+    ),
+  ).length;
+  const awaitingRetirement = queue.filter((entry: RequestRecord) =>
+    ["disbursed", "confirmed"].includes(
+      String(entry.status || "").toLowerCase(),
+    ),
+  ).length;
+  const userName =
+    `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
+    user?.email ||
+    "Staff";
   const projectOptions = useMemo(
     () =>
       Array.from(
         new Map(
           queue
             .map((entry: RequestRecord) => {
-              const data = entry?.data && typeof entry.data === "object" ? entry.data : {};
+              const data =
+                entry?.data && typeof entry.data === "object" ? entry.data : {};
               const id = String((data as any).project_id || "").trim();
               const name = String((data as any).project_name || "").trim();
               return id || name ? [id || name, name || id] : null;
@@ -98,7 +137,8 @@ export default function FinanceAdminPage() {
         new Map(
           queue
             .map((entry: RequestRecord) => {
-              const data = entry?.data && typeof entry.data === "object" ? entry.data : {};
+              const data =
+                entry?.data && typeof entry.data === "object" ? entry.data : {};
               const id = String((data as any).team_id || "").trim();
               const name = String(
                 (data as any).team_name || (data as any).team || "",
@@ -116,7 +156,8 @@ export default function FinanceAdminPage() {
         new Map(
           queue
             .map((entry: RequestRecord) => {
-              const data = entry?.data && typeof entry.data === "object" ? entry.data : {};
+              const data =
+                entry?.data && typeof entry.data === "object" ? entry.data : {};
               const id = String((data as any).organization_id || "").trim();
               const name = String((data as any).organization_name || "").trim();
               return id || name ? [id || name, name || id] : null;
@@ -130,19 +171,26 @@ export default function FinanceAdminPage() {
     const statusMatch =
       statusFilter === "all" ||
       String(entry.status || "").toLowerCase() === statusFilter;
-    const data = entry?.data && typeof entry.data === "object" ? entry.data : {};
+    const data =
+      entry?.data && typeof entry.data === "object" ? entry.data : {};
     const creatorName = formatPersonName(entry.creator).toLowerCase();
     const dueDate = String((data as any).due_date || "").slice(0, 10);
     const projectId = String((data as any).project_id || "").trim();
     const projectName = String((data as any).project_name || "").trim();
     const groupId = String((data as any).team_id || "").trim();
-    const groupName = String((data as any).team_name || (data as any).team || "").trim();
+    const groupName = String(
+      (data as any).team_name || (data as any).team || "",
+    ).trim();
     const organizationId = String((data as any).organization_id || "").trim();
-    const organizationName = String((data as any).organization_name || "").trim();
+    const organizationName = String(
+      (data as any).organization_name || "",
+    ).trim();
     const staffMatch =
       !staffFilter ||
       creatorName.includes(staffFilter.trim().toLowerCase()) ||
-      String(entry.request_number || "").toLowerCase().includes(staffFilter.trim().toLowerCase());
+      String(entry.request_number || "")
+        .toLowerCase()
+        .includes(staffFilter.trim().toLowerCase());
     const dueDateMatch = !dueDateFilter || dueDate === dueDateFilter;
     const projectMatch =
       selectedProject === "all" ||
@@ -171,7 +219,10 @@ export default function FinanceAdminPage() {
     <AppShell
       navigation={buildRequestsNavigation()}
       activeLabel={isRequestsView ? "Finance Requests" : "Finance Dashboard"}
-      user={{ name: userName, role: profile?.employee_profile?.job_title || "Staff" }}
+      user={{
+        name: userName,
+        role: profile?.employee_profile?.job_title || "Staff",
+      }}
       mobileNav={buildAppMobileNav("Dashboard")}
     >
       <PageHeader
@@ -190,14 +241,32 @@ export default function FinanceAdminPage() {
 
       <div className="grid gap-6">
         <div className="grid gap-4 md:grid-cols-4">
-          <StatCard label="Finance Queue" value={String(queue.length)} tone="neutral" />
-          <StatCard label="Ready To Disburse" value={String(cleared)} tone="warning" />
-          <StatCard label="Awaiting Retirement" value={String(awaitingRetirement)} tone="pending" />
-          <StatCard label="Completed" value={String(completed)} tone="success" />
+          <StatCard
+            label="Finance Queue"
+            value={String(queue.length)}
+            tone="neutral"
+          />
+          <StatCard
+            label="Ready To Disburse"
+            value={String(cleared)}
+            tone="warning"
+          />
+          <StatCard
+            label="Awaiting Retirement"
+            value={String(awaitingRetirement)}
+            tone="pending"
+          />
+          <StatCard
+            label="Completed"
+            value={String(completed)}
+            tone="success"
+          />
         </div>
 
         <SectionCard
-          title={isRequestsView ? "Finance Request Queue" : "Priority Finance Queue"}
+          title={
+            isRequestsView ? "Finance Request Queue" : "Priority Finance Queue"
+          }
           description={
             isRequestsView
               ? "Use this queue to process requests through disbursement, receipt confirmation, retirement review, and completion."
@@ -205,7 +274,10 @@ export default function FinanceAdminPage() {
           }
           action={
             !isRequestsView ? (
-              <Link to="/finance/requests" className="text-sm font-semibold text-brand-900 transition hover:underline">
+              <Link
+                to="/finance/requests"
+                className="text-sm font-semibold text-brand-900 transition hover:underline"
+              >
                 View full queue
               </Link>
             ) : undefined
@@ -280,7 +352,9 @@ export default function FinanceAdminPage() {
               <SelectField
                 label="Organization"
                 value={selectedOrganization}
-                onChange={(event) => setSelectedOrganization(event.target.value)}
+                onChange={(event) =>
+                  setSelectedOrganization(event.target.value)
+                }
               >
                 <option value="all">All organizations</option>
                 {organizationOptions.map(([value, label]) => (
@@ -293,9 +367,13 @@ export default function FinanceAdminPage() {
           ) : null}
 
           {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">Loading finance requests...</div>
+            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              Loading finance requests...
+            </div>
           ) : error ? (
-            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">{error}</div>
+            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
+              {error}
+            </div>
           ) : queueRows.length ? (
             <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
               <Table caption="Finance requests">
@@ -307,7 +385,9 @@ export default function FinanceAdminPage() {
                     <TableHeaderCell>Due Date</TableHeaderCell>
                     <TableHeaderCell>Total</TableHeaderCell>
                     <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Action</TableHeaderCell>
+                    <TableHeaderCell className="text-right">
+                      Action
+                    </TableHeaderCell>
                   </TableHeaderRow>
                 </TableHead>
                 <TableBody>
@@ -324,8 +404,10 @@ export default function FinanceAdminPage() {
                         </p>
                         <p className="mt-1 text-xs text-slate-500">
                           {String(
-                            ((entry.data as Record<string, unknown> | null) || {})
-                              ?.purpose || "",
+                            (
+                              (entry.data as Record<string, unknown> | null) ||
+                              {}
+                            )?.purpose || "",
                           ) || "No summary"}
                         </p>
                       </TableCell>
@@ -335,8 +417,10 @@ export default function FinanceAdminPage() {
                       <TableCell className="text-sm text-slate-700">
                         {formatDisplayDate(
                           String(
-                            ((entry.data as Record<string, unknown> | null) || {})
-                              ?.due_date || "",
+                            (
+                              (entry.data as Record<string, unknown> | null) ||
+                              {}
+                            )?.due_date || "",
                           ),
                         )}
                       </TableCell>
@@ -354,12 +438,13 @@ export default function FinanceAdminPage() {
                       <TableCell className="text-right">
                         <div className="inline-flex items-center gap-3">
                           <Link
-                            to={`/requests/details?id=${entry.id}&view=finance`}
+                            to={`/finance/requests/details?id=${entry.id}`}
                             className="text-sm font-semibold text-brand-900 transition hover:underline"
                           >
                             Open
                           </Link>
-                          {String(entry.status || "").toLowerCase() === "disbursed" ? (
+                          {String(entry.status || "").toLowerCase() ===
+                          "disbursed" ? (
                             <Link
                               to="/finance/payment-vouchers"
                               className="text-sm font-semibold text-slate-600 transition hover:underline"
@@ -396,11 +481,16 @@ export default function FinanceAdminPage() {
                   "Retired",
                   "Completed",
                 ].map((step) => (
-                  <div key={step} className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-4">
+                  <div
+                    key={step}
+                    className="rounded-[18px] border border-slate-200 bg-slate-50 px-4 py-4"
+                  >
                     <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">
                       Step
                     </p>
-                    <p className="mt-2 text-sm font-semibold text-slate-950">{step}</p>
+                    <p className="mt-2 text-sm font-semibold text-slate-950">
+                      {step}
+                    </p>
                   </div>
                 ))}
               </div>
@@ -416,7 +506,8 @@ export default function FinanceAdminPage() {
                     Payment voucher workspace
                   </h3>
                   <p className="mt-2 text-sm leading-6 text-white/85">
-                    Review disbursements, monitor retirements, and confirm voucher closure from one place.
+                    Review disbursements, monitor retirements, and confirm
+                    voucher closure from one place.
                   </p>
                 </div>
                 <Icon name="payments" className="text-[26px] text-white/70" />
@@ -428,7 +519,10 @@ export default function FinanceAdminPage() {
                   </Button>
                 </Link>
                 <Link to="/finance/requests" className="inline-flex">
-                  <Button variant="secondary" className="border-white/20 bg-white/10 text-white hover:bg-white/15">
+                  <Button
+                    variant="secondary"
+                    className="border-white/20 bg-white/10 text-white hover:bg-white/15"
+                  >
                     Review Queue
                   </Button>
                 </Link>

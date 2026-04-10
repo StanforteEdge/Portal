@@ -48,7 +48,7 @@ function AdminDocumentsPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Documents Management</h2>
-        <Button variant="primary" onClick={() => navigate("/app/admin/documents/new")}>Create Document</Button>
+        <Button variant="primary" onClick={() => navigate("/appOld/admin/documents/new")}>Create Document</Button>
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
@@ -110,7 +110,7 @@ function AdminDocumentsPage() {
                   </Table.Td>
                   <Table.Td>{doc.require_acknowledgement ? "Yes" : "No"}</Table.Td>
                   <Table.Td className="text-right">
-                    <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/admin/documents/${doc.id}`)}>
+                    <Button size="sm" variant="outline-primary" onClick={() => navigate(`/appOld/admin/documents/${doc.id}`)}>
                       Open
                     </Button>
                   </Table.Td>

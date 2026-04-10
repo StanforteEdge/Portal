@@ -46,6 +46,7 @@ export default function App() {
         <Route element={<ModuleRoute moduleKey="finance" />}>
           <Route path="/finance" element={<FinanceAdminPage />} />
           <Route path="/finance/requests" element={<FinanceAdminPage />} />
+          <Route path="/finance/requests/details" element={<RequestDetailsPage />} />
           <Route path="/finance/payment-vouchers" element={<FinancePaymentVouchersPage />} />
         </Route>
       </Route>

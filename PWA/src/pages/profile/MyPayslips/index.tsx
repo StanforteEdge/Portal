@@ -69,7 +69,7 @@ function MyPayslipsPage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">My Payslips</h2>
         <div className="flex gap-2">
-          <Link to="/app/profile/payroll-notifications">
+          <Link to="/appOld/profile/payroll-notifications">
             <Button variant="outline-secondary">
               <Lucide icon="Bell" className="w-4 h-4 mr-1" />
               Notifications

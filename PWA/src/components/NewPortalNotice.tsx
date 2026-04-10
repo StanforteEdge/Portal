@@ -10,7 +10,7 @@ function NewPortalNotice() {
       />
       <div className="mt-3 flex flex-wrap items-center gap-3">
         <Link
-          to="/appNew/"
+          to="/app"
           className="inline-flex items-center justify-center rounded-full bg-primary px-5 py-3 text-sm font-semibold text-white transition hover:opacity-90 focus:outline-none focus-visible:ring-4 focus-visible:ring-primary/20"
         >
           Open New Portal

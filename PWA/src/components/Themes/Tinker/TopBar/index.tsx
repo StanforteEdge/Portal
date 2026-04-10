@@ -55,10 +55,10 @@ function Main() {
     }
     const requestId = item.data?.requestId || item.data?.request_id;
     if (requestId) {
-      navigate(`/app/requests/request/${requestId}`);
+      navigate(`/appOld/requests/request/${requestId}`);
       return;
     }
-    navigate("/app/requests");
+    navigate("/appOld/requests");
   };
 
   const logout = async () => {
@@ -149,7 +149,7 @@ function Main() {
             <div className="text-xs text-white/70 mt-0.5">{roleLabel}</div>
           </Menu.Header>
           <Menu.Divider className="bg-white/[0.08]" />
-          <Menu.Item className="hover:bg-white/5" onClick={() => navigate("/app/profile")}>
+          <Menu.Item className="hover:bg-white/5" onClick={() => navigate("/appOld/profile")}>
             <Lucide icon="User" className="w-4 h-4 mr-2" /> Profile
           </Menu.Item>
           <Menu.Item className="hover:bg-white/5" onClick={() => navigate("/change-password")}>

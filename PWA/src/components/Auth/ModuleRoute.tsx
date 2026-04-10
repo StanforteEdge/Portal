@@ -19,7 +19,7 @@ function ModuleRoute({ children, moduleKey }: ModuleRouteProps) {
     return <>{children}</>;
   }
 
-  return <Navigate to="/app/dashboard" replace state={{ from: location.pathname }} />;
+  return <Navigate to="/appOld/dashboard" replace state={{ from: location.pathname }} />;
 }
 
 export default ModuleRoute;

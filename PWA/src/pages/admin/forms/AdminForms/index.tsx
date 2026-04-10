@@ -33,7 +33,7 @@ function AdminFormsPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Forms Management</h2>
-        <Button variant="primary" onClick={() => navigate("/app/admin/forms/new")}>Create Form</Button>
+        <Button variant="primary" onClick={() => navigate("/appOld/admin/forms/new")}>Create Form</Button>
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
@@ -71,7 +71,7 @@ function AdminFormsPage() {
                     {form.is_active ? "Active" : "Inactive"}
                   </Table.Td>
                   <Table.Td className="text-right">
-                    <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/admin/forms/${form.id}`)}>
+                    <Button size="sm" variant="outline-primary" onClick={() => navigate(`/appOld/admin/forms/${form.id}`)}>
                       Open
                     </Button>
                   </Table.Td>

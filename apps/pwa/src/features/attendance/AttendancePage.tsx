@@ -291,6 +291,13 @@ export function AttendancePage() {
 
   const todayStatus = humanize(String(today?.status || (currentState?.is_clocked_in ? "present" : "not_started")));
   const todayMode = humanize(String(today?.attendance_mode || today?.expected_mode || selectedMode));
+  const openSessionDate = currentState?.last_clock_in_work_date ? formatDate(currentState.last_clock_in_work_date) : null;
+  const openSessionDateLabel = currentState?.last_clock_in_work_date ? formatDate(currentState.last_clock_in_work_date) : null;
+  const openSessionMessage = currentState?.is_clocked_in
+    ? currentState?.last_clock_in_at
+      ? `Open session started ${formatDateTime(currentState.last_clock_in_at)}${openSessionDate ? ` (${openSessionDate})` : ""}. Clock out is available now, even if the shift crossed into another day.`
+      : "An open session is active. Clock out is available now, even if the shift crossed into another day."
+    : null;
   const locationName =
     officeLocations.find((location) => location.id === String(today?.office_location_id || selectedOfficeLocationId))?.name ||
     officeLocations[0]?.name ||
@@ -398,6 +405,22 @@ export function AttendancePage() {
                     {acting === "out" ? "Clocking Out..." : "Clock Out"}
                   </Button>
                 </div>
+
+                {openSessionMessage ? (
+                  <div className="rounded-2xl border border-brand-900/10 bg-brand-900/5 px-4 py-4 text-sm leading-6 text-slate-700">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-brand-900 px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-white">
+                        Open session
+                      </span>
+                      {openSessionDateLabel ? (
+                        <span className="rounded-full border border-brand-900/10 bg-white px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-brand-900">
+                          Since {openSessionDateLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="font-semibold text-brand-900">Open session:</span> {openSessionMessage}
+                  </div>
+                ) : null}
 
                 {currentState?.reason ? (
                   <div className="rounded-2xl border border-warning/20 bg-warning/10 px-4 py-4 text-sm text-warning">

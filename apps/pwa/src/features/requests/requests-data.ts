@@ -64,8 +64,12 @@ export function buildRequestsNavigation(options?: {
   detailsParent?: "requests" | "finance";
 }): SidebarItem[] {
   const includeDetails = options?.includeDetails ?? false;
-  const detailsPath = options?.detailsPath ?? "/requests/details";
   const detailsParent = options?.detailsParent ?? "requests";
+  const detailsPath =
+    options?.detailsPath ??
+    (detailsParent === "finance"
+      ? "/finance/requests/details"
+      : "/requests/details");
   const requestDetailsItem = {
     label: "Request Details",
     icon: "description",
@@ -106,8 +110,8 @@ export function buildRequestsNavigation(options?: {
       section: "Admin",
       moduleKey: "finance",
       children: [
-        { label: "Finance Dashboard", icon: "grid_view", path: "/finance" },
-        { label: "Finance Requests", icon: "receipt_long", path: "/finance/requests" },
+        { label: "Dashboard", icon: "grid_view", path: "/finance" },
+        { label: "Requests", icon: "receipt_long", path: "/finance/requests" },
         { label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers" },
         ...(includeDetails && detailsParent === "finance"
           ? [financeRequestDetailsItem]

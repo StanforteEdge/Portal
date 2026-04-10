@@ -132,7 +132,7 @@ function FinanceInvoiceDetailPage() {
   return (
     <>
       <div className="flex items-center mt-8 intro-y gap-3">
-        <Button variant="outline-secondary" onClick={() => navigate("/app/finance/receivables")}>
+        <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/receivables")}>
           <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" /> Back
         </Button>
         <h2 className="mr-auto text-lg font-medium">Invoice Detail</h2>

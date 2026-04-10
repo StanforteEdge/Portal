@@ -62,7 +62,7 @@ function FinanceAccountDetailPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Account Details</h2>
-        <Button variant="outline-secondary" onClick={() => navigate("/app/finance/accounts")}>
+        <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/accounts")}>
           <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" /> Back
         </Button>
       </div>

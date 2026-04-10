@@ -35,9 +35,9 @@ const LABELS: Record<string, string> = {
 };
 
 const PATH_LABELS: Record<string, string> = {
-  "/app/hr/settings": "Attendance Settings",
-  "/app/hr/settings/leave": "Leave Settings",
-  "/app/hr/leave": "Leave Tracker",
+  "/appOld/hr/settings": "Attendance Settings",
+  "/appOld/hr/settings/leave": "Leave Settings",
+  "/appOld/hr/leave": "Leave Tracker",
 };
 
 function formatLabel(segment: string) {
@@ -53,7 +53,7 @@ function formatLabel(segment: string) {
 
 export function buildAppBreadcrumbs(pathname: string): BreadcrumbItem[] {
   const parts = pathname.split("/").filter(Boolean);
-  if (!parts.length) return [{ label: "Dashboard", path: "/app/dashboard" }];
+  if (!parts.length) return [{ label: "Dashboard", path: "/appOld/dashboard" }];
 
   const crumbs: BreadcrumbItem[] = [];
   let acc = "";
@@ -61,13 +61,13 @@ export function buildAppBreadcrumbs(pathname: string): BreadcrumbItem[] {
   for (const part of parts) {
     acc += `/${part}`;
     if (part === "app") {
-      crumbs.push({ label: "Dashboard", path: "/app/dashboard" });
+      crumbs.push({ label: "Dashboard", path: "/appOld/dashboard" });
       continue;
     }
     crumbs.push({ label: formatLabel(part), path: acc });
   }
 
-  const normalized = crumbs.length ? crumbs : [{ label: "Dashboard", path: "/app/dashboard" }];
+  const normalized = crumbs.length ? crumbs : [{ label: "Dashboard", path: "/appOld/dashboard" }];
   const deduped = normalized.filter((crumb, index, all) => index === 0 || crumb.path !== all[index - 1].path);
   const labelled = deduped.map((crumb) => ({
     ...crumb,

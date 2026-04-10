@@ -174,7 +174,7 @@ function RequestDetailPage() {
         const shouldDelete = window.confirm("Delete this draft request?");
         if (!shouldDelete) return;
         await deleteRequestApi(id);
-        navigate("/app/requests");
+        navigate("/appOld/requests");
         return;
       }
       if (action === "submit") await submitRequest(id);
@@ -583,7 +583,7 @@ function RequestDetailPage() {
               {canEditDraft ? (
                 <Button
                   variant="outline-primary"
-                  onClick={() => navigate(`/app/requests/new?edit=${request?.id}`)}
+                  onClick={() => navigate(`/appOld/requests/new?edit=${request?.id}`)}
                 >
                   <Lucide icon="FilePenLine" className="w-4 h-4 mr-1" />
                   Edit Draft

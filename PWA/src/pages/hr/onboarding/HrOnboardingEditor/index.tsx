@@ -98,7 +98,7 @@ function HrOnboardingEditorPage() {
           due_date: dueDate || undefined,
         });
       }
-      navigate("/app/hr/onboarding", { replace: true });
+      navigate("/appOld/hr/onboarding", { replace: true });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save assignment." });
     } finally {
@@ -176,7 +176,7 @@ function HrOnboardingEditorPage() {
               <Button variant="primary" disabled={saving} onClick={() => void onSave()}>
                 {saving ? "Saving..." : isEdit ? "Update Assignment" : "Assign Form"}
               </Button>
-              <Button variant="outline-secondary" onClick={() => navigate("/app/hr/onboarding")}>
+              <Button variant="outline-secondary" onClick={() => navigate("/appOld/hr/onboarding")}>
                 Cancel
               </Button>
             </div>

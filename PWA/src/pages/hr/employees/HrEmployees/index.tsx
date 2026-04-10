@@ -39,7 +39,7 @@ function HrEmployeesPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">HR Employees</h2>
-        <Button variant="primary" onClick={() => navigate("/app/hr/employees/new")}>Create Employee</Button>
+        <Button variant="primary" onClick={() => navigate("/appOld/hr/employees/new")}>Create Employee</Button>
       </div>
 
       {notice ? <AppNotice tone={notice.tone} message={notice.message} className="mt-4" /> : null}
@@ -103,7 +103,7 @@ function HrEmployeesPage() {
                     <Table.Td>{employee.onboarding_progress?.status || "-"}</Table.Td>
                     <Table.Td>{employee.employee_profile?.employment_status || employee.employee_profile?.employmentStatus || "-"}</Table.Td>
                     <Table.Td className="text-right">
-                      <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/hr/employees/${employee.id}`)}>
+                      <Button size="sm" variant="outline-primary" onClick={() => navigate(`/appOld/hr/employees/${employee.id}`)}>
                         Open
                       </Button>
                     </Table.Td>

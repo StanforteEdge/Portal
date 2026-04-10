@@ -15,6 +15,7 @@ export type RequestRecord = {
     code_prefix?: string | null;
     category_key?: string | null;
     form_schema?: Record<string, unknown> | null;
+    approval_flow_json?: Record<string, unknown> | null;
   } | null;
   creator?: {
     id: string;
@@ -54,6 +55,8 @@ export type RequestTypeOption = {
   category_key?: string | null;
   formSchema?: Record<string, unknown> | null;
   form_schema?: Record<string, unknown> | null;
+  approvalFlowJson?: Record<string, unknown> | null;
+  approval_flow_json?: Record<string, unknown> | null;
 };
 
 export type RequestItemInput = {
@@ -175,6 +178,12 @@ export async function submitRequest(id: string, comment?: string) {
   });
 }
 
+export async function deleteRequest(id: string) {
+  return httpRequest<{ success: boolean }>(`/requests/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function approveRequest(id: string, comment?: string) {
   return httpRequest<RequestRecord>(`/requests/${id}/approve`, {
     method: "POST",
@@ -202,6 +211,45 @@ export async function completeRequest(id: string) {
 }
 
 export const confirmRequestDisbursement = confirmRequest;
+
+export type RequestDownloadAction =
+  | "request_pdf"
+  | "pv_pdf"
+  | "request_with_attachments"
+  | "pv_with_attachments"
+  | "full_package"
+  | "full_document";
+
+export type DownloadedRequestFile = {
+  file_name: string;
+  mime_type: string;
+  content_base64: string;
+  generated_at?: string;
+  request_id?: string;
+  voucher_no?: string;
+  voucher_number?: string;
+  total_amount?: number;
+};
+
+export async function downloadRequestArtifact(
+  id: string,
+  payload: {
+    action: RequestDownloadAction;
+    voucher_id?: string;
+    delivery?: "download" | "email";
+    email_to?: string;
+  },
+) {
+  return httpRequest<DownloadedRequestFile>(`/requests/${id}/download`, {
+    method: "POST",
+    body: {
+      action: payload.action,
+      voucher_id: payload.voucher_id || undefined,
+      delivery: payload.delivery || undefined,
+      email_to: payload.email_to || undefined,
+    },
+  });
+}
 
 export async function retireRequest(
   id: string,

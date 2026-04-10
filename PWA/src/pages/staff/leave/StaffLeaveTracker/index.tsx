@@ -64,7 +64,7 @@ function StaffLeaveTrackerPage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">My Leave Tracker</h2>
         <div className="flex gap-2">
-          <Button variant="primary" onClick={() => navigate("/app/requests/new")}>
+          <Button variant="primary" onClick={() => navigate("/appOld/requests/new")}>
             <Lucide icon="Plus" className="w-4 h-4 mr-1" />
             New Leave Request
           </Button>
@@ -147,7 +147,7 @@ function StaffLeaveTrackerPage() {
                 <Table.Td>{(row.data as any)?.handover_user_id ? "Assigned" : "-"}</Table.Td>
                 <Table.Td className="capitalize">{row.status}</Table.Td>
                 <Table.Td>
-                  <Button size="sm" variant="outline-primary" onClick={() => navigate(`/app/requests/request/${row.id}`)}>
+                  <Button size="sm" variant="outline-primary" onClick={() => navigate(`/appOld/requests/request/${row.id}`)}>
                     <Lucide icon="Eye" className="w-4 h-4 mr-1" />
                     View
                   </Button>

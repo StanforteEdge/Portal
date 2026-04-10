@@ -547,7 +547,7 @@ function RequestsCreatePage() {
       const created = await upsertDraft();
       if (!created) return;
       setNotice({ tone: "success", message: editingRequestId ? "Draft updated successfully." : "Draft saved successfully." });
-      navigate(`/app/requests/request/${created.id}`);
+      navigate(`/appOld/requests/request/${created.id}`);
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save draft." });
     } finally {
@@ -563,7 +563,7 @@ function RequestsCreatePage() {
       const created = await upsertDraft();
       if (!created) return;
       await submitRequest(created.id);
-      navigate(`/app/requests/request/${created.id}`, { replace: true });
+      navigate(`/appOld/requests/request/${created.id}`, { replace: true });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to submit request." });
     } finally {
@@ -573,10 +573,10 @@ function RequestsCreatePage() {
 
   const onCancel = () => {
     if (kind === "leave") {
-      navigate("/app/staff/leave");
+      navigate("/appOld/staff/leave");
       return;
     }
-    navigate("/app/requests");
+    navigate("/appOld/requests");
   };
 
   return (

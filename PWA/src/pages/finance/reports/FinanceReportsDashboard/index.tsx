@@ -130,16 +130,16 @@ function FinanceReportsDashboardPage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Finance Reports</h2>
         <div className="flex gap-2">
-          <Button variant="outline-secondary" onClick={() => navigate("/app/finance/reports/activities")}>
+          <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/reports/activities")}>
             <Lucide icon="TrendingUp" className="w-4 h-4 mr-1" /> Statement of Activities
           </Button>
-          <Button variant="outline-secondary" onClick={() => navigate("/app/finance/reports/position")}>
+          <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/reports/position")}>
             <Lucide icon="Wallet" className="w-4 h-4 mr-1" /> Financial Position
           </Button>
-          <Button variant="outline-secondary" onClick={() => navigate("/app/finance/reports/budget-vs-actual")}>
+          <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/reports/budget-vs-actual")}>
             <Lucide icon="BarChart2" className="w-4 h-4 mr-1" /> Budget vs Actual
           </Button>
-          <Button variant="outline-secondary" onClick={() => navigate("/app/finance/reports/grant-utilization")}>
+          <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/reports/grant-utilization")}>
             <Lucide icon="CircleDollarSign" className="w-4 h-4 mr-1" /> Grant Utilization
           </Button>
           <Button variant="outline-secondary" onClick={() => window.print()}>

@@ -230,7 +230,7 @@ function PortalDashboardPage() {
         <div className="col-span-12 lg:col-span-8 box p-5">
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-medium">Recent Requests</h3>
-            <Link to="/app/requests" className="text-primary text-sm">
+            <Link to="/appOld/requests" className="text-primary text-sm">
               View all
             </Link>
           </div>
@@ -249,7 +249,7 @@ function PortalDashboardPage() {
                 {recentRequests.map((row) => (
                   <Table.Tr key={row.id}>
                     <Table.Td>
-                      <Link to={`/app/requests/request/${row.id}`} className="font-semibold text-primary">
+                      <Link to={`/appOld/requests/request/${row.id}`} className="font-semibold text-primary">
                         {row.request_number}
                       </Link>
                     </Table.Td>
@@ -274,12 +274,12 @@ function PortalDashboardPage() {
         <div className="col-span-12 lg:col-span-4 box p-5">
           <h3 className="font-medium mb-3">Quick Actions</h3>
           <div className="grid grid-cols-1 gap-2">
-            <Link to="/app/requests/new" className="btn btn-primary">Create Request</Link>
-            <Link to="/app/approvals" className="btn btn-outline-secondary">My Approvals</Link>
-            {canSeeFinance ? <Link to="/app/finance/requests" className="btn btn-outline-secondary">Finance Requests</Link> : null}
-            {canSeeFinance ? <Link to="/app/finance" className="btn btn-outline-secondary">Finance Dashboard</Link> : null}
-            {canSeeAdmin ? <Link to="/app/admin/users" className="btn btn-outline-secondary">Manage Users</Link> : null}
-            {canSeeAdmin ? <Link to="/app/admin/roles" className="btn btn-outline-secondary">Manage RBAC</Link> : null}
+            <Link to="/appOld/requests/new" className="btn btn-primary">Create Request</Link>
+            <Link to="/appOld/approvals" className="btn btn-outline-secondary">My Approvals</Link>
+            {canSeeFinance ? <Link to="/appOld/finance/requests" className="btn btn-outline-secondary">Finance Requests</Link> : null}
+            {canSeeFinance ? <Link to="/appOld/finance" className="btn btn-outline-secondary">Finance Dashboard</Link> : null}
+            {canSeeAdmin ? <Link to="/appOld/admin/users" className="btn btn-outline-secondary">Manage Users</Link> : null}
+            {canSeeAdmin ? <Link to="/appOld/admin/roles" className="btn btn-outline-secondary">Manage RBAC</Link> : null}
           </div>
         </div>
       </div>

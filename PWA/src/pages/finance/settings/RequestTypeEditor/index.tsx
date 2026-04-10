@@ -192,7 +192,7 @@ function Main() {
         await createRequestType({ group_id: selectedGroupId, ...payload });
       }
 
-      navigate("/app/finance/settings", { replace: true });
+      navigate("/appOld/finance/settings", { replace: true });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save request type." });
     } finally {
@@ -354,7 +354,7 @@ function Main() {
                 <Button onClick={saveRequestType} disabled={savingType}>
                   {savingType ? "Saving..." : typeForm.id ? "Update Type" : "Create Type"}
                 </Button>
-                <Button variant="outline-secondary" onClick={() => navigate("/app/finance/settings")}>
+                <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/settings")}>
                   Cancel
                 </Button>
               </div>
