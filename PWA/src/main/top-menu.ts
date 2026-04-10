@@ -4,7 +4,7 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "Home",
     title: "Dashboard",
-    pathname: "/app/dashboard",
+    pathname: "/appOld/dashboard",
   },
   {
     icon: "FileText",
@@ -13,12 +13,12 @@ const menu: Array<Menu | "divider"> = [
     subMenu: [
       {
         icon: "List",
-        pathname: "/app/requests",
+        pathname: "/appOld/requests",
         title: "Requests",
       },
       {
         icon: "CheckCheck",
-        pathname: "/app/approvals",
+        pathname: "/appOld/approvals",
         title: "Approvals",
         permissions: ["requests.approve"],
       },
@@ -31,17 +31,17 @@ const menu: Array<Menu | "divider"> = [
     subMenu: [
       {
         icon: "LayoutDashboard",
-        pathname: "/app/finance",
+        pathname: "/appOld/finance",
         title: "Dashboard",
       },
       {
         icon: "List",
-        pathname: "/app/finance/requests",
+        pathname: "/appOld/finance/requests",
         title: "Requests",
       },
       {
         icon: "Settings",
-        pathname: "/app/finance/settings",
+        pathname: "/appOld/finance/settings",
         title: "Settings",
       },
     ],
@@ -53,12 +53,12 @@ const menu: Array<Menu | "divider"> = [
     subMenu: [
       {
         icon: "BarChart2",
-        pathname: "/app/work/performance",
+        pathname: "/appOld/work/performance",
         title: "Performance",
       },
       {
         icon: "ListChecks",
-        pathname: "/app/work",
+        pathname: "/appOld/work",
         title: "Tracker",
       },
     ],
@@ -66,7 +66,7 @@ const menu: Array<Menu | "divider"> = [
   {
     icon: "User",
     title: "Profile",
-    pathname: "/app/profile",
+    pathname: "/appOld/profile",
   },
   {
     icon: "Users",
@@ -75,13 +75,13 @@ const menu: Array<Menu | "divider"> = [
     subMenu: [
       {
         icon: "UserCog",
-        pathname: "/app/admin/users",
+        pathname: "/appOld/admin/users",
         title: "Users",
         matchSubPaths: true,
       },
       {
         icon: "Settings2",
-        pathname: "/app/admin/settings",
+        pathname: "/appOld/admin/settings",
         title: "Settings",
       },
     ],

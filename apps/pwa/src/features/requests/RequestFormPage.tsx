@@ -10,12 +10,14 @@ import {
   SelectField,
   TextAreaField,
   TextField,
+  humanize,
   useToast,
 } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { useCachedQuery } from "@/lib/core";
+import { getWorkspaceProfile } from "@/features/system/workspace-api";
 import { buildRequestsNavigation, requestsMobileNav } from "./requests-data";
 import {
   createRequest,
@@ -303,10 +305,19 @@ export function RequestFormPage() {
       storage: "memory",
     },
   );
-  const { data: teams } = useCachedQuery("requests:teams", () => listTeams(), {
+  const { data: teams } = useCachedQuery(
+    "requests:teams",
+    () => listTeams({ active_only: false }),
+    {
     ttlMs: 1000 * 60 * 10,
     storage: "memory",
-  });
+    },
+  );
+  const { data: profile } = useCachedQuery(
+    "workspace:profile:request-form",
+    () => getWorkspaceProfile(),
+    { ttlMs: 1000 * 60, storage: "memory" },
+  );
   const { data: managedTaxonomies } = useCachedQuery(
     "requests:taxonomies",
     () => listManagedTaxonomies({ include_inactive: false }),
@@ -365,12 +376,30 @@ export function RequestFormPage() {
     }
   }, [organizations, editId]);
 
+  const groupOptions = useMemo(
+    () =>
+      (profile?.groups ?? [
+        ...(profile?.teams ?? []),
+        ...(profile?.projects ?? []),
+      ])
+        .filter((group) =>
+          ["team", "department"].includes(String(group.type || "").trim().toLowerCase()),
+        )
+        .map((group) => ({
+          id: group.id,
+          name: group.name,
+          type: group.type,
+          role: group.role,
+        })),
+    [profile?.groups, profile?.projects, profile?.teams],
+  );
+
   useEffect(() => {
-    if (!teams || editId) return;
-    if (teams.length === 1) {
-      setForm((prev) => ({ ...prev, team_id: prev.team_id || teams[0].id }));
+    if (!groupOptions.length || editId) return;
+    if (groupOptions.length === 1) {
+      setForm((prev) => ({ ...prev, team_id: prev.team_id || groupOptions[0].id }));
     }
-  }, [teams, editId]);
+  }, [groupOptions, editId]);
 
   const selectedType = useMemo(
     () =>
@@ -486,7 +515,6 @@ export function RequestFormPage() {
     (entry: MyOrganization) => entry.organization,
   );
   const projectOptions = projects ?? [];
-  const teamOptions = teams ?? [];
 
   async function handleSave(submitAfterSave: boolean) {
     const error = validateForm(form, family);
@@ -788,7 +816,7 @@ export function RequestFormPage() {
 
                 <SectionCard
                   title="Work Context"
-                  description="Tie the request to the right organization and team."
+                  description="Tie the request to the right organization and group."
                 >
                   <div className="grid gap-4 lg:grid-cols-2">
                     <SelectField
@@ -811,7 +839,7 @@ export function RequestFormPage() {
                     </SelectField>
 
                     <SelectField
-                      label="Team"
+                      label="Group"
                       value={form.team_id}
                       onChange={(event) =>
                         setForm((prev) => ({
@@ -819,12 +847,12 @@ export function RequestFormPage() {
                           team_id: event.target.value,
                         }))
                       }
-                      disabled={teamOptions.length <= 1}
+                      disabled={groupOptions.length <= 1}
                     >
-                      <option value="">Select team</option>
-                      {teamOptions.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
+                      <option value="">Select group</option>
+                      {groupOptions.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name} ({humanize(group.type)})
                         </option>
                       ))}
                     </SelectField>
@@ -895,7 +923,7 @@ export function RequestFormPage() {
                       ))}
                     </SelectField>
                     <SelectField
-                      label="Team"
+                      label="Group"
                       value={form.team_id}
                       onChange={(event) =>
                         setForm((prev) => ({
@@ -903,12 +931,12 @@ export function RequestFormPage() {
                           team_id: event.target.value,
                         }))
                       }
-                      disabled={teamOptions.length <= 1}
+                      disabled={groupOptions.length <= 1}
                     >
-                      <option value="">Select team</option>
-                      {teamOptions.map((team) => (
-                        <option key={team.id} value={team.id}>
-                          {team.name}
+                      <option value="">Select group</option>
+                      {groupOptions.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name} ({humanize(group.type)})
                         </option>
                       ))}
                     </SelectField>

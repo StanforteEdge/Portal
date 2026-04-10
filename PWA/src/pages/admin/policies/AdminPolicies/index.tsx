@@ -491,7 +491,7 @@ function AdminPoliciesPage() {
                 <div className="mt-2 flex flex-wrap gap-2">
                   {selectedDocument ? (
                     <>
-                      <Button size="sm" variant="outline-secondary" onClick={() => window.open(`/app/admin/documents/${selectedDocument.id}`, "_blank")}>Open Document</Button>
+                      <Button size="sm" variant="outline-secondary" onClick={() => window.open(`/appOld/admin/documents/${selectedDocument.id}`, "_blank")}>Open Document</Button>
                       {selectedDocument.file?.public_url ? (
                         <a href={selectedDocument.file.public_url} target="_blank" rel="noreferrer" className="inline-flex items-center text-sm text-primary hover:underline">
                           View Attached File
@@ -499,7 +499,7 @@ function AdminPoliciesPage() {
                       ) : null}
                     </>
                   ) : (
-                    <Button size="sm" variant="outline-primary" onClick={() => window.open("/app/admin/documents/new", "_blank")}>Create Document</Button>
+                    <Button size="sm" variant="outline-primary" onClick={() => window.open("/appOld/admin/documents/new", "_blank")}>Create Document</Button>
                   )}
                 </div>
               </div>

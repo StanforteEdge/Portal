@@ -116,39 +116,39 @@ function FinancePayrollDashboardPage() {
         <div className="box p-5">
           <div className="font-medium">Quick Links</div>
           <div className="grid grid-cols-1 gap-3 mt-4 md:grid-cols-2">
-            <Link className="btn btn-outline-primary justify-start" to="/app/finance/payroll/workers">
+            <Link className="btn btn-outline-primary justify-start" to="/appOld/finance/payroll/workers">
               <Lucide icon="Users" className="w-4 h-4 mr-2" />
               Payroll Workers
             </Link>
-            <Link className="btn btn-outline-primary justify-start" to="/app/finance/payroll/inbox">
+            <Link className="btn btn-outline-primary justify-start" to="/appOld/finance/payroll/inbox">
               <Lucide icon="Inbox" className="w-4 h-4 mr-2" />
               Payroll Inbox
             </Link>
-            <Link className="btn btn-outline-primary justify-start" to="/app/finance/payroll/notification-preferences">
+            <Link className="btn btn-outline-primary justify-start" to="/appOld/finance/payroll/notification-preferences">
               <Lucide icon="Bell" className="w-4 h-4 mr-2" />
               Notification Preferences
             </Link>
-            <Link className="btn btn-outline-primary justify-start" to="/app/finance/payroll/components">
+            <Link className="btn btn-outline-primary justify-start" to="/appOld/finance/payroll/components">
               <Lucide icon="ListChecks" className="w-4 h-4 mr-2" />
               Components
             </Link>
-            <Link className="btn btn-outline-primary justify-start" to="/app/finance/payroll/runs">
+            <Link className="btn btn-outline-primary justify-start" to="/appOld/finance/payroll/runs">
               <Lucide icon="Wallet" className="w-4 h-4 mr-2" />
               Payroll Runs
             </Link>
-            <Link className="btn btn-outline-primary justify-start" to="/app/finance/payroll/approvals">
+            <Link className="btn btn-outline-primary justify-start" to="/appOld/finance/payroll/approvals">
               <Lucide icon="ListChecks" className="w-4 h-4 mr-2" />
               Approval Queue
             </Link>
-            <Link className="btn btn-outline-primary justify-start" to="/app/finance/payroll/settings">
+            <Link className="btn btn-outline-primary justify-start" to="/appOld/finance/payroll/settings">
               <Lucide icon="Settings" className="w-4 h-4 mr-2" />
               Payroll Settings
             </Link>
-            <Link className="btn btn-outline-primary justify-start" to="/app/finance/payroll/reports">
+            <Link className="btn btn-outline-primary justify-start" to="/appOld/finance/payroll/reports">
               <Lucide icon="BarChart2" className="w-4 h-4 mr-2" />
               Payroll Reports
             </Link>
-            <Link className="btn btn-outline-secondary justify-start" to="/app/help/finance#payroll">
+            <Link className="btn btn-outline-secondary justify-start" to="/appOld/help/finance#payroll">
               <Lucide icon="HelpCircle" className="w-4 h-4 mr-2" />
               Payroll Guide
             </Link>

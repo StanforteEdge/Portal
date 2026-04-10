@@ -120,7 +120,7 @@ function FinanceAgedReceivablesPage() {
                       type="button"
                       className="text-primary font-medium"
                       aria-label={`Open receivable ${item.document_number}`}
-                      onClick={() => navigate(`/app/finance/receivables/${item.id}`)}
+                      onClick={() => navigate(`/appOld/finance/receivables/${item.id}`)}
                     >
                       {item.document_number}
                     </button>

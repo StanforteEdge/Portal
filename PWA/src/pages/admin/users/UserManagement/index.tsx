@@ -71,7 +71,7 @@ function UserManagementPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">User Management</h2>
-        <Button variant="primary" onClick={() => navigate("/app/admin/users/new")}>
+        <Button variant="primary" onClick={() => navigate("/appOld/admin/users/new")}>
           Create User
         </Button>
       </div>
@@ -128,14 +128,14 @@ function UserManagementPage() {
                             <Button
                               size="sm"
                               variant="outline-primary"
-                              onClick={() => navigate(`/app/admin/users/${user.id}/edit`)}
+                              onClick={() => navigate(`/appOld/admin/users/${user.id}/edit`)}
                             >
                               Edit
                             </Button>
                             <Button
                               size="sm"
                               variant="outline-primary"
-                              onClick={() => navigate(`/app/admin/users/${user.id}/roles`)}
+                              onClick={() => navigate(`/appOld/admin/users/${user.id}/roles`)}
                             >
                               Roles
                             </Button>

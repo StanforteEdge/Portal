@@ -239,7 +239,7 @@ function RequestApprovalsPage() {
                   return (
                     <Table.Tr key={req.id}>
                       <Table.RowHeader>
-                        <Link className="font-semibold text-primary hover:underline" to={`/app/requests/request/${req.id}`}>
+                        <Link className="font-semibold text-primary hover:underline" to={`/appOld/requests/request/${req.id}`}>
                           {formatRequestNumber(req.request_number)}
                         </Link>
                       </Table.RowHeader>
@@ -284,7 +284,7 @@ function RequestApprovalsPage() {
                             </Button>
                           </div>
                         ) : (
-                          <Link to={`/app/requests/request/${req.id}`}>
+                          <Link to={`/appOld/requests/request/${req.id}`}>
                             <Button size="sm" variant="outline-secondary">
                               <Lucide icon="Eye" className="w-4 h-4 mr-1" />
                               View

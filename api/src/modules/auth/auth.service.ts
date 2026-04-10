@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcryptjs';
+import type { Response } from 'express';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -12,6 +13,13 @@ import { toBigInt } from '../../common/utils/ids';
 import { AuthStatusResponseDto, LoginResponseDto } from './dto/auth-response.dto';
 import { AcceptInviteDto } from './dto/accept-invite.dto';
 import { MailService } from '../../common/mail/mail.service';
+import {
+  AUTH_ACCESS_COOKIE,
+  AUTH_REFRESH_COOKIE,
+  authCookieOptions,
+  clearAuthCookieOptions,
+  parseCookieHeader
+} from '../../common/auth/cookies';
 
 const ACCESS_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '15m';
 const REFRESH_EXPIRES_IN = process.env.JWT_REFRESH_EXPIRES_IN || '30d';
@@ -26,7 +34,7 @@ export class AuthService {
     private readonly mailService: MailService
   ) {}
 
-  async login(dto: LoginDto): Promise<LoginResponseDto> {
+  async login(dto: LoginDto, res?: Response): Promise<LoginResponseDto> {
     const email = dto.email.trim().toLowerCase();
     const organizationCode = dto.organization?.trim();
     const profile = await this.prisma.profile.findUnique({ where: { email } });
@@ -69,6 +77,7 @@ export class AuthService {
 
     const authContext = await this.buildAuthContext(profile.id);
     const tokens = await this.issueTokens(profile.id, authContext.permissions, authContext.roles);
+    this.setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
 
     await this.prisma.profile.update({
       where: { id: profile.id },
@@ -171,8 +180,9 @@ export class AuthService {
     };
   }
 
-  async logout(userId: string) {
+  async logout(userId: string, res?: Response) {
     await this.prisma.token.deleteMany({ where: { profileId: toBigInt(userId), type: 'refresh' } });
+    this.clearAuthCookies(res);
     return { success: true };
   }
 
@@ -201,8 +211,12 @@ export class AuthService {
     return { success: true };
   }
 
-  async refresh(dto: RefreshDto) {
-    const tokenHash = sha256(dto.refresh_token);
+  async refresh(dto: RefreshDto, req?: any, res?: Response) {
+    const cookieTokens = parseCookieHeader(req?.headers?.cookie);
+    const refreshToken = dto.refresh_token || cookieTokens[AUTH_REFRESH_COOKIE];
+    if (!refreshToken) this.throwUnauthorized('Invalid refresh token', 'AUTH_REFRESH_INVALID');
+
+    const tokenHash = sha256(refreshToken);
     const tokenRow = await this.prisma.token.findFirst({
       where: { tokenHash, type: 'refresh' }
     });
@@ -218,6 +232,7 @@ export class AuthService {
     // Rotate refresh token
     await this.prisma.token.delete({ where: { id: tokenRow.id } });
     const tokens = await this.issueTokens(tokenRow.profileId, authContext.permissions, authContext.roles);
+    this.setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
 
     return tokens;
   }
@@ -406,6 +421,34 @@ export class AuthService {
     return { roles, permissions, enabledModules };
   }
 
+  private parseExpiresInSeconds(expires: string): number {
+    const match = expires.match(/^(\d+)([smhd])$/);
+    if (!match) return 60 * 15;
+    const value = Number(match[1]);
+    const unit = match[2];
+    return unit === 's'
+      ? value
+      : unit === 'm'
+      ? value * 60
+      : unit === 'h'
+      ? value * 60 * 60
+      : value * 60 * 60 * 24;
+  }
+
+  private setAuthCookies(res: Response | undefined, accessToken: string, refreshToken: string, expiresIn: string) {
+    if (!res) return;
+    const accessMaxAge = this.parseExpiresInSeconds(expiresIn);
+    const refreshMaxAge = this.parseExpiresInSeconds(REFRESH_EXPIRES_IN);
+    res.cookie(AUTH_ACCESS_COOKIE, accessToken, authCookieOptions(accessMaxAge));
+    res.cookie(AUTH_REFRESH_COOKIE, refreshToken, authCookieOptions(refreshMaxAge));
+  }
+
+  private clearAuthCookies(res: Response | undefined) {
+    if (!res) return;
+    res.clearCookie(AUTH_ACCESS_COOKIE, clearAuthCookieOptions());
+    res.clearCookie(AUTH_REFRESH_COOKIE, clearAuthCookieOptions());
+  }
+
   private async getUserRoles(profileId: bigint): Promise<string[]> {
     const roles = await this.prisma.userRole.findMany({
       where: { profileId },
@@ -415,6 +458,11 @@ export class AuthService {
   }
 
   private async getUserPermissions(profileId: bigint, roles?: string[]): Promise<string[]> {
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: profileId },
+      select: { type: true }
+    });
+
     const roleSlugs = roles ?? (await this.getUserRoles(profileId));
     if (roleSlugs.includes('administrator') || roleSlugs.includes('admin')) return ['*'];
 
@@ -431,6 +479,9 @@ export class AuthService {
     });
 
     const slugs = perms.map((p) => p.permission.slug);
+    if (profile && ['staff', 'employee'].includes(String(profile.type || '').toLowerCase())) {
+      slugs.push('attendance.clock', 'attendance.view_self');
+    }
     return Array.from(new Set(slugs));
   }
 

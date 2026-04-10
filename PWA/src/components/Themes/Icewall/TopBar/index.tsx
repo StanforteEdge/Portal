@@ -39,8 +39,8 @@ function Main() {
             light
             className="h-full md:ml-10 md:pl-10 md:border-l border-white/[0.08] mr-auto -intro-x"
           >
-            <Breadcrumb.Link to="/app/dashboard">Dashboard</Breadcrumb.Link>
-            <Breadcrumb.Link to="/app/dashboard" active={true}>
+            <Breadcrumb.Link to="/appOld/dashboard">Dashboard</Breadcrumb.Link>
+            <Breadcrumb.Link to="/appOld/dashboard" active={true}>
               Dashboard
             </Breadcrumb.Link>
           </Breadcrumb>

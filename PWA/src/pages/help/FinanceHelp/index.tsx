@@ -4,18 +4,18 @@ import Lucide from "@/components/Base/Lucide";
 import { financeHelpEntries } from "@/content/help/finance";
 
 const financePageLinks: Record<string, string> = {
-  dashboard: "/app/finance",
-  requests: "/app/finance/requests",
-  "manual-entry": "/app/finance/manual-entry",
-  accounts: "/app/finance/accounts",
-  ledger: "/app/finance/ledger",
-  "payment-vouchers": "/app/finance/payment-vouchers",
-  receivables: "/app/finance/receivables",
-  payables: "/app/finance/payables",
-  budgets: "/app/finance/budgets",
-  assets: "/app/finance/assets",
-  reports: "/app/finance/reports",
-  settings: "/app/finance/settings",
+  dashboard: "/appOld/finance",
+  requests: "/appOld/finance/requests",
+  "manual-entry": "/appOld/finance/manual-entry",
+  accounts: "/appOld/finance/accounts",
+  ledger: "/appOld/finance/ledger",
+  "payment-vouchers": "/appOld/finance/payment-vouchers",
+  receivables: "/appOld/finance/receivables",
+  payables: "/appOld/finance/payables",
+  budgets: "/appOld/finance/budgets",
+  assets: "/appOld/finance/assets",
+  reports: "/appOld/finance/reports",
+  settings: "/appOld/finance/settings",
 };
 
 function FinanceHelpPage() {
@@ -23,7 +23,7 @@ function FinanceHelpPage() {
     <>
       <div className="mt-8 intro-y flex items-center justify-between gap-3">
         <h2 className="text-lg font-medium">Finance Help</h2>
-        <Link to="/app/help">
+        <Link to="/appOld/help">
           <Button variant="outline-secondary">Back to Help Center</Button>
         </Link>
       </div>

@@ -283,7 +283,7 @@ function HrLeaveSettingsPage() {
 
       <div className="box p-2 mt-5">
         <div className="flex flex-wrap gap-2">
-          <Link to="/app/hr/settings">
+          <Link to="/appOld/hr/settings">
             <Button variant="outline-secondary">
               <Lucide icon="Clock3" className="w-4 h-4 mr-1" />
               Attendance Settings
@@ -344,7 +344,7 @@ function HrLeaveSettingsPage() {
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <div className="text-sm font-medium">Configured HR Leave Request Types</div>
-              <Link to="/app/hr/settings/request-types/new">
+              <Link to="/appOld/hr/settings/request-types/new">
                 <Button variant="outline-primary">
                   <Lucide icon="Plus" className="w-4 h-4 mr-1" />
                   Create Request Type
@@ -375,7 +375,7 @@ function HrLeaveSettingsPage() {
                       <Table.Td>{getRequestTypeMaxCarryoverDays(type)}</Table.Td>
                       <Table.Td>{type.is_active ? "Active" : "Inactive"}</Table.Td>
                       <Table.Td>
-                        <Link to={`/app/hr/settings/request-types/${type.id}`}>
+                        <Link to={`/appOld/hr/settings/request-types/${type.id}`}>
                           <Button variant="outline-secondary" size="sm">
                             <Lucide icon="Eye" className="w-4 h-4 mr-1" />
                             Edit

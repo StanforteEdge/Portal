@@ -235,7 +235,7 @@ function Main() {
         await createRequestType({ group_id: selectedGroupId, ...payload });
       }
 
-      navigate("/app/hr/settings/leave", { replace: true });
+      navigate("/appOld/hr/settings/leave", { replace: true });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save request type." });
     } finally {
@@ -251,7 +251,7 @@ function Main() {
       setDeletingType(true);
       setNotice(null);
       await deleteRequestType(typeForm.id);
-      navigate("/app/hr/settings/leave", { replace: true });
+      navigate("/appOld/hr/settings/leave", { replace: true });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete request type." });
     } finally {
@@ -470,7 +470,7 @@ function Main() {
                   {deletingType ? "Deleting..." : "Delete"}
                 </Button>
               ) : null}
-              <Button variant="outline-secondary" onClick={() => navigate("/app/hr/settings/leave")}>
+              <Button variant="outline-secondary" onClick={() => navigate("/appOld/hr/settings/leave")}>
                 Cancel
               </Button>
               <Button variant="primary" onClick={() => void saveRequestType()} disabled={savingType || deletingType}>

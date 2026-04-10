@@ -575,7 +575,7 @@ function HrSettingsPage() {
             </Button>
             <Button
               variant="outline-secondary"
-              onClick={() => navigate("/app/hr/settings/leave")}
+              onClick={() => navigate("/appOld/hr/settings/leave")}
             >
               <Lucide icon="BookOpen" className="w-4 h-4 mr-1" />
               Leave Settings
@@ -894,7 +894,7 @@ function HrSettingsPage() {
             <div className="mt-4">
               <div className="flex items-center justify-between mb-2">
                 <div className="text-sm font-medium">HR Leave Request Types</div>
-                <Link to="/app/hr/settings/request-types/new">
+                <Link to="/appOld/hr/settings/request-types/new">
                   <Button variant="outline-primary">
                     <Lucide icon="Plus" className="w-4 h-4 mr-1" />
                     Create Request Type
@@ -917,7 +917,7 @@ function HrSettingsPage() {
                       <Table.Td>{type.code_prefix}</Table.Td>
                       <Table.Td>{type.is_active ? "Active" : "Inactive"}</Table.Td>
                       <Table.Td>
-                        <Link to={`/app/hr/settings/request-types/${type.id}`}>
+                        <Link to={`/appOld/hr/settings/request-types/${type.id}`}>
                           <Button variant="outline-secondary" size="sm">
                             <Lucide icon="Eye" className="w-4 h-4 mr-1" />
                             Edit

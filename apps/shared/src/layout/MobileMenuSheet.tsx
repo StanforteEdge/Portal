@@ -105,52 +105,52 @@ export function MobileMenuSheet({ open, navigation, activeLabel, user, onClose, 
 
             return (
               <div key={item.label} className="space-y-2">
-                {showSectionLabel ? (
+              {showSectionLabel ? (
                   <div className="px-1 pt-3 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-slate-400">
                     {item.section}
                   </div>
                 ) : null}
                 <div className="rounded-[24px] border border-slate-100 bg-white p-4">
-                <div className="flex items-center gap-3">
-                  <div className={["flex h-10 w-10 items-center justify-center rounded-2xl", active ? "bg-brand-900 text-white" : "bg-slate-100 text-slate-600"].join(" ")}>
-                    <Icon name={item.icon} fill={active} />
+                  <div className="flex items-center gap-3">
+                    <div className={["flex h-10 w-10 items-center justify-center rounded-2xl", active ? "bg-brand-900 text-white" : "bg-slate-100 text-slate-600"].join(" ")}>
+                      <Icon name={item.icon} fill={active} />
+                    </div>
+                    {item.path ? (
+                      <NavLink
+                        to={item.path}
+                        onClick={onClose}
+                        className={["text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10", active ? "text-brand-900" : "text-slate-900"].join(" ")}
+                      >
+                        {item.label}
+                      </NavLink>
+                    ) : (
+                      <p className={["text-sm font-semibold", active ? "text-brand-900" : "text-slate-900"].join(" ")}>
+                        {item.label}
+                      </p>
+                    )}
                   </div>
-                  {item.path ? (
-                    <NavLink
-                      to={item.path}
-                      onClick={onClose}
-                      className={["text-sm font-semibold focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10", active ? "text-brand-900" : "text-slate-900"].join(" ")}
-                    >
-                      {item.label}
-                    </NavLink>
-                  ) : (
-                    <p className={["text-sm font-semibold", active ? "text-brand-900" : "text-slate-900"].join(" ")}>
-                      {item.label}
-                    </p>
-                  )}
-                </div>
 
-                {hasChildren ? (
-                  <div className="mt-4 space-y-2 border-l border-slate-200 pl-4">
-                    {item.children!.map((child) => {
-                      const childActive = child.label === activeLabel;
-                      return child.path ? (
-                        <NavLink
-                          key={`${item.label}-${child.label}`}
-                          to={child.path}
-                          onClick={onClose}
-                          className={[
-                            "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-                            childActive ? "bg-brand-900/10 text-brand-900" : "text-slate-600 hover:bg-slate-50",
-                          ].join(" ")}
-                        >
-                          {child.icon ? <Icon name={child.icon} className="text-[16px]" /> : null}
-                          <span>{child.label}</span>
-                        </NavLink>
-                      ) : null;
-                    })}
-                  </div>
-                ) : null}
+                  {hasChildren ? (
+                    <div className="mt-4 space-y-2 border-l border-slate-200 pl-4">
+                      {item.children!.map((child) => {
+                        const childActive = child.label === activeLabel;
+                        return child.path ? (
+                          <NavLink
+                            key={`${item.label}-${child.label}`}
+                            to={child.path}
+                            onClick={onClose}
+                            className={[
+                              "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                              childActive ? "bg-brand-900/10 text-brand-900" : "text-slate-600 hover:bg-slate-50",
+                            ].join(" ")}
+                          >
+                            {child.icon ? <Icon name={child.icon} className="text-[16px]" /> : null}
+                            <span>{child.label}</span>
+                          </NavLink>
+                        ) : null;
+                      })}
+                    </div>
+                  ) : null}
                 </div>
               </div>
             );

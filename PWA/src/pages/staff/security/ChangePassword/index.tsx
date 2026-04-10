@@ -76,7 +76,7 @@ function ChangePasswordPage() {
           <Tab.Group selectedIndex={1}>
             <Tab.List variant="link-tabs" className="flex-col sm:flex-row">
               <Tab>
-                <Tab.Button className="py-4" onClick={() => navigate("/app/profile")}>
+                <Tab.Button className="py-4" onClick={() => navigate("/appOld/profile")}>
                   Profile
                 </Tab.Button>
               </Tab>

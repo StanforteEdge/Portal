@@ -7,10 +7,11 @@ import {
 } from "@stanforte/shared";
 import { API_BASE_URL, CACHE_PREFIX } from "@/lib/env";
 
-export const sessionStorage = createSessionStorage("se");
+export const authSession = createSessionStorage("pwa2_auth");
+
 export const httpRequest = createHttpClient({
   apiBaseUrl: API_BASE_URL,
-  session: sessionStorage,
+  session: authSession,
 });
 
 export const authApi = createAuthApi(httpRequest);

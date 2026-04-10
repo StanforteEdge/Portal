@@ -40,7 +40,7 @@ function FinanceAssetDisposalsPage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">Asset Disposal Log</h2>
         <div className="flex gap-2">
-          <Button variant="outline-secondary" onClick={() => navigate("/app/finance/assets")}>
+          <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/assets")}>
             <Lucide icon="ChevronLeft" className="w-4 h-4 mr-1" /> Back to Assets
           </Button>
           <Button variant="outline-secondary" onClick={() => void load()} disabled={loading}>
@@ -85,7 +85,7 @@ function FinanceAssetDisposalsPage() {
               {rows.map((row) => (
                 <Table.Tr key={row.id}>
                   <Table.Td>
-                    <Link className="font-semibold text-primary hover:underline" to={`/app/finance/assets/${row.asset_record_id}`}>
+                    <Link className="font-semibold text-primary hover:underline" to={`/appOld/finance/assets/${row.asset_record_id}`}>
                       {row.asset_id}
                     </Link>
                     <div className="text-sm">{row.asset_description}</div>

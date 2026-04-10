@@ -219,7 +219,7 @@ function Main() {
                           Module: <strong>{selectedGroup?.name || "Finance"}</strong>
                         </div>
                         <div className="col-span-12 md:col-span-4 text-right">
-                          <Link to="/app/finance/settings/request-types/new">
+                          <Link to="/appOld/finance/settings/request-types/new">
                             <Button variant="primary">Create Request Type</Button>
                           </Link>
                         </div>
@@ -253,7 +253,7 @@ function Main() {
                                       {type.is_active ? "Active" : "Inactive"}
                                     </Table.Td>
                                     <Table.Td>
-                                      <Link to={`/app/finance/settings/request-types/${type.id}`}>
+                                      <Link to={`/appOld/finance/settings/request-types/${type.id}`}>
                                         <Button variant="outline-primary">Edit</Button>
                                       </Link>
                                     </Table.Td>
@@ -283,7 +283,7 @@ function Main() {
                         <div className="text-sm text-slate-500 mt-2">
                           Manage account codes, account types, and control accounts used by journals and reports.
                         </div>
-                        <Link to="/app/finance/settings/chart-accounts" className="inline-block mt-4">
+                        <Link to="/appOld/finance/settings/chart-accounts" className="inline-block mt-4">
                           <Button variant="primary">Open Chart Accounts</Button>
                         </Link>
                       </div>
@@ -294,7 +294,7 @@ function Main() {
                         <div className="text-sm text-slate-500 mt-2">
                           Define monthly periods, close them, and control when finance can post accounting entries.
                         </div>
-                        <Link to="/app/finance/settings/reporting-periods" className="inline-block mt-4">
+                        <Link to="/appOld/finance/settings/reporting-periods" className="inline-block mt-4">
                           <Button variant="primary">Open Reporting Periods</Button>
                         </Link>
                       </div>
@@ -305,7 +305,7 @@ function Main() {
                         <div className="text-sm text-slate-500 mt-2">
                           Maintain receivable and payable master data for invoices, bills, receipts, and settlements.
                         </div>
-                        <Link to="/app/finance/settings/parties" className="inline-block mt-4">
+                        <Link to="/appOld/finance/settings/parties" className="inline-block mt-4">
                           <Button variant="primary">Open Parties</Button>
                         </Link>
                       </div>
@@ -316,7 +316,7 @@ function Main() {
                         <div className="text-sm text-slate-500 mt-2">
                           Set up donors, restricted and unrestricted funds, and grant records used for non-profit reporting.
                         </div>
-                        <Link to="/app/finance/settings/nonprofit" className="inline-block mt-4">
+                        <Link to="/appOld/finance/settings/nonprofit" className="inline-block mt-4">
                           <Button variant="primary">Open Funds &amp; Grants</Button>
                         </Link>
                       </div>

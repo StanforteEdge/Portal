@@ -747,7 +747,7 @@ function AdminSettingsPage() {
                     message="Group management now has a dedicated workspace. Use it for shared teams, multi-organization coverage, and member responsibility assignments."
                   />
                   <div className="flex justify-end">
-                    <Button as={Link as any} to="/app/admin/groups" variant="outline-primary">
+                    <Button as={Link as any} to="/appOld/admin/groups" variant="outline-primary">
                       Open Groups Workspace
                     </Button>
                   </div>

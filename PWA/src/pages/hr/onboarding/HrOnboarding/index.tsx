@@ -67,7 +67,7 @@ function HrOnboardingPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">HR Onboarding</h2>
-        <Button variant="primary" onClick={() => navigate("/app/hr/onboarding/new")}>
+        <Button variant="primary" onClick={() => navigate("/appOld/hr/onboarding/new")}>
           New Assignment
         </Button>
       </div>
@@ -118,7 +118,7 @@ function HrOnboardingPage() {
                       variant="outline-secondary"
                       className="mr-2"
                       disabled={saving}
-                      onClick={() => navigate(`/app/hr/onboarding/${assignment.id}`)}
+                      onClick={() => navigate(`/appOld/hr/onboarding/${assignment.id}`)}
                     >
                       Edit
                     </Button>

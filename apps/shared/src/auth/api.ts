@@ -2,6 +2,12 @@ import { normalizeTokens } from "./tokens";
 import type { HttpRequest } from "./http-client";
 import type { AuthStatusResponse, AuthTokens, AuthUser } from "./types";
 
+function normalizeStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value.map((entry: unknown) => String(entry).trim()).filter(Boolean)
+    : [];
+}
+
 function normalizeUser(payload: any): AuthUser {
   const organizations = Array.isArray(payload?.organizations)
     ? payload.organizations
@@ -23,10 +29,9 @@ function normalizeUser(payload: any): AuthUser {
     username: payload?.username ? String(payload.username) : undefined,
     first_name: payload?.first_name ? String(payload.first_name) : undefined,
     last_name: payload?.last_name ? String(payload.last_name) : undefined,
-    roles: Array.isArray(payload?.roles) ? payload.roles.map((entry: unknown) => String(entry)) : [],
-    permissions: Array.isArray(payload?.permissions)
-      ? payload.permissions.map((entry: unknown) => String(entry))
-      : [],
+    roles: normalizeStringArray(payload?.roles),
+    permissions: normalizeStringArray(payload?.permissions),
+    enabled_modules: normalizeStringArray(payload?.enabled_modules),
     onboarding_status: payload?.onboarding_status ? String(payload.onboarding_status) : null,
     organization_id:
       payload?.organization_id !== undefined && payload?.organization_id !== null

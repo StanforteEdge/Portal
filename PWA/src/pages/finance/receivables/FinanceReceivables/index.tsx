@@ -431,7 +431,7 @@ function FinanceReceivablesPage() {
                   <button
                     type="button"
                     className="font-medium text-primary"
-                    onClick={() => navigate(`/app/finance/receivables/${item.id}`)}
+                    onClick={() => navigate(`/appOld/finance/receivables/${item.id}`)}
                   >
                     {item.document_number}
                   </button>

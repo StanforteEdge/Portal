@@ -50,7 +50,7 @@ function UserRolesPage() {
     try {
       setSaving(true);
       await setUserRoles(userId, selectedUserRoles);
-      navigate("/app/admin/users", { replace: true });
+      navigate("/appOld/admin/users", { replace: true });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to update roles." });
     } finally {
@@ -91,7 +91,7 @@ function UserRolesPage() {
               <Button variant="primary" disabled={saving} onClick={() => void onSaveRoles()}>
                 {saving ? "Saving..." : "Save Roles"}
               </Button>
-              <Button variant="outline-secondary" onClick={() => navigate("/app/admin/users")}>
+              <Button variant="outline-secondary" onClick={() => navigate("/appOld/admin/users")}>
                 Cancel
               </Button>
             </div>

@@ -262,13 +262,13 @@ function FinanceAssetsPage() {
             className="hidden"
             onChange={(e) => void handleImportFile(e)}
           />
-          <Button variant="primary" onClick={() => navigate("/app/finance/assets/new")}>
+          <Button variant="primary" onClick={() => navigate("/appOld/finance/assets/new")}>
             <Lucide icon="Plus" className="w-4 h-4 mr-1" /> New Asset
           </Button>
           <Button variant="outline-primary" onClick={() => importInputRef.current?.click()} disabled={importing}>
             <Lucide icon="File" className="w-4 h-4 mr-1" /> {importing ? "Importing..." : "Import Register"}
           </Button>
-          <Button variant="outline-secondary" onClick={() => navigate("/app/finance/assets/disposals")}>
+          <Button variant="outline-secondary" onClick={() => navigate("/appOld/finance/assets/disposals")}>
             <Lucide icon="ListChecks" className="w-4 h-4 mr-1" /> Disposal Log
           </Button>
           <Button variant="outline-secondary" onClick={() => void load()} disabled={loading}>
@@ -399,7 +399,7 @@ function FinanceAssetsPage() {
               {rows.map((row) => (
                 <Table.Tr key={row.id}>
                   <Table.RowHeader>
-                    <Link className="font-semibold text-primary hover:underline" to={`/app/finance/assets/${row.id}`}>
+                    <Link className="font-semibold text-primary hover:underline" to={`/appOld/finance/assets/${row.id}`}>
                       {row.asset_id}
                     </Link>
                     <div className="text-sm">{row.asset_description}</div>
@@ -424,12 +424,12 @@ function FinanceAssetsPage() {
                   <Table.Td className="text-right">
                     <div className="flex gap-2 justify-end">
                       <Tippy content="View" as="div">
-                        <Button size="sm" variant="outline-primary" aria-label={`View asset ${row.asset_id}`} title="View asset" onClick={() => navigate(`/app/finance/assets/${row.id}`)}>
+                        <Button size="sm" variant="outline-primary" aria-label={`View asset ${row.asset_id}`} title="View asset" onClick={() => navigate(`/appOld/finance/assets/${row.id}`)}>
                           <Lucide icon="Eye" className="w-4 h-4" />
                         </Button>
                       </Tippy>
                       <Tippy content="Edit" as="div">
-                        <Button size="sm" variant="outline-secondary" aria-label={`Edit asset ${row.asset_id}`} title="Edit asset" onClick={() => navigate(`/app/finance/assets/${row.id}/edit`)}>
+                        <Button size="sm" variant="outline-secondary" aria-label={`Edit asset ${row.asset_id}`} title="Edit asset" onClick={() => navigate(`/appOld/finance/assets/${row.id}/edit`)}>
                           <Lucide icon="FilePenLine" className="w-4 h-4" />
                         </Button>
                       </Tippy>

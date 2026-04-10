@@ -41,6 +41,7 @@ jobs:
         working-directory: PWA
         env:
           VITE_API_BASE_URL: ${{ secrets.PWA_API_BASE_URL }}
+          VITE_APP_BASE_PATH: ${{ secrets.PWA_BASE_PATH }}
           VITE_APP_VERSION: ${{ steps.build_meta.outputs.app_version }}
           VITE_APP_COMMIT_SHA: ${{ steps.build_meta.outputs.commit_sha }}
 

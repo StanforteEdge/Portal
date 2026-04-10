@@ -48,8 +48,8 @@ function HrDashboardPage() {
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">HR Dashboard</h2>
         <div className="flex gap-2">
-          <Link to="/app/hr/employees" className="btn btn-primary">Manage Employees</Link>
-          <Link to="/app/hr/onboarding" className="btn btn-outline-secondary">Onboarding Rules</Link>
+          <Link to="/appOld/hr/employees" className="btn btn-primary">Manage Employees</Link>
+          <Link to="/appOld/hr/onboarding" className="btn btn-outline-secondary">Onboarding Rules</Link>
         </div>
       </div>
 

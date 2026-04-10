@@ -17,7 +17,7 @@ function AuthCheckingScreen() {
 }
 
 export function ProtectedRoute() {
-  const { status, initialized } = useAuth();
+  const { status, initialized, authIssue } = useAuth();
   const location = useLocation();
 
   if (!initialized || status === "checking") {
@@ -25,7 +25,8 @@ export function ProtectedRoute() {
   }
 
   if (status !== "authenticated") {
-    return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+    const nextPath = authIssue === "session_expired" ? "/reauth" : "/login";
+    return <Navigate to={nextPath} replace state={{ from: location.pathname }} />;
   }
 
   return <Outlet />;

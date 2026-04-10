@@ -4,6 +4,7 @@ import DashboardPage from "@/features/dashboard/DashboardPage";
 import FinanceAdminPage from "@/features/finance/FinanceAdminPage";
 import FinancePaymentVouchersPage from "@/features/finance/FinancePaymentVouchersPage";
 import { ProtectedRoute, PublicOnlyRoute } from "@/features/auth/components/RouteGuards";
+import { ApprovalRoute, ModuleRoute } from "@/features/auth/components/AccessRoute";
 import AcceptInvitePage from "@/features/auth/pages/AcceptInvitePage";
 import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
 import LoginPage from "@/features/auth/pages/LoginPage";
@@ -30,11 +31,10 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
-        <Route path="/finance" element={<FinanceAdminPage />} />
-        <Route path="/finance/requests" element={<FinanceAdminPage />} />
-        <Route path="/finance/payment-vouchers" element={<FinancePaymentVouchersPage />} />
         <Route path="/requests" element={<RequestsListPage scope="mine" />} />
-        <Route path="/requests/approvals" element={<RequestsListPage scope="approvals" />} />
+        <Route element={<ApprovalRoute />}>
+          <Route path="/requests/approvals" element={<RequestsListPage scope="approvals" />} />
+        </Route>
         <Route path="/requests/new" element={<RequestTypePage />} />
         <Route path="/requests/new/form" element={<RequestFormPage />} />
         <Route path="/requests/details" element={<RequestDetailsPage />} />
@@ -43,6 +43,12 @@ export default function App() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/help" element={<HelpPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route element={<ModuleRoute moduleKey="finance" />}>
+          <Route path="/finance" element={<FinanceAdminPage />} />
+          <Route path="/finance/requests" element={<FinanceAdminPage />} />
+          <Route path="/finance/requests/details" element={<RequestDetailsPage />} />
+          <Route path="/finance/payment-vouchers" element={<FinancePaymentVouchersPage />} />
+        </Route>
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

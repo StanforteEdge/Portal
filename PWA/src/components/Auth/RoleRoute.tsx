@@ -17,7 +17,7 @@ function RoleRoute({ children, allowedRoles }: RoleRouteProps) {
   if (roles.includes("admin")) return <>{children}</>;
   if (allowed.some((role) => roles.includes(role))) return <>{children}</>;
 
-  return <Navigate to="/app/dashboard" replace state={{ from: location.pathname }} />;
+  return <Navigate to="/appOld/dashboard" replace state={{ from: location.pathname }} />;
 }
 
 export default RoleRoute;

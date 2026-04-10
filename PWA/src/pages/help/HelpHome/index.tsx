@@ -5,13 +5,13 @@ const helpSections = [
   {
     title: "Finance Help",
     description: "Understand requests, manual entry, money flow, invoicing, reporting, budgets, and finance setup.",
-    href: "/app/help/finance",
+    href: "/appOld/help/finance",
     icon: "Wallet",
   },
   {
     title: "Documents and Policies",
     description: "Use document records for published files and attach them to policies when acknowledgement or version control is required.",
-    href: "/app/admin/policies",
+    href: "/appOld/admin/policies",
     icon: "BookOpen",
   },
 ];

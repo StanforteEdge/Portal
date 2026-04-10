@@ -134,24 +134,23 @@ export class AttendanceService {
     const policy = await this.resolveAttendancePolicy(actorId, profile);
     this.assertTimestampAllowed(at, policy, payload?.source);
     const workDate = this.toWorkDate(at);
+    const lookbackStart = this.toWorkDate(
+      new Date(Date.now() - policy.max_past_days * 24 * 60 * 60000)
+    );
 
     const entries = await this.prisma.attendanceEntry.findMany({
-      where: { userId: actorId, workDate },
-      orderBy: { entryAt: 'asc' }
+      where: {
+        userId: actorId,
+        workDate: {
+          gte: lookbackStart,
+          lte: workDate
+        }
+      },
+      orderBy: [{ workDate: 'asc' }, { entryAt: 'asc' }]
     });
-    let openClockIns = 0;
-    for (const entry of entries) {
-      if (entry.entryType === 'clock_in') openClockIns += 1;
-      if (entry.entryType === 'clock_out' && openClockIns > 0) openClockIns -= 1;
-    }
-    if (openClockIns <= 0) {
+    const openClockIn = this.getOpenClockIn(entries);
+    if (!openClockIn) {
       throw new BadRequestException('No open clock-in found for this day');
-    }
-    const latestClockOut = new Date(
-      this.atTime(workDate, policy.end_time).getTime() + policy.latest_clock_out_minutes_after_end * 60000
-    );
-    if ((payload?.source ?? 'web') !== 'import' && at > latestClockOut) {
-      throw new BadRequestException('Clock out exceeds allowed window for this schedule');
     }
 
     const effectiveMode = this.resolveSubmittedMode(payload?.attendance_mode, profile, workDate, policy);
@@ -172,7 +171,7 @@ export class AttendanceService {
         userId: actorId,
         entryType: 'clock_out',
         entryAt: at,
-        workDate,
+        workDate: openClockIn.workDate ?? workDate,
         attendanceMode: effectiveMode,
         officeLocationId: officeLocation?.id ?? null,
         latitude: payload?.latitude ?? null,
@@ -187,7 +186,7 @@ export class AttendanceService {
       }
     });
 
-    const daily = await this.recomputeDay(actorId, workDate, profile, policy);
+    const daily = await this.recomputeDay(actorId, openClockIn.workDate ?? workDate, profile, policy);
     return { success: true, daily };
   }
 
@@ -258,6 +257,7 @@ export class AttendanceService {
       current_state: {
         is_clocked_in: Boolean(openClockIn),
         last_clock_in_at: openClockIn?.entryAt ?? null,
+        last_clock_in_work_date: openClockIn?.workDate ? this.workDateKey(openClockIn.workDate) : null,
         can_clock_in: action.canClockIn,
         can_clock_out: action.canClockOut,
         reason: action.reason
@@ -1011,9 +1011,6 @@ export class AttendanceService {
     const latestClockOut = new Date(this.atTime(today, policy.end_time).getTime() + policy.latest_clock_out_minutes_after_end * 60000);
 
     if (openClockIn) {
-      if (now > latestClockOut) {
-        return { canClockIn: false, canClockOut: false, reason: 'Clock out window closed for today' };
-      }
       return { canClockIn: false, canClockOut: true, reason: null };
     }
 
@@ -1371,8 +1368,8 @@ export class AttendanceService {
     };
   }
 
-  private getOpenClockIn(entries: Array<{ entryType: string; entryAt: Date }>) {
-    let open: { entryType: string; entryAt: Date } | null = null;
+  private getOpenClockIn(entries: Array<{ entryType: string; entryAt: Date; workDate?: Date }>) {
+    let open: { entryType: string; entryAt: Date; workDate?: Date } | null = null;
     for (const entry of entries.sort((a, b) => a.entryAt.getTime() - b.entryAt.getTime())) {
       if (entry.entryType === 'clock_in') open = entry;
       if (entry.entryType === 'clock_out') open = null;

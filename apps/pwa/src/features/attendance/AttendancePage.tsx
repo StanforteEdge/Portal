@@ -10,6 +10,13 @@ import {
   SelectField,
   TextAreaField,
   TextField,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
   useToast,
 } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
@@ -284,6 +291,13 @@ export function AttendancePage() {
 
   const todayStatus = humanize(String(today?.status || (currentState?.is_clocked_in ? "present" : "not_started")));
   const todayMode = humanize(String(today?.attendance_mode || today?.expected_mode || selectedMode));
+  const openSessionDate = currentState?.last_clock_in_work_date ? formatDate(currentState.last_clock_in_work_date) : null;
+  const openSessionDateLabel = currentState?.last_clock_in_work_date ? formatDate(currentState.last_clock_in_work_date) : null;
+  const openSessionMessage = currentState?.is_clocked_in
+    ? currentState?.last_clock_in_at
+      ? `Open session started ${formatDateTime(currentState.last_clock_in_at)}${openSessionDate ? ` (${openSessionDate})` : ""}. Clock out is available now, even if the shift crossed into another day.`
+      : "An open session is active. Clock out is available now, even if the shift crossed into another day."
+    : null;
   const locationName =
     officeLocations.find((location) => location.id === String(today?.office_location_id || selectedOfficeLocationId))?.name ||
     officeLocations[0]?.name ||
@@ -392,6 +406,22 @@ export function AttendancePage() {
                   </Button>
                 </div>
 
+                {openSessionMessage ? (
+                  <div className="rounded-2xl border border-brand-900/10 bg-brand-900/5 px-4 py-4 text-sm leading-6 text-slate-700">
+                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-brand-900 px-3 py-1 text-[0.68rem] font-bold uppercase tracking-[0.18em] text-white">
+                        Open session
+                      </span>
+                      {openSessionDateLabel ? (
+                        <span className="rounded-full border border-brand-900/10 bg-white px-3 py-1 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-brand-900">
+                          Since {openSessionDateLabel}
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="font-semibold text-brand-900">Open session:</span> {openSessionMessage}
+                  </div>
+                ) : null}
+
                 {currentState?.reason ? (
                   <div className="rounded-2xl border border-warning/20 bg-warning/10 px-4 py-4 text-sm text-warning">
                     {currentState.reason}
@@ -434,34 +464,34 @@ export function AttendancePage() {
               title="Attendance History"
               action={<Chip variant="neutral">{recentDaily.length} days</Chip>}
             >
-              <div className="overflow-x-auto">
-                <table className="min-w-full border-separate border-spacing-y-3 text-left">
-                  <thead>
-                    <tr className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">
-                      <th className="px-3 py-2">Date</th>
-                      <th className="px-3 py-2">Clock In</th>
-                      <th className="px-3 py-2">Clock Out</th>
-                      <th className="px-3 py-2">Mode</th>
-                      <th className="px-3 py-2">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
+              <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
+                <Table caption="Attendance history">
+                  <TableHead>
+                    <TableHeaderRow>
+                      <TableHeaderCell>Date</TableHeaderCell>
+                      <TableHeaderCell>Clock In</TableHeaderCell>
+                      <TableHeaderCell>Clock Out</TableHeaderCell>
+                      <TableHeaderCell>Mode</TableHeaderCell>
+                      <TableHeaderCell>Status</TableHeaderCell>
+                    </TableHeaderRow>
+                  </TableHead>
+                  <TableBody>
                     {recentDaily.map((row) => (
-                      <tr key={row.id} className="rounded-2xl bg-slate-50">
-                        <td className="rounded-l-2xl px-3 py-4">
+                      <TableRow key={row.id}>
+                        <TableCell className="rounded-l-2xl">
                           <p className="text-sm font-semibold text-slate-950">{formatDate(row.work_date)}</p>
-                        </td>
-                        <td className="px-3 py-4 text-sm font-semibold text-slate-700">{formatClockTime(row.first_in_at)}</td>
-                        <td className="px-3 py-4 text-sm font-semibold text-slate-700">{formatClockTime(row.last_out_at)}</td>
-                        <td className="px-3 py-4">
+                        </TableCell>
+                        <TableCell className="text-sm font-semibold text-slate-700">{formatClockTime(row.first_in_at)}</TableCell>
+                        <TableCell className="text-sm font-semibold text-slate-700">{formatClockTime(row.last_out_at)}</TableCell>
+                        <TableCell>
                           <Chip variant="neutral">{humanize(String(row.attendance_mode || row.expected_mode || "-"))}</Chip>
-                        </td>
-                        <td className="rounded-r-2xl px-3 py-4">
+                        </TableCell>
+                        <TableCell className="rounded-r-2xl">
                           <Chip variant={toneFromStatus(row.status) === "neutral" ? "neutral" : toneFromStatus(row.status)}>
                             {humanize(row.status)}
                           </Chip>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     ))}
                     {!loading && recentDaily.length === 0 ? (
                       <tr>
@@ -470,8 +500,8 @@ export function AttendancePage() {
                         </td>
                       </tr>
                     ) : null}
-                  </tbody>
-                </table>
+                  </TableBody>
+                </Table>
               </div>
             </SectionCard>
           </div>

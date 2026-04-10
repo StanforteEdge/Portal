@@ -4,7 +4,7 @@ import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
 import { store } from "./stores/store";
 import Router from "./router";
-import "./assets/css/app.css";
+import "./assets/css/appOld.css";
 import AppVersion from "@/components/AppVersion";
 
 document.documentElement.setAttribute("class", "theme-2");

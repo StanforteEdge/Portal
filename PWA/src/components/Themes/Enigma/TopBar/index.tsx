@@ -66,8 +66,8 @@ function Main(props: { layout?: "side-menu" | "simple-menu" | "top-menu" }) {
               props.layout == "top-menu" && "md:pl-10",
             ])}
           >
-            <Breadcrumb.Link to="/app/dashboard">Dashboard</Breadcrumb.Link>
-            <Breadcrumb.Link to="/app/dashboard" active={true}>
+            <Breadcrumb.Link to="/appOld/dashboard">Dashboard</Breadcrumb.Link>
+            <Breadcrumb.Link to="/appOld/dashboard" active={true}>
               Dashboard
             </Breadcrumb.Link>
           </Breadcrumb>

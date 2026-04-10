@@ -65,13 +65,13 @@ function FinanceDashboardPage() {
       <div className="box mt-5 p-5">
         <div className="font-medium mb-3">Quick Links</div>
         <div className="flex flex-wrap gap-2">
-          <Link className="btn btn-primary" to="/app/finance/requests">
+          <Link className="btn btn-primary" to="/appOld/finance/requests">
             Open Finance Requests
           </Link>
-          <Link className="btn btn-outline-secondary" to="/app/finance/manual-entry">
+          <Link className="btn btn-outline-secondary" to="/appOld/finance/manual-entry">
             Manual Entry
           </Link>
-          <Link className="btn btn-outline-secondary" to="/app/finance/settings">
+          <Link className="btn btn-outline-secondary" to="/appOld/finance/settings">
             Finance Settings
           </Link>
         </div>

@@ -125,14 +125,14 @@ function FinancePaymentVouchersPage() {
               {rows.map((row) => (
                 <Table.Tr key={row.id}>
                   <Table.Td>
-                    <Link className="font-medium text-primary hover:underline" to={`/app/finance/requests/request/${row.request_id}?voucher_id=${row.id}`}>
+                    <Link className="font-medium text-primary hover:underline" to={`/appOld/finance/requests/request/${row.request_id}?voucher_id=${row.id}`}>
                       {row.voucher_number}
                     </Link>
                     <div className="text-xs text-slate-500">{row.method || "-"}</div>
                     <div className="text-xs text-slate-500">Click to view or edit</div>
                   </Table.Td>
                   <Table.Td>
-                    <Link className="font-semibold text-primary hover:underline" to={`/app/finance/requests/request/${row.request_id}`}>
+                    <Link className="font-semibold text-primary hover:underline" to={`/appOld/finance/requests/request/${row.request_id}`}>
                       {formatRequestNumber(row.request_number)}
                     </Link>
                     <div className="text-xs text-slate-500">{row.request_type}</div>

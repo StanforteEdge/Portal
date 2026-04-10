@@ -98,7 +98,7 @@ function UserCreatePage() {
         roles: selectedRoles,
         primary_organization_id: form.primary_organization_id || undefined,
       });
-      navigate("/app/admin/users", { replace: true });
+      navigate("/appOld/admin/users", { replace: true });
     } catch (error: any) {
       setNotice({
         tone: "error",
@@ -216,7 +216,7 @@ function UserCreatePage() {
           <Button variant="primary" disabled={saving} onClick={() => void onCreateUser()}>
             {saving ? "Creating..." : "Create User"}
           </Button>
-          <Button variant="outline-secondary" onClick={() => navigate("/app/admin/users")}>
+          <Button variant="outline-secondary" onClick={() => navigate("/appOld/admin/users")}>
             Cancel
           </Button>
         </div>

@@ -136,7 +136,7 @@ function AdminFormEditorPage() {
       if (isCreate) {
         const created = await createForm(formState);
         setNotice({ tone: "success", message: "Form created." });
-        navigate(`/app/admin/forms/${created.id}`, { replace: true });
+        navigate(`/appOld/admin/forms/${created.id}`, { replace: true });
         return;
       }
 
@@ -267,7 +267,7 @@ function AdminFormEditorPage() {
     <>
       <div className="flex items-center mt-8 intro-y">
         <h2 className="mr-auto text-lg font-medium">{isCreate ? "Create Form" : "Edit Form"}</h2>
-        <Button variant="outline-secondary" onClick={() => navigate("/app/admin/forms")}>
+        <Button variant="outline-secondary" onClick={() => navigate("/appOld/admin/forms")}>
           Back to Forms
         </Button>
       </div>

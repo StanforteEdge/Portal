@@ -19,7 +19,7 @@ function AnyPermissionRoute({ children, requiredPermissions }: AnyPermissionRout
     return <>{children}</>;
   }
 
-  return <Navigate to="/app/dashboard" replace state={{ from: location.pathname }} />;
+  return <Navigate to="/appOld/dashboard" replace state={{ from: location.pathname }} />;
 }
 
 export default AnyPermissionRoute;

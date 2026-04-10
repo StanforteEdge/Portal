@@ -57,7 +57,7 @@ function Main() {
             className="flex mr-auto"
             aria-label="Go to dashboard"
             onClick={() => {
-              navigate("/app");
+              navigate("/appOld");
               setActiveMobileMenu(false);
             }}
           >

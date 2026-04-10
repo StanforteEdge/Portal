@@ -28,6 +28,12 @@ type DrawerEntry = {
   path?: string;
   active: boolean;
   section?: string;
+  children?: Array<{
+    label: string;
+    icon: string;
+    path?: string;
+    active: boolean;
+  }>;
 };
 
 export function MobileBottomNav({
@@ -82,39 +88,29 @@ export function MobileBottomNav({
   }, [menuOpen]);
 
   const drawerEntries = useMemo<DrawerEntry[]>(() => {
-    const entries: DrawerEntry[] = [];
-
-    navigation.forEach((item) => {
-      if (item.children?.length) {
-        item.children.forEach((child) => {
-          entries.push({
-            label: child.label,
-            icon: child.icon || item.icon,
-            path: child.path,
-            active: child.label === activeLabel,
-            section: item.section,
-          });
-        });
-        return;
-      }
-
-      entries.push({
+    return [
+      ...navigation.map((item) => ({
         label: item.label,
         icon: item.icon,
         path: item.path,
-        active: item.label === activeLabel,
+        active:
+          item.label === activeLabel ||
+          Boolean(item.children?.some((child) => child.label === activeLabel)),
         section: item.section,
-      });
-    });
-
-    entries.push({
-      label: "Support",
-      icon: "help_outline",
-      path: "/help",
-      active: activeLabel === "Support",
-    });
-
-    return entries;
+        children: item.children?.map((child) => ({
+          label: child.label,
+          icon: child.icon || item.icon,
+          path: child.path,
+          active: child.label === activeLabel,
+        })),
+      })),
+      {
+        label: "Support",
+        icon: "help_outline",
+        path: "/help",
+        active: activeLabel === "Support",
+      },
+    ];
   }, [activeLabel, navigation]);
 
   return (
@@ -205,8 +201,12 @@ export function MobileBottomNav({
 
             <div className="space-y-2">
               {drawerEntries.map((entry, index) => {
-                const previousSection = index > 0 ? drawerEntries[index - 1]?.section : undefined;
-                const showSectionLabel = entry.section && entry.section !== previousSection;
+                const previousSection =
+                  index > 0 ? drawerEntries[index - 1]?.section : undefined;
+                const showSectionLabel =
+                  entry.section && entry.section !== previousSection;
+                const hasChildren = Array.isArray(entry.children) && entry.children.length > 0;
+
                 return (
                   <div key={entry.label} className="space-y-2">
                     {showSectionLabel ? (
@@ -214,20 +214,52 @@ export function MobileBottomNav({
                         {entry.section}
                       </div>
                     ) : null}
-                    {entry.path ? (
-                      <NavLink
-                        to={entry.path}
-                        onClick={() => setMenuOpen(false)}
-                        className={[
-                          "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-                          entry.active ? "bg-brand-900 text-white" : "bg-slate-50 text-slate-700 hover:bg-slate-100",
-                        ].join(" ")}
-                      >
-                        <Icon name={entry.icon} fill={entry.active} />
-                        <span className="flex-1">{entry.label}</span>
-                        <Icon name="chevron_right" className="text-[18px]" />
-                      </NavLink>
-                    ) : null}
+                    <div className="rounded-[24px] border border-slate-100 bg-white p-4">
+                      {entry.path ? (
+                        <NavLink
+                          to={entry.path}
+                          onClick={() => setMenuOpen(false)}
+                          className={[
+                            "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                            entry.active
+                              ? "bg-brand-900 text-white"
+                              : "bg-slate-50 text-slate-700 hover:bg-slate-100",
+                          ].join(" ")}
+                        >
+                          <Icon name={entry.icon} fill={entry.active} />
+                          <span className="flex-1">{entry.label}</span>
+                          <Icon name="chevron_right" className="text-[18px]" />
+                        </NavLink>
+                      ) : (
+                        <div className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900">
+                          <Icon name={entry.icon} fill={entry.active} />
+                          <span className="flex-1">{entry.label}</span>
+                        </div>
+                      )}
+
+                      {hasChildren ? (
+                        <div className="mt-4 space-y-2 border-l border-slate-200 pl-4">
+                          {entry.children!.map((child) =>
+                            child.path ? (
+                              <NavLink
+                                key={`${entry.label}-${child.label}`}
+                                to={child.path}
+                                onClick={() => setMenuOpen(false)}
+                                className={[
+                                  "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                  child.active
+                                    ? "bg-brand-900/10 text-brand-900"
+                                    : "text-slate-600 hover:bg-slate-50",
+                                ].join(" ")}
+                              >
+                                <Icon name={child.icon} className="text-[16px]" />
+                                <span>{child.label}</span>
+                              </NavLink>
+                            ) : null,
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
