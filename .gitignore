@@ -11,8 +11,6 @@ npm-debug.log*
 **/.vscode/
 uploads/
 api/uploads/
-docs
-**/docs/
 plugins
 .playwright-cli/
 output/
