@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
+import { Breadcrumbs, type BreadcrumbItem } from "./Breadcrumbs";
 
 type PageHeaderProps = {
+  breadcrumbs?: BreadcrumbItem[];
   eyebrow?: string;
   title: string;
   description?: string;
@@ -8,6 +10,7 @@ type PageHeaderProps = {
 };
 
 export function PageHeader({
+  breadcrumbs,
   eyebrow,
   title,
   description,
@@ -16,6 +19,11 @@ export function PageHeader({
   return (
     <section className="mb-6 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div className="max-w-3xl">
+        {breadcrumbs?.length ? (
+          <div className="mb-2">
+            <Breadcrumbs items={breadcrumbs} />
+          </div>
+        ) : null}
         {eyebrow ? (
           <p className="section-kicker mb-2">{eyebrow}</p>
         ) : null}

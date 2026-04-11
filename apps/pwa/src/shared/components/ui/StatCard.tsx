@@ -1,4 +1,5 @@
 import { Chip } from "./Chip";
+import { Icon } from "./Icon";
 
 type StatCardProps = {
   label: string;
@@ -6,6 +7,7 @@ type StatCardProps = {
   delta?: string;
   tone?: "neutral" | "success" | "warning" | "pending" | "danger";
   hint?: string;
+  icon?: string;
 };
 
 export function StatCard({
@@ -14,6 +16,7 @@ export function StatCard({
   delta,
   tone = "neutral",
   hint,
+  icon,
 }: StatCardProps) {
   return (
     <article className="stat-card">
@@ -26,7 +29,10 @@ export function StatCard({
             {value}
           </p>
         </div>
-        {delta ? <Chip variant={tone}>{delta}</Chip> : null}
+        <div className="flex flex-col items-end gap-2">
+          {icon ? <Icon name={icon} className="text-slate-400" /> : null}
+          {delta ? <Chip variant={tone}>{delta}</Chip> : null}
+        </div>
       </div>
       {hint ? <p className="field-help mt-4">{hint}</p> : null}
     </article>
