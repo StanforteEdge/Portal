@@ -152,7 +152,9 @@ function toRow(request: RequestRecord) {
   const projectId = String(data.project_id ?? "").trim();
   const projectName = String(data.project_name ?? "").trim();
   const teamId = String(data.team_id ?? "").trim();
-  const teamName = String(data.team_name ?? data.team ?? "").trim();
+  const teamName = String(
+    data.team_name ?? data.team ?? request.team_name ?? request.group?.name ?? "",
+  ).trim();
   const organizationId = String(data.organization_id ?? "").trim();
   const organizationName = String(
     data.organization_name ?? data.organization ?? "",
@@ -492,6 +494,7 @@ function RequestsListTable({
   perPage,
   onPerPageChange,
   onPageChange,
+  isMultiTeam,
 }: {
   activeFamily: RequestFamily;
   rows: UiRequestRow[];
@@ -504,6 +507,7 @@ function RequestsListTable({
   perPage: number;
   onPerPageChange: (value: number) => void;
   onPageChange: (page: number) => void;
+  isMultiTeam: boolean;
 }) {
   const pageStart = totalCount === 0 ? 0 : (currentPage - 1) * perPage + 1;
   const pageEnd =
@@ -547,23 +551,14 @@ function RequestsListTable({
           <TableHead>
             <TableHeaderRow>
               <TableHeaderCell>Request ID</TableHeaderCell>
-              {activeFamily === "all" ? (
-                <TableHeaderCell>Family</TableHeaderCell>
-              ) : null}
-              {activeFamily === "financial" ? (
-                <TableHeaderCell>Amount</TableHeaderCell>
-              ) : null}
-              {activeFamily === "financial" ? (
-                <TableHeaderCell>Team</TableHeaderCell>
-              ) : null}
+              <TableHeaderCell>Category</TableHeaderCell>
+              <TableHeaderCell>Total</TableHeaderCell>
+              {isMultiTeam ? <TableHeaderCell>Team</TableHeaderCell> : null}
               {activeFamily === "financial" ? (
                 <TableHeaderCell>Project</TableHeaderCell>
               ) : null}
               {activeFamily === "leave" ? (
                 <TableHeaderCell>Leave Dates</TableHeaderCell>
-              ) : null}
-              {activeFamily === "leave" ? (
-                <TableHeaderCell>Duration</TableHeaderCell>
               ) : null}
               <TableHeaderCell>Submitted</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
@@ -584,19 +579,26 @@ function RequestsListTable({
                     <span>{row.type}</span>
                   </div>
                 </TableCell>
-                {activeFamily === "all" ? (
-                  <TableCell className="text-sm text-slate-600">
-                    {row.familyLabel}
-                  </TableCell>
-                ) : null}
-                {activeFamily === "financial" ? (
-                  <TableCell className="text-sm text-slate-600">
-                    {row.detail}
-                  </TableCell>
-                ) : null}
-                {activeFamily === "financial" ? (
-                  <TableCell className="capitalize text-sm text-slate-600">
-                    {row.teamName || "-"}
+                <TableCell className="text-sm text-slate-600">
+                  {row.familyLabel}
+                </TableCell>
+                <TableCell className="text-sm text-slate-700 font-medium">
+                  {row.family === "leave"
+                    ? formatLeaveDuration(row)
+                    : row.totalAmount > 0
+                      ? row.detail
+                      : "-"}
+                </TableCell>
+                {isMultiTeam ? (
+                  <TableCell>
+                    <p className="text-sm font-medium text-slate-800 capitalize">
+                      {row.teamName || "-"}
+                    </p>
+                    {row.organizationName ? (
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {row.organizationName}
+                      </p>
+                    ) : null}
                   </TableCell>
                 ) : null}
                 {activeFamily === "financial" ? (
@@ -609,12 +611,7 @@ function RequestsListTable({
                     {formatLeaveDateRange(row)}
                   </TableCell>
                 ) : null}
-                {activeFamily === "leave" ? (
-                  <TableCell className="text-sm text-slate-600">
-                    {formatLeaveDuration(row)}
-                  </TableCell>
-                ) : null}
-                <TableCell className="rounded-r-2xl text-sm text-slate-600">
+                <TableCell className="text-sm text-slate-600">
                   {row.submitted}
                 </TableCell>
                 <TableCell className="rounded-r-2xl">
@@ -702,9 +699,13 @@ function RequestsMobileList({
                 </p>
                 <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
               </div>
-              <p className="mt-1 text-sm text-slate-500">{row.summary}</p>
-              <p className="mt-3 text-sm font-semibold text-slate-700">
-                {row.detail}
+              <p className="mt-1 text-xs text-slate-500">{row.familyLabel}</p>
+              <p className="mt-2 text-sm font-semibold text-slate-700">
+                {row.family === "leave"
+                  ? formatLeaveDuration(row)
+                  : row.totalAmount > 0
+                    ? row.detail
+                    : row.summary}
               </p>
               <p className="mt-1 text-xs text-slate-500">{row.submitted}</p>
             </div>
@@ -752,6 +753,8 @@ export function RequestsListPage() {
         : [],
     [user?.organizations],
   );
+
+  const isMultiTeam = (profile?.teams?.length ?? 0) > 1;
 
   const {
     data: requestsData,
@@ -1102,6 +1105,7 @@ export function RequestsListPage() {
             onPerPageChange={setPerPage}
             onPageChange={setCurrentPage}
             onRetry={() => { void refetchRequests(); }}
+            isMultiTeam={isMultiTeam}
           />
         </div>
       </div>
