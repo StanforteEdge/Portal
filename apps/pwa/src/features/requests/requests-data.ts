@@ -76,7 +76,8 @@ export function buildRequestsNavigation(options?: {
     path: detailsPath,
   };
   const financeRequestDetailsItem = {
-    label: "Finance Request Details",
+    key: "finance-request-details",
+    label: "Request Details",
     icon: "description",
     path: detailsPath,
   };
@@ -102,7 +103,12 @@ export function buildRequestsNavigation(options?: {
       icon: "person",
       path: "/profile",
       section: "Staff",
-      children: [{ label: "Settings", icon: "settings", path: "/settings" }],
+    },
+    {
+      label: "Settings",
+      icon: "settings",
+      path: "/settings",
+      section: "Staff",
     },
     {
       label: "Finance",
@@ -110,9 +116,9 @@ export function buildRequestsNavigation(options?: {
       section: "Admin",
       moduleKey: "finance",
       children: [
-        { label: "Dashboard", icon: "grid_view", path: "/finance" },
-        { label: "Requests", icon: "receipt_long", path: "/finance/requests" },
-        { label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers" },
+        { key: "finance-dashboard", label: "Dashboard", icon: "grid_view", path: "/finance" },
+        { key: "finance-requests", label: "Requests", icon: "receipt_long", path: "/finance/requests" },
+        { key: "finance-vouchers", label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers" },
         ...(includeDetails && detailsParent === "finance"
           ? [financeRequestDetailsItem]
           : []),

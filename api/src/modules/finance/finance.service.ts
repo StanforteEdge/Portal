@@ -177,6 +177,31 @@ export class FinanceService {
       return financeApprovalInstanceIds.has(row.workflowInstanceId);
     });
 
+    // Batch-resolve staff team names from data.team_id (maps to Group table)
+    const teamIdSet = new Set<string>();
+    for (const row of filtered) {
+      const rd = row.data && typeof row.data === 'object' && !Array.isArray(row.data)
+        ? (row.data as Record<string, unknown>) : {};
+      const tid = String(rd.team_id ?? '').trim();
+      if (tid) teamIdSet.add(tid);
+    }
+    const teamGroupMap = new Map<string, string>();
+    if (teamIdSet.size > 0) {
+      const teamIds = Array.from(teamIdSet).map((id) => {
+        const n = Number(id);
+        return isNaN(n) ? null : BigInt(n);
+      }).filter((id): id is bigint => id !== null);
+      if (teamIds.length > 0) {
+        const teamGroups = await this.prisma.group.findMany({
+          where: { id: { in: teamIds } },
+          select: { id: true, name: true },
+        });
+        for (const g of teamGroups) {
+          teamGroupMap.set(g.id.toString(), g.name);
+        }
+      }
+    }
+
     const enriched = await Promise.all(
       filtered.map(async (row) => {
         const requestNumber = await this.getFormattedRequestNumber(row.id);
@@ -190,7 +215,8 @@ export class FinanceService {
             ? (row.data as Record<string, unknown>)
             : {};
         const projectName = String(requestData.project_name || requestData.project || '').trim();
-        const teamName = String(requestData.team_name || requestData.team || '').trim();
+        const rawTeamId = String(requestData.team_id ?? '').trim();
+        const teamName = teamGroupMap.get(rawTeamId) || String(requestData.team_name || requestData.team || '').trim();
         const organizationName = String(
           row.organization?.name || requestData.organization_name || requestData.organization || '',
         ).trim();
@@ -291,8 +317,6 @@ export class FinanceService {
           name: entry.row.requestType.name,
           code_prefix: entry.row.requestType.codePrefix,
           category_key: entry.row.requestType.categoryKey ?? null,
-          approval_flow_json: entry.row.requestType.approvalFlowJson ?? null,
-          form_schema: entry.row.requestType.formSchema ?? null
         },
         request_creator_name: entry.creatorName,
         request_total_amount: Number(entry.row.totalAmount ?? 0),
@@ -311,6 +335,7 @@ export class FinanceService {
               code: entry.row.group.code
             }
           : null,
+        team_name: entry.teamName || null,
         organization: entry.row.organization
           ? {
               id: entry.row.organization.id.toString(),

@@ -1606,7 +1606,7 @@ export function RequestDetailsPage() {
                   }
                 >
                   {lineItems.length ? (
-                    <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                    <div className="rounded-[22px] border border-slate-200 bg-white">
                       <Table caption="Request items">
                         <TableHead>
                           <TableHeaderRow>
@@ -1855,6 +1855,7 @@ export function RequestDetailsPage() {
                 <ActivityFeed
                   items={activityItems}
                   emptyState="No activity recorded for this request yet."
+                  limit={3}
                 />
               </SectionCard>
             </div>
@@ -1864,12 +1865,22 @@ export function RequestDetailsPage() {
                 <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
                   {family === "leave" ? "Request Type" : "Current Total"}
                 </p>
-                <h3 className="mt-3 text-[1.65rem] font-semibold tracking-tight">
-                  {family === "leave"
-                    ? request.request_type?.name ||
-                      requestFamilyFromRecord(request)
-                    : formatCurrency(request.total_amount, request.currency)}
-                </h3>
+                {family === "leave" ? (
+                  <h3 className="mt-3 text-[1.65rem] font-semibold tracking-tight">
+                    {request.request_type?.name || requestFamilyFromRecord(request)}
+                  </h3>
+                ) : (
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <h3 className="text-[1.65rem] font-semibold tracking-tight">
+                      {formatCurrency(request.total_amount, request.currency)}
+                    </h3>
+                    {disbursedTotal > 0 ? (
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/60">
+                        / {formatCurrency(disbursedTotal, request.currency)} disbursed
+                      </span>
+                    ) : null}
+                  </div>
+                )}
                 <p className="mt-3 text-sm leading-6 text-white/85">
                   {family === "leave"
                     ? "This request follows the leave workflow and approval sequence."
@@ -2128,7 +2139,7 @@ export function RequestDetailsPage() {
             {family !== "leave" ? (
               <SectionCard title="Request Items">
                 {lineItems.length ? (
-                  <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                  <div className="rounded-[22px] border border-slate-200 bg-white">
                     <Table caption="Request items">
                       <TableHead>
                         <TableHeaderRow>
@@ -2185,7 +2196,7 @@ export function RequestDetailsPage() {
 
             {(paymentVouchers ?? []).length ? (
               <SectionCard title="Payment Vouchers">
-                <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                <div className="rounded-[22px] border border-slate-200 bg-white">
                   <Table caption="Payment vouchers">
                     <TableHead>
                       <TableHeaderRow>
@@ -2390,6 +2401,7 @@ export function RequestDetailsPage() {
               <ActivityFeed
                 items={activityItems}
                 emptyState="No activity recorded yet."
+                limit={3}
               />
             </SectionCard>
           </>

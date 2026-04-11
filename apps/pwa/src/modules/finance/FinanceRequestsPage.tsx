@@ -57,11 +57,6 @@ function requestTotal(entry: any) {
   );
 }
 
-function capitalizeWords(value: string) {
-  return String(value || "")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-}
 
 function resolveFinanceStatus(entry: RequestRecord) {
   const source = entry as unknown as { request_status?: string };
@@ -277,7 +272,7 @@ export default function FinanceRequestsPage() {
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
-      activeLabel={isRequestsView ? "Finance Requests" : "Finance Dashboard"}
+      activeLabel="finance-requests"
       user={{
         name: userName,
         role: profile?.employee_profile?.job_title || "Staff",
@@ -464,7 +459,7 @@ export default function FinanceRequestsPage() {
             </div>
           ) : queueRows.length ? (
             <>
-              <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+              <div className="rounded-[22px] border border-slate-200 bg-white">
                 <Table caption="Finance requests">
                   <TableHead>
                     <TableHeaderRow>
@@ -483,30 +478,18 @@ export default function FinanceRequestsPage() {
                     {queueRows.map((entry) => (
                       <TableRow key={entry.id}>
                         <TableCell>
-                          <p className="text-sm font-semibold text-slate-950">
+                          <Link
+                            to={`/finance/requests/details?id=${entry.id}`}
+                            className="text-sm font-semibold text-brand-900 transition hover:underline"
+                          >
                             {entry.request_number || entry.id}
-                          </p>
+                          </Link>
                         </TableCell>
                         <TableCell className="text-sm text-slate-700">
-                          {(() => {
-                            const data =
-                              (entry.data as Record<string, unknown> | null) ||
-                              {};
-                            const payload = entry as unknown as {
-                              group_name?: string;
-                              group?: { name?: string };
-                            };
-                            return String(
-                              data.team_name ||
-                                data.team ||
-                                payload.group_name ||
-                                payload.group?.name ||
-                                "-",
-                            );
-                          })()}
+                          {entry.team_name || "-"}
                         </TableCell>
-                        <TableCell className="text-sm text-slate-700">
-                          {capitalizeWords(formatPersonName(entry.creator))}
+                        <TableCell className="capitalize text-sm text-slate-700">
+                          {formatPersonName(entry.creator)}
                         </TableCell>
                         <TableCell className="text-sm text-slate-700">
                           {formatDisplayDate(

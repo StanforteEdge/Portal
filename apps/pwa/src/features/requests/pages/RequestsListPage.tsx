@@ -1,12 +1,10 @@
 import {
-  ActivityFeed,
   Button,
   Chip,
   Icon,
   PaginationControls,
   SelectField,
   PageHeader,
-  RightRail,
   SectionCard,
   Table,
   TableBody,
@@ -17,15 +15,14 @@ import {
   TableRow,
   StatCard,
 } from "@/shared";
-import { formatCurrency, hasApprovalAccess } from "@stanforte/shared";
+import { formatCurrency } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
-import { Link, Navigate, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useCachedQuery } from "@/shared/lib/core";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
-  listApprovals,
   listRequests,
   listRequestTypes,
   type RequestRecord,
@@ -35,7 +32,6 @@ import {
   requestsMobileNav,
 } from "@/features/requests/requests-data";
 
-type RequestScope = "mine" | "approvals";
 type RequestFamily = "all" | "financial" | "leave";
 
 type UiRequestRow = {
@@ -290,15 +286,10 @@ function ListFilters({
   requestTypes,
   selectedRequestTypeId,
   onRequestTypeChange,
-  dateLabel,
-  dateFrom,
-  dateTo,
-  onDateFromChange,
-  onDateToChange,
+  filterDate,
+  onFilterDateChange,
   moreFiltersOpen,
   onToggleMoreFilters,
-  dateRangeOpen,
-  onToggleDateRange,
   search,
   onSearchChange,
   projectOptions,
@@ -314,8 +305,6 @@ function ListFilters({
   onSortByChange,
   sortOrder,
   onSortOrderChange,
-  perPage,
-  onPerPageChange,
 }: {
   activeFamily: RequestFamily;
   status: string;
@@ -324,15 +313,10 @@ function ListFilters({
   requestTypes: RequestOption[];
   selectedRequestTypeId: string;
   onRequestTypeChange: (value: string) => void;
-  dateLabel: string;
-  dateFrom: string;
-  dateTo: string;
-  onDateFromChange: (value: string) => void;
-  onDateToChange: (value: string) => void;
+  filterDate: string;
+  onFilterDateChange: (value: string) => void;
   moreFiltersOpen: boolean;
   onToggleMoreFilters: () => void;
-  dateRangeOpen: boolean;
-  onToggleDateRange: () => void;
   search: string;
   onSearchChange: (value: string) => void;
   projectOptions: RequestOption[];
@@ -348,8 +332,6 @@ function ListFilters({
   onSortByChange: (value: SortBy) => void;
   sortOrder: "asc" | "desc";
   onSortOrderChange: (value: "asc" | "desc") => void;
-  perPage: number;
-  onPerPageChange: (value: number) => void;
 }) {
   const requestTypeLabel =
     activeFamily === "financial"
@@ -368,10 +350,34 @@ function ListFilters({
     <section className="section-card p-4 sm:p-5" aria-label="Request filters">
       <div className="flex flex-wrap items-start gap-3">
         <SelectField
+          label="Sort By"
+          value={sortBy}
+          onChange={(event) => onSortByChange(event.target.value as SortBy)}
+          className="min-w-[130px] flex-1 lg:flex-none"
+        >
+          <option value="created_at">Created date</option>
+          <option value="due_date">Due date</option>
+          <option value="request_number">Request number</option>
+          <option value="total_amount">Total amount</option>
+          <option value="status">Status</option>
+          <option value="request_type">Request type</option>
+        </SelectField>
+        <SelectField
+          label="Order"
+          value={sortOrder}
+          onChange={(event) =>
+            onSortOrderChange(event.target.value as "asc" | "desc")
+          }
+          className="min-w-[110px] flex-1 lg:flex-none"
+        >
+          <option value="desc">Newest</option>
+          <option value="asc">Oldest</option>
+        </SelectField>
+        <SelectField
           label="Status"
           value={status}
           onChange={(event) => onStatusChange(event.target.value)}
-          className="min-w-[180px] flex-1 lg:flex-none"
+          className="min-w-[120px] flex-1 lg:flex-none"
         >
           {statusOptions.map((item) => (
             <option key={item.value} value={item.value}>
@@ -384,7 +390,7 @@ function ListFilters({
           label={requestTypeLabel}
           value={selectedRequestTypeId}
           onChange={(event) => onRequestTypeChange(event.target.value)}
-          className="min-w-[220px] flex-1 lg:flex-none"
+          className="min-w-[200px] flex-1 lg:flex-none"
         >
           {requestTypes.map((item) => (
             <option key={item.value} value={item.value}>
@@ -393,83 +399,15 @@ function ListFilters({
           ))}
         </SelectField>
 
-        <div className="relative">
-          <button
-            type="button"
-            onClick={onToggleDateRange}
-            className="inline-flex min-w-[220px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10 lg:flex-none"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Icon name="date_range" className="text-[18px] text-slate-400" />
-              Date Range
-            </span>
-            <span className="truncate text-sm font-semibold text-slate-700">
-              {dateLabel}
-            </span>
-          </button>
-
-          {dateRangeOpen ? (
-            <div className="absolute left-0 top-[calc(100%+0.75rem)] z-20 w-[320px] rounded-[22px] border border-slate-200 bg-white p-4 shadow-card">
-              <div className="grid gap-3">
-                <label className="grid gap-2 text-sm text-slate-600">
-                  <span className="font-semibold text-slate-700">From</span>
-                  <input
-                    type="date"
-                    value={dateFrom}
-                    onChange={(event) => onDateFromChange(event.target.value)}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-900/10"
-                  />
-                </label>
-                <label className="grid gap-2 text-sm text-slate-600">
-                  <span className="font-semibold text-slate-700">To</span>
-                  <input
-                    type="date"
-                    value={dateTo}
-                    onChange={(event) => onDateToChange(event.target.value)}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-900/10"
-                  />
-                </label>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <SelectField
-          label="Sort By"
-          value={sortBy}
-          onChange={(event) => onSortByChange(event.target.value as SortBy)}
-          className="min-w-[180px] flex-1 lg:flex-none"
-        >
-          <option value="created_at">Created date</option>
-          <option value="request_number">Request number</option>
-          <option value="total_amount">Total amount</option>
-          <option value="status">Status</option>
-          <option value="request_type">Request type</option>
-        </SelectField>
-
-        <SelectField
-          label="Order"
-          value={sortOrder}
-          onChange={(event) =>
-            onSortOrderChange(event.target.value as "asc" | "desc")
-          }
-          className="min-w-[160px] flex-1 lg:flex-none"
-        >
-          <option value="desc">Descending</option>
-          <option value="asc">Ascending</option>
-        </SelectField>
-
-        <SelectField
-          label="Per Page"
-          value={String(perPage)}
-          onChange={(event) => onPerPageChange(Number(event.target.value))}
-          className="min-w-[140px] flex-1 lg:flex-none"
-        >
-          <option value={5}>5</option>
-          <option value={10}>10</option>
-          <option value={25}>25</option>
-          <option value={50}>50</option>
-        </SelectField>
+        <label className="grid gap-1.5 text-sm">
+          <span className="font-semibold text-slate-700">Date</span>
+          <input
+            type="date"
+            value={filterDate}
+            onChange={(event) => onFilterDateChange(event.target.value)}
+            className="rounded-2xl border border-slate-200 bg-white px-4 py-[0.6rem] text-sm font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-900/10"
+          />
+        </label>
 
         <button
           type="button"
@@ -544,7 +482,6 @@ function ListFilters({
 
 function RequestsListTable({
   activeFamily,
-  detailView,
   rows,
   loading,
   error,
@@ -553,10 +490,10 @@ function RequestsListTable({
   totalPages,
   totalCount,
   perPage,
+  onPerPageChange,
   onPageChange,
 }: {
   activeFamily: RequestFamily;
-  detailView: RequestScope;
   rows: UiRequestRow[];
   loading: boolean;
   error: string | null;
@@ -565,6 +502,7 @@ function RequestsListTable({
   totalPages: number;
   totalCount: number;
   perPage: number;
+  onPerPageChange: (value: number) => void;
   onPageChange: (page: number) => void;
 }) {
   const pageStart = totalCount === 0 ? 0 : (currentPage - 1) * perPage + 1;
@@ -616,6 +554,9 @@ function RequestsListTable({
                 <TableHeaderCell>Amount</TableHeaderCell>
               ) : null}
               {activeFamily === "financial" ? (
+                <TableHeaderCell>Team</TableHeaderCell>
+              ) : null}
+              {activeFamily === "financial" ? (
                 <TableHeaderCell>Project</TableHeaderCell>
               ) : null}
               {activeFamily === "leave" ? (
@@ -626,16 +567,18 @@ function RequestsListTable({
               ) : null}
               <TableHeaderCell>Submitted</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell className="text-right">Actions</TableHeaderCell>
             </TableHeaderRow>
           </TableHead>
           <TableBody>
             {rows.map((row) => (
               <TableRow key={row.id}>
                 <TableCell className="rounded-l-2xl">
-                  <p className="text-sm font-semibold text-brand-900">
+                  <Link
+                    to={`/requests/details?id=${row.requestId}&view=mine`}
+                    className="text-sm font-semibold text-brand-900 transition hover:underline"
+                  >
                     {row.id}
-                  </p>
+                  </Link>
                   <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                     <Icon name={row.icon} className="text-[16px]" />
                     <span>{row.type}</span>
@@ -649,6 +592,11 @@ function RequestsListTable({
                 {activeFamily === "financial" ? (
                   <TableCell className="text-sm text-slate-600">
                     {row.detail}
+                  </TableCell>
+                ) : null}
+                {activeFamily === "financial" ? (
+                  <TableCell className="capitalize text-sm text-slate-600">
+                    {row.teamName || "-"}
                   </TableCell>
                 ) : null}
                 {activeFamily === "financial" ? (
@@ -666,20 +614,11 @@ function RequestsListTable({
                     {formatLeaveDuration(row)}
                   </TableCell>
                 ) : null}
-                <TableCell className="text-sm text-slate-600">
+                <TableCell className="rounded-r-2xl text-sm text-slate-600">
                   {row.submitted}
                 </TableCell>
-                <TableCell>
+                <TableCell className="rounded-r-2xl">
                   <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
-                </TableCell>
-                <TableCell className="rounded-r-2xl text-right">
-                  <Link
-                    to={`/requests/details?id=${row.requestId}&view=${detailView === "approvals" ? "approvals" : "mine"}`}
-                    className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-brand-900 transition hover:bg-brand-900/5 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                  >
-                    View Details
-                    <Icon name="arrow_forward" className="text-[18px]" />
-                  </Link>
                 </TableCell>
               </TableRow>
             ))}
@@ -687,25 +626,35 @@ function RequestsListTable({
         </Table>
       </div>
 
-      <PaginationControls
-        page={currentPage}
-        totalPages={totalPages}
-        totalCount={totalCount}
-        itemLabel="request"
-        onPageChange={onPageChange}
-      />
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+        <SelectField
+          label=""
+          value={String(perPage)}
+          onChange={(event) => onPerPageChange(Number(event.target.value))}
+          className="w-[110px]"
+        >
+          <option value={10}>10 / page</option>
+          <option value={25}>25 / page</option>
+          <option value={50}>50 / page</option>
+        </SelectField>
+        <PaginationControls
+          page={currentPage}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          itemLabel="request"
+          onPageChange={onPageChange}
+        />
+      </div>
     </SectionCard>
   );
 }
 
 function RequestsMobileList({
-  detailView,
   rows,
   loading,
   error,
   onRetry,
 }: {
-  detailView: RequestScope;
   rows: UiRequestRow[];
   loading: boolean;
   error: string | null;
@@ -739,7 +688,7 @@ function RequestsMobileList({
       {rows.map((row) => (
         <Link
           key={row.id}
-          to={`/requests/details?id=${row.requestId}&view=${detailView === "approvals" ? "approvals" : "mine"}`}
+          to={`/requests/details?id=${row.requestId}&view=mine`}
           className="flex w-full items-start justify-between gap-3 rounded-[22px] border border-slate-100 bg-white px-4 py-4 text-left shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
         >
           <div className="flex min-w-0 gap-3">
@@ -770,58 +719,17 @@ function RequestsMobileList({
   );
 }
 
-function EfficientApprovalsCard() {
-  return (
-    <SectionCard title="Efficient Approvals">
-      <div className="rounded-[22px] bg-slate-50 p-5">
-        <p className="text-sm leading-6 text-slate-500">
-          Complete your profile to speed reimbursement requests by 30% faster
-          with automated payroll matching.
-        </p>
-        <Button variant="secondary" size="sm" className="mt-4">
-          Update Profile
-        </Button>
-      </div>
-    </SectionCard>
-  );
-}
-
-function HelpPanel() {
-  return (
-    <section className="section-card bg-brand-900 p-5 text-white">
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-white/10">
-          <Icon name="support_agent" className="text-[20px]" />
-        </span>
-        <div>
-          <h3 className="text-base font-semibold">Need help with a request?</h3>
-          <p className="mt-2 text-sm leading-6 text-white/80">
-            Our support team is available 24/7 for operational queries.
-          </p>
-        </div>
-      </div>
-      <Button variant="secondary" className="mt-4 w-full justify-center">
-        Visit Support Center
-      </Button>
-    </section>
-  );
-}
-
-export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
+export function RequestsListPage() {
   const { user } = useAuth();
   const { data: profile } = useCachedQuery(
     "requests:profile",
     () => getWorkspaceProfile(),
-    {
-      ttlMs: 1000 * 60,
-      storage: "memory",
-    },
+    { ttlMs: 1000 * 60, storage: "memory" },
   );
   const [searchParams, setSearchParams] = useSearchParams();
   const [status, setStatus] = useState("");
   const [selectedRequestTypeId, setSelectedRequestTypeId] = useState("all");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [filterDate, setFilterDate] = useState("");
   const [search, setSearch] = useState("");
   const [selectedProject, setSelectedProject] = useState("");
   const [selectedTeam, setSelectedTeam] = useState("");
@@ -829,15 +737,11 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
   const [sortBy, setSortBy] = useState<SortBy>("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
-  const [dateRangeOpen, setDateRangeOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const familyParam = searchParams.get("family");
-  const activeScope: RequestScope = scope;
   const activeFamily: RequestFamily =
-    familyParam === "financial" ||
-    familyParam === "leave" ||
-    familyParam === "all"
+    familyParam === "financial" || familyParam === "leave" || familyParam === "all"
       ? familyParam
       : "all";
 
@@ -849,44 +753,14 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
     [user?.organizations],
   );
 
-  const permissions = (user?.permissions ?? []).map((entry) =>
-    entry.toLowerCase(),
-  );
-  const roles = (user?.roles ?? []).map((entry) => entry.toLowerCase());
-  const hasTeamLeadAssignment = Boolean(
-    Array.isArray(profile?.groups) &&
-    profile.groups.some((team) =>
-      String(team?.role ?? "")
-        .toLowerCase()
-        .includes("lead"),
-    ),
-  );
-  const canSeeApprovals =
-    hasApprovalAccess(user) ||
-    permissions.some((entry) => entry.includes("requests.manage")) ||
-    roles.some((entry) =>
-      ["manager", "admin", "finance", "finance_lead"].includes(entry),
-    ) ||
-    hasTeamLeadAssignment;
-
-  if (activeScope === "approvals" && !canSeeApprovals) {
-    return <Navigate to="/requests" replace />;
-  }
-
   const {
     data: requestsData,
     loading: loadingRequests,
     error: requestsError,
     refetch: refetchRequests,
   } = useCachedQuery(
-    ["requests:list", activeScope].join(":"),
-    () => {
-      if (activeScope === "approvals") {
-        return listApprovals();
-      }
-
-      return listRequests({ only_mine: "true" });
-    },
+    "requests:list:mine",
+    () => listRequests({ only_mine: "true" }),
     { ttlMs: 1000 * 60 * 2, storage: "memory" },
   );
 
@@ -1038,100 +912,26 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
     ];
   }, [allRows, organizations]);
 
-  const dateLabel = useMemo(() => {
-    if (dateFrom && dateTo) return `${dateFrom} to ${dateTo}`;
-    if (dateFrom) return `From ${dateFrom}`;
-    if (dateTo) return `Until ${dateTo}`;
-    return "Any date";
-  }, [dateFrom, dateTo]);
-
   const filteredRows = useMemo(() => {
     return allRows.filter((row) => {
-      if (activeFamily !== "all" && row.family !== activeFamily) {
-        return false;
-      }
-
-      if (status && row.statusKey !== status) {
-        return false;
-      }
-
-      if (
-        selectedRequestTypeId !== "all" &&
-        row.requestTypeId !== selectedRequestTypeId
-      ) {
-        return false;
-      }
-
-      if (dateFrom) {
+      if (activeFamily !== "all" && row.family !== activeFamily) return false;
+      if (status && row.statusKey !== status) return false;
+      if (selectedRequestTypeId !== "all" && row.requestTypeId !== selectedRequestTypeId) return false;
+      if (filterDate) {
         const createdKey = dateOnlyKey(row.createdAtIso);
-        if (!createdKey || createdKey < dateFrom) {
-          return false;
-        }
+        if (!createdKey || createdKey !== filterDate) return false;
       }
-
-      if (dateTo) {
-        const createdKey = dateOnlyKey(row.createdAtIso);
-        if (!createdKey || createdKey > dateTo) {
-          return false;
-        }
-      }
-
       if (search.trim()) {
-        const haystack = [
-          row.id,
-          row.type,
-          row.projectName,
-          row.teamName,
-          row.organizationName,
-          row.purpose,
-        ]
-          .join(" ")
-          .toLowerCase();
-        if (!haystack.includes(search.trim().toLowerCase())) {
-          return false;
-        }
+        const haystack = [row.id, row.type, row.projectName, row.teamName, row.organizationName, row.purpose]
+          .join(" ").toLowerCase();
+        if (!haystack.includes(search.trim().toLowerCase())) return false;
       }
-
-      if (
-        activeFamily !== "leave" &&
-        selectedProject &&
-        row.projectId !== selectedProject &&
-        row.projectName !== selectedProject
-      ) {
-        return false;
-      }
-
-      if (
-        activeFamily === "financial" &&
-        selectedTeam &&
-        row.teamId !== selectedTeam &&
-        row.teamName !== selectedTeam
-      ) {
-        return false;
-      }
-
-      if (
-        selectedOrganization &&
-        row.organizationId !== selectedOrganization &&
-        row.organizationName !== selectedOrganization
-      ) {
-        return false;
-      }
-
+      if (activeFamily !== "leave" && selectedProject && row.projectId !== selectedProject && row.projectName !== selectedProject) return false;
+      if (activeFamily === "financial" && selectedTeam && row.teamId !== selectedTeam && row.teamName !== selectedTeam) return false;
+      if (selectedOrganization && row.organizationId !== selectedOrganization && row.organizationName !== selectedOrganization) return false;
       return true;
     });
-  }, [
-    allRows,
-    dateFrom,
-    dateTo,
-    activeFamily,
-    search,
-    selectedOrganization,
-    selectedProject,
-    selectedRequestTypeId,
-    selectedTeam,
-    status,
-  ]);
+  }, [allRows, filterDate, activeFamily, search, selectedOrganization, selectedProject, selectedRequestTypeId, selectedTeam, status]);
 
   const sortedRows = useMemo(() => {
     const direction = sortOrder === "asc" ? 1 : -1;
@@ -1167,21 +967,7 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [
-    status,
-    selectedRequestTypeId,
-    dateFrom,
-    dateTo,
-    activeScope,
-    activeFamily,
-    search,
-    selectedProject,
-    selectedTeam,
-    selectedOrganization,
-    sortBy,
-    sortOrder,
-    perPage,
-  ]);
+  }, [status, selectedRequestTypeId, filterDate, activeFamily, search, selectedProject, selectedTeam, selectedOrganization, sortBy, sortOrder, perPage]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -1212,27 +998,26 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
     [filteredRows],
   );
 
+  const userName =
+    `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
+    user?.email ||
+    "Staff";
+
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
-      activeLabel={activeScope === "approvals" ? "Approvals" : "My Requests"}
-      user={{ name: "Alex Sterling", role: "Fleet Operations" }}
+      activeLabel="My Requests"
+      user={{
+        name: userName,
+        role: profile?.employee_profile?.job_title || "Staff",
+      }}
       mobileNav={requestsMobileNav}
     >
       <div className="hidden lg:block">
         <PageHeader
-          breadcrumbs={[
-            { label: "Requests" },
-            {
-              label: activeScope === "approvals" ? "Approvals" : "My Requests",
-            },
-          ]}
-          title={activeScope === "approvals" ? "Approvals" : "My Requests"}
-          description={
-            activeScope === "approvals"
-              ? "Review requests awaiting your decision."
-              : "Track and manage your operational submissions."
-          }
+          breadcrumbs={[{ label: "Requests" }, { label: "My Requests" }]}
+          title="My Requests"
+          description="Track and manage your operational submissions."
           actions={
             <Link to="/requests/new" className="inline-flex">
               <Button className="gap-2">
@@ -1269,101 +1054,55 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
           ))}
         </nav>
 
-        <div className="grid gap-6 lg:grid-cols-12">
-          <div className="space-y-6 lg:col-span-8">
-            <div className="grid gap-4 md:grid-cols-3">
-              {stats.map((stat) => (
-                <StatCard
-                  key={stat.label}
-                  label={stat.label}
-                  value={stat.value}
-                  tone={stat.tone}
-                />
-              ))}
-            </div>
-
-            <ListFilters
-              activeFamily={activeFamily}
-              status={status}
-              statusOptions={statusOptions}
-              onStatusChange={setStatus}
-              requestTypes={requestTypeOptions}
-              selectedRequestTypeId={selectedRequestTypeId}
-              onRequestTypeChange={setSelectedRequestTypeId}
-              dateLabel={dateLabel}
-              dateFrom={dateFrom}
-              dateTo={dateTo}
-              onDateFromChange={setDateFrom}
-              onDateToChange={setDateTo}
-              moreFiltersOpen={moreFiltersOpen}
-              onToggleMoreFilters={() => setMoreFiltersOpen((value) => !value)}
-              dateRangeOpen={dateRangeOpen}
-              onToggleDateRange={() => setDateRangeOpen((value) => !value)}
-              search={search}
-              onSearchChange={setSearch}
-              projectOptions={projectOptions}
-              selectedProject={selectedProject}
-              onProjectChange={setSelectedProject}
-              teamOptions={teamOptions}
-              selectedTeam={selectedTeam}
-              onTeamChange={setSelectedTeam}
-              organizationOptions={organizationOptions}
-              selectedOrganization={selectedOrganization}
-              onOrganizationChange={setSelectedOrganization}
-              sortBy={sortBy}
-              onSortByChange={setSortBy}
-              sortOrder={sortOrder}
-              onSortOrderChange={setSortOrder}
-              perPage={perPage}
-              onPerPageChange={setPerPage}
-            />
-            <RequestsListTable
-              activeFamily={activeFamily}
-              detailView={activeScope}
-              rows={requestsError ? [] : pagedRows}
-              loading={loadingRequests}
-              error={requestsError}
-              currentPage={safePage}
-              totalPages={totalPages}
-              totalCount={filteredRows.length}
-              perPage={perPage}
-              onPageChange={setCurrentPage}
-              onRetry={() => {
-                void refetchRequests();
-              }}
-            />
-
-            <EfficientApprovalsCard />
+        <div className="space-y-6">
+          <div className="grid gap-4 md:grid-cols-3">
+            {stats.map((stat) => (
+              <StatCard key={stat.label} label={stat.label} value={stat.value} tone={stat.tone} />
+            ))}
           </div>
 
-          <RightRail className="lg:col-span-4">
-            <HelpPanel />
-            <SectionCard title="Quick Actions">
-              <ActivityFeed
-                items={[
-                  {
-                    title: "Draft a new request",
-                    description:
-                      "Start a financial or leave request from the request center.",
-                    time: "Now",
-                    tone: "pending",
-                    icon: "add",
-                  },
-                  {
-                    title: canSeeApprovals
-                      ? "Check pending approvals"
-                      : "Review request activity",
-                    description: canSeeApprovals
-                      ? "Review what needs your attention today."
-                      : "Track your latest submissions and actions.",
-                    time: "Later",
-                    tone: "success",
-                    icon: "task_alt",
-                  },
-                ]}
-              />
-            </SectionCard>
-          </RightRail>
+          <ListFilters
+            activeFamily={activeFamily}
+            status={status}
+            statusOptions={statusOptions}
+            onStatusChange={setStatus}
+            requestTypes={requestTypeOptions}
+            selectedRequestTypeId={selectedRequestTypeId}
+            onRequestTypeChange={setSelectedRequestTypeId}
+            filterDate={filterDate}
+            onFilterDateChange={setFilterDate}
+            moreFiltersOpen={moreFiltersOpen}
+            onToggleMoreFilters={() => setMoreFiltersOpen((v) => !v)}
+            search={search}
+            onSearchChange={setSearch}
+            projectOptions={projectOptions}
+            selectedProject={selectedProject}
+            onProjectChange={setSelectedProject}
+            teamOptions={teamOptions}
+            selectedTeam={selectedTeam}
+            onTeamChange={setSelectedTeam}
+            organizationOptions={organizationOptions}
+            selectedOrganization={selectedOrganization}
+            onOrganizationChange={setSelectedOrganization}
+            sortBy={sortBy}
+            onSortByChange={setSortBy}
+            sortOrder={sortOrder}
+            onSortOrderChange={setSortOrder}
+          />
+
+          <RequestsListTable
+            activeFamily={activeFamily}
+            rows={requestsError ? [] : pagedRows}
+            loading={loadingRequests}
+            error={requestsError}
+            currentPage={safePage}
+            totalPages={totalPages}
+            totalCount={filteredRows.length}
+            perPage={perPage}
+            onPerPageChange={setPerPage}
+            onPageChange={setCurrentPage}
+            onRetry={() => { void refetchRequests(); }}
+          />
         </div>
       </div>
 
@@ -1373,25 +1112,19 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
             Staff Portal
           </p>
           <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">
-            {activeScope === "approvals" ? "Approvals" : "My Requests"}
+            My Requests
           </h1>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
           <StatCard
             label="Active"
-            value={String(
-              filteredRows.filter(
-                (row) => row.tone === "pending" || row.tone === "warning",
-              ).length,
-            )}
+            value={String(filteredRows.filter((row) => row.tone === "pending" || row.tone === "warning").length)}
             tone="neutral"
           />
           <StatCard
             label="Approved"
-            value={String(
-              filteredRows.filter((row) => row.tone === "success").length,
-            )}
+            value={String(filteredRows.filter((row) => row.tone === "success").length)}
             tone="success"
           />
         </div>
@@ -1413,9 +1146,7 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
                 }}
                 className={[
                   "rounded-full px-4 py-2 text-sm font-semibold transition",
-                  activeFamily === item.key
-                    ? "bg-brand-900 text-white"
-                    : "bg-slate-100 text-slate-600",
+                  activeFamily === item.key ? "bg-brand-900 text-white" : "bg-slate-100 text-slate-600",
                 ].join(" ")}
               >
                 {item.label}
@@ -1425,64 +1156,41 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
         </section>
 
         <RequestsMobileList
-          detailView={activeScope}
           rows={pagedRows}
           loading={loadingRequests}
           error={requestsError}
-          onRetry={() => {
-            void refetchRequests();
-          }}
+          onRetry={() => { void refetchRequests(); }}
         />
-        <section className="section-card grid gap-3 p-3 text-sm text-slate-600">
+
+        <section className="section-card grid gap-3 p-3">
           <SelectField
             label="Per Page"
             value={String(perPage)}
             onChange={(event) => setPerPage(Number(event.target.value))}
             className="w-full"
           >
-            <option value={5}>5 / page</option>
             <option value={10}>10 / page</option>
             <option value={25}>25 / page</option>
             <option value={50}>50 / page</option>
           </SelectField>
-          <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center justify-between gap-3 text-sm">
             <button
               type="button"
               className="rounded-full border border-slate-200 bg-white px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={safePage <= 1}
-              onClick={() => setCurrentPage((value) => Math.max(1, value - 1))}
+              onClick={() => setCurrentPage((v) => Math.max(1, v - 1))}
             >
               Previous
             </button>
-            <span>
-              Page {safePage} of {totalPages}
-            </span>
+            <span className="text-slate-600">Page {safePage} of {totalPages}</span>
             <button
               type="button"
               className="rounded-full border border-slate-200 bg-white px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={safePage >= totalPages}
-              onClick={() =>
-                setCurrentPage((value) => Math.min(totalPages, value + 1))
-              }
+              onClick={() => setCurrentPage((v) => Math.min(totalPages, v + 1))}
             >
               Next
             </button>
-          </div>
-        </section>
-
-        <section className="section-card p-4">
-          <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-900 text-white">
-              <Icon name="help" className="text-[18px]" />
-            </span>
-            <div>
-              <h2 className="text-sm font-semibold text-slate-950">
-                Need help with a request?
-              </h2>
-              <p className="mt-1 text-sm leading-6 text-slate-500">
-                Our support team is available 24/7 for operational queries.
-              </p>
-            </div>
           </div>
         </section>
       </div>

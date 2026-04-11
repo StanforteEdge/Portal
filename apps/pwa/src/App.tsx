@@ -5,17 +5,24 @@ import FinanceDashboardPage from "@/modules/finance/FinanceDashboardPage";
 import FinanceRequestDetailsPage from "@/modules/finance/FinanceRequestDetailsPage";
 import FinancePaymentVouchersPage from "@/modules/finance/FinancePaymentVouchersPage";
 import FinanceRequestsPage from "@/modules/finance/FinanceRequestsPage";
-import { ProtectedRoute, PublicOnlyRoute } from "@/shared/components/auth/RouteGuards";
-import { ApprovalRoute, ModuleRoute } from "@/shared/components/auth/AccessRoute";
+import {
+  ProtectedRoute,
+  PublicOnlyRoute,
+} from "@/shared/components/auth/RouteGuards";
+import {
+  ApprovalRoute,
+  ModuleRoute,
+} from "@/shared/components/auth/AccessRoute";
 import AcceptInvitePage from "@/pages/auth/AcceptInvitePage";
 import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
 import LoginPage from "@/pages/auth/LoginPage";
 import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
 import SessionReauthPage from "@/pages/auth/SessionReauthPage";
-import RequestDetailsPage from "@/features/requests/RequestDetailsPage";
-import RequestFormPage from "@/features/requests/new/RequestFormPage";
-import RequestTypePage from "@/features/requests/new/RequestTypePage";
-import RequestsListPage from "@/features/requests/RequestsListPage";
+import RequestDetailsPage from "@/features/requests/pages/RequestDetailsPage";
+import RequestFormPage from "@/features/requests/pages/new/RequestFormPage";
+import RequestTypePage from "@/features/requests/pages/new/RequestTypePage";
+import ApprovalsPage from "@/features/requests/pages/ApprovalsPage";
+import RequestsListPage from "@/features/requests/pages/RequestsListPage";
 import {
   HelpPage,
   NotificationsPage,
@@ -38,12 +45,9 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
-        <Route path="/requests" element={<RequestsListPage scope="mine" />} />
+        <Route path="/requests" element={<RequestsListPage />} />
         <Route element={<ApprovalRoute />}>
-          <Route
-            path="/requests/approvals"
-            element={<RequestsListPage scope="approvals" />}
-          />
+          <Route path="/requests/approvals" element={<ApprovalsPage />} />
         </Route>
         <Route path="/requests/new" element={<RequestTypePage />} />
         <Route path="/requests/new/form" element={<RequestFormPage />} />

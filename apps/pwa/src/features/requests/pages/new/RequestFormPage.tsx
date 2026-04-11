@@ -699,11 +699,21 @@ export function RequestFormPage() {
                   disabled={Boolean(editId)}
                 >
                   <option value="">Select request type</option>
-                  {(requestTypes ?? []).map((type) => (
-                    <option key={type.id} value={type.id}>
-                      {type.name}
-                    </option>
-                  ))}
+                  {(["financial", "leave", "other"] as const).map((fam) => {
+                    const famTypes = (requestTypes ?? []).filter(
+                      (t) => requestFamilyFromType(t) === fam,
+                    );
+                    if (!famTypes.length) return null;
+                    return (
+                      <optgroup key={fam} label={requestFamilyLabel(fam)}>
+                        {famTypes.map((type) => (
+                          <option key={type.id} value={type.id}>
+                            {type.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    );
+                  })}
                 </SelectField>
 
                 {family === "leave" ? (

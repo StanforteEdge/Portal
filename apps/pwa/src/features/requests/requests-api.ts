@@ -18,6 +18,12 @@ export type RequestRecord = {
     form_schema?: Record<string, unknown> | null;
     approval_flow_json?: Record<string, unknown> | null;
   } | null;
+  group?: {
+    id: string;
+    name?: string | null;
+    code?: string | null;
+  } | null;
+  team_name?: string | null;
   creator?: {
     id: string;
     email?: string;

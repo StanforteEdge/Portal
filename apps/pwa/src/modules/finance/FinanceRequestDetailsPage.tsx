@@ -457,7 +457,7 @@ function DownloadDropdown(props: {
         />
       </Button>
       {open ? (
-        <div className="absolute right-0 z-30 mt-2 w-full min-w-[240px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+        <div className="absolute right-0 z-80 mt-2 w-full min-w-[240px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
           <button
             type="button"
             className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
@@ -686,7 +686,7 @@ export function FinanceRequestDetailsPage() {
         : "My Requests";
   const detailActiveLabel =
     detailView === "finance"
-      ? "Finance Requests"
+      ? "finance-requests"
       : detailView === "approvals"
         ? "Approvals"
         : "Request Details";
@@ -1085,15 +1085,14 @@ export function FinanceRequestDetailsPage() {
         tone: "neutral" as const,
       },
       {
-        label: "Current Step",
-        value:
-          pendingApprovals[0]?.step ||
-          formatViewerRequestStatus(request.status, availableActions),
+        label: "Category",
+        value: categoryName && categoryName !== "-" ? categoryName : "—",
         tone: "neutral" as const,
       },
     ];
   }, [
     availableActions,
+    categoryName,
     family,
     organizationName,
     pendingApprovals,
@@ -1508,7 +1507,16 @@ export function FinanceRequestDetailsPage() {
               <SectionCard
                 title="Request Summary"
                 action={
-                  <Chip variant={viewerStatus.tone}>{viewerStatus.label}</Chip>
+                  <span className={[
+                    "inline-flex items-center rounded-full px-4 py-1.5 text-sm font-bold uppercase tracking-[0.1em]",
+                    viewerStatus.tone === "success" ? "bg-success/10 text-success" :
+                    viewerStatus.tone === "danger" ? "bg-danger/10 text-danger" :
+                    viewerStatus.tone === "warning" ? "bg-amber-500/10 text-amber-700" :
+                    viewerStatus.tone === "pending" ? "bg-blue-500/10 text-blue-700" :
+                    "bg-slate-100 text-slate-700"
+                  ].join(" ")}>
+                    {viewerStatus.label}
+                  </span>
                 }
               >
                 <p className="max-w-3xl text-sm leading-7 text-slate-600">
@@ -1518,11 +1526,8 @@ export function FinanceRequestDetailsPage() {
                       "No summary provided.",
                   )}
                 </p>
-                {family !== "leave" ? (
+                {family !== "leave" && requestTags.length > 0 ? (
                   <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {categoryName && categoryName !== "-" ? (
-                      <Chip variant="neutral">Category: {categoryName}</Chip>
-                    ) : null}
                     {requestTags.map((tag) => (
                       <Chip key={tag.id} variant="pending">
                         #{tag.label}
@@ -1613,12 +1618,12 @@ export function FinanceRequestDetailsPage() {
                   }
                 >
                   {lineItems.length ? (
-                    <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                    <div className="rounded-[22px] border border-slate-200 bg-white">
                       <Table caption="Request items">
                         <TableHead>
                           <TableHeaderRow>
-                            <TableHeaderCell>Item</TableHeaderCell>
-                            <TableHeaderCell>Qty</TableHeaderCell>
+                            <TableHeaderCell className="w-[50%]">Item</TableHeaderCell>
+                            <TableHeaderCell className="w-14 text-center">Qty</TableHeaderCell>
                             <TableHeaderCell>Unit Price</TableHeaderCell>
                             <TableHeaderCell>Total</TableHeaderCell>
                           </TableHeaderRow>
@@ -1649,7 +1654,7 @@ export function FinanceRequestDetailsPage() {
                                   </p>
                                 </div>
                               </TableCell>
-                              <TableCell className="text-sm font-semibold text-slate-700">
+                              <TableCell className="w-14 text-center text-sm font-semibold text-slate-700">
                                 {item.quantity ?? 1}
                               </TableCell>
                               <TableCell className="text-sm font-semibold text-slate-700">
@@ -1858,12 +1863,6 @@ export function FinanceRequestDetailsPage() {
                 )}
               </SectionCard>
 
-              <SectionCard title="Activity">
-                <ActivityFeed
-                  items={activityItems}
-                  emptyState="No activity recorded for this request yet."
-                />
-              </SectionCard>
             </div>
 
             <RightRail className="lg:col-span-4">
@@ -1871,12 +1870,22 @@ export function FinanceRequestDetailsPage() {
                 <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
                   {family === "leave" ? "Request Type" : "Current Total"}
                 </p>
-                <h3 className="mt-3 text-[1.65rem] font-semibold tracking-tight">
-                  {family === "leave"
-                    ? request.request_type?.name ||
-                      requestFamilyFromRecord(request)
-                    : formatCurrency(request.total_amount, request.currency)}
-                </h3>
+                {family === "leave" ? (
+                  <h3 className="mt-3 text-[1.65rem] font-semibold tracking-tight">
+                    {request.request_type?.name || requestFamilyFromRecord(request)}
+                  </h3>
+                ) : (
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <h3 className="text-[1.65rem] font-semibold tracking-tight">
+                      {formatCurrency(request.total_amount, request.currency)}
+                    </h3>
+                    {disbursedTotal > 0 ? (
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/60">
+                        / {formatCurrency(disbursedTotal, request.currency)} disbursed
+                      </span>
+                    ) : null}
+                  </div>
+                )}
                 <p className="mt-3 text-sm leading-6 text-white/85">
                   {family === "leave"
                     ? "This request follows the leave workflow and approval sequence."
@@ -2062,6 +2071,14 @@ export function FinanceRequestDetailsPage() {
               <SectionCard title="Approval Workflow">
                 <WorkflowStepper steps={workflow} />
               </SectionCard>
+
+              <SectionCard title="Activity">
+                <ActivityFeed
+                  items={activityItems}
+                  emptyState="No activity recorded for this request yet."
+                  limit={3}
+                />
+              </SectionCard>
             </RightRail>
           </div>
         ) : null}
@@ -2135,7 +2152,7 @@ export function FinanceRequestDetailsPage() {
             {family !== "leave" ? (
               <SectionCard title="Request Items">
                 {lineItems.length ? (
-                  <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                  <div className="rounded-[22px] border border-slate-200 bg-white">
                     <Table caption="Request items">
                       <TableHead>
                         <TableHeaderRow>
@@ -2192,7 +2209,7 @@ export function FinanceRequestDetailsPage() {
 
             {(paymentVouchers ?? []).length ? (
               <SectionCard title="Payment Vouchers">
-                <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+                <div className="rounded-[22px] border border-slate-200 bg-white">
                   <Table caption="Payment vouchers">
                     <TableHead>
                       <TableHeaderRow>
@@ -2397,6 +2414,7 @@ export function FinanceRequestDetailsPage() {
               <ActivityFeed
                 items={activityItems}
                 emptyState="No activity recorded yet."
+                limit={3}
               />
             </SectionCard>
           </>

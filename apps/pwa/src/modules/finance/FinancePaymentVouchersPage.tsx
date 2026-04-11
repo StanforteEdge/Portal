@@ -100,7 +100,7 @@ export default function FinancePaymentVouchersPage() {
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
-      activeLabel="Payment Vouchers"
+      activeLabel="finance-vouchers"
       user={{
         name: userName,
         role: profile?.employee_profile?.job_title || "Staff",
@@ -159,7 +159,7 @@ export default function FinancePaymentVouchersPage() {
               {error}
             </div>
           ) : rows.length ? (
-            <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white">
+            <div className="rounded-[22px] border border-slate-200 bg-white">
               <Table caption="Payment vouchers">
                 <TableHead>
                   <TableHeaderRow>

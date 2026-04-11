@@ -3,6 +3,7 @@ import { NavLink } from "react-router-dom";
 import { Icon } from "@/shared";
 
 export type SidebarItem = {
+  key?: string;
   label: string;
   icon: string;
   path?: string;
@@ -11,6 +12,7 @@ export type SidebarItem = {
   permissions?: string[];
   requiresTeamLeadAssignment?: boolean;
   children?: Array<{
+    key?: string;
     label: string;
     icon?: string;
     path?: string;
@@ -35,8 +37,8 @@ export function Sidebar({
   const activeParentLabel =
     navigation.find(
       (item) =>
-        item.label === activeLabel ||
-        item.children?.some((child) => child.label === activeLabel),
+        (item.key ?? item.label) === activeLabel ||
+        item.children?.some((child) => (child.key ?? child.label) === activeLabel),
     )?.label ?? null;
   const [openItem, setOpenItem] = useState<string | null>(activeParentLabel);
   const navRef = useRef<HTMLElement | null>(null);
@@ -98,9 +100,9 @@ export function Sidebar({
           const hasChildren =
             Array.isArray(item.children) && item.children.length > 0;
           const childActive = hasChildren
-            ? item.children!.some((child) => child.label === activeLabel)
+            ? item.children!.some((child) => (child.key ?? child.label) === activeLabel)
             : false;
-          const active = item.label === activeLabel || childActive;
+          const active = (item.key ?? item.label) === activeLabel || childActive;
           const previousSection =
             index > 0 ? navigation[index - 1]?.section : undefined;
           const showSectionLabel =
@@ -187,7 +189,7 @@ export function Sidebar({
               {hasChildren && !collapsed && openItem === item.label ? (
                 <div className="ml-4 space-y-1 border-l border-slate-200 pl-3">
                   {item.children!.map((child) => {
-                    const childIsActive = child.label === activeLabel;
+                    const childIsActive = (child.key ?? child.label) === activeLabel;
                     return (
                       <NavLink
                         key={`${item.label}-${child.label}`}
@@ -213,7 +215,7 @@ export function Sidebar({
               {hasChildren && collapsed && openItem === item.label ? (
                 <div className="mt-1 space-y-1">
                   {item.children!.map((child) => {
-                    const childIsActive = child.label === activeLabel;
+                    const childIsActive = (child.key ?? child.label) === activeLabel;
                     return (
                       <NavLink
                         key={`${item.label}-${child.label}-collapsed`}
