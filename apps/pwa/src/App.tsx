@@ -1,20 +1,34 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import AttendancePage from "@/features/attendance/AttendancePage";
-import DashboardPage from "@/features/dashboard/DashboardPage";
-import FinanceAdminPage from "@/features/finance/FinanceAdminPage";
-import FinancePaymentVouchersPage from "@/features/finance/FinancePaymentVouchersPage";
-import { ProtectedRoute, PublicOnlyRoute } from "@/features/auth/components/RouteGuards";
-import { ApprovalRoute, ModuleRoute } from "@/features/auth/components/AccessRoute";
-import AcceptInvitePage from "@/features/auth/pages/AcceptInvitePage";
-import ForgotPasswordPage from "@/features/auth/pages/ForgotPasswordPage";
-import LoginPage from "@/features/auth/pages/LoginPage";
-import ResetPasswordPage from "@/features/auth/pages/ResetPasswordPage";
-import SessionReauthPage from "@/features/auth/pages/SessionReauthPage";
-import RequestDetailsPage from "@/features/requests/RequestDetailsPage";
-import RequestFormPage from "@/features/requests/RequestFormPage";
-import RequestTypePage from "@/features/requests/RequestTypePage";
-import RequestsListPage from "@/features/requests/RequestsListPage";
-import { HelpPage, NotificationsPage, ProfilePage, SettingsPage } from "@/features/system";
+import AttendancePage from "@/modules/hr/AttendancePage";
+import DashboardPage from "@/pages/dashboard/DashboardPage";
+import FinanceDashboardPage from "@/modules/finance/FinanceDashboardPage";
+import FinanceRequestDetailsPage from "@/modules/finance/FinanceRequestDetailsPage";
+import FinancePaymentVouchersPage from "@/modules/finance/FinancePaymentVouchersPage";
+import FinanceRequestsPage from "@/modules/finance/FinanceRequestsPage";
+import {
+  ProtectedRoute,
+  PublicOnlyRoute,
+} from "@/shared/components/auth/RouteGuards";
+import {
+  ApprovalRoute,
+  ModuleRoute,
+} from "@/shared/components/auth/AccessRoute";
+import AcceptInvitePage from "@/pages/auth/AcceptInvitePage";
+import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
+import LoginPage from "@/pages/auth/LoginPage";
+import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
+import SessionReauthPage from "@/pages/auth/SessionReauthPage";
+import RequestDetailsPage from "@/features/requests/pages/RequestDetailsPage";
+import RequestFormPage from "@/features/requests/pages/new/RequestFormPage";
+import RequestTypePage from "@/features/requests/pages/new/RequestTypePage";
+import ApprovalsPage from "@/features/requests/pages/ApprovalsPage";
+import RequestsListPage from "@/features/requests/pages/RequestsListPage";
+import {
+  HelpPage,
+  NotificationsPage,
+  ProfilePage,
+  SettingsPage,
+} from "@/pages/system";
 
 export default function App() {
   return (
@@ -31,9 +45,9 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
-        <Route path="/requests" element={<RequestsListPage scope="mine" />} />
+        <Route path="/requests" element={<RequestsListPage />} />
         <Route element={<ApprovalRoute />}>
-          <Route path="/requests/approvals" element={<RequestsListPage scope="approvals" />} />
+          <Route path="/requests/approvals" element={<ApprovalsPage />} />
         </Route>
         <Route path="/requests/new" element={<RequestTypePage />} />
         <Route path="/requests/new/form" element={<RequestFormPage />} />
@@ -44,10 +58,16 @@ export default function App() {
         <Route path="/help" element={<HelpPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route element={<ModuleRoute moduleKey="finance" />}>
-          <Route path="/finance" element={<FinanceAdminPage />} />
-          <Route path="/finance/requests" element={<FinanceAdminPage />} />
-          <Route path="/finance/requests/details" element={<RequestDetailsPage />} />
-          <Route path="/finance/payment-vouchers" element={<FinancePaymentVouchersPage />} />
+          <Route path="/finance" element={<FinanceDashboardPage />} />
+          <Route path="/finance/requests" element={<FinanceRequestsPage />} />
+          <Route
+            path="/finance/requests/details"
+            element={<FinanceRequestDetailsPage />}
+          />
+          <Route
+            path="/finance/payment-vouchers"
+            element={<FinancePaymentVouchersPage />}
+          />
         </Route>
       </Route>
 

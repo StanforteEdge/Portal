@@ -1,9 +1,10 @@
-import { httpRequest } from "@/lib/core";
+import { httpRequest } from "@/shared/lib/core";
 
 export type RequestRecord = {
   id: string;
   status: string;
   request_number?: string;
+  request_total_amount?: number | null;
   total_amount?: number | null;
   currency?: string | null;
   created_at?: string;
@@ -17,6 +18,12 @@ export type RequestRecord = {
     form_schema?: Record<string, unknown> | null;
     approval_flow_json?: Record<string, unknown> | null;
   } | null;
+  group?: {
+    id: string;
+    name?: string | null;
+    code?: string | null;
+  } | null;
+  team_name?: string | null;
   creator?: {
     id: string;
     email?: string;
@@ -284,11 +291,15 @@ export async function disburseRequest(
     evidence_file_ids?: string[];
     paid_from_account_id?: string;
     disbursed_at?: string;
+  },
+  options?: {
+    traceId?: string;
   }
 ) {
   return httpRequest<RequestRecord>(`/finance/requests/${id}/disburse`, {
     method: "POST",
     body: payload ?? {},
+    headers: options?.traceId ? { "x-trace-id": options.traceId } : undefined,
   });
 }
 

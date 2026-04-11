@@ -1122,6 +1122,18 @@ model FinanceJournalEntry {
   @@map("sta_finance_journal_entries")
 }
 
+model FinanceJournalSequence {
+  id           String   @id @db.VarChar(32)
+  prefix       String   @db.VarChar(10)
+  sequenceYear Int      @map("sequence_year")
+  lastNumber   Int      @default(0) @map("last_number")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@unique([prefix, sequenceYear], name: "unique_finance_journal_sequence_prefix_year")
+  @@map("sta_finance_journal_sequences")
+}
+
 model FinanceJournalLine {
   id             String   @id @default(uuid()) @db.Uuid
   journalEntryId String   @map("journal_entry_id") @db.Uuid
