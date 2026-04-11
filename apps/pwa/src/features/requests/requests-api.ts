@@ -3,7 +3,14 @@ import { httpRequest } from "@/shared/lib/core";
 export type RequestRecord = {
   id: string;
   status: string;
+  request_type_id?: string;
+  group_id?: string;
+  organization_id?: string | null;
+  workflow_instance_id?: string | null;
+  created_by?: string;
+  team_id?: string | null;
   request_number?: string;
+  voucher_number?: string | null;
   request_total_amount?: number | null;
   total_amount?: number | null;
   currency?: string | null;
@@ -30,6 +37,11 @@ export type RequestRecord = {
     username?: string;
     first_name?: string | null;
     last_name?: string | null;
+  } | null;
+  organization?: {
+    id: string;
+    name: string;
+    code?: string | null;
   } | null;
   items?: Array<{
     id: string;

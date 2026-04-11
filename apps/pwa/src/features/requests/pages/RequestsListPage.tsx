@@ -126,7 +126,7 @@ function familyLabel(family: RequestFamily) {
   return "All";
 }
 
-function toRow(request: RequestRecord) {
+function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
   const stateEvents = Array.isArray((request.data as any)?.state_events)
     ? (((request.data as any)?.state_events as Array<
         Record<string, unknown>
@@ -151,15 +151,15 @@ function toRow(request: RequestRecord) {
     request.data && typeof request.data === "object" ? request.data : {};
   const projectId = String(data.project_id ?? "").trim();
   const projectName = String(data.project_name ?? "").trim();
-  const teamId = String(data.team_id ?? "").trim();
-  // Note: request.group is the module group (finance/hr), NOT the team/department.
-  // Team name comes from request.data fields or the top-level team_name field only.
-  const teamName = String(
-    data.team_name ?? data.team ?? request.team_name ?? "",
-  ).trim();
-  const organizationId = String(data.organization_id ?? "").trim();
+  // request.group is the MODULE group (e.g. Finance dept module), NOT the user's team.
+  // Team is identified by request.team_id; fall back to data payload for legacy rows.
+  const teamId = String(request.team_id ?? data.team_id ?? "").trim();
+  const teamName = (teamId && teamsMap?.get(teamId)) ||
+    String(data.team_name ?? data.team ?? request.team_name ?? "").trim();
+  const organizationId = String(request.organization_id ?? data.organization_id ?? "").trim();
+  // Top-level organization object is the authoritative source when populated
   const organizationName = String(
-    data.organization_name ?? data.organization ?? "",
+    request.organization?.name ?? data.organization_name ?? data.organization ?? "",
   ).trim();
   const purpose = String(data.purpose ?? "").trim();
   const startDateIso =
@@ -775,11 +775,19 @@ export function RequestsListPage() {
     { ttlMs: 1000 * 60 * 10, storage: "local" },
   );
 
+  const teamsMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const groups = (profile as any)?.groups ?? (profile as any)?.teams ?? [];
+    (groups as Array<{ id?: unknown; name?: string | null }>).forEach((g) => {
+      if (g.id && g.name) map.set(String(g.id), g.name);
+    });
+    return map;
+  }, [profile]);
+
   const apiRows = useMemo(() => {
     const source = Array.isArray(requestsData) ? requestsData : [];
-    const mapped = source.map(toRow);
-    return mapped;
-  }, [requestsData]);
+    return source.map((r) => toRow(r, teamsMap));
+  }, [requestsData, teamsMap]);
 
   const allRows: UiRequestRow[] = requestsError ? [] : apiRows;
 
