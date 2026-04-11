@@ -1,7 +1,7 @@
 import { type FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
 import { Button, Icon } from "@stanforte/shared";
-import { authApi } from "@/lib/core";
+import { authApi } from "@/shared/lib/core";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");

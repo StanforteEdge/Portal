@@ -1,5 +1,5 @@
-import { httpRequest } from "@/lib/core";
-import type { RequestRecord } from "@/api/requests/requests-api";
+import { httpRequest } from "@/shared/lib/core";
+import type { RequestRecord } from "@/features/requests/requests-api";
 
 export type FinanceRequestListResponse = {
   data: RequestRecord[];

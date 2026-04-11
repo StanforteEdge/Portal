@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Button, Chip, EmptyState, Icon, SectionCard, StatCard, formatRelativeTime } from "@stanforte/shared";
-import { useCachedQuery } from "@/lib/core";
+import { useCachedQuery } from "@/shared/lib/core";
 import {
   getWorkspaceUnreadNotificationCount,
   listWorkspaceNotifications,
   markAllWorkspaceNotificationsRead,
   markWorkspaceNotificationRead,
-} from "./workspace-api";
+} from "@/shared/api/workspace-api";
 import { SystemShellPage } from "./page-helpers";
 
 export default function NotificationsPage() {

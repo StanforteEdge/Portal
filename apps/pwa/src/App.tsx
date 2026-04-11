@@ -1,17 +1,17 @@
 import { Navigate, Route, Routes } from "react-router-dom";
-import AttendancePage from "@/features/attendance/AttendancePage";
-import DashboardPage from "@/features/dashboard/DashboardPage";
-import FinanceDashboardPage from "@/features/finance/requests/FinanceDashboardPage";
-import FinanceRequestDetailsPage from "@/features/finance/requests/FinanceRequestDetailsPage";
-import FinancePaymentVouchersPage from "@/features/finance/requests/FinancePaymentVouchersPage";
-import FinanceRequestsPage from "@/features/finance/requests/FinanceRequestsPage";
-import { ProtectedRoute, PublicOnlyRoute } from "@/components/auth/RouteGuards";
-import { ApprovalRoute, ModuleRoute } from "@/components/auth/AccessRoute";
-import AcceptInvitePage from "@/features/auth/AcceptInvitePage";
-import ForgotPasswordPage from "@/features/auth/ForgotPasswordPage";
-import LoginPage from "@/features/auth/LoginPage";
-import ResetPasswordPage from "@/features/auth/ResetPasswordPage";
-import SessionReauthPage from "@/features/auth/SessionReauthPage";
+import AttendancePage from "@/modules/hr/AttendancePage";
+import DashboardPage from "@/pages/dashboard/DashboardPage";
+import FinanceDashboardPage from "@/modules/finance/FinanceDashboardPage";
+import FinanceRequestDetailsPage from "@/modules/finance/FinanceRequestDetailsPage";
+import FinancePaymentVouchersPage from "@/modules/finance/FinancePaymentVouchersPage";
+import FinanceRequestsPage from "@/modules/finance/FinanceRequestsPage";
+import { ProtectedRoute, PublicOnlyRoute } from "@/shared/components/auth/RouteGuards";
+import { ApprovalRoute, ModuleRoute } from "@/shared/components/auth/AccessRoute";
+import AcceptInvitePage from "@/pages/auth/AcceptInvitePage";
+import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
+import LoginPage from "@/pages/auth/LoginPage";
+import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
+import SessionReauthPage from "@/pages/auth/SessionReauthPage";
 import RequestDetailsPage from "@/features/requests/RequestDetailsPage";
 import RequestFormPage from "@/features/requests/new/RequestFormPage";
 import RequestTypePage from "@/features/requests/new/RequestTypePage";
@@ -21,7 +21,7 @@ import {
   NotificationsPage,
   ProfilePage,
   SettingsPage,
-} from "@/features/system";
+} from "@/pages/system";
 
 export default function App() {
   return (

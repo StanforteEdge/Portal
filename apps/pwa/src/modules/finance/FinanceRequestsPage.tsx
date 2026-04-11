@@ -20,25 +20,25 @@ import {
   formatCurrency,
 } from "@stanforte/shared";
 import { Link } from "react-router-dom";
-import { AppShell } from "@/components/layout/AppShell";
-import { useAuth } from "@/context/AuthProvider";
+import { AppShell } from "@/shared/components/layout/AppShell";
+import { useAuth } from "@/shared/context/AuthProvider";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/lib/requests/requests-data";
+} from "@/features/requests/requests-data";
 import {
   formatDisplayDate,
   formatPersonName,
   formatRequestStatus,
   requestStatusTone,
-} from "@/lib/requests/request-helpers";
-import type { RequestRecord } from "@/api/requests/requests-api";
-import { getWorkspaceProfile } from "@/features/system/workspace-api";
-import { useCachedQuery } from "@/lib/core";
+} from "@/features/requests/request-helpers";
+import type { RequestRecord } from "@/features/requests/requests-api";
+import { getWorkspaceProfile } from "@/shared/api/workspace-api";
+import { useCachedQuery } from "@/shared/lib/core";
 import {
   listFinanceRequests,
   type FinanceRequestListResponse,
-} from "../../../api/finance/finance-api";
+} from "@/modules/finance/finance-api";
 
 function toTitleCase(value: string) {
   return String(value || "")
@@ -593,7 +593,7 @@ export default function FinanceRequestsPage() {
           ) : (
             <EmptyState
               title="No finance requests yet"
-              description="Once cleared requests reach finance, they’ll appear here for disbursement and voucher handling."
+              description="Once cleared requests reach finance, they'll appear here for disbursement and voucher handling."
             />
           )}
         </SectionCard>

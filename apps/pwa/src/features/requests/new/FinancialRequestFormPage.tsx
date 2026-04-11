@@ -16,14 +16,14 @@ import {
   TableHeaderRow,
   TableRow,
 } from "@stanforte/shared";
-import { AppShell } from "@/components/layout/AppShell";
+import { AppShell } from "@/shared/components/layout/AppShell";
 import {
   buildRequestsNavigation,
   financialRequestItems,
   financialRequestTags,
   financialSummary,
   requestsMobileNav,
-} from "@/lib/requests/requests-data";
+} from "@/features/requests/requests-data";
 
 function RequestSetup() {
   return (

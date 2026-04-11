@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button, SectionCard, StatCard, TextField } from "@stanforte/shared";
-import { changeWorkspacePassword } from "./workspace-api";
+import { changeWorkspacePassword } from "@/shared/api/workspace-api";
 import { SystemShellPage } from "./page-helpers";
 
 export default function SettingsPage() {

@@ -11,9 +11,9 @@ import {
   sortRoles,
   userDisplayName,
 } from "@stanforte/shared";
-import { useCachedQuery } from "@/lib/core";
-import { useAuth } from "@/context/AuthProvider";
-import { getWorkspaceProfile, updateWorkspaceProfile } from "./workspace-api";
+import { useCachedQuery } from "@/shared/lib/core";
+import { useAuth } from "@/shared/context/AuthProvider";
+import { getWorkspaceProfile, updateWorkspaceProfile } from "@/shared/api/workspace-api";
 import { SystemShellPage } from "./page-helpers";
 
 export default function ProfilePage() {

@@ -2,8 +2,8 @@ import { useEffect, useRef, useState, type RefObject } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { Button, Chip, Icon } from "@stanforte/shared";
 import type { WorkspaceNotification } from "@/shared/api/workspace-api";
-import stanforteLogo from "../../../../shared/assets/brand/Landscape.svg";
-import stanforteIcon from "../../../../shared/assets/brand/icon.svg";
+import stanforteLogo from "../../../../../shared/assets/brand/Landscape.svg";
+import stanforteIcon from "../../../../../shared/assets/brand/icon.svg";
 
 type TopBarProps = {
   user: {

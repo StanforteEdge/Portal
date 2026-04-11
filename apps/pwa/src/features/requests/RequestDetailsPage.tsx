@@ -28,14 +28,14 @@ import {
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AppShell } from "@/components/layout/AppShell";
-import { useAuth } from "@/context/AuthProvider";
-import { cacheStore, useCachedQuery } from "@/lib/core";
+import { AppShell } from "@/shared/components/layout/AppShell";
+import { useAuth } from "@/shared/context/AuthProvider";
+import { cacheStore, useCachedQuery } from "@/shared/lib/core";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
   requestsMobileNav,
-} from "../../lib/requests/requests-data";
+} from "@/features/requests/requests-data";
 import {
   approveRequest,
   deleteRequest,
@@ -51,16 +51,16 @@ import {
   listTeams,
   retireRequest,
   submitRequest,
-} from "../../api/requests/requests-api";
-import { listEntityTags, listManagedTaxonomies } from "../../api/taxonomy-api";
-import { listFileAssets, uploadFileAsset } from "@/api/files/files-api";
+} from "@/features/requests/requests-api";
+import { listEntityTags, listManagedTaxonomies } from "@/features/taxonomy/taxonomy-api";
+import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
 import {
   listFinanceAccounts,
   listRequestPaymentVouchers,
   type FinancePaymentVoucherRecord,
   updateRequestPaymentVoucher,
-} from "../../api/finance/finance-api";
-import { downloadBase64File } from "@/lib/download";
+} from "@/modules/finance/finance-api";
+import { downloadBase64File } from "@/shared/lib/download";
 import {
   formatDisplayDate,
   formatPersonName,
@@ -68,7 +68,7 @@ import {
   formatViewerRequestStatus,
   requestFamilyFromRecord,
   requestStatusTone,
-} from "@/lib/requests/request-helpers";
+} from "@/features/requests/request-helpers";
 
 function normalizeWorkflowLabel(step: Record<string, any>, index: number) {
   const role = String(

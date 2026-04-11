@@ -15,14 +15,14 @@ import {
 } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { AppShell } from "@/components/layout/AppShell";
-import { TagPicker } from "@/components/ui/TagPicker";
-import { useCachedQuery } from "@/lib/core";
-import { getWorkspaceProfile } from "@/features/system/workspace-api";
+import { AppShell } from "@/shared/components/layout/AppShell";
+import { TagPicker } from "@/features/taxonomy/TagPicker";
+import { useCachedQuery } from "@/shared/lib/core";
+import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/lib/requests/requests-data";
+} from "@/features/requests/requests-data";
 import {
   createRequest,
   getMyLeaveBalance,
@@ -39,19 +39,19 @@ import {
   type RequestRecord,
   type RequestTypeOption,
   type TeamOption,
-} from "../../../api/requests/requests-api";
+} from "@/features/requests/requests-api";
 import {
   requestFamilyFromType,
   requestFamilyLabel,
   type RequestFamily,
-} from "@/lib/requests/request-helpers";
+} from "@/features/requests/request-helpers";
 import {
   listEntityTags,
   listManagedTaxonomies,
   replaceEntityTags,
   type TagTerm,
-} from "../../../api/taxonomy-api";
-import { uploadFileAsset } from "@/api/files/files-api";
+} from "@/features/taxonomy/taxonomy-api";
+import { uploadFileAsset } from "@/features/files/files-api";
 
 type ItemState = {
   description: string;

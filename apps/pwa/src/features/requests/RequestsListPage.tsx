@@ -21,20 +21,20 @@ import {
 } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
-import { AppShell } from "@/components/layout/AppShell";
-import { useCachedQuery } from "@/lib/core";
-import { useAuth } from "@/context/AuthProvider";
-import { getWorkspaceProfile } from "@/features/system/workspace-api";
+import { AppShell } from "@/shared/components/layout/AppShell";
+import { useCachedQuery } from "@/shared/lib/core";
+import { useAuth } from "@/shared/context/AuthProvider";
+import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
   listApprovals,
   listRequests,
   listRequestTypes,
   type RequestRecord,
-} from "@/api/requests/requests-api";
+} from "@/features/requests/requests-api";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/lib/requests/requests-data";
+} from "@/features/requests/requests-data";
 
 type RequestScope = "mine" | "approvals";
 type RequestFamily = "all" | "financial" | "leave";

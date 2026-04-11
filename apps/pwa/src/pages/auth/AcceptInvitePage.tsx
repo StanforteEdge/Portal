@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { Button, Icon } from "@stanforte/shared";
-import { authApi } from "@/lib/core";
-import brandLogo from "../../../../../shared/assets/brand/stanforte-logo.png";
+import { authApi } from "@/shared/lib/core";
+import brandLogo from "../../../../shared/assets/brand/stanforte-logo.png";
 
 export default function AcceptInvitePage() {
   const [searchParams] = useSearchParams();

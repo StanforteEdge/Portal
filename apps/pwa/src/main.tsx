@@ -3,7 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { ToastProvider } from "@stanforte/shared";
 import App from "./App";
-import { AuthProvider } from "@/context/AuthProvider";
+import { AuthProvider } from "@/shared/context/AuthProvider";
 import "./styles.css";
 import faviconUrl from "../../shared/assets/brand/stanforte-icon-white.png";
 

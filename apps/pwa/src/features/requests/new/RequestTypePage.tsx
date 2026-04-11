@@ -8,21 +8,21 @@ import {
 } from "@stanforte/shared";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMemo } from "react";
-import { AppShell } from "@/components/layout/AppShell";
-import { useCachedQuery } from "@/lib/core";
+import { AppShell } from "@/shared/components/layout/AppShell";
+import { useCachedQuery } from "@/shared/lib/core";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/lib/requests/requests-data";
+} from "@/features/requests/requests-data";
 import {
   listRequestTypes,
   type RequestTypeOption,
-} from "../../../api/requests/requests-api";
+} from "@/features/requests/requests-api";
 import {
   requestFamilyFromType,
   requestFamilyLabel,
   type RequestFamily,
-} from "@/lib/requests/request-helpers";
+} from "@/features/requests/request-helpers";
 
 type FamilyCard = {
   family: RequestFamily;

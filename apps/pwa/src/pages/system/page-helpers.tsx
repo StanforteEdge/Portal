@@ -5,12 +5,12 @@ import {
   userDisplayName,
   type BreadcrumbItem,
 } from "@stanforte/shared";
-import { AppShell } from "@/components/layout/AppShell";
-import { useAuth } from "@/context/AuthProvider";
+import { AppShell } from "@/shared/components/layout/AppShell";
+import { useAuth } from "@/shared/context/AuthProvider";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/lib/requests/requests-data";
+} from "@/features/requests/requests-data";
 
 export function SystemShellPage({
   activeLabel,

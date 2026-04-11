@@ -8,25 +8,25 @@ import {
   userDisplayName,
 } from "@stanforte/shared";
 import { Link } from "react-router-dom";
-import { AppShell } from "@/components/layout/AppShell";
-import { useAuth } from "@/context/AuthProvider";
-import { getMyAttendance } from "@/api/attendance/attendance-api";
+import { AppShell } from "@/shared/components/layout/AppShell";
+import { useAuth } from "@/shared/context/AuthProvider";
+import { getMyAttendance } from "@/modules/hr/attendance-api";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/lib/requests/requests-data";
-import { listApprovals, listRequests } from "@/api/requests/requests-api";
+} from "@/features/requests/requests-data";
+import { listApprovals, listRequests } from "@/features/requests/requests-api";
 import {
   formatDisplayDate,
   formatRequestStatus,
   requestFamilyFromType,
   requestStatusTone,
-} from "@/lib/requests/request-helpers";
+} from "@/features/requests/request-helpers";
 import {
   getWorkspaceProfile,
   listWorkspaceNotifications,
-} from "@/features/system/workspace-api";
-import { useCachedQuery } from "@/lib/core";
+} from "@/shared/api/workspace-api";
+import { useCachedQuery } from "@/shared/lib/core";
 
 function greeting(now = new Date()) {
   const hour = now.getHours();

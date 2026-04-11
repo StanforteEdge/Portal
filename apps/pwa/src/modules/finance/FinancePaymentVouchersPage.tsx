@@ -14,20 +14,20 @@ import {
   formatCurrency,
 } from "@stanforte/shared";
 import { Link } from "react-router-dom";
-import { AppShell } from "@/components/layout/AppShell";
-import { useAuth } from "@/context/AuthProvider";
+import { AppShell } from "@/shared/components/layout/AppShell";
+import { useAuth } from "@/shared/context/AuthProvider";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/lib/requests/requests-data";
+} from "@/features/requests/requests-data";
 import {
   formatDisplayDate,
   formatRequestStatus,
   requestStatusTone,
-} from "@/lib/requests/request-helpers";
-import { getWorkspaceProfile } from "@/features/system/workspace-api";
-import { useCachedQuery } from "@/lib/core";
-import { listFinancePaymentVouchers } from "../../../api/finance/finance-api";
+} from "@/features/requests/request-helpers";
+import { getWorkspaceProfile } from "@/shared/api/workspace-api";
+import { useCachedQuery } from "@/shared/lib/core";
+import { listFinancePaymentVouchers } from "@/modules/finance/finance-api";
 
 function retirementLabel(value: string) {
   const key = String(value || "")
