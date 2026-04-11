@@ -1,10 +1,6 @@
 import type { ReactNode } from "react";
-import {
-  PageHeader,
-  roleLabel,
-  userDisplayName,
-  type BreadcrumbItem,
-} from "@stanforte/shared";
+import { PageHeader, type BreadcrumbItem } from "@/shared";
+import { roleLabel, userDisplayName } from "@stanforte/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
 import {

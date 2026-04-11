@@ -2,7 +2,6 @@ import {
   Button,
   Chip,
   EmptyState,
-  formatCurrency,
   Icon,
   PageHeader,
   RightRail,
@@ -10,9 +9,9 @@ import {
   SelectField,
   TextAreaField,
   TextField,
-  humanize,
   useToast,
-} from "@stanforte/shared";
+} from "@/shared";
+import { formatCurrency, humanize } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";

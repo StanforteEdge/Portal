@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Button, Chip, EmptyState, Icon, SectionCard, StatCard, formatRelativeTime } from "@stanforte/shared";
+import { Button, Chip, EmptyState, Icon, SectionCard, StatCard } from "@/shared";
+import { formatRelativeTime } from "@stanforte/shared";
 import { useCachedQuery } from "@/shared/lib/core";
 import {
   getWorkspaceUnreadNotificationCount,

@@ -16,8 +16,8 @@ import {
   TableRow,
   StatCard,
   TextField,
-  formatCurrency,
-} from "@stanforte/shared";
+} from "@/shared";
+import { formatCurrency } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";

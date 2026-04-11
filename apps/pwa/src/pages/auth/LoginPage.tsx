@@ -1,6 +1,6 @@
 import { type FormEvent, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { Button, Icon } from "@stanforte/shared";
+import { Button, Icon } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import brandLogo from "../../../../shared/assets/brand/stanforte-logo.png";
 

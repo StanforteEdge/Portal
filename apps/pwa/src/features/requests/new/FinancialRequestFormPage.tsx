@@ -15,7 +15,7 @@ import {
   TableHeaderCell,
   TableHeaderRow,
   TableRow,
-} from "@stanforte/shared";
+} from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import {
   buildRequestsNavigation,

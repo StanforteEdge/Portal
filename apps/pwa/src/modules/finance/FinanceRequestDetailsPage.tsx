@@ -3,7 +3,6 @@ import {
   Button,
   Chip,
   EmptyState,
-  formatCurrency,
   Icon,
   MediaPickerModal,
   PageHeader,
@@ -24,7 +23,8 @@ import {
   WorkflowStepper,
   type WorkflowStep,
   type WorkflowStepStatus,
-} from "@stanforte/shared";
+} from "@/shared";
+import { formatCurrency } from "@stanforte/shared";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";

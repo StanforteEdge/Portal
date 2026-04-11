@@ -6,11 +6,8 @@ import {
   StatCard,
   TextAreaField,
   TextField,
-  humanize,
-  roleLabel,
-  sortRoles,
-  userDisplayName,
-} from "@stanforte/shared";
+} from "@/shared";
+import { humanize, roleLabel, sortRoles, userDisplayName } from "@stanforte/shared";
 import { useCachedQuery } from "@/shared/lib/core";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { getWorkspaceProfile, updateWorkspaceProfile } from "@/shared/api/workspace-api";

@@ -2,7 +2,6 @@ import {
   ActivityFeed,
   Button,
   Chip,
-  formatCurrency,
   Icon,
   PaginationControls,
   SelectField,
@@ -17,8 +16,8 @@ import {
   TableHeaderRow,
   TableRow,
   StatCard,
-  hasApprovalAccess,
-} from "@stanforte/shared";
+} from "@/shared";
+import { formatCurrency, hasApprovalAccess } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";

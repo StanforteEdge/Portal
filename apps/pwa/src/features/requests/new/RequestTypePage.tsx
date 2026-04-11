@@ -5,7 +5,7 @@ import {
   Icon,
   PageHeader,
   SectionCard,
-} from "@stanforte/shared";
+} from "@/shared";
 import { Link, useSearchParams } from "react-router-dom";
 import { useMemo } from "react";
 import { AppShell } from "@/shared/components/layout/AppShell";

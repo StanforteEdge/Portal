@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Button, SectionCard, StatCard, TextField } from "@stanforte/shared";
+import { Button, SectionCard, StatCard, TextField } from "@/shared";
 import { changeWorkspacePassword } from "@/shared/api/workspace-api";
 import { SystemShellPage } from "./page-helpers";
 

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { Button, Icon } from "@stanforte/shared";
+import { Button, Icon } from "@/shared";
 import type { SidebarItem } from "./Sidebar";
 
 type MobileNavItem = {

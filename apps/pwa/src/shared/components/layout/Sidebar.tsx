@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
-import { Icon } from "@stanforte/shared";
+import { Icon } from "@/shared";
 
 export type SidebarItem = {
   label: string;

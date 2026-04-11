@@ -1,5 +1,5 @@
 import { Link } from "react-router-dom";
-import { Button, Icon, SectionCard } from "@stanforte/shared";
+import { Button, Icon, SectionCard } from "@/shared";
 import { SystemShellPage } from "./page-helpers";
 
 export default function HelpPage() {

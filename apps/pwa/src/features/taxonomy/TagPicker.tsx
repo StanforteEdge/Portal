@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Button, Icon } from "@stanforte/shared";
+import { Button, Icon } from "@/shared";
 import { suggestTagTerms, type TagTerm } from "@/features/taxonomy/taxonomy-api";
 
 type TagPickerProps = {

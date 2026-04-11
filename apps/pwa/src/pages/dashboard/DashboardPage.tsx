@@ -3,10 +3,8 @@ import {
   Chip,
   PageHeader,
   SectionCard,
-  hasModuleAccess,
-  humanize,
-  userDisplayName,
-} from "@stanforte/shared";
+} from "@/shared";
+import { hasModuleAccess, humanize, userDisplayName } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";

@@ -1,8 +1,6 @@
 import {
   Button,
   Chip,
-  formatRelativeTime,
-  humanize,
   Icon,
   PageHeader,
   RightRail,
@@ -18,7 +16,8 @@ import {
   TableHeaderRow,
   TableRow,
   useToast,
-} from "@stanforte/shared";
+} from "@/shared";
+import { formatRelativeTime, humanize } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useCachedQuery } from "@/shared/lib/core";

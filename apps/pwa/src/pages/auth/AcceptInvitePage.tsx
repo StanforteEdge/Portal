@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
-import { Button, Icon } from "@stanforte/shared";
+import { Button, Icon } from "@/shared";
 import { authApi } from "@/shared/lib/core";
 import brandLogo from "../../../../shared/assets/brand/stanforte-logo.png";
 

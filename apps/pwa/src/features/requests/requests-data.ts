@@ -1,4 +1,4 @@
-import type { SidebarItem, WorkflowStep } from "@stanforte/shared";
+import type { SidebarItem, WorkflowStep } from "@/shared";
 
 export type RequestStatusTone = "success" | "warning" | "pending" | "danger" | "neutral";
 
