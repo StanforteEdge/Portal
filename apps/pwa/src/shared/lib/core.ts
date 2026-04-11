@@ -5,7 +5,7 @@ import {
   createSessionStorage,
   useCachedQuery as useSharedCachedQuery,
 } from "@stanforte/shared";
-import { API_BASE_URL, CACHE_PREFIX } from "@/lib/env";
+import { API_BASE_URL, CACHE_PREFIX } from "@/shared/lib/env";
 
 export const authSession = createSessionStorage("pwa2_auth");
 
