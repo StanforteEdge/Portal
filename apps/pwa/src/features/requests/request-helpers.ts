@@ -1,5 +1,5 @@
 import { formatCurrency } from "@stanforte/shared";
-import type { RequestRecord, RequestTypeOption } from "@/api/requests/requests-api";
+import type { RequestRecord, RequestTypeOption } from "@/features/requests/requests-api";
 
 export type RequestFamily = "financial" | "leave" | "other";
 
