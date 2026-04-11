@@ -194,6 +194,16 @@ export function DesktopTopBar({
       </div>
 
       <div className="flex items-center gap-3 px-6">
+        <NavLink
+          to="/download"
+          className={({ isActive }) =>
+            `${iconButtonClass(isActive)} focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10`
+          }
+          aria-label="Download desktop app"
+        >
+          <Icon name="download" />
+        </NavLink>
+
         <div className="text-on-surface-variant">
           <div className="relative" ref={notificationRef}>
             <button

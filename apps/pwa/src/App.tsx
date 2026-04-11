@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 import AttendancePage from "@/modules/hr/AttendancePage";
+import LeavePage from "@/modules/hr/LeavePage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import FinanceDashboardPage from "@/modules/finance/FinanceDashboardPage";
 import FinanceRequestDetailsPage from "@/modules/finance/FinanceRequestDetailsPage";
@@ -24,6 +25,7 @@ import RequestTypePage from "@/features/requests/pages/new/RequestTypePage";
 import ApprovalsPage from "@/features/requests/pages/ApprovalsPage";
 import RequestsListPage from "@/features/requests/pages/RequestsListPage";
 import {
+  DownloadPage,
   HelpPage,
   NotificationsPage,
   ProfilePage,
@@ -45,6 +47,7 @@ export default function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
+        <Route path="/leave" element={<LeavePage />} />
         <Route path="/requests" element={<RequestsListPage />} />
         <Route element={<ApprovalRoute />}>
           <Route path="/requests/approvals" element={<ApprovalsPage />} />
@@ -56,6 +59,7 @@ export default function App() {
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/help" element={<HelpPage />} />
+        <Route path="/download" element={<DownloadPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route element={<ModuleRoute moduleKey="finance" />}>
           <Route path="/finance" element={<FinanceDashboardPage />} />
