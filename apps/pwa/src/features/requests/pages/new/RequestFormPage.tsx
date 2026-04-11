@@ -522,6 +522,18 @@ export function RequestFormPage() {
     return leaveBalanceData?.summary?.[0]?.available_days ?? null;
   }, [family, leaveBalanceData]);
 
+  const minNoticeDays = Number(
+    (selectedType?.form_schema as Record<string, unknown> | null)
+      ?.min_notice_days ?? 0,
+  );
+
+  const minStartDate = useMemo(() => {
+    if (family !== "leave" || minNoticeDays <= 0) return "";
+    const date = new Date();
+    date.setDate(date.getDate() + minNoticeDays);
+    return date.toISOString().slice(0, 10);
+  }, [family, minNoticeDays]);
+
   const organizationOptions = (organizations ?? []).map(
     (entry: MyOrganization) => entry.organization,
   );
@@ -810,17 +822,25 @@ export function RequestFormPage() {
                   description="Capture the dates and policy timing for this leave request."
                 >
                   <div className="grid gap-4 lg:grid-cols-2">
-                    <TextField
-                      label="Start Date"
-                      type="date"
-                      value={form.leave_start_date}
-                      onChange={(event) =>
-                        setForm((prev) => ({
-                          ...prev,
-                          leave_start_date: event.target.value,
-                        }))
-                      }
-                    />
+                    <div>
+                      <TextField
+                        label="Start Date"
+                        type="date"
+                        value={form.leave_start_date}
+                        min={minStartDate || undefined}
+                        onChange={(event) =>
+                          setForm((prev) => ({
+                            ...prev,
+                            leave_start_date: event.target.value,
+                          }))
+                        }
+                      />
+                      {minNoticeDays > 0 ? (
+                        <p className="mt-1.5 text-xs text-slate-500">
+                          This leave type requires at least {minNoticeDays} day{minNoticeDays === 1 ? "" : "s"} notice — earliest start date is {minStartDate}.
+                        </p>
+                      ) : null}
+                    </div>
                     <TextField
                       label="End Date"
                       type="date"
@@ -1161,26 +1181,42 @@ export function RequestFormPage() {
           <RightRail className="self-start lg:col-span-4 lg:sticky lg:top-28">
             <section className="section-card bg-brand-900 p-5 text-white">
               <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-                {family === "leave" ? "Request Type" : "Current Total"}
+                {family === "leave" ? "Leave Request" : "Current Total"}
               </p>
               <p className="mt-3 text-4xl font-semibold tracking-tight">
                 {family === "leave"
-                  ? requestFamilyLabel(family)
+                  ? form.leave_days_requested
+                    ? `${form.leave_days_requested} day${Number(form.leave_days_requested) === 1 ? "" : "s"}`
+                    : "— days"
                   : formatCurrency(totalAmount || 0)}
               </p>
-              <p className="mt-3 text-sm leading-6 text-white/85">
+              <p className="mt-2 text-sm leading-6 text-white/70">
                 {family === "leave"
-                  ? "Leave requests use the same shared structure, with leave-specific planning fields."
+                  ? selectedType?.name || "Leave request"
                   : "The request total updates from the line items you add below."}
               </p>
-              {family === "leave" && leaveBalance !== null ? (
-                <div className="mt-4 rounded-[18px] border border-white/10 bg-white/10 px-4 py-3">
-                  <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-white/70">
-                    Available Balance
-                  </p>
-                  <p className="mt-2 text-2xl font-semibold">
-                    {leaveBalance} days
-                  </p>
+              {family === "leave" ? (
+                <div className="mt-4 space-y-2">
+                  {leaveBalance !== null ? (
+                    <div className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-3">
+                      <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-white/70">
+                        Available Balance
+                      </p>
+                      <p className="mt-2 text-2xl font-semibold">
+                        {leaveBalance} days
+                      </p>
+                    </div>
+                  ) : null}
+                  {minNoticeDays > 0 ? (
+                    <div className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-3">
+                      <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-white/70">
+                        Notice Required
+                      </p>
+                      <p className="mt-2 text-lg font-semibold">
+                        {minNoticeDays} day{minNoticeDays === 1 ? "" : "s"} in advance
+                      </p>
+                    </div>
+                  ) : null}
                 </div>
               ) : null}
             </section>
@@ -1228,17 +1264,28 @@ export function RequestFormPage() {
 
         <section className="section-card bg-brand-900 p-5 text-white">
           <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-            {family === "leave" ? "Request Type" : "Current Total"}
+            {family === "leave" ? "Leave Request" : "Current Total"}
           </p>
           <p className="mt-3 text-4xl font-semibold tracking-tight">
             {family === "leave"
-              ? requestFamilyLabel(family)
+              ? form.leave_days_requested
+                ? `${form.leave_days_requested} day${Number(form.leave_days_requested) === 1 ? "" : "s"}`
+                : "— days"
               : formatCurrency(totalAmount || 0)}
           </p>
-          {family === "leave" && leaveBalance !== null ? (
-            <p className="mt-3 text-sm leading-6 text-white/85">
-              Available balance: {leaveBalance} days
-            </p>
+          {family === "leave" ? (
+            <div className="mt-3 space-y-2">
+              {leaveBalance !== null ? (
+                <p className="text-sm leading-6 text-white/85">
+                  Available balance: {leaveBalance} days
+                </p>
+              ) : null}
+              {minNoticeDays > 0 ? (
+                <p className="text-sm leading-6 text-white/70">
+                  Notice required: {minNoticeDays} day{minNoticeDays === 1 ? "" : "s"} in advance
+                </p>
+              ) : null}
+            </div>
           ) : null}
         </section>
 

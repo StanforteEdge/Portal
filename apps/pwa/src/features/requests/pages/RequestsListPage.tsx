@@ -152,8 +152,10 @@ function toRow(request: RequestRecord) {
   const projectId = String(data.project_id ?? "").trim();
   const projectName = String(data.project_name ?? "").trim();
   const teamId = String(data.team_id ?? "").trim();
+  // Note: request.group is the module group (finance/hr), NOT the team/department.
+  // Team name comes from request.data fields or the top-level team_name field only.
   const teamName = String(
-    data.team_name ?? data.team ?? request.team_name ?? request.group?.name ?? "",
+    data.team_name ?? data.team ?? request.team_name ?? "",
   ).trim();
   const organizationId = String(data.organization_id ?? "").trim();
   const organizationName = String(
