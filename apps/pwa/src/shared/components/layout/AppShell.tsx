@@ -7,15 +7,15 @@ import {
   roleLabel,
   sortRoles,
 } from "@stanforte/shared";
-import { useAuth } from "@/context/AuthProvider";
-import { useCachedQuery } from "@/lib/core";
+import { useAuth } from "@/shared/context/AuthProvider";
+import { useCachedQuery } from "@/shared/lib/core";
 import {
   getWorkspaceProfile,
   getWorkspaceUnreadNotificationCount,
   listWorkspaceNotifications,
   markAllWorkspaceNotificationsRead,
   markWorkspaceNotificationRead,
-} from "@/features/system/workspace-api";
+} from "@/shared/api/workspace-api";
 import { MobileBottomNav } from "./MobileBottomNav";
 import { Sidebar, type SidebarItem } from "./Sidebar";
 import { DesktopTopBar, MobileTopBar } from "./TopBar";

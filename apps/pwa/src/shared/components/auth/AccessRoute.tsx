@@ -4,7 +4,7 @@ import {
   hasApprovalAccess,
   hasModuleAccess,
 } from "@stanforte/shared";
-import { useAuth } from "@/context/AuthProvider";
+import { useAuth } from "@/shared/context/AuthProvider";
 
 type ModuleRouteProps = {
   moduleKey: string;
