@@ -40,10 +40,14 @@ type UiApprovalRow = {
   requestNo: string;
   type: string;
   requestTypeId: string;
+  categoryLabel: string;
   staff: string;
+  teamName: string;
+  organizationName: string;
   totalAmount: number;
   currency: string;
   submitted: string;
+  dueDate: string;
   createdAtIso?: string;
   status: string;
   statusKey: string;
@@ -84,21 +88,40 @@ function formatPersonName(creator?: RequestRecord["creator"]) {
   return name || creator.email || creator.username || "-";
 }
 
-function toRow(request: RequestRecord): UiApprovalRow {
+function categoryLabel(categoryKey: string, typeName: string): string {
+  const c = categoryKey.toLowerCase();
+  const t = typeName.toLowerCase();
+  if (c.includes("leave") || t.includes("leave")) return "Leave";
+  if (c.includes("finance") || c.includes("payment") || t.includes("cash") || t.includes("expense") || t.includes("financial") || t.includes("reimbursement")) return "Financial";
+  return toTitleCase(categoryKey.replaceAll("_", " ")) || "General";
+}
+
+function toRow(request: RequestRecord, teamsMap?: Map<string, string>): UiApprovalRow {
   const rawStatus = String(request.status || "Pending");
   const pendingSteps = request.approvals?.pending ?? [];
   const pendingStep = pendingSteps.length > 0 ? toTitleCase(pendingSteps[0].step || "Review") : "";
+  const data = request.data && typeof request.data === "object" ? request.data as Record<string, unknown> : {};
+  const typeName = request.request_type?.name || "General Request";
+  const catKey = String(request.request_type?.category_key || "");
+  const teamId = String((request as any).team_id ?? data.team_id ?? "").trim();
+  const teamName = (teamId && teamsMap?.get(teamId)) || String(data.team_name ?? data.team ?? "").trim();
+  const organizationName = String((request as any).organization?.name ?? data.organization_name ?? "").trim();
+  const dueDate = formatDate(String(data.due_date ?? data.end_date ?? "").trim() || undefined);
 
   return {
     id: request.id,
     requestId: request.id,
     requestNo: request.request_number || `REQ-${request.id}`,
-    type: request.request_type?.name || "General Request",
+    type: typeName,
     requestTypeId: String(request.request_type?.id ?? ""),
+    categoryLabel: categoryLabel(catKey, typeName),
     staff: formatPersonName(request.creator),
+    teamName,
+    organizationName,
     totalAmount: Number(request.total_amount ?? request.request_total_amount ?? 0),
     currency: request.currency || "NGN",
     submitted: formatDate(request.created_at),
+    dueDate,
     createdAtIso: request.created_at,
     status: rawStatus.replaceAll("_", " "),
     statusKey: rawStatus.toLowerCase(),
@@ -147,10 +170,19 @@ export function ApprovalsPage() {
     { ttlMs: 1000 * 60 * 10, storage: "local" },
   );
 
+  const teamsMap = useMemo(() => {
+    const map = new Map<string, string>();
+    const groups = (profile as any)?.groups ?? (profile as any)?.teams ?? [];
+    (groups as Array<{ id?: unknown; name?: string | null }>).forEach((g) => {
+      if (g.id && g.name) map.set(String(g.id), g.name);
+    });
+    return map;
+  }, [profile]);
+
   const allRows = useMemo(() => {
     const source = Array.isArray(approvalsData) ? approvalsData : [];
-    return source.map(toRow);
-  }, [approvalsData]);
+    return source.map((r) => toRow(r, teamsMap));
+  }, [approvalsData, teamsMap]);
 
   const requestTypeOptions = useMemo(() => {
     const types = Array.isArray(requestTypes)
@@ -333,9 +365,10 @@ export function ApprovalsPage() {
                   <TableHeaderRow>
                     <TableHeaderCell>Request No</TableHeaderCell>
                     <TableHeaderCell>Staff</TableHeaderCell>
-                    <TableHeaderCell>Type</TableHeaderCell>
+                    <TableHeaderCell>Category</TableHeaderCell>
+                    <TableHeaderCell>Team</TableHeaderCell>
                     <TableHeaderCell>Amount</TableHeaderCell>
-                    <TableHeaderCell>Submitted</TableHeaderCell>
+                    <TableHeaderCell>Due Date</TableHeaderCell>
                     <TableHeaderCell>Status</TableHeaderCell>
                     <TableHeaderCell className="text-right">Actions</TableHeaderCell>
                   </TableHeaderRow>
@@ -358,13 +391,21 @@ export function ApprovalsPage() {
                         {row.staff}
                       </TableCell>
                       <TableCell className="text-sm text-slate-600">
-                        {row.type}
+                        {row.categoryLabel}
+                      </TableCell>
+                      <TableCell>
+                        <p className="text-sm font-medium text-slate-800 capitalize">
+                          {row.teamName || "-"}
+                        </p>
+                        {row.organizationName ? (
+                          <p className="mt-0.5 text-xs text-slate-400">{row.organizationName}</p>
+                        ) : null}
                       </TableCell>
                       <TableCell className="text-sm text-slate-600">
                         {formatCurrency(row.totalAmount, row.currency)}
                       </TableCell>
                       <TableCell className="text-sm text-slate-600">
-                        {row.submitted}
+                        {row.dueDate}
                       </TableCell>
                       <TableCell>
                         <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>

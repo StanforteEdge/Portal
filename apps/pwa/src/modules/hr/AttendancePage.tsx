@@ -534,7 +534,11 @@ export function AttendancePage() {
                     onClick={() => void runClockAction("in")}
                     disabled={acting !== null || !currentState?.can_clock_in}
                   >
-                    {acting === "in" ? "Clocking In..." : "Clock In Now"}
+                    {acting === "in"
+                      ? "Clocking In..."
+                      : currentState?.is_clocked_in
+                        ? "Clocked In"
+                        : "Clock In Now"}
                   </Button>
                   <Button
                     variant="secondary"

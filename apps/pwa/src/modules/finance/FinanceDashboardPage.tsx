@@ -23,8 +23,6 @@ import {
 } from "@/features/requests/requests-data";
 import {
   formatPersonName,
-  formatRequestStatus,
-  requestStatusTone,
 } from "@/features/requests/request-helpers";
 import type { RequestRecord } from "@/features/requests/requests-api";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
@@ -91,6 +89,21 @@ export default function FinanceDashboardPage() {
     ["retired", "completed", "confirmed"].includes(String(e.status || "").toLowerCase()),
   ).length;
 
+  // Finance action queue — only requests where finance must act
+  const FINANCE_ACTION_STATUSES = ["cleared", "prepared", "disbursed", "confirmed"];
+  const actionQueue = recentQueue.filter((e) =>
+    FINANCE_ACTION_STATUSES.includes(String(e.status || "").toLowerCase()),
+  );
+
+  function financeActionLabel(status: string): { label: string; tone: "warning" | "pending" | "success" | "neutral" } {
+    const s = String(status || "").toLowerCase();
+    if (s === "cleared") return { label: "Ready to Disburse", tone: "warning" };
+    if (s === "prepared") return { label: "Voucher Prepared", tone: "pending" };
+    if (s === "disbursed") return { label: "Awaiting Retirement", tone: "pending" };
+    if (s === "confirmed") return { label: "Awaiting Closure", tone: "neutral" };
+    return { label: toTitleCase(status), tone: "neutral" };
+  }
+
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
@@ -125,8 +138,8 @@ export default function FinanceDashboardPage() {
         <div className="grid gap-6 lg:grid-cols-[1fr_300px]">
           {/* Priority queue — compact, no filters */}
           <SectionCard
-            title="Priority Finance Queue"
-            description="Requests ready for finance action."
+            title="Finance Action Required"
+            description="Requests waiting for your clearance, disbursement, or completion."
             action={
               <Link
                 to="/finance/requests"
@@ -144,48 +157,49 @@ export default function FinanceDashboardPage() {
               <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
                 {error}
               </div>
-            ) : recentQueue.length ? (
+            ) : actionQueue.length ? (
               <div className="rounded-[22px] border border-slate-200 bg-white">
-                <Table caption="Finance requests">
+                <Table caption="Finance requests needing action">
                   <TableHead>
                     <TableHeaderRow>
                       <TableHeaderCell>Request No</TableHeaderCell>
                       <TableHeaderCell>Staff</TableHeaderCell>
                       <TableHeaderCell>Total</TableHeaderCell>
-                      <TableHeaderCell>Status</TableHeaderCell>
+                      <TableHeaderCell>Action Needed</TableHeaderCell>
                     </TableHeaderRow>
                   </TableHead>
                   <TableBody>
-                    {recentQueue.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>
-                          <Link
-                            to={`/finance/requests/details?id=${entry.id}`}
-                            className="text-sm font-semibold text-brand-900 transition hover:underline"
-                          >
-                            {entry.request_number || entry.id}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="capitalize text-sm text-slate-700">
-                          {formatPersonName(entry.creator)}
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-700">
-                          {formatCurrency(requestTotal(entry), entry.currency || "NGN")}
-                        </TableCell>
-                        <TableCell>
-                          <Chip variant={requestStatusTone(entry.status)}>
-                            {toTitleCase(formatRequestStatus(entry.status))}
-                          </Chip>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {actionQueue.map((entry) => {
+                      const action = financeActionLabel(entry.status);
+                      return (
+                        <TableRow key={entry.id}>
+                          <TableCell>
+                            <Link
+                              to={`/finance/requests/details?id=${entry.id}`}
+                              className="text-sm font-semibold text-brand-900 transition hover:underline"
+                            >
+                              {entry.request_number || entry.id}
+                            </Link>
+                          </TableCell>
+                          <TableCell className="capitalize text-sm text-slate-700">
+                            {formatPersonName(entry.creator)}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-700">
+                            {formatCurrency(requestTotal(entry), entry.currency || "NGN")}
+                          </TableCell>
+                          <TableCell>
+                            <Chip variant={action.tone}>{action.label}</Chip>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               </div>
             ) : (
               <EmptyState
-                title="No finance requests yet"
-                description="Once cleared requests reach finance, they'll appear here."
+                title="No actions pending"
+                description="All requests have been processed or are awaiting other stages."
               />
             )}
           </SectionCard>
