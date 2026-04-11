@@ -4,6 +4,8 @@ import {
   Chip,
   formatCurrency,
   Icon,
+  PaginationControls,
+  SelectField,
   PageHeader,
   RightRail,
   SectionCard,
@@ -21,13 +23,18 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, Navigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
 import { useCachedQuery } from "@/lib/core";
-import { useAuth } from "@/features/auth/AuthProvider";
+import { useAuth } from "@/context/AuthProvider";
 import { getWorkspaceProfile } from "@/features/system/workspace-api";
-import { listApprovals, listRequests, listRequestTypes, type RequestRecord } from "./requests-api";
+import {
+  listApprovals,
+  listRequests,
+  listRequestTypes,
+  type RequestRecord,
+} from "@/api/requests/requests-api";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "./requests-data";
+} from "@/lib/requests/requests-data";
 
 type RequestScope = "mine" | "approvals";
 type RequestFamily = "all" | "financial" | "leave";
@@ -66,7 +73,12 @@ type RequestOption = {
   label: string;
 };
 
-type SortBy = "created_at" | "request_number" | "total_amount" | "status" | "request_type";
+type SortBy =
+  | "created_at"
+  | "request_number"
+  | "total_amount"
+  | "status"
+  | "request_type";
 
 function formatDate(value?: string) {
   if (!value) return "-";
@@ -79,20 +91,35 @@ function formatDate(value?: string) {
   });
 }
 
-function toTone(status: string): "success" | "warning" | "pending" | "danger" | "neutral" {
+function toTone(
+  status: string,
+): "success" | "warning" | "pending" | "danger" | "neutral" {
   const key = status.toLowerCase();
-  if (["approved", "completed", "paid", "disbursed", "confirmed"].includes(key)) return "success";
+  if (["approved", "completed", "paid", "disbursed", "confirmed"].includes(key))
+    return "success";
   if (["rejected", "cancelled", "voided"].includes(key)) return "danger";
-  if (["under_review", "review", "draft", "prepared"].includes(key)) return "warning";
-  if (["pending", "sent", "approval", "submitted"].includes(key)) return "pending";
+  if (["under_review", "review", "draft", "prepared"].includes(key))
+    return "warning";
+  if (["pending", "sent", "approval", "submitted"].includes(key))
+    return "pending";
   return "neutral";
 }
 
-function classifyFamily(categoryKey: string, requestType: string): RequestFamily {
+function classifyFamily(
+  categoryKey: string,
+  requestType: string,
+): RequestFamily {
   const category = categoryKey.toLowerCase();
   const type = requestType.toLowerCase();
   if (category.includes("leave") || type.includes("leave")) return "leave";
-  if (category.includes("finance") || category.includes("payment") || type.includes("cash") || type.includes("reimbursement") || type.includes("expense") || type.includes("financial")) {
+  if (
+    category.includes("finance") ||
+    category.includes("payment") ||
+    type.includes("cash") ||
+    type.includes("reimbursement") ||
+    type.includes("expense") ||
+    type.includes("financial")
+  ) {
     return "financial";
   }
   return "financial";
@@ -106,8 +133,9 @@ function familyLabel(family: RequestFamily) {
 
 function toRow(request: RequestRecord) {
   const stateEvents = Array.isArray((request.data as any)?.state_events)
-    ? (((request.data as any)?.state_events as Array<Record<string, unknown>>) ??
-        [])
+    ? (((request.data as any)?.state_events as Array<
+        Record<string, unknown>
+      >) ?? [])
     : [];
   const rawStatus = String(request.status || "Pending");
   const normalizedStatus =
@@ -124,29 +152,36 @@ function toRow(request: RequestRecord) {
   const requestType = request.request_type?.name || "General Request";
   const itemCount = Array.isArray(request.items) ? request.items.length : 0;
   const amountLabel = formatCurrency(request.total_amount, request.currency);
-  const data = request.data && typeof request.data === "object" ? request.data : {};
+  const data =
+    request.data && typeof request.data === "object" ? request.data : {};
   const projectId = String(data.project_id ?? "").trim();
   const projectName = String(data.project_name ?? "").trim();
   const teamId = String(data.team_id ?? "").trim();
   const teamName = String(data.team_name ?? data.team ?? "").trim();
   const organizationId = String(data.organization_id ?? "").trim();
-  const organizationName = String(data.organization_name ?? data.organization ?? "").trim();
+  const organizationName = String(
+    data.organization_name ?? data.organization ?? "",
+  ).trim();
   const purpose = String(data.purpose ?? "").trim();
-  const startDateIso = typeof data.start_date === "string" ? data.start_date : undefined;
-  const endDateIso = typeof data.end_date === "string" ? data.end_date : undefined;
+  const startDateIso =
+    typeof data.start_date === "string" ? data.start_date : undefined;
+  const endDateIso =
+    typeof data.end_date === "string" ? data.end_date : undefined;
   const parsedDays = Number(data.days_requested ?? 0);
-  const daysRequested = Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : undefined;
+  const daysRequested =
+    Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : undefined;
 
-  const category = String(request.request_type?.category_key || "").toLowerCase();
+  const category = String(
+    request.request_type?.category_key || "",
+  ).toLowerCase();
   const family = classifyFamily(category, requestType);
-  const icon =
-    category.includes("leave")
-      ? "event_note"
-      : category.includes("finance")
-        ? "payments"
-        : category.includes("asset")
-          ? "inventory_2"
-          : "description";
+  const icon = category.includes("leave")
+    ? "event_note"
+    : category.includes("finance")
+      ? "payments"
+      : category.includes("asset")
+        ? "inventory_2"
+        : "description";
 
   return {
     id: request.request_number || `REQ-${request.id}`,
@@ -169,7 +204,10 @@ function toRow(request: RequestRecord) {
     statusKey: normalizedStatus.toLowerCase(),
     tone: toTone(normalizedStatus),
     icon,
-    summary: itemCount > 0 ? `${itemCount} item${itemCount > 1 ? "s" : ""}` : "No line items",
+    summary:
+      itemCount > 0
+        ? `${itemCount} item${itemCount > 1 ? "s" : ""}`
+        : "No line items",
     detail: amountLabel,
     createdAtIso: request.created_at,
     startDateIso,
@@ -182,9 +220,15 @@ function isPendingLike(row: UiRequestRow) {
   return (
     row.tone === "pending" ||
     row.tone === "warning" ||
-    ["pending", "submitted", "approval", "under_review", "review", "draft", "prepared"].some((key) =>
-      row.statusKey.includes(key)
-    )
+    [
+      "pending",
+      "submitted",
+      "approval",
+      "under_review",
+      "review",
+      "draft",
+      "prepared",
+    ].some((key) => row.statusKey.includes(key))
   );
 }
 
@@ -192,7 +236,7 @@ function isCompletedLike(row: UiRequestRow) {
   return (
     row.tone === "success" ||
     ["approved", "completed", "paid", "disbursed", "confirmed"].some((key) =>
-      row.statusKey.includes(key)
+      row.statusKey.includes(key),
     )
   );
 }
@@ -227,7 +271,11 @@ function formatLeaveDuration(row: UiRequestRow) {
   if (row.startDateIso && row.endDateIso) {
     const start = new Date(row.startDateIso);
     const end = new Date(row.endDateIso);
-    if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end >= start) {
+    if (
+      !Number.isNaN(start.getTime()) &&
+      !Number.isNaN(end.getTime()) &&
+      end >= start
+    ) {
       const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
       return `${days} day${days === 1 ? "" : "s"}`;
     }
@@ -267,6 +315,8 @@ function ListFilters({
   onSortByChange,
   sortOrder,
   onSortOrderChange,
+  perPage,
+  onPerPageChange,
 }: {
   activeFamily: RequestFamily;
   status: string;
@@ -299,6 +349,8 @@ function ListFilters({
   onSortByChange: (value: SortBy) => void;
   sortOrder: "asc" | "desc";
   onSortOrderChange: (value: "asc" | "desc") => void;
+  perPage: number;
+  onPerPageChange: (value: number) => void;
 }) {
   const requestTypeLabel =
     activeFamily === "financial"
@@ -315,54 +367,46 @@ function ListFilters({
 
   return (
     <section className="section-card p-4 sm:p-5" aria-label="Request filters">
-      <div className="flex flex-wrap items-center gap-3">
-        <label className="flex min-w-[180px] items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 focus-within:ring-4 focus-within:ring-brand-900/10">
-          <span className="inline-flex items-center gap-2">
-            <Icon name="flag" className="text-[18px] text-slate-400" />
-            Status
-          </span>
-          <select
-            value={status}
-            onChange={(event) => onStatusChange(event.target.value)}
-            className="border-0 bg-transparent py-0 pl-2 pr-6 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-0"
-          >
-            {statusOptions.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+      <div className="flex flex-wrap items-start gap-3">
+        <SelectField
+          label="Status"
+          value={status}
+          onChange={(event) => onStatusChange(event.target.value)}
+          className="min-w-[180px] flex-1 lg:flex-none"
+        >
+          {statusOptions.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </SelectField>
 
-        <label className="flex min-w-[210px] items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 focus-within:ring-4 focus-within:ring-brand-900/10">
-          <span className="inline-flex items-center gap-2">
-            <Icon name="filter_alt" className="text-[18px] text-slate-400" />
-            {requestTypeLabel}
-          </span>
-          <select
-            value={selectedRequestTypeId}
-            onChange={(event) => onRequestTypeChange(event.target.value)}
-            className="border-0 bg-transparent py-0 pl-2 pr-6 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-0"
-          >
-            {requestTypes.map((item) => (
-              <option key={item.value} value={item.value}>
-                {item.label}
-              </option>
-            ))}
-          </select>
-        </label>
+        <SelectField
+          label={requestTypeLabel}
+          value={selectedRequestTypeId}
+          onChange={(event) => onRequestTypeChange(event.target.value)}
+          className="min-w-[220px] flex-1 lg:flex-none"
+        >
+          {requestTypes.map((item) => (
+            <option key={item.value} value={item.value}>
+              {item.label}
+            </option>
+          ))}
+        </SelectField>
 
         <div className="relative">
           <button
             type="button"
             onClick={onToggleDateRange}
-            className="inline-flex min-w-[220px] items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+            className="inline-flex min-w-[220px] flex-1 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10 lg:flex-none"
           >
             <span className="inline-flex items-center gap-2">
               <Icon name="date_range" className="text-[18px] text-slate-400" />
               Date Range
             </span>
-            <span className="truncate text-sm font-semibold text-slate-700">{dateLabel}</span>
+            <span className="truncate text-sm font-semibold text-slate-700">
+              {dateLabel}
+            </span>
           </button>
 
           {dateRangeOpen ? (
@@ -391,6 +435,43 @@ function ListFilters({
           ) : null}
         </div>
 
+        <SelectField
+          label="Sort By"
+          value={sortBy}
+          onChange={(event) => onSortByChange(event.target.value as SortBy)}
+          className="min-w-[180px] flex-1 lg:flex-none"
+        >
+          <option value="created_at">Created date</option>
+          <option value="request_number">Request number</option>
+          <option value="total_amount">Total amount</option>
+          <option value="status">Status</option>
+          <option value="request_type">Request type</option>
+        </SelectField>
+
+        <SelectField
+          label="Order"
+          value={sortOrder}
+          onChange={(event) =>
+            onSortOrderChange(event.target.value as "asc" | "desc")
+          }
+          className="min-w-[160px] flex-1 lg:flex-none"
+        >
+          <option value="desc">Descending</option>
+          <option value="asc">Ascending</option>
+        </SelectField>
+
+        <SelectField
+          label="Per Page"
+          value={String(perPage)}
+          onChange={(event) => onPerPageChange(Number(event.target.value))}
+          className="min-w-[140px] flex-1 lg:flex-none"
+        >
+          <option value={5}>5</option>
+          <option value={10}>10</option>
+          <option value={25}>25</option>
+          <option value={50}>50</option>
+        </SelectField>
+
         <button
           type="button"
           onClick={onToggleMoreFilters}
@@ -415,80 +496,47 @@ function ListFilters({
           </label>
 
           {activeFamily !== "leave" ? (
-            <label className="grid gap-2 text-sm text-slate-600">
-              <span className="font-semibold text-slate-700">Project</span>
-              <select
-                value={selectedProject}
-                onChange={(event) => onProjectChange(event.target.value)}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-900/10"
-              >
-                {projectOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
-          {activeFamily === "financial" ? (
-            <label className="grid gap-2 text-sm text-slate-600">
-              <span className="font-semibold text-slate-700">Team</span>
-              <select
-                value={selectedTeam}
-                onChange={(event) => onTeamChange(event.target.value)}
-                className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-900/10"
-              >
-                {teamOptions.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : null}
-
-          <label className="grid gap-2 text-sm text-slate-600">
-            <span className="font-semibold text-slate-700">Organization</span>
-            <select
-              value={selectedOrganization}
-              onChange={(event) => onOrganizationChange(event.target.value)}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-900/10"
+            <SelectField
+              label="Project"
+              value={selectedProject}
+              onChange={(event) => onProjectChange(event.target.value)}
+              className="min-w-0"
             >
-              {organizationOptions.map((item) => (
+              {projectOptions.map((item) => (
                 <option key={item.value} value={item.value}>
                   {item.label}
                 </option>
               ))}
-            </select>
-          </label>
+            </SelectField>
+          ) : null}
 
-          <label className="grid gap-2 text-sm text-slate-600">
-            <span className="font-semibold text-slate-700">Sort by</span>
-            <select
-              value={sortBy}
-              onChange={(event) => onSortByChange(event.target.value as SortBy)}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-900/10"
+          {activeFamily === "financial" ? (
+            <SelectField
+              label="Team"
+              value={selectedTeam}
+              onChange={(event) => onTeamChange(event.target.value)}
+              className="min-w-0"
             >
-              <option value="created_at">Created date</option>
-              <option value="request_number">Request number</option>
-              <option value="total_amount">Total amount</option>
-              <option value="status">Status</option>
-              <option value="request_type">Request type</option>
-            </select>
-          </label>
+              {teamOptions.map((item) => (
+                <option key={item.value} value={item.value}>
+                  {item.label}
+                </option>
+              ))}
+            </SelectField>
+          ) : null}
 
-          <label className="grid gap-2 text-sm text-slate-600">
-            <span className="font-semibold text-slate-700">Order</span>
-            <select
-              value={sortOrder}
-              onChange={(event) => onSortOrderChange(event.target.value as "asc" | "desc")}
-              className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-900/10"
-            >
-              <option value="desc">Descending</option>
-              <option value="asc">Ascending</option>
-            </select>
-          </label>
+          <SelectField
+            label="Organization"
+            value={selectedOrganization}
+            onChange={(event) => onOrganizationChange(event.target.value)}
+            className="min-w-0"
+          >
+            {organizationOptions.map((item) => (
+              <option key={item.value} value={item.value}>
+                {item.label}
+              </option>
+            ))}
+          </SelectField>
         </div>
       ) : null}
     </section>
@@ -506,7 +554,6 @@ function RequestsListTable({
   totalPages,
   totalCount,
   perPage,
-  onPerPageChange,
   onPageChange,
 }: {
   activeFamily: RequestFamily;
@@ -519,12 +566,11 @@ function RequestsListTable({
   totalPages: number;
   totalCount: number;
   perPage: number;
-  onPerPageChange: (value: number) => void;
   onPageChange: (page: number) => void;
 }) {
-  const pageButtons = Array.from({ length: totalPages }, (_, index) => index + 1).slice(0, 7);
   const pageStart = totalCount === 0 ? 0 : (currentPage - 1) * perPage + 1;
-  const pageEnd = totalCount === 0 ? 0 : Math.min(totalCount, currentPage * perPage);
+  const pageEnd =
+    totalCount === 0 ? 0 : Math.min(totalCount, currentPage * perPage);
   return (
     <SectionCard
       title={
@@ -537,17 +583,24 @@ function RequestsListTable({
       description="Track and manage your operational submissions."
       action={
         <Chip variant="neutral">
-          Showing {pageStart}-{pageEnd} of {totalCount} request{totalCount === 1 ? "" : "s"}
+          Showing {pageStart}-{pageEnd} of {totalCount} request
+          {totalCount === 1 ? "" : "s"}
         </Chip>
       }
     >
       {loading ? (
-        <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">Loading requests...</div>
+        <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
+          Loading requests...
+        </div>
       ) : null}
       {error ? (
         <div className="mb-4 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
           {error}
-          <button type="button" onClick={onRetry} className="ml-3 font-semibold underline">
+          <button
+            type="button"
+            onClick={onRetry}
+            className="ml-3 font-semibold underline"
+          >
             Retry
           </button>
         </div>
@@ -557,11 +610,21 @@ function RequestsListTable({
           <TableHead>
             <TableHeaderRow>
               <TableHeaderCell>Request ID</TableHeaderCell>
-              {activeFamily === "all" ? <TableHeaderCell>Family</TableHeaderCell> : null}
-              {activeFamily === "financial" ? <TableHeaderCell>Amount</TableHeaderCell> : null}
-              {activeFamily === "financial" ? <TableHeaderCell>Project</TableHeaderCell> : null}
-              {activeFamily === "leave" ? <TableHeaderCell>Leave Dates</TableHeaderCell> : null}
-              {activeFamily === "leave" ? <TableHeaderCell>Duration</TableHeaderCell> : null}
+              {activeFamily === "all" ? (
+                <TableHeaderCell>Family</TableHeaderCell>
+              ) : null}
+              {activeFamily === "financial" ? (
+                <TableHeaderCell>Amount</TableHeaderCell>
+              ) : null}
+              {activeFamily === "financial" ? (
+                <TableHeaderCell>Project</TableHeaderCell>
+              ) : null}
+              {activeFamily === "leave" ? (
+                <TableHeaderCell>Leave Dates</TableHeaderCell>
+              ) : null}
+              {activeFamily === "leave" ? (
+                <TableHeaderCell>Duration</TableHeaderCell>
+              ) : null}
               <TableHeaderCell>Submitted</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
               <TableHeaderCell className="text-right">Actions</TableHeaderCell>
@@ -571,28 +634,42 @@ function RequestsListTable({
             {rows.map((row) => (
               <TableRow key={row.id}>
                 <TableCell className="rounded-l-2xl">
-                  <p className="text-sm font-semibold text-brand-900">{row.id}</p>
+                  <p className="text-sm font-semibold text-brand-900">
+                    {row.id}
+                  </p>
                   <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
                     <Icon name={row.icon} className="text-[16px]" />
                     <span>{row.type}</span>
                   </div>
                 </TableCell>
                 {activeFamily === "all" ? (
-                  <TableCell className="text-sm text-slate-600">{row.familyLabel}</TableCell>
+                  <TableCell className="text-sm text-slate-600">
+                    {row.familyLabel}
+                  </TableCell>
                 ) : null}
                 {activeFamily === "financial" ? (
-                  <TableCell className="text-sm text-slate-600">{row.detail}</TableCell>
+                  <TableCell className="text-sm text-slate-600">
+                    {row.detail}
+                  </TableCell>
                 ) : null}
                 {activeFamily === "financial" ? (
-                  <TableCell className="text-sm text-slate-600">{row.projectName || "-"}</TableCell>
+                  <TableCell className="text-sm text-slate-600">
+                    {row.projectName || "-"}
+                  </TableCell>
                 ) : null}
                 {activeFamily === "leave" ? (
-                  <TableCell className="text-sm text-slate-600">{formatLeaveDateRange(row)}</TableCell>
+                  <TableCell className="text-sm text-slate-600">
+                    {formatLeaveDateRange(row)}
+                  </TableCell>
                 ) : null}
                 {activeFamily === "leave" ? (
-                  <TableCell className="text-sm text-slate-600">{formatLeaveDuration(row)}</TableCell>
+                  <TableCell className="text-sm text-slate-600">
+                    {formatLeaveDuration(row)}
+                  </TableCell>
                 ) : null}
-                <TableCell className="text-sm text-slate-600">{row.submitted}</TableCell>
+                <TableCell className="text-sm text-slate-600">
+                  {row.submitted}
+                </TableCell>
                 <TableCell>
                   <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
                 </TableCell>
@@ -611,54 +688,13 @@ function RequestsListTable({
         </Table>
       </div>
 
-      <div className="mt-4 flex items-center justify-between gap-4 text-sm text-slate-500">
-        <div className="flex items-center gap-3">
-          <label className="inline-flex items-center gap-2">
-            <span>Per page</span>
-            <select
-              value={perPage}
-              onChange={(event) => onPerPageChange(Number(event.target.value))}
-              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700"
-            >
-              <option value={5}>5</option>
-              <option value={10}>10</option>
-              <option value={25}>25</option>
-              <option value={50}>50</option>
-            </select>
-          </label>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            disabled={currentPage <= 1}
-            onClick={() => onPageChange(currentPage - 1)}
-          >
-            <Icon name="chevron_left" className="text-[18px]" />
-          </button>
-          {pageButtons.map((pageNumber) => (
-            <button
-              key={pageNumber}
-              className={[
-                "flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 text-sm font-semibold",
-                currentPage === pageNumber ? "bg-brand-900 text-white" : "bg-white text-slate-500",
-              ].join(" ")}
-              type="button"
-              onClick={() => onPageChange(pageNumber)}
-            >
-              {pageNumber}
-            </button>
-          ))}
-          <button
-            className="flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-400 disabled:cursor-not-allowed disabled:opacity-50"
-            type="button"
-            disabled={currentPage >= totalPages}
-            onClick={() => onPageChange(currentPage + 1)}
-          >
-            <Icon name="chevron_right" className="text-[18px]" />
-          </button>
-        </div>
-      </div>
+      <PaginationControls
+        page={currentPage}
+        totalPages={totalPages}
+        totalCount={totalCount}
+        itemLabel="request"
+        onPageChange={onPageChange}
+      />
     </SectionCard>
   );
 }
@@ -677,14 +713,22 @@ function RequestsMobileList({
   onRetry: () => void;
 }) {
   if (loading) {
-    return <div className="rounded-[22px] bg-slate-50 px-4 py-5 text-sm text-slate-500">Loading requests...</div>;
+    return (
+      <div className="rounded-[22px] bg-slate-50 px-4 py-5 text-sm text-slate-500">
+        Loading requests...
+      </div>
+    );
   }
 
   if (error) {
     return (
       <div className="rounded-[22px] border border-danger/20 bg-danger/10 px-4 py-5 text-sm text-danger">
         {error}
-        <button className="ml-2 font-semibold underline" type="button" onClick={onRetry}>
+        <button
+          className="ml-2 font-semibold underline"
+          type="button"
+          onClick={onRetry}
+        >
           Retry
         </button>
       </div>
@@ -705,15 +749,22 @@ function RequestsMobileList({
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-slate-950">{row.type}</p>
+                <p className="text-sm font-semibold text-slate-950">
+                  {row.type}
+                </p>
                 <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
               </div>
               <p className="mt-1 text-sm text-slate-500">{row.summary}</p>
-              <p className="mt-3 text-sm font-semibold text-slate-700">{row.detail}</p>
+              <p className="mt-3 text-sm font-semibold text-slate-700">
+                {row.detail}
+              </p>
               <p className="mt-1 text-xs text-slate-500">{row.submitted}</p>
             </div>
           </div>
-          <Icon name="chevron_right" className="mt-1 text-[18px] text-slate-400" />
+          <Icon
+            name="chevron_right"
+            className="mt-1 text-[18px] text-slate-400"
+          />
         </Link>
       ))}
     </div>
@@ -725,8 +776,8 @@ function EfficientApprovalsCard() {
     <SectionCard title="Efficient Approvals">
       <div className="rounded-[22px] bg-slate-50 p-5">
         <p className="text-sm leading-6 text-slate-500">
-          Complete your profile to speed reimbursement requests by 30% faster with automated
-          payroll matching.
+          Complete your profile to speed reimbursement requests by 30% faster
+          with automated payroll matching.
         </p>
         <Button variant="secondary" size="sm" className="mt-4">
           Update Profile
@@ -785,25 +836,38 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
   const familyParam = searchParams.get("family");
   const activeScope: RequestScope = scope;
   const activeFamily: RequestFamily =
-    familyParam === "financial" || familyParam === "leave" || familyParam === "all" ? familyParam : "all";
+    familyParam === "financial" ||
+    familyParam === "leave" ||
+    familyParam === "all"
+      ? familyParam
+      : "all";
 
   const organizations = useMemo(
-    () => (Array.isArray(user?.organizations) ? user.organizations.filter((entry) => entry.id) : []),
-    [user?.organizations]
+    () =>
+      Array.isArray(user?.organizations)
+        ? user.organizations.filter((entry) => entry.id)
+        : [],
+    [user?.organizations],
   );
 
-  const permissions = (user?.permissions ?? []).map((entry) => entry.toLowerCase());
+  const permissions = (user?.permissions ?? []).map((entry) =>
+    entry.toLowerCase(),
+  );
   const roles = (user?.roles ?? []).map((entry) => entry.toLowerCase());
   const hasTeamLeadAssignment = Boolean(
     Array.isArray(profile?.groups) &&
-      profile.groups.some((team) =>
-        String(team?.role ?? "").toLowerCase().includes("lead"),
-      ),
+    profile.groups.some((team) =>
+      String(team?.role ?? "")
+        .toLowerCase()
+        .includes("lead"),
+    ),
   );
   const canSeeApprovals =
     hasApprovalAccess(user) ||
     permissions.some((entry) => entry.includes("requests.manage")) ||
-    roles.some((entry) => ["manager", "admin", "finance", "finance_lead"].includes(entry)) ||
+    roles.some((entry) =>
+      ["manager", "admin", "finance", "finance_lead"].includes(entry),
+    ) ||
     hasTeamLeadAssignment;
 
   if (activeScope === "approvals" && !canSeeApprovals) {
@@ -816,10 +880,7 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
     error: requestsError,
     refetch: refetchRequests,
   } = useCachedQuery(
-    [
-      "requests:list",
-      activeScope,
-    ].join(":"),
+    ["requests:list", activeScope].join(":"),
     () => {
       if (activeScope === "approvals") {
         return listApprovals();
@@ -827,13 +888,13 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
 
       return listRequests({ only_mine: "true" });
     },
-    { ttlMs: 1000 * 60 * 2, storage: "memory" }
+    { ttlMs: 1000 * 60 * 2, storage: "memory" },
   );
 
   const { data: requestTypes } = useCachedQuery(
     "requests:types",
     () => listRequestTypes(),
-    { ttlMs: 1000 * 60 * 10, storage: "local" }
+    { ttlMs: 1000 * 60 * 10, storage: "local" },
   );
 
   const apiRows = useMemo(() => {
@@ -851,28 +912,56 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
           .map((item) => ({
             value: String(item.id),
             label: String(item.name),
-            family: classifyFamily(String(item.category_key || "").toLowerCase(), String(item.name)),
+            family: classifyFamily(
+              String(item.category_key || "").toLowerCase(),
+              String(item.name),
+            ),
           }))
       : [];
 
     if (apiTypeOptions.length > 0) {
       return [
-        { value: "all", label: activeFamily === "financial" ? "All financial types" : activeFamily === "leave" ? "All leave types" : "All request subtypes" },
+        {
+          value: "all",
+          label:
+            activeFamily === "financial"
+              ? "All financial types"
+              : activeFamily === "leave"
+                ? "All leave types"
+                : "All request subtypes",
+        },
         ...apiTypeOptions
-          .filter((item) => activeFamily === "all" || item.family === activeFamily)
+          .filter(
+            (item) => activeFamily === "all" || item.family === activeFamily,
+          )
           .map(({ value, label }) => ({ value, label })),
       ];
     }
 
     const inferred = new Map<string, string>();
     allRows.forEach((row) => {
-      if (row.requestTypeId && row.type && (activeFamily === "all" || row.family === activeFamily)) {
+      if (
+        row.requestTypeId &&
+        row.type &&
+        (activeFamily === "all" || row.family === activeFamily)
+      ) {
         inferred.set(row.requestTypeId, row.type);
       }
     });
     return [
-      { value: "all", label: activeFamily === "financial" ? "All financial types" : activeFamily === "leave" ? "All leave types" : "All request subtypes" },
-      ...Array.from(inferred.entries()).map(([value, label]) => ({ value, label })),
+      {
+        value: "all",
+        label:
+          activeFamily === "financial"
+            ? "All financial types"
+            : activeFamily === "leave"
+              ? "All leave types"
+              : "All request subtypes",
+      },
+      ...Array.from(inferred.entries()).map(([value, label]) => ({
+        value,
+        label,
+      })),
     ];
   }, [activeFamily, allRows, requestTypes]);
 
@@ -880,10 +969,12 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
     const values = Array.from(
       new Set(
         allRows
-          .filter((row) => activeFamily === "all" || row.family === activeFamily)
+          .filter(
+            (row) => activeFamily === "all" || row.family === activeFamily,
+          )
           .map((row) => row.statusKey)
-          .filter(Boolean)
-      )
+          .filter(Boolean),
+      ),
     );
     return [
       { value: "", label: "All statuses" },
@@ -895,12 +986,18 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
     const values = new Map<string, string>();
     allRows.forEach((row) => {
       if (row.projectId || row.projectName) {
-        values.set(row.projectId || row.projectName, row.projectName || row.projectId);
+        values.set(
+          row.projectId || row.projectName,
+          row.projectName || row.projectId,
+        );
       }
     });
     return [
       { value: "", label: "All projects" },
-      ...Array.from(values.entries()).map(([value, label]) => ({ value, label })),
+      ...Array.from(values.entries()).map(([value, label]) => ({
+        value,
+        label,
+      })),
     ];
   }, [allRows]);
 
@@ -913,7 +1010,10 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
     });
     return [
       { value: "", label: "All teams" },
-      ...Array.from(values.entries()).map(([value, label]) => ({ value, label })),
+      ...Array.from(values.entries()).map(([value, label]) => ({
+        value,
+        label,
+      })),
     ];
   }, [allRows]);
 
@@ -924,12 +1024,18 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
     });
     allRows.forEach((row) => {
       if (row.organizationId || row.organizationName) {
-        values.set(row.organizationId || row.organizationName, row.organizationName || row.organizationId);
+        values.set(
+          row.organizationId || row.organizationName,
+          row.organizationName || row.organizationId,
+        );
       }
     });
     return [
       { value: "", label: "All organizations" },
-      ...Array.from(values.entries()).map(([value, label]) => ({ value, label })),
+      ...Array.from(values.entries()).map(([value, label]) => ({
+        value,
+        label,
+      })),
     ];
   }, [allRows, organizations]);
 
@@ -950,7 +1056,10 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
         return false;
       }
 
-      if (selectedRequestTypeId !== "all" && row.requestTypeId !== selectedRequestTypeId) {
+      if (
+        selectedRequestTypeId !== "all" &&
+        row.requestTypeId !== selectedRequestTypeId
+      ) {
         return false;
       }
 
@@ -1002,7 +1111,11 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
         return false;
       }
 
-      if (selectedOrganization && row.organizationId !== selectedOrganization && row.organizationName !== selectedOrganization) {
+      if (
+        selectedOrganization &&
+        row.organizationId !== selectedOrganization &&
+        row.organizationName !== selectedOrganization
+      ) {
         return false;
       }
 
@@ -1025,10 +1138,16 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
     const direction = sortOrder === "asc" ? 1 : -1;
     return [...filteredRows].sort((first, second) => {
       if (sortBy === "created_at") {
-        return ((new Date(first.createdAtIso || 0).getTime() - new Date(second.createdAtIso || 0).getTime()) || 0) * direction;
+        return (
+          (new Date(first.createdAtIso || 0).getTime() -
+            new Date(second.createdAtIso || 0).getTime() || 0) * direction
+        );
       }
       if (sortBy === "request_number") {
-        return first.id.localeCompare(second.id, undefined, { numeric: true }) * direction;
+        return (
+          first.id.localeCompare(second.id, undefined, { numeric: true }) *
+          direction
+        );
       }
       if (sortBy === "total_amount") {
         return (first.totalAmount - second.totalAmount) * direction;
@@ -1049,7 +1168,21 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [status, selectedRequestTypeId, dateFrom, dateTo, activeScope, activeFamily, search, selectedProject, selectedTeam, selectedOrganization, sortBy, sortOrder, perPage]);
+  }, [
+    status,
+    selectedRequestTypeId,
+    dateFrom,
+    dateTo,
+    activeScope,
+    activeFamily,
+    search,
+    selectedProject,
+    selectedTeam,
+    selectedOrganization,
+    sortBy,
+    sortOrder,
+    perPage,
+  ]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -1059,7 +1192,11 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
 
   const stats = useMemo(
     () => [
-      { label: "Total Requests", value: String(filteredRows.length), tone: "neutral" as const },
+      {
+        label: "Total Requests",
+        value: String(filteredRows.length),
+        tone: "neutral" as const,
+      },
       {
         label: "Pending Action",
         value: String(filteredRows.filter((row) => isPendingLike(row)).length),
@@ -1067,11 +1204,13 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
       },
       {
         label: "Completed",
-        value: String(filteredRows.filter((row) => isCompletedLike(row)).length),
+        value: String(
+          filteredRows.filter((row) => isCompletedLike(row)).length,
+        ),
         tone: "success" as const,
       },
     ],
-    [filteredRows]
+    [filteredRows],
   );
 
   return (
@@ -1085,7 +1224,9 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
         <PageHeader
           breadcrumbs={[
             { label: "Requests" },
-            { label: activeScope === "approvals" ? "Approvals" : "My Requests" },
+            {
+              label: activeScope === "approvals" ? "Approvals" : "My Requests",
+            },
           ]}
           title={activeScope === "approvals" ? "Approvals" : "My Requests"}
           description={
@@ -1119,7 +1260,9 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
               }}
               className={[
                 "rounded-full px-4 py-2 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-                activeFamily === tab.key ? "bg-brand-900 text-white" : "bg-slate-100 text-slate-600 hover:text-slate-900",
+                activeFamily === tab.key
+                  ? "bg-brand-900 text-white"
+                  : "bg-slate-100 text-slate-600 hover:text-slate-900",
               ].join(" ")}
             >
               {tab.label}
@@ -1172,6 +1315,8 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
               onSortByChange={setSortBy}
               sortOrder={sortOrder}
               onSortOrderChange={setSortOrder}
+              perPage={perPage}
+              onPerPageChange={setPerPage}
             />
             <RequestsListTable
               activeFamily={activeFamily}
@@ -1183,7 +1328,6 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
               totalPages={totalPages}
               totalCount={filteredRows.length}
               perPage={perPage}
-              onPerPageChange={setPerPage}
               onPageChange={setCurrentPage}
               onRetry={() => {
                 void refetchRequests();
@@ -1200,13 +1344,16 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
                 items={[
                   {
                     title: "Draft a new request",
-                    description: "Start a financial or leave request from the request center.",
+                    description:
+                      "Start a financial or leave request from the request center.",
                     time: "Now",
                     tone: "pending",
                     icon: "add",
                   },
                   {
-                    title: canSeeApprovals ? "Check pending approvals" : "Review request activity",
+                    title: canSeeApprovals
+                      ? "Check pending approvals"
+                      : "Review request activity",
                     description: canSeeApprovals
                       ? "Review what needs your attention today."
                       : "Track your latest submissions and actions.",
@@ -1234,12 +1381,18 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
         <div className="grid grid-cols-2 gap-3">
           <StatCard
             label="Active"
-            value={String(filteredRows.filter((row) => row.tone === "pending" || row.tone === "warning").length)}
+            value={String(
+              filteredRows.filter(
+                (row) => row.tone === "pending" || row.tone === "warning",
+              ).length,
+            )}
             tone="neutral"
           />
           <StatCard
             label="Approved"
-            value={String(filteredRows.filter((row) => row.tone === "success").length)}
+            value={String(
+              filteredRows.filter((row) => row.tone === "success").length,
+            )}
             tone="success"
           />
         </div>
@@ -1261,7 +1414,9 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
                 }}
                 className={[
                   "rounded-full px-4 py-2 text-sm font-semibold transition",
-                  activeFamily === item.key ? "bg-brand-900 text-white" : "bg-slate-100 text-slate-600",
+                  activeFamily === item.key
+                    ? "bg-brand-900 text-white"
+                    : "bg-slate-100 text-slate-600",
                 ].join(" ")}
               >
                 {item.label}
@@ -1279,36 +1434,41 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
             void refetchRequests();
           }}
         />
-        <section className="section-card flex items-center justify-between p-3 text-sm text-slate-600">
-          <select
-            value={perPage}
+        <section className="section-card grid gap-3 p-3 text-sm text-slate-600">
+          <SelectField
+            label="Per Page"
+            value={String(perPage)}
             onChange={(event) => setPerPage(Number(event.target.value))}
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700"
+            className="w-full"
           >
             <option value={5}>5 / page</option>
             <option value={10}>10 / page</option>
             <option value={25}>25 / page</option>
             <option value={50}>50 / page</option>
-          </select>
-          <button
-            type="button"
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={safePage <= 1}
-            onClick={() => setCurrentPage((value) => Math.max(1, value - 1))}
-          >
-            Previous
-          </button>
-          <span>
-            Page {safePage} of {totalPages}
-          </span>
-          <button
-            type="button"
-            className="rounded-full border border-slate-200 bg-white px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={safePage >= totalPages}
-            onClick={() => setCurrentPage((value) => Math.min(totalPages, value + 1))}
-          >
-            Next
-          </button>
+          </SelectField>
+          <div className="flex items-center justify-between gap-3">
+            <button
+              type="button"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={safePage <= 1}
+              onClick={() => setCurrentPage((value) => Math.max(1, value - 1))}
+            >
+              Previous
+            </button>
+            <span>
+              Page {safePage} of {totalPages}
+            </span>
+            <button
+              type="button"
+              className="rounded-full border border-slate-200 bg-white px-3 py-1.5 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={safePage >= totalPages}
+              onClick={() =>
+                setCurrentPage((value) => Math.min(totalPages, value + 1))
+              }
+            >
+              Next
+            </button>
+          </div>
         </section>
 
         <section className="section-card p-4">
@@ -1317,7 +1477,9 @@ export function RequestsListPage({ scope = "mine" }: { scope?: RequestScope }) {
               <Icon name="help" className="text-[18px]" />
             </span>
             <div>
-              <h2 className="text-sm font-semibold text-slate-950">Need help with a request?</h2>
+              <h2 className="text-sm font-semibold text-slate-950">
+                Need help with a request?
+              </h2>
               <p className="mt-1 text-sm leading-6 text-slate-500">
                 Our support team is available 24/7 for operational queries.
               </p>

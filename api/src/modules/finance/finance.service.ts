@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
 import { DisburseRequestDto } from './dto/disburse-request.dto';
@@ -26,6 +26,8 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 @Injectable()
 export class FinanceService {
+  private readonly logger = new Logger(FinanceService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
@@ -110,6 +112,8 @@ export class FinanceService {
   async listRequests(query: Record<string, any>) {
     const page = Math.max(1, Number(query.page ?? 1));
     const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
+    const sortBy = String(query.order_by ?? query.sort_by ?? 'created_at').toLowerCase();
+    const sortDir = String(query.order_dir ?? query.sort_dir ?? 'desc').toLowerCase() === 'asc' ? 'asc' : 'desc';
 
     const where: any = {
       status: {
@@ -117,7 +121,7 @@ export class FinanceService {
       }
     };
 
-    if (query.status) where.status = String(query.status);
+    if (query.status && String(query.status).toLowerCase() !== 'all') where.status = String(query.status);
     if (query.currency) where.currency = String(query.currency).toUpperCase();
 
     const [rows] = await this.prisma.$transaction([
@@ -126,6 +130,7 @@ export class FinanceService {
         include: {
           requestType: true,
           group: true,
+          organization: true,
           creator: { select: { id: true, email: true, username: true, firstName: true, lastName: true } }
         },
         orderBy: { createdAt: 'desc' },
@@ -172,11 +177,153 @@ export class FinanceService {
       return financeApprovalInstanceIds.has(row.workflowInstanceId);
     });
 
-    const total = filtered.length;
-    const pageData = filtered.slice((page - 1) * perPage, (page - 1) * perPage + perPage);
+    const enriched = await Promise.all(
+      filtered.map(async (row) => {
+        const requestNumber = await this.getFormattedRequestNumber(row.id);
+        const creatorName =
+          `${row.creator.firstName ?? ''} ${row.creator.lastName ?? ''}`.trim() ||
+          row.creator.username ||
+          row.creator.email ||
+          '-';
+        const requestData =
+          row.data && typeof row.data === 'object' && !Array.isArray(row.data)
+            ? (row.data as Record<string, unknown>)
+            : {};
+        const projectName = String(requestData.project_name || requestData.project || '').trim();
+        const teamName = String(requestData.team_name || requestData.team || '').trim();
+        const organizationName = String(
+          row.organization?.name || requestData.organization_name || requestData.organization || '',
+        ).trim();
+        const purpose = String(requestData.purpose || requestData.leave_reason || '').trim();
+        return {
+          row,
+          requestNumber,
+          creatorName,
+          projectName,
+          teamName,
+          organizationName,
+          purpose,
+          searchText: [
+            requestNumber,
+            creatorName,
+            row.requestType?.name ?? '',
+            projectName,
+            teamName,
+            organizationName,
+            purpose,
+            String(row.status ?? ''),
+          ]
+            .join(' ')
+            .toLowerCase(),
+          dueDate: String(requestData.due_date || '').slice(0, 10),
+          totalAmount: Number(row.totalAmount ?? 0),
+        };
+      })
+    );
+
+    const q = String(query.q ?? query.search ?? '').trim().toLowerCase();
+    const statusFilter = String(query.status ?? '').trim().toLowerCase();
+    const projectFilter = String(query.project ?? query.project_name ?? '').trim().toLowerCase();
+    const groupFilter = String(query.group ?? query.team ?? query.team_name ?? '').trim().toLowerCase();
+    const organizationFilter = String(query.organization ?? query.organization_name ?? '').trim().toLowerCase();
+    const dueDateFilter = String(query.due_date ?? '').trim().slice(0, 10);
+
+    const filteredByQuery = enriched.filter((entry) => {
+      if (statusFilter && statusFilter !== 'all' && String(entry.row.status ?? '').toLowerCase() !== statusFilter) {
+        return false;
+      }
+      if (q && !entry.searchText.includes(q)) return false;
+      if (projectFilter) {
+        const projectName = String((entry.row.data as Record<string, unknown> | null)?.project_name || (entry.row.data as Record<string, unknown> | null)?.project || '').trim().toLowerCase();
+        const projectId = String((entry.row.data as Record<string, unknown> | null)?.project_id || '').trim().toLowerCase();
+        if (projectName !== projectFilter && projectId !== projectFilter) return false;
+      }
+      if (groupFilter) {
+        const groupName = String((entry.row.data as Record<string, unknown> | null)?.team_name || (entry.row.data as Record<string, unknown> | null)?.team || '').trim().toLowerCase();
+        const groupId = String((entry.row.data as Record<string, unknown> | null)?.team_id || '').trim().toLowerCase();
+        if (groupName !== groupFilter && groupId !== groupFilter) return false;
+      }
+      if (organizationFilter) {
+        const organizationName = String(entry.organizationName || '').trim().toLowerCase();
+        const organizationId = String((entry.row.data as Record<string, unknown> | null)?.organization_id || '').trim().toLowerCase();
+        if (organizationName !== organizationFilter && organizationId !== organizationFilter) return false;
+      }
+      if (dueDateFilter && entry.dueDate !== dueDateFilter) return false;
+      return true;
+    });
+
+    const sorted = [...filteredByQuery].sort((left, right) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'request_number':
+          comparison = left.requestNumber.localeCompare(right.requestNumber, undefined, { numeric: true, sensitivity: 'base' });
+          break;
+        case 'total_amount':
+          comparison = left.totalAmount - right.totalAmount;
+          break;
+        case 'status':
+          comparison = String(left.row.status ?? '').localeCompare(String(right.row.status ?? ''), undefined, { sensitivity: 'base' });
+          break;
+        case 'request_type':
+          comparison = String(left.row.requestType?.name ?? '').localeCompare(String(right.row.requestType?.name ?? ''), undefined, { sensitivity: 'base' });
+          break;
+        case 'created_at':
+        default:
+          comparison = left.row.createdAt.getTime() - right.row.createdAt.getTime();
+          break;
+      }
+      if (comparison === 0) {
+        comparison = left.row.id < right.row.id ? -1 : left.row.id > right.row.id ? 1 : 0;
+      }
+      return sortDir === 'asc' ? comparison : -comparison;
+    });
+
+    const total = sorted.length;
+    const pageData = sorted.slice((page - 1) * perPage, (page - 1) * perPage + perPage);
 
     return {
-      data: pageData,
+      data: pageData.map((entry) => ({
+        id: entry.row.id.toString(),
+        request_number: entry.requestNumber,
+        request_status: entry.row.status,
+        request_type: {
+          id: entry.row.requestType.id,
+          name: entry.row.requestType.name,
+          code_prefix: entry.row.requestType.codePrefix,
+          category_key: entry.row.requestType.categoryKey ?? null,
+          approval_flow_json: entry.row.requestType.approvalFlowJson ?? null,
+          form_schema: entry.row.requestType.formSchema ?? null
+        },
+        request_creator_name: entry.creatorName,
+        request_total_amount: Number(entry.row.totalAmount ?? 0),
+        currency: entry.row.currency,
+        creator: {
+          id: entry.row.creator.id.toString(),
+          username: entry.row.creator.username,
+          email: entry.row.creator.email,
+          first_name: entry.row.creator.firstName,
+          last_name: entry.row.creator.lastName
+        },
+        group: entry.row.group
+          ? {
+              id: entry.row.group.id,
+              name: entry.row.group.name,
+              code: entry.row.group.code
+            }
+          : null,
+        organization: entry.row.organization
+          ? {
+              id: entry.row.organization.id.toString(),
+              name: entry.row.organization.name,
+              code: entry.row.organization.code
+            }
+          : null,
+        data: entry.row.data,
+        total_amount: Number(entry.row.totalAmount ?? 0),
+        created_at: entry.row.createdAt.toISOString(),
+        updated_at: entry.row.updatedAt.toISOString(),
+        items: []
+      })),
       meta: {
         page,
         per_page: perPage,
@@ -186,197 +333,276 @@ export class FinanceService {
     };
   }
 
-  async disburseRequest(requestId: string, dto: DisburseRequestDto, actorId?: string) {
+  async disburseRequest(requestId: string, dto: DisburseRequestDto, actorId?: string, traceId?: string) {
     const id = this.parseId(requestId, 'request id');
-    const request = await this.prisma.requestInstance.findUnique({ where: { id } });
-    if (!request) throw new NotFoundException('Request not found');
-
-    if (!['cleared', 'disbursed'].includes(request.status)) {
-      throw new BadRequestException('Request is not in a disbursable state');
-    }
-
-    const now = dto.disbursed_at ? new Date(dto.disbursed_at) : new Date();
-    if (Number.isNaN(now.getTime())) {
-      throw new BadRequestException('Invalid disbursed_at date');
-    }
-    const requestTotal = request.totalAmount !== null ? Number(request.totalAmount) : 0;
-    const disbursedAggregate = await this.prisma.financePaymentVoucher.aggregate({
-      where: { requestId: id },
-      _sum: { amount: true }
-    });
-    const alreadyDisbursed = Number(disbursedAggregate._sum.amount ?? 0);
-    const balanceBefore = Math.max(0, requestTotal - alreadyDisbursed);
-    const disburseAmount = dto.amount ?? balanceBefore;
-    if (!disburseAmount || disburseAmount <= 0) {
-      throw new BadRequestException('Disbursement amount must be greater than zero');
-    }
-    if (disburseAmount > balanceBefore) {
-      throw new BadRequestException('Disbursement amount cannot exceed request balance');
-    }
-    const evidenceFileIds = Array.from(
-      new Set([dto.evidence_file_id ?? null, ...(dto.evidence_file_ids ?? [])].filter((id): id is string => Boolean(id)))
+    const tracePrefix = traceId ? `[traceId=${traceId}] ` : '';
+    const traceLog = (message: string) => this.logger.log(`${tracePrefix}${message}`);
+    const traceWarn = (message: string) => this.logger.warn(`${tracePrefix}${message}`);
+    const traceError = (message: string, stack?: string) => this.logger.error(`${tracePrefix}${message}`, stack);
+    traceLog(
+      `disburseRequest:start requestId=${id.toString()} actorId=${actorId ?? 'unknown'} amount=${dto.amount ?? 'auto'} method=${dto.method ?? 'none'} paidFromAccount=${dto.paid_from_account_id ?? 'none'} evidenceCount=${dto.evidence_file_ids?.length ?? 0}`,
     );
-    if (evidenceFileIds.length > 0) {
-      const fileExists = await this.prisma.fileAsset.count({ where: { id: { in: evidenceFileIds } } });
-      if (fileExists !== evidenceFileIds.length) throw new BadRequestException('Invalid disbursement evidence file');
-    }
-    const activeAccountCount = await this.prisma.financeAccount.count({ where: { isActive: true } });
-    if (activeAccountCount > 0 && !dto.paid_from_account_id) {
-      throw new BadRequestException('paid_from_account_id is required when finance accounts are configured');
-    }
-    let paidFromAccount: { id: string; currency: string; isActive: boolean } | null = null;
-    if (dto.paid_from_account_id) {
-      paidFromAccount = await this.prisma.financeAccount.findUnique({
-        where: { id: dto.paid_from_account_id },
-        select: { id: true, currency: true, isActive: true }
-      });
-      if (!paidFromAccount || !paidFromAccount.isActive) {
-        throw new BadRequestException('Invalid paid_from_account_id');
-      }
-    }
-    const existingData =
-      request.data && typeof request.data === 'object' && !Array.isArray(request.data)
-        ? ({ ...(request.data as Record<string, unknown>) } as Record<string, unknown>)
-        : {};
-    const requestFundId = typeof existingData.fund_id === 'string' ? existingData.fund_id : null;
-    const requestGrantId = typeof existingData.grant_id === 'string' ? existingData.grant_id : null;
-    const { fund, grant } = await this.validateFundGrant(requestFundId, requestGrantId);
-    const stateEvents = Array.isArray(existingData.state_events) ? (existingData.state_events as unknown[]) : [];
-    const disbursementEvents = Array.isArray(existingData.disbursement_events)
-      ? (existingData.disbursement_events as unknown[])
-      : [];
-    const voucherNumber = await this.nextVoucherNumber(now.getFullYear());
-
-    const disbursementPayload = {
-      note: dto.note ?? null,
-      method: dto.method ?? null,
-      transaction_ref: dto.transaction_ref ?? null,
-      amount: disburseAmount,
-      evidence_file_id: evidenceFileIds[0] ?? null,
-      evidence_file_ids: evidenceFileIds,
-      disbursed_at: now.toISOString()
-    };
-
-    const voucher = await this.prisma.financePaymentVoucher.create({
-      data: {
-        requestId: id,
-        paidFromAccountId: dto.paid_from_account_id ?? null,
-        fundId: fund?.id ?? null,
-        grantId: grant?.id ?? null,
-        voucherNumber,
-        amount: disburseAmount,
-        method: dto.method ?? null,
-        transactionRef: dto.transaction_ref ?? null,
-        note: dto.note ?? null,
-        evidenceFileId: evidenceFileIds[0] ?? null,
-        disbursedAt: now
-      }
-    });
-    if (evidenceFileIds.length > 0) {
-      await this.prisma.financePaymentVoucherFile.createMany({
-        data: evidenceFileIds.map((fileId, index) => ({
-          voucherId: voucher.id,
-          fileId,
-          fileKind: 'evidence',
-          sortOrder: index
-        }))
-      });
-    }
-    if (paidFromAccount) {
-      await this.prisma.financeLedgerEntry.create({
-        data: {
-          accountId: paidFromAccount.id,
-          direction: 'out',
-          amount: disburseAmount,
-          currency: request.currency || paidFromAccount.currency || 'NGN',
-          entryDate: now,
-          description: `Disbursement ${voucherNumber} for request ${request.id.toString()}`,
-          sourceType: 'finance_payment_voucher',
-          sourceId: voucher.id,
-          createdBy: actorId ? toBigInt(actorId) : null,
-          metadata: {
-            request_id: request.id.toString(),
-            voucher_number: voucherNumber
-          } as Prisma.InputJsonValue
-        }
-      });
-    }
-
-    await this.postPaymentVoucherJournal(voucher, request.organizationId, request.teamId, actorId);
-    if (request.workflowInstanceId) {
-      await this.prisma.workflowHistory.create({
-        data: {
-          instanceId: request.workflowInstanceId,
-          action: 'pv_disbursed',
-          performedBy: actorId ? toBigInt(actorId) : null,
-          data: {
-            request_id: request.id.toString(),
-            voucher_number: voucherNumber,
-            amount: disburseAmount,
-            method: dto.method ?? null,
-            transaction_ref: dto.transaction_ref ?? null
-          } as Prisma.InputJsonValue
-        }
-      });
-    }
-
-    const updated = await this.prisma.requestInstance.update({
-      where: { id },
-      data: {
-        status: 'disbursed',
-        data: {
-          ...existingData,
-          voucher_number: voucherNumber,
-          disbursement: disbursementPayload,
-          disbursement_events: [...disbursementEvents, disbursementPayload],
-          state_events: [
-            ...stateEvents,
-            {
-              from: request.status,
-              to: 'disbursed',
-              action: 'disburse',
-              by: 'finance',
-              comment: dto.note ?? null,
-              at: now.toISOString()
-            }
-          ]
-        } as any
-      }
-    });
 
     try {
-      const formattedRequestNumber = await this.getFormattedRequestNumber(
-        request.id,
+      const request = await this.prisma.requestInstance.findUnique({ where: { id } });
+      if (!request) {
+        traceWarn(`disburseRequest:blocked requestId=${id.toString()} reason=request_not_found`);
+        throw new NotFoundException('Request not found');
+      }
+      traceLog(
+        `disburseRequest:request-loaded requestId=${id.toString()} status=${request.status} totalAmount=${request.totalAmount ?? 0} currency=${request.currency ?? 'unknown'} workflowInstanceId=${request.workflowInstanceId ?? 'none'}`,
       );
-      await this.notificationsService.create({
-        userId: request.createdBy,
-        type: 'success',
-        title: 'Request disbursed',
-        message: `Your request #${request.id.toString()} has been disbursed and is awaiting your confirmation.`,
-        data: {
-          requestId: request.id.toString(),
-          note: dto.note,
-          voucher_number: voucherNumber,
-          transaction_ref: dto.transaction_ref
-        },
-        notifiableType: 'request',
-        notifiableId: request.id,
-        emailSubject: `Request disbursed (${formattedRequestNumber})`,
-        emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
-      });
-    } catch (error) {
-      console.error('disburseRequest notification failed', error);
-    }
 
-    return {
-      id: updated.id.toString(),
-      status: updated.status,
-      total_amount: updated.totalAmount !== null ? Number(updated.totalAmount) : 0,
-      currency: updated.currency,
-      created_at: updated.createdAt.toISOString(),
-      updated_at: updated.updatedAt.toISOString(),
-      data: updated.data
-    };
+      if (!['cleared', 'disbursed'].includes(request.status)) {
+        traceWarn(
+          `disburseRequest:blocked requestId=${id.toString()} reason=not_disbursable status=${request.status}`,
+        );
+        throw new BadRequestException('Request is not in a disbursable state');
+      }
+
+      const now = dto.disbursed_at ? new Date(dto.disbursed_at) : new Date();
+      if (Number.isNaN(now.getTime())) {
+        traceWarn(`disburseRequest:blocked requestId=${id.toString()} reason=invalid_disbursed_at`);
+        throw new BadRequestException('Invalid disbursed_at date');
+      }
+      const requestTotal = request.totalAmount !== null ? Number(request.totalAmount) : 0;
+      const disbursedAggregate = await this.prisma.financePaymentVoucher.aggregate({
+        where: { requestId: id },
+        _sum: { amount: true }
+      });
+      const alreadyDisbursed = Number(disbursedAggregate._sum.amount ?? 0);
+      const balanceBefore = Math.max(0, requestTotal - alreadyDisbursed);
+      const disburseAmount = dto.amount ?? balanceBefore;
+      traceLog(
+        `disburseRequest:balance requestId=${id.toString()} requestTotal=${requestTotal} alreadyDisbursed=${alreadyDisbursed} balanceBefore=${balanceBefore} disburseAmount=${disburseAmount}`,
+      );
+      if (!disburseAmount || disburseAmount <= 0) {
+        traceWarn(
+          `disburseRequest:blocked requestId=${id.toString()} reason=non_positive_amount amount=${disburseAmount}`,
+        );
+        throw new BadRequestException('Disbursement amount must be greater than zero');
+      }
+      if (disburseAmount > balanceBefore) {
+        traceWarn(
+          `disburseRequest:blocked requestId=${id.toString()} reason=amount_exceeds_balance amount=${disburseAmount} balanceBefore=${balanceBefore}`,
+        );
+        throw new BadRequestException('Disbursement amount cannot exceed request balance');
+      }
+      const evidenceFileIds = Array.from(
+        new Set([dto.evidence_file_id ?? null, ...(dto.evidence_file_ids ?? [])].filter((value): value is string => Boolean(value)))
+      );
+      traceLog(
+        `disburseRequest:evidence requestId=${id.toString()} evidenceFileIds=${evidenceFileIds.length ? evidenceFileIds.join(',') : 'none'}`,
+      );
+      if (evidenceFileIds.length > 0) {
+        const fileExists = await this.prisma.fileAsset.count({ where: { id: { in: evidenceFileIds } } });
+        if (fileExists !== evidenceFileIds.length) {
+          traceWarn(
+            `disburseRequest:blocked requestId=${id.toString()} reason=invalid_evidence_file expected=${evidenceFileIds.length} found=${fileExists}`,
+          );
+          throw new BadRequestException('Invalid disbursement evidence file');
+        }
+      }
+      const activeAccountCount = await this.prisma.financeAccount.count({ where: { isActive: true } });
+      traceLog(
+        `disburseRequest:finance-accounts requestId=${id.toString()} activeAccountCount=${activeAccountCount} paidFromAccountId=${dto.paid_from_account_id ?? 'none'}`,
+      );
+      if (activeAccountCount > 0 && !dto.paid_from_account_id) {
+        traceWarn(
+          `disburseRequest:blocked requestId=${id.toString()} reason=missing_paid_from_account_id activeAccountCount=${activeAccountCount}`,
+        );
+        throw new BadRequestException('paid_from_account_id is required when finance accounts are configured');
+      }
+      let paidFromAccount: { id: string; currency: string; isActive: boolean } | null = null;
+      if (dto.paid_from_account_id) {
+        paidFromAccount = await this.prisma.financeAccount.findUnique({
+          where: { id: dto.paid_from_account_id },
+          select: { id: true, currency: true, isActive: true }
+        });
+        if (!paidFromAccount || !paidFromAccount.isActive) {
+          traceWarn(
+            `disburseRequest:blocked requestId=${id.toString()} reason=invalid_paid_from_account_id paidFromAccountId=${dto.paid_from_account_id}`,
+          );
+          throw new BadRequestException('Invalid paid_from_account_id');
+        }
+      }
+      const existingData =
+        request.data && typeof request.data === 'object' && !Array.isArray(request.data)
+          ? ({ ...(request.data as Record<string, unknown>) } as Record<string, unknown>)
+          : {};
+      const requestFundId = typeof existingData.fund_id === 'string' ? existingData.fund_id : null;
+      const requestGrantId = typeof existingData.grant_id === 'string' ? existingData.grant_id : null;
+      traceLog(
+        `disburseRequest:fund-grant requestId=${id.toString()} fundId=${requestFundId ?? 'none'} grantId=${requestGrantId ?? 'none'}`,
+      );
+      const { fund, grant } = await this.validateFundGrant(requestFundId, requestGrantId);
+      const stateEvents = Array.isArray(existingData.state_events) ? (existingData.state_events as unknown[]) : [];
+      const disbursementEvents = Array.isArray(existingData.disbursement_events)
+        ? (existingData.disbursement_events as unknown[])
+        : [];
+      const voucherNumber = await this.nextVoucherNumber(now.getFullYear());
+      traceLog(`disburseRequest:voucher-number requestId=${id.toString()} voucherNumber=${voucherNumber}`);
+
+      const disbursementPayload = {
+        note: dto.note ?? null,
+        method: dto.method ?? null,
+        transaction_ref: dto.transaction_ref ?? null,
+        amount: disburseAmount,
+        evidence_file_id: evidenceFileIds[0] ?? null,
+        evidence_file_ids: evidenceFileIds,
+        disbursed_at: now.toISOString()
+      };
+
+      const voucher = await this.prisma.financePaymentVoucher.create({
+        data: {
+          requestId: id,
+          paidFromAccountId: dto.paid_from_account_id ?? null,
+          fundId: fund?.id ?? null,
+          grantId: grant?.id ?? null,
+          voucherNumber,
+          amount: disburseAmount,
+          method: dto.method ?? null,
+          transactionRef: dto.transaction_ref ?? null,
+          note: dto.note ?? null,
+          evidenceFileId: evidenceFileIds[0] ?? null,
+          disbursedAt: now
+        }
+      });
+      traceLog(
+        `disburseRequest:voucher-created requestId=${id.toString()} voucherId=${voucher.id} voucherNumber=${voucherNumber}`,
+      );
+      if (evidenceFileIds.length > 0) {
+        await this.prisma.financePaymentVoucherFile.createMany({
+          data: evidenceFileIds.map((fileId, index) => ({
+            voucherId: voucher.id,
+            fileId,
+            fileKind: 'evidence',
+            sortOrder: index
+          }))
+        });
+        traceLog(
+          `disburseRequest:voucher-evidence-linked requestId=${id.toString()} voucherId=${voucher.id} evidenceCount=${evidenceFileIds.length}`,
+        );
+      }
+      if (paidFromAccount) {
+        await this.prisma.financeLedgerEntry.create({
+          data: {
+            accountId: paidFromAccount.id,
+            direction: 'out',
+            amount: disburseAmount,
+            currency: request.currency || paidFromAccount.currency || 'NGN',
+            entryDate: now,
+            description: `Disbursement ${voucherNumber} for request ${request.id.toString()}`,
+            sourceType: 'finance_payment_voucher',
+            sourceId: voucher.id,
+            createdBy: actorId ? toBigInt(actorId) : null,
+            metadata: {
+              request_id: request.id.toString(),
+              voucher_number: voucherNumber
+            } as Prisma.InputJsonValue
+          }
+        });
+        traceLog(
+          `disburseRequest:ledger-created requestId=${id.toString()} voucherId=${voucher.id} paidFromAccountId=${paidFromAccount.id} amount=${disburseAmount}`,
+        );
+      }
+
+      traceLog(`disburseRequest:journal-start requestId=${id.toString()} voucherId=${voucher.id}`);
+      await this.postPaymentVoucherJournal(voucher, request.organizationId, request.teamId, actorId);
+      traceLog(`disburseRequest:journal-complete requestId=${id.toString()} voucherId=${voucher.id}`);
+      if (request.workflowInstanceId) {
+        await this.prisma.workflowHistory.create({
+          data: {
+            instanceId: request.workflowInstanceId,
+            action: 'pv_disbursed',
+            performedBy: actorId ? toBigInt(actorId) : null,
+            data: {
+              request_id: request.id.toString(),
+              voucher_number: voucherNumber,
+              amount: disburseAmount,
+              method: dto.method ?? null,
+              transaction_ref: dto.transaction_ref ?? null
+            } as Prisma.InputJsonValue
+          }
+        });
+        traceLog(
+          `disburseRequest:workflow-history-created requestId=${id.toString()} workflowInstanceId=${request.workflowInstanceId}`,
+        );
+      }
+
+      traceLog(`disburseRequest:request-update-start requestId=${id.toString()} statusFrom=${request.status} statusTo=disbursed`);
+      const updated = await this.prisma.requestInstance.update({
+        where: { id },
+        data: {
+          status: 'disbursed',
+          data: {
+            ...existingData,
+            voucher_number: voucherNumber,
+            disbursement: disbursementPayload,
+            disbursement_events: [...disbursementEvents, disbursementPayload],
+            state_events: [
+              ...stateEvents,
+              {
+                from: request.status,
+                to: 'disbursed',
+                action: 'disburse',
+                by: 'finance',
+                comment: dto.note ?? null,
+                at: now.toISOString()
+              }
+            ]
+          } as any
+        }
+      });
+      traceLog(
+        `disburseRequest:request-update-complete requestId=${id.toString()} updatedStatus=${updated.status} updatedId=${updated.id.toString()}`,
+      );
+
+      try {
+        traceLog(
+          `disburseRequest:notification-start requestId=${id.toString()} createdBy=${request.createdBy.toString()}`,
+        );
+        const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+        await this.notificationsService.create({
+          userId: request.createdBy,
+          type: 'success',
+          title: 'Request disbursed',
+          message: `Your request #${request.id.toString()} has been disbursed and is awaiting your confirmation.`,
+          data: {
+            requestId: request.id.toString(),
+            note: dto.note,
+            voucher_number: voucherNumber,
+            transaction_ref: dto.transaction_ref
+          },
+          notifiableType: 'request',
+          notifiableId: request.id,
+          emailSubject: `Request disbursed (${formattedRequestNumber})`,
+          emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
+        });
+        traceLog(`disburseRequest:notification-complete requestId=${id.toString()}`);
+      } catch (error) {
+        traceWarn(
+          `disburseRequest:notification-failed requestId=${id.toString()} error=${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+
+      traceLog(`disburseRequest:complete requestId=${id.toString()} voucherId=${voucher.id}`);
+      return {
+        id: updated.id.toString(),
+        status: updated.status,
+        total_amount: updated.totalAmount !== null ? Number(updated.totalAmount) : 0,
+        currency: updated.currency,
+        created_at: updated.createdAt.toISOString(),
+        updated_at: updated.updatedAt.toISOString(),
+        data: updated.data
+      };
+    } catch (error) {
+      traceError(
+        `disburseRequest:failed requestId=${id.toString()} error=${error instanceof Error ? error.message : String(error)}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw error;
+    }
   }
 
   async listPaymentVouchers(requestId: string) {
@@ -5205,7 +5431,7 @@ export class FinanceService {
     if (Math.abs(totalDebit - totalCredit) > 0.001) {
       throw new BadRequestException('Journal entry is not balanced');
     }
-    const entryNo = await this.nextSequenceValue('JE', input.entryDate);
+    const entryNo = await this.nextSequenceValue(tx, 'JE', input.entryDate);
     return tx.financeJournalEntry.create({
       data: {
         entryNo,
@@ -5235,10 +5461,50 @@ export class FinanceService {
     });
   }
 
-  private async nextSequenceValue(prefix: string, date: Date) {
+  private async nextSequenceValue(tx: Prisma.TransactionClient, prefix: string, date: Date) {
     const year = date.getFullYear();
-    const count = await this.prisma.financeJournalEntry.count({ where: { entryNo: { startsWith: `${prefix}/${year}/` } } }).catch(() => 0);
-    return `${prefix}/${year}/${String(count + 1).padStart(4, '0')}`;
+    const sequenceId = `${prefix}:${year}`;
+    const rows = await tx.$queryRaw<Array<{ last_number: number }>>(
+      Prisma.sql`
+        WITH current_max AS (
+          SELECT COALESCE(
+            MAX(
+              CAST(
+                NULLIF(split_part("entry_no", '/', 3), '') AS INTEGER
+              )
+            ),
+            0
+          ) AS "max_number"
+          FROM "sta_finance_journal_entries"
+          WHERE "entry_no" LIKE ${`${prefix}/${year}/%`}
+        )
+        INSERT INTO "sta_finance_journal_sequences" (
+          "id",
+          "prefix",
+          "sequence_year",
+          "last_number",
+          "created_at",
+          "updated_at"
+        )
+        VALUES (
+          ${sequenceId},
+          ${prefix},
+          ${year},
+          (SELECT "max_number" + 1 FROM current_max),
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT ("id") DO UPDATE
+        SET "last_number" = GREATEST("sta_finance_journal_sequences"."last_number", (SELECT "max_number" FROM current_max)) + 1,
+            "updated_at" = NOW()
+        RETURNING "last_number"
+      `,
+    );
+    const lastNumber = Number(rows[0]?.last_number ?? 0);
+    if (!lastNumber) {
+      throw new BadRequestException('Unable to generate journal entry number');
+    }
+    return `${prefix}/${year}/${String(lastNumber).padStart(4, '0')}`;
   }
 
   private async nextDocumentSequenceValue(

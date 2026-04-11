@@ -9,19 +9,19 @@ import {
 } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/components/layout/AppShell";
-import { useAuth } from "@/features/auth/AuthProvider";
-import { getMyAttendance } from "@/features/attendance/attendance-api";
+import { useAuth } from "@/context/AuthProvider";
+import { getMyAttendance } from "@/api/attendance/attendance-api";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/features/requests/requests-data";
-import { listApprovals, listRequests } from "@/features/requests/requests-api";
+} from "@/lib/requests/requests-data";
+import { listApprovals, listRequests } from "@/api/requests/requests-api";
 import {
   formatDisplayDate,
   formatRequestStatus,
   requestFamilyFromType,
   requestStatusTone,
-} from "@/features/requests/request-helpers";
+} from "@/lib/requests/request-helpers";
 import {
   getWorkspaceProfile,
   listWorkspaceNotifications,

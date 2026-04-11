@@ -25,16 +25,17 @@ import {
   type WorkflowStep,
   type WorkflowStepStatus,
 } from "@stanforte/shared";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { useEffect, useMemo, useState } from "react";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
-import { useAuth } from "@/features/auth/AuthProvider";
+import { useAuth } from "@/context/AuthProvider";
 import { cacheStore, useCachedQuery } from "@/lib/core";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
   requestsMobileNav,
-} from "./requests-data";
+} from "../../lib/requests/requests-data";
 import {
   approveRequest,
   deleteRequest,
@@ -50,15 +51,15 @@ import {
   listTeams,
   retireRequest,
   submitRequest,
-} from "./requests-api";
-import { listEntityTags, listManagedTaxonomies } from "./taxonomy-api";
-import { listFileAssets, uploadFileAsset } from "./files-api";
+} from "../../api/requests/requests-api";
+import { listEntityTags, listManagedTaxonomies } from "../../api/taxonomy-api";
+import { listFileAssets, uploadFileAsset } from "@/api/files/files-api";
 import {
   listFinanceAccounts,
   listRequestPaymentVouchers,
   type FinancePaymentVoucherRecord,
   updateRequestPaymentVoucher,
-} from "../finance/finance-api";
+} from "../../api/finance/finance-api";
 import { downloadBase64File } from "@/lib/download";
 import {
   formatDisplayDate,
@@ -67,7 +68,7 @@ import {
   formatViewerRequestStatus,
   requestFamilyFromRecord,
   requestStatusTone,
-} from "./request-helpers";
+} from "@/lib/requests/request-helpers";
 
 function normalizeWorkflowLabel(step: Record<string, any>, index: number) {
   const role = String(
@@ -295,7 +296,8 @@ function deriveRequestWorkflowStatus(request: any) {
     }) ||
     (Array.isArray(request?.approvals?.pending) &&
       request.approvals.pending.length > 0) ||
-    (Array.isArray(request?.approvals?.done) && request.approvals.done.length > 0);
+    (Array.isArray(request?.approvals?.done) &&
+      request.approvals.done.length > 0);
 
   if (rawStatus === "draft" && hasSubmitted) {
     return "approval";
@@ -315,14 +317,185 @@ function requestHasDraftHistory(request: any) {
   );
 }
 
+function formatCertificateCurrency(amount: number, currency?: string | null) {
+  const value = Number.isFinite(amount) ? amount : 0;
+  const formatted = new Intl.NumberFormat("en-NG", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value);
+  const prefix = currency ? String(currency).toUpperCase() : "NGN";
+  return `${prefix} ${formatted}`;
+}
+
+async function buildCertificateOfHonorPdf(input: {
+  requestLabel: string;
+  voucherNumber: string;
+  staffName: string;
+  amountLabel: string;
+  declaration: string;
+  reason: string;
+  issuedAt: string;
+}) {
+  const pdf = await PDFDocument.create();
+  const page = pdf.addPage([595.28, 841.89]);
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const marginX = 48;
+  let y = 792;
+
+  const write = (
+    text: string,
+    size = 11,
+    isBold = false,
+    indent = 0,
+    lineGap = 18,
+  ) => {
+    if (y < 72) y = 792;
+    page.drawText(text, {
+      x: marginX + indent,
+      y,
+      size,
+      font: isBold ? bold : regular,
+    });
+    y -= lineGap;
+  };
+
+  write("CERTIFICATE OF HONOR", 20, true);
+  write("Cash Advance Retirement Declaration", 12, true);
+  y -= 12;
+  write(`Request: ${input.requestLabel}`, 11, true);
+  write(`Payment Voucher: ${input.voucherNumber}`);
+  write(`Staff Member: ${input.staffName}`);
+  write(`Amount: ${input.amountLabel}`);
+  write(`Date: ${input.issuedAt}`);
+  y -= 8;
+  write("Declaration", 13, true);
+  [
+    input.declaration ||
+      "I hereby certify that the cash advance and/or disbursed funds referenced above were used for official purposes.",
+    "Supporting receipts are not available for the full amount because:",
+    input.reason || "No additional explanation provided.",
+  ].forEach((line) => write(line, 11, false, 12, 16));
+  y -= 10;
+  write(
+    "I accept responsibility for the accuracy of this declaration and understand it will",
+    11,
+    false,
+    12,
+    16,
+  );
+  write(
+    "form part of the retirement record for this request.",
+    11,
+    false,
+    12,
+    16,
+  );
+  y -= 18;
+  write("Signature: ____________________________", 11, false);
+  write("Name: ________________________________", 11, false);
+
+  const bytes = await pdf.save();
+  const byteArrayBuffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
+  return new File(
+    [byteArrayBuffer],
+    `Certificate_of_Honor_${input.requestLabel.replace(/[\\/]+/g, "-")}.pdf`,
+    {
+      type: "application/pdf",
+    },
+  );
+}
+
+function DownloadDropdown(props: {
+  actionBusy: string;
+  onDownloadRequestPdf: () => void;
+  onDownloadFullDocument: () => void;
+}) {
+  const { actionBusy, onDownloadRequestPdf, onDownloadFullDocument } = props;
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={menuRef} className="relative w-full">
+      <Button
+        variant="secondary"
+        className="w-full justify-between"
+        onClick={() => setOpen((current) => !current)}
+        disabled={actionBusy !== ""}
+      >
+        <span className="inline-flex items-center gap-2">
+          <Icon name="download" className="text-[18px]" />
+          Download
+        </span>
+        <Icon
+          name={open ? "expand_less" : "expand_more"}
+          className="text-[18px]"
+        />
+      </Button>
+      {open ? (
+        <div className="absolute right-0 z-30 mt-2 w-full min-w-[240px] overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card">
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            onClick={() => {
+              setOpen(false);
+              onDownloadRequestPdf();
+            }}
+          >
+            <Icon name="description" className="text-[18px]" />
+            Request PDF
+          </button>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+            onClick={() => {
+              setOpen(false);
+              onDownloadFullDocument();
+            }}
+          >
+            <Icon name="folder_zip" className="text-[18px]" />
+            Full Document
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+type RequestDetailsView = "mine" | "approvals" | "finance";
+
 export function RequestDetailsPage() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [searchParams] = useSearchParams();
   const [actionComment, setActionComment] = useState("");
   const [actionBusy, setActionBusy] = useState<string>("");
   const [showDisburseDialog, setShowDisburseDialog] = useState(false);
   const [showRetireDialog, setShowRetireDialog] = useState(false);
+  const [showVoucherPreviewDialog, setShowVoucherPreviewDialog] =
+    useState(false);
+  const [previewVoucher, setPreviewVoucher] =
+    useState<FinancePaymentVoucherRecord | null>(null);
   const [disburseMode, setDisburseMode] = useState<"create" | "edit">("create");
   const [editingVoucherId, setEditingVoucherId] = useState<string>("");
   const [disburseForm, setDisburseForm] = useState({
@@ -346,11 +519,18 @@ export function RequestDetailsPage() {
     notes: "",
     retirement_file_ids: [] as string[],
   });
+  const [showCertificateHonorForm, setShowCertificateHonorForm] =
+    useState(false);
+  const [retirementCertificateForm, setRetirementCertificateForm] = useState({
+    declaration:
+      "I hereby certify that the disbursed funds referenced above were used for official purposes in line with the approved request.",
+    reason:
+      "No supporting receipt is available for the full amount because the expense was settled without a formal receipt or the receipt could not be obtained in time for retirement.",
+  });
+  const defaultCertificateReason =
+    "No supporting receipt is available for the full amount because the expense was settled without a formal receipt or the receipt could not be obtained in time for retirement.";
   const id = searchParams.get("id") || "";
-  const detailView =
-    location.pathname.startsWith("/finance/requests")
-      ? "finance"
-      : searchParams.get("view") || "mine";
+  const detailView = (searchParams.get("view") || "mine") as RequestDetailsView;
   const { user } = useAuth();
   const currentUserId = user?.id ? String(user.id) : undefined;
   const { showToast } = useToast();
@@ -506,8 +686,7 @@ export function RequestDetailsPage() {
   const detailMobileNav =
     detailView === "finance" ? buildAppMobileNav("Finance") : requestsMobileNav;
   const canSubmit =
-    (requestActions ?? []).includes("submit") &&
-    workflowStatus === "draft";
+    (requestActions ?? []).includes("submit") && workflowStatus === "draft";
   const canEditDraft = workflowStatus === "draft";
   const roles = (user?.roles ?? []).map((entry) =>
     String(entry).trim().toLowerCase(),
@@ -760,6 +939,30 @@ export function RequestDetailsPage() {
     setShowDisburseDialog(true);
   }
 
+  function openVoucherPreview(voucher: FinancePaymentVoucherRecord) {
+    setPreviewVoucher(voucher);
+    setShowVoucherPreviewDialog(true);
+  }
+
+  function openRetireDialog(voucher?: FinancePaymentVoucherRecord | null) {
+    setRetireForm((current) => ({
+      ...current,
+      voucher_id: voucher?.id || retireableVoucher?.id || current.voucher_id,
+      retired_amount:
+        voucher || retireableVoucher
+          ? String(
+              voucher?.voucher_balance ||
+                voucher?.amount ||
+                retireableVoucher?.voucher_balance ||
+                retireableVoucher?.amount ||
+                "",
+            )
+          : current.retired_amount,
+    }));
+    setShowCertificateHonorForm(false);
+    setShowRetireDialog(true);
+  }
+
   function closeDisburseDialog() {
     setShowDisburseDialog(false);
     setDisburseMode("create");
@@ -767,10 +970,7 @@ export function RequestDetailsPage() {
   }
 
   async function handleDownloadArtifact(
-    action:
-      | "request_pdf"
-      | "full_document"
-      | "pv_pdf",
+    action: "request_pdf" | "full_document" | "pv_pdf",
     voucherId?: string,
   ) {
     if (!id) return;
@@ -1029,8 +1229,13 @@ export function RequestDetailsPage() {
         (entry) =>
           !completedApprovals.some(
             (doneEntry) =>
-              String(doneEntry.step || "").trim().toLowerCase() ===
-              entry.title.replace(/ pending$/i, "").trim().toLowerCase(),
+              String(doneEntry.step || "")
+                .trim()
+                .toLowerCase() ===
+              entry.title
+                .replace(/ pending$/i, "")
+                .trim()
+                .toLowerCase(),
           ),
       ),
       ...stateActivity,
@@ -1066,6 +1271,10 @@ export function RequestDetailsPage() {
       } else if (action === "reject") {
         await rejectRequest(id, actionComment.trim() || undefined);
       } else if (action === "disburse") {
+        const traceId =
+          typeof crypto !== "undefined" && "randomUUID" in crypto
+            ? crypto.randomUUID()
+            : `trace_${Date.now()}_${Math.random().toString(16).slice(2)}`;
         const disbursePayload = {
           amount: Number(disburseForm.amount || request?.total_amount || 0),
           method: disburseForm.method || undefined,
@@ -1085,7 +1294,7 @@ export function RequestDetailsPage() {
             disbursePayload,
           );
         } else {
-          await disburseRequest(id, disbursePayload);
+          await disburseRequest(id, disbursePayload, { traceId });
         }
       } else if (action === "confirm") {
         await confirmRequest(id);
@@ -1123,6 +1332,13 @@ export function RequestDetailsPage() {
         notes: "",
         retirement_file_ids: [],
       });
+      setShowCertificateHonorForm(false);
+      setRetirementCertificateForm({
+        declaration:
+          "I hereby certify that the disbursed funds referenced above were used for official purposes in line with the approved request.",
+        reason:
+          "No supporting receipt is available for the full amount because the expense was settled without a formal receipt or the receipt could not be obtained in time for retirement.",
+      });
       [
         "requests:list:mine",
         "requests:list:approvals",
@@ -1132,7 +1348,11 @@ export function RequestDetailsPage() {
         `requests:actions:${id}`,
         `requests:detail:payment-vouchers:${id}`,
       ].forEach((key) => cacheStore.invalidateCache(key));
-      await Promise.allSettled([refetch(), refetchRequestActions(), refetchPaymentVouchers()]);
+      await Promise.allSettled([
+        refetch(),
+        refetchRequestActions(),
+        refetchPaymentVouchers(),
+      ]);
       showToast({
         title: "Request updated",
         message:
@@ -1398,9 +1618,7 @@ export function RequestDetailsPage() {
                         </TableHead>
                         <TableBody>
                           {lineItems.map((item) => (
-                            <TableRow
-                              key={item.id}
-                            >
+                            <TableRow key={item.id}>
                               <TableCell>
                                 <div className="min-w-0">
                                   <div className="flex items-center gap-2">
@@ -1468,19 +1686,23 @@ export function RequestDetailsPage() {
                             <TableHeaderCell>PV</TableHeaderCell>
                             <TableHeaderCell>Amount</TableHeaderCell>
                             <TableHeaderCell>Retirement</TableHeaderCell>
-                            <TableHeaderCell className="text-right">Action</TableHeaderCell>
+                            <TableHeaderCell className="text-right">
+                              Action
+                            </TableHeaderCell>
                           </TableHeaderRow>
                         </TableHead>
                         <TableBody>
                           {(paymentVouchers ?? []).map((voucher) => (
-                            <TableRow
-                              key={voucher.id}
-                            >
+                            <TableRow key={voucher.id}>
                               <TableCell>
                                 <button
                                   type="button"
                                   className="text-left text-sm font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                                  onClick={() => openVoucherEditor(voucher)}
+                                  onClick={() =>
+                                    financeActionsVisible
+                                      ? openVoucherEditor(voucher)
+                                      : openVoucherPreview(voucher)
+                                  }
                                 >
                                   <span className="inline-flex items-center gap-2">
                                     {voucher.evidence_files?.length ? (
@@ -1549,10 +1771,28 @@ export function RequestDetailsPage() {
                                   <Button
                                     size="sm"
                                     variant="secondary"
-                                    onClick={() => openVoucherEditor(voucher)}
+                                    onClick={() =>
+                                      financeActionsVisible
+                                        ? openVoucherEditor(voucher)
+                                        : openVoucherPreview(voucher)
+                                    }
                                   >
-                                    View / Edit
+                                    {financeActionsVisible
+                                      ? "View / Edit"
+                                      : "View"}
                                   </Button>
+                                  {ownerActionsVisible &&
+                                  availableActions.includes("retire") &&
+                                  Number(voucher.voucher_balance || 0) > 0 ? (
+                                    <Button
+                                      size="sm"
+                                      variant="secondary"
+                                      onClick={() => openRetireDialog(voucher)}
+                                      disabled={actionBusy !== ""}
+                                    >
+                                      Retire
+                                    </Button>
+                                  ) : null}
                                 </div>
                               </TableCell>
                             </TableRow>
@@ -1660,34 +1900,6 @@ export function RequestDetailsPage() {
                     </div>
                   </div>
                 ) : null}
-                {ownerActionsVisible && availableActions.includes("retire") ? (
-                  <div className="mt-4">
-                    <Button
-                      variant="secondary"
-                      className="w-full justify-center"
-                      onClick={() => {
-                        setRetireForm((current) => ({
-                          ...current,
-                          voucher_id:
-                            retireableVoucher?.id || current.voucher_id,
-                          retired_amount: retireableVoucher
-                            ? String(
-                                retireableVoucher.voucher_balance ||
-                                  retireableVoucher.amount ||
-                                  "",
-                              )
-                            : current.retired_amount,
-                        }));
-                        setShowRetireDialog(true);
-                      }}
-                      disabled={actionBusy !== ""}
-                    >
-                      {actionBusy === "retire"
-                        ? "Preparing..."
-                        : "Submit Retirement"}
-                    </Button>
-                  </div>
-                ) : null}
                 {approvalActionsVisible &&
                 availableActions.some((action) =>
                   ["approve", "reject"].includes(action),
@@ -1770,25 +1982,10 @@ export function RequestDetailsPage() {
                   <Button
                     variant="secondary"
                     className="mt-4 w-full justify-center"
-                    onClick={() => {
-                      setRetireForm((current) => ({
-                        ...current,
-                        voucher_id: retireableVoucher?.id || current.voucher_id,
-                        retired_amount: retireableVoucher
-                          ? String(
-                              retireableVoucher.voucher_balance ||
-                                retireableVoucher.amount ||
-                                "",
-                            )
-                          : current.retired_amount,
-                      }));
-                      setShowRetireDialog(true);
-                    }}
+                    onClick={() => openRetireDialog()}
                     disabled={actionBusy !== ""}
                   >
-                    {actionBusy === "retire"
-                      ? "Preparing..."
-                      : "Submit Retirement"}
+                    {actionBusy === "retire" ? "Preparing..." : "Retire"}
                   </Button>
                 ) : null}
                 {financeActionsVisible &&
@@ -1801,33 +1998,22 @@ export function RequestDetailsPage() {
                   >
                     {actionBusy === "complete"
                       ? "Completing..."
-                    : "Complete Request"}
+                      : "Complete Request"}
                   </Button>
                 ) : null}
               </section>
 
               <SectionCard title="Downloads & Draft">
                 <div className="space-y-3">
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-center"
-                    onClick={() => void handleDownloadArtifact("request_pdf")}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "download_request_pdf"
-                      ? "Downloading..."
-                      : "Download Request PDF"}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    className="w-full justify-center"
-                    onClick={() => void handleDownloadArtifact("full_document")}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "download_full_document"
-                      ? "Downloading..."
-                      : "Download Full Document"}
-                  </Button>
+                  <DownloadDropdown
+                    actionBusy={actionBusy}
+                    onDownloadRequestPdf={() =>
+                      void handleDownloadArtifact("request_pdf")
+                    }
+                    onDownloadFullDocument={() =>
+                      void handleDownloadArtifact("full_document")
+                    }
+                  />
                   {canEditDraft ? (
                     <Button
                       variant="danger"
@@ -1835,9 +2021,7 @@ export function RequestDetailsPage() {
                       onClick={() => void handleDeleteDraft()}
                       disabled={actionBusy !== ""}
                     >
-                      {actionBusy === "delete"
-                        ? "Deleting..."
-                        : "Delete Draft"}
+                      {actionBusy === "delete" ? "Deleting..." : "Delete Draft"}
                     </Button>
                   ) : null}
                 </div>
@@ -1902,9 +2086,7 @@ export function RequestDetailsPage() {
               </p>
             </div>
             {request ? (
-              <Chip variant={viewerStatus.tone}>
-                {viewerStatus.label}
-              </Chip>
+              <Chip variant={viewerStatus.tone}>{viewerStatus.label}</Chip>
             ) : null}
           </div>
         </div>
@@ -2062,153 +2244,125 @@ export function RequestDetailsPage() {
             </SectionCard>
 
             <SectionCard title="Actions">
+              <DownloadDropdown
+                actionBusy={actionBusy}
+                onDownloadRequestPdf={() =>
+                  void handleDownloadArtifact("request_pdf")
+                }
+                onDownloadFullDocument={() =>
+                  void handleDownloadArtifact("full_document")
+                }
+              />
+              {canEditDraft ? (
                 <Button
-                  variant="secondary"
-                  className="mb-3 w-full justify-center"
-                  onClick={() => void handleDownloadArtifact("request_pdf")}
+                  variant="danger"
+                  className="mb-4 w-full justify-center"
+                  onClick={() => void handleDeleteDraft()}
                   disabled={actionBusy !== ""}
                 >
-                  {actionBusy === "download_request_pdf"
-                    ? "Downloading..."
-                    : "Download Request PDF"}
+                  {actionBusy === "delete" ? "Deleting..." : "Delete Draft"}
                 </Button>
+              ) : null}
+              {approvalActionsVisible &&
+              availableActions.some(
+                (action) => action === "approve" || action === "reject",
+              ) ? (
+                <>
+                  <TextAreaField
+                    label="Decision note"
+                    helpText="Optional context for the requester and audit trail."
+                    value={actionComment}
+                    onChange={(event) => setActionComment(event.target.value)}
+                    rows={3}
+                  />
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <Button
+                      variant="secondary"
+                      className="w-full justify-center"
+                      onClick={() => void handleWorkflowAction("approve")}
+                      disabled={actionBusy !== ""}
+                    >
+                      {actionBusy === "approve"
+                        ? financeActionsVisible
+                          ? "Clearing..."
+                          : "Approving..."
+                        : financeActionsVisible
+                          ? "Clear Request"
+                          : "Approve Request"}
+                    </Button>
+                    <Button
+                      variant="danger"
+                      className="w-full justify-center"
+                      onClick={() => void handleWorkflowAction("reject")}
+                      disabled={actionBusy !== ""}
+                    >
+                      {actionBusy === "reject"
+                        ? "Rejecting..."
+                        : "Reject Request"}
+                    </Button>
+                  </div>
+                </>
+              ) : null}
+              {ownerActionsVisible && availableActions.includes("submit") ? (
                 <Button
-                  variant="secondary"
-                  className="mb-3 w-full justify-center"
-                  onClick={() => void handleDownloadArtifact("full_document")}
+                  className="mt-4 w-full justify-center"
+                  onClick={() => void handleWorkflowAction("submit")}
                   disabled={actionBusy !== ""}
                 >
-                  {actionBusy === "download_full_document"
-                    ? "Downloading..."
-                    : "Download Full Document"}
+                  {actionBusy === "submit" ? "Submitting..." : "Submit Request"}
                 </Button>
-                {canEditDraft ? (
-                  <Button
-                    variant="danger"
-                    className="mb-4 w-full justify-center"
-                    onClick={() => void handleDeleteDraft()}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "delete" ? "Deleting..." : "Delete Draft"}
-                  </Button>
-                ) : null}
-                {ownerActionsVisible && availableActions.includes("retire") ? (
-                  <Button
-                    variant="secondary"
-                    className="mb-4 w-full justify-center"
-                    onClick={() => {
-                      setRetireForm((current) => ({
-                        ...current,
-                        voucher_id: retireableVoucher?.id || current.voucher_id,
-                        retired_amount: retireableVoucher
-                          ? String(
-                              retireableVoucher.voucher_balance ||
-                                retireableVoucher.amount ||
-                                "",
-                            )
-                          : current.retired_amount,
-                      }));
-                      setShowRetireDialog(true);
-                    }}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "retire"
-                      ? "Preparing..."
-                      : "Submit Retirement"}
-                  </Button>
-                ) : null}
-                {approvalActionsVisible &&
-                availableActions.some(
-                  (action) => action === "approve" || action === "reject",
-                ) ? (
-                  <>
-                    <TextAreaField
-                      label="Decision note"
-                      helpText="Optional context for the requester and audit trail."
-                      value={actionComment}
-                      onChange={(event) => setActionComment(event.target.value)}
-                      rows={3}
-                    />
-                    <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <Button
-                        variant="secondary"
-                        className="w-full justify-center"
-                        onClick={() => void handleWorkflowAction("approve")}
-                        disabled={actionBusy !== ""}
-                      >
-                        {actionBusy === "approve"
-                          ? financeActionsVisible
-                            ? "Clearing..."
-                            : "Approving..."
-                          : financeActionsVisible
-                            ? "Clear Request"
-                            : "Approve Request"}
-                      </Button>
-                      <Button
-                        variant="danger"
-                        className="w-full justify-center"
-                        onClick={() => void handleWorkflowAction("reject")}
-                        disabled={actionBusy !== ""}
-                      >
-                        {actionBusy === "reject"
-                          ? "Rejecting..."
-                          : "Reject Request"}
-                      </Button>
-                    </div>
-                  </>
-                ) : null}
-                {ownerActionsVisible && availableActions.includes("submit") ? (
-                  <Button
-                    className="mt-4 w-full justify-center"
-                    onClick={() => void handleWorkflowAction("submit")}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "submit"
-                      ? "Submitting..."
-                      : "Submit Request"}
-                  </Button>
-                ) : null}
-                {financeActionsVisible &&
-                (requestStatus === "cleared" ||
-                  (requestStatus === "disbursed" &&
-                    requestTotal > disbursedTotal)) ? (
-                  <Button
-                    variant="secondary"
-                    className="mt-4 w-full justify-center"
-                    onClick={() => setShowDisburseDialog(true)}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "disburse"
-                      ? "Disbursing..."
-                      : disbursementButtonLabel}
-                  </Button>
-                ) : null}
-                {ownerActionsVisible && availableActions.includes("confirm") ? (
-                  <Button
-                    variant="secondary"
-                    className="mt-4 w-full justify-center"
-                    onClick={() => void handleWorkflowAction("confirm")}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "confirm"
-                      ? "Confirming..."
-                      : "Confirm Receipt"}
-                  </Button>
-                ) : null}
-                {financeActionsVisible &&
-                availableActions.includes("complete") ? (
-                  <Button
-                    variant="secondary"
-                    className="mt-4 w-full justify-center"
-                    onClick={() => void handleWorkflowAction("complete")}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "complete"
-                      ? "Completing..."
-                      : "Complete Request"}
-                  </Button>
-                ) : null}
-              </SectionCard>
+              ) : null}
+              {financeActionsVisible &&
+              (requestStatus === "cleared" ||
+                (requestStatus === "disbursed" &&
+                  requestTotal > disbursedTotal)) ? (
+                <Button
+                  variant="secondary"
+                  className="mt-4 w-full justify-center"
+                  onClick={() => setShowDisburseDialog(true)}
+                  disabled={actionBusy !== ""}
+                >
+                  {actionBusy === "disburse"
+                    ? "Disbursing..."
+                    : disbursementButtonLabel}
+                </Button>
+              ) : null}
+              {ownerActionsVisible && availableActions.includes("confirm") ? (
+                <Button
+                  variant="secondary"
+                  className="mt-4 w-full justify-center"
+                  onClick={() => void handleWorkflowAction("confirm")}
+                  disabled={actionBusy !== ""}
+                >
+                  {actionBusy === "confirm"
+                    ? "Confirming..."
+                    : "Confirm Receipt"}
+                </Button>
+              ) : null}
+              {ownerActionsVisible && availableActions.includes("retire") ? (
+                <Button
+                  variant="secondary"
+                  className="mt-4 w-full justify-center"
+                  onClick={() => openRetireDialog()}
+                  disabled={actionBusy !== ""}
+                >
+                  {actionBusy === "retire" ? "Preparing..." : "Retire PV"}
+                </Button>
+              ) : null}
+              {financeActionsVisible &&
+              availableActions.includes("complete") ? (
+                <Button
+                  variant="secondary"
+                  className="mt-4 w-full justify-center"
+                  onClick={() => void handleWorkflowAction("complete")}
+                  disabled={actionBusy !== ""}
+                >
+                  {actionBusy === "complete"
+                    ? "Completing..."
+                    : "Complete Request"}
+                </Button>
+              ) : null}
+            </SectionCard>
 
             {canShowNudge ? (
               <SectionCard title="Need a nudge?">
@@ -2356,21 +2510,22 @@ export function RequestDetailsPage() {
                       paid_from_account_id: event.target.value,
                     }))
                   }
-                  >
-                    <option value="">Select finance account</option>
-                    {(financeAccounts ?? []).map((account) => (
-                      <option key={account.id} value={account.id}>
-                        {account.name}
+                >
+                  <option value="">Select finance account</option>
+                  {(financeAccounts ?? []).map((account) => (
+                    <option key={account.id} value={account.id}>
+                      {account.name}
                       {account.code ? ` (${account.code})` : ""}
-                      </option>
-                    ))}
-                  </SelectField>
-                  {!financeAccounts?.length ? (
-                    <p className="mt-1 text-xs text-amber-700">
-                      No active finance account is available. Disbursement cannot continue until one is configured.
-                    </p>
-                  ) : null}
-                </div>
+                    </option>
+                  ))}
+                </SelectField>
+                {!financeAccounts?.length ? (
+                  <p className="mt-1 text-xs text-amber-700">
+                    No active finance account is available. Disbursement cannot
+                    continue until one is configured.
+                  </p>
+                ) : null}
+              </div>
 
               <div className="mt-4">
                 <TextAreaField
@@ -2443,7 +2598,12 @@ export function RequestDetailsPage() {
                 </Button>
                 <Button
                   onClick={() => void handleWorkflowAction("disburse")}
-                  disabled={actionBusy !== "" || (!financeAccounts?.length ? true : !disburseForm.paid_from_account_id)}
+                  disabled={
+                    actionBusy !== "" ||
+                    (!financeAccounts?.length
+                      ? true
+                      : !disburseForm.paid_from_account_id)
+                  }
                 >
                   {actionBusy === "disburse"
                     ? disburseMode === "edit"
@@ -2452,6 +2612,135 @@ export function RequestDetailsPage() {
                     : disburseMode === "edit"
                       ? "Save Changes"
                       : "Confirm Disbursement"}
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
+      {showVoucherPreviewDialog && previewVoucher ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-6">
+          <button
+            type="button"
+            aria-label="Close payment voucher preview"
+            className="absolute inset-0"
+            onClick={() => setShowVoucherPreviewDialog(false)}
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="voucher-preview-title"
+            className="relative z-[81] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-card"
+          >
+            <div className="border-b border-slate-100 px-6 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    Payment Voucher
+                  </p>
+                  <h2
+                    id="voucher-preview-title"
+                    className="mt-2 text-2xl font-semibold tracking-tight text-slate-950"
+                  >
+                    {previewVoucher.voucher_number}
+                  </h2>
+                  <p className="mt-2 text-sm leading-6 text-slate-500">
+                    Read-only voucher details for the requester view.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowVoucherPreviewDialog(false)}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
+                >
+                  <Icon name="close" />
+                </button>
+              </div>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                    Amount
+                  </div>
+                  <div className="mt-1 text-lg font-semibold text-slate-950">
+                    {formatCurrency(previewVoucher.amount, request?.currency)}
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
+                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                    Retirement
+                  </div>
+                  <div className="mt-1 text-lg font-semibold text-slate-950">
+                    {formatCurrency(
+                      previewVoucher.retired_amount || 0,
+                      request?.currency,
+                    )}
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-[22px] border border-slate-200 bg-white p-4 space-y-2">
+                <div className="text-sm text-slate-700">
+                  <span className="font-semibold text-slate-950">Method:</span>{" "}
+                  {previewVoucher.method || "-"}
+                </div>
+                <div className="text-sm text-slate-700">
+                  <span className="font-semibold text-slate-950">Account:</span>{" "}
+                  {previewVoucher.paid_from_account?.name || "-"}
+                </div>
+                <div className="text-sm text-slate-700">
+                  <span className="font-semibold text-slate-950">
+                    Disbursed:
+                  </span>{" "}
+                  {formatDisplayDate(previewVoucher.disbursed_at)}
+                </div>
+                <div className="text-sm text-slate-700">
+                  <span className="font-semibold text-slate-950">
+                    Retirement status:
+                  </span>{" "}
+                  {formatRequestStatus(previewVoucher.retirement_status)}
+                </div>
+                <div className="text-sm text-slate-700">
+                  <span className="font-semibold text-slate-950">Note:</span>{" "}
+                  {previewVoucher.note || "-"}
+                </div>
+              </div>
+              {previewVoucher.evidence_files?.length ? (
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-sm font-semibold text-slate-950">
+                    Evidence files
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {previewVoucher.evidence_files.map((file) => (
+                      <div
+                        key={file.id}
+                        className="rounded-2xl bg-white px-3 py-2 text-sm text-slate-700"
+                      >
+                        {file.file_name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+            <div className="border-t border-slate-100 px-6 py-4">
+              <div className="flex flex-wrap justify-end gap-3">
+                <Button
+                  variant="secondary"
+                  onClick={() =>
+                    void handleDownloadArtifact("pv_pdf", previewVoucher.id)
+                  }
+                  disabled={actionBusy !== ""}
+                >
+                  {actionBusy === `download_pv:${previewVoucher.id}`
+                    ? "Downloading..."
+                    : "Download PV"}
+                </Button>
+                <Button
+                  variant="secondary"
+                  onClick={() => setShowVoucherPreviewDialog(false)}
+                >
+                  Close
                 </Button>
               </div>
             </div>
@@ -2647,12 +2936,25 @@ export function RequestDetailsPage() {
                 label="Retirement Notes"
                 helpText="Add receipts context, what was spent, and any important explanation."
                 value={retireForm.notes}
-                onChange={(event) =>
+                onChange={(event) => {
+                  const nextNotes = event.target.value;
                   setRetireForm((current) => ({
                     ...current,
-                    notes: event.target.value,
-                  }))
-                }
+                    notes: nextNotes,
+                  }));
+                  setRetirementCertificateForm((current) => {
+                    const currentReason = current.reason.trim();
+                    const shouldMirrorNotes =
+                      !currentReason ||
+                      currentReason === defaultCertificateReason;
+                    return shouldMirrorNotes
+                      ? {
+                          ...current,
+                          reason: nextNotes.trim() || defaultCertificateReason,
+                        }
+                      : current;
+                  });
+                }}
                 rows={4}
               />
 
@@ -2684,6 +2986,178 @@ export function RequestDetailsPage() {
                     No retirement files selected yet.
                   </div>
                 )}
+                <div className="mt-4 rounded-[18px] border border-brand-200 bg-brand-50 px-4 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-brand-950">
+                        Certificate of Honor
+                      </p>
+                      <p className="mt-1 text-sm leading-6 text-brand-900/80">
+                        Use this when receipts are unavailable. Add it only if
+                        the retirement needs a declaration or explanation.
+                      </p>
+                    </div>
+                    <Button
+                      variant="secondary"
+                      onClick={() =>
+                        setShowCertificateHonorForm((current) => !current)
+                      }
+                    >
+                      {showCertificateHonorForm
+                        ? "Hide Certificate"
+                        : "Add Certificate"}
+                    </Button>
+                  </div>
+                  {showCertificateHonorForm ? (
+                    <div className="mt-4 grid gap-4">
+                      <TextAreaField
+                        label="Certificate declaration"
+                        helpText="This statement will be printed into the generated certificate."
+                        value={retirementCertificateForm.declaration}
+                        onChange={(event) =>
+                          setRetirementCertificateForm((current) => ({
+                            ...current,
+                            declaration: event.target.value,
+                          }))
+                        }
+                        rows={4}
+                      />
+                      <TextAreaField
+                        label="Why receipts are unavailable"
+                        helpText="Explain the cash-advance, discount, missing receipt, or other reason for honoring the retirement without full receipt support."
+                        value={retirementCertificateForm.reason}
+                        onChange={(event) =>
+                          setRetirementCertificateForm((current) => ({
+                            ...current,
+                            reason: event.target.value,
+                          }))
+                        }
+                        rows={4}
+                      />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-[18px] border border-brand-200 bg-white px-4 py-3 text-sm text-slate-700">
+                          <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                            Prepared by
+                          </div>
+                          <div className="mt-1 font-semibold text-slate-950">
+                            {formatPersonName(user)}
+                          </div>
+                        </div>
+                        <div className="rounded-[18px] border border-brand-200 bg-white px-4 py-3 text-sm text-slate-700">
+                          <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                            Certificate status
+                          </div>
+                          <div className="mt-1 font-semibold text-slate-950">
+                            {retireForm.retirement_file_ids.length
+                              ? "Attached to retirement"
+                              : "Not yet attached"}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-3">
+                        <Button
+                          variant="secondary"
+                          onClick={() => {
+                            if (!retireForm.voucher_id) {
+                              showToast({
+                                title: "Select a voucher first",
+                                message:
+                                  "Choose the payment voucher before generating the certificate.",
+                                tone: "danger",
+                              });
+                              return;
+                            }
+                            void (async () => {
+                              try {
+                                setActionBusy("certificate_honor");
+                                const selectedVoucher =
+                                  (paymentVouchers ?? []).find(
+                                    (voucher) =>
+                                      voucher.id === retireForm.voucher_id,
+                                  ) || retireableVoucher;
+                                if (!selectedVoucher) {
+                                  throw new Error(
+                                    "Select a payment voucher first.",
+                                  );
+                                }
+                                const file = await buildCertificateOfHonorPdf({
+                                  requestLabel:
+                                    request?.request_number || `Request ${id}`,
+                                  voucherNumber: selectedVoucher.voucher_number,
+                                  staffName: formatPersonName(user),
+                                  amountLabel: formatCertificateCurrency(
+                                    Number(
+                                      retireForm.retired_amount ||
+                                        selectedVoucher.voucher_balance ||
+                                        selectedVoucher.amount ||
+                                        0,
+                                    ),
+                                    request?.currency,
+                                  ),
+                                  declaration:
+                                    retirementCertificateForm.declaration.trim(),
+                                  reason:
+                                    retirementCertificateForm.reason.trim() ||
+                                    retireForm.notes.trim() ||
+                                    defaultCertificateReason,
+                                  issuedAt: new Date()
+                                    .toISOString()
+                                    .slice(0, 10),
+                                });
+                                const uploaded = await uploadFileAsset(file, {
+                                  organization_id:
+                                    String(requestData.organization_id || "") ||
+                                    undefined,
+                                  metadata: {
+                                    source: "request_retirement_certificate",
+                                    request_id: id,
+                                    voucher_id: selectedVoucher.id,
+                                  },
+                                });
+                                setRetireForm((current) => ({
+                                  ...current,
+                                  retirement_file_ids: Array.from(
+                                    new Set([
+                                      ...current.retirement_file_ids,
+                                      uploaded.id,
+                                    ]),
+                                  ),
+                                }));
+                                showToast({
+                                  title: "Certificate attached",
+                                  message:
+                                    "The Certificate of Honor has been generated and added to the retirement files.",
+                                  tone: "success",
+                                });
+                              } catch (error) {
+                                showToast({
+                                  title: "Certificate generation failed",
+                                  message:
+                                    error instanceof Error
+                                      ? error.message
+                                      : "We couldn't generate the certificate right now.",
+                                  tone: "danger",
+                                });
+                              } finally {
+                                setActionBusy("");
+                              }
+                            })();
+                          }}
+                          disabled={actionBusy !== "" || !retireForm.voucher_id}
+                        >
+                          {actionBusy === "certificate_honor"
+                            ? "Generating..."
+                            : "Generate & Attach Certificate"}
+                        </Button>
+                      </div>
+                      <p className="text-xs leading-5 text-brand-900/75">
+                        The generated certificate will be downloadable with the
+                        request and can still sit alongside any scanned signed
+                        copy you upload manually.
+                      </p>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
 

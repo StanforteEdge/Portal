@@ -20,9 +20,10 @@ export type { MediaPickerItem, MediaPickerModalProps } from "./media/MediaPicker
 export { Button } from "./ui/Button";
 export { Chip } from "./ui/Chip";
 export { Icon } from "./ui/Icon";
+export { PaginationControls } from "./ui/PaginationControls";
 export { Table, TableBody, TableCell, TableHead, TableHeaderCell, TableHeaderRow, TableRow } from "./ui/Table";
 export { StatCard } from "./ui/StatCard";
-export { SelectField, TextAreaField, TextField } from "./ui/fields";
+export { InlineSelectField, SelectField, TextAreaField, TextField } from "./ui/fields";
 
 export { createSessionStorage } from "./auth/storage";
 export { normalizeTokens } from "./auth/tokens";

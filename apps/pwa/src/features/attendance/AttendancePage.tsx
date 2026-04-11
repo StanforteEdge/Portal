@@ -22,7 +22,10 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/components/layout/AppShell";
 import { useCachedQuery } from "@/lib/core";
-import { buildAppMobileNav, buildRequestsNavigation } from "@/features/requests/requests-data";
+import {
+  buildAppMobileNav,
+  buildRequestsNavigation,
+} from "@/lib/requests/requests-data";
 import {
   clockIn,
   clockOut,
@@ -34,7 +37,7 @@ import {
   type AttendanceException,
   type AttendanceMode,
   type OfficeLocation,
-} from "./attendance-api";
+} from "../../api/attendance/attendance-api";
 
 const defaultCorrectionForm = {
   work_date: new Date().toISOString().slice(0, 10),
@@ -88,16 +91,27 @@ function formatMinutes(minutes?: number | null) {
   return `${hrs}h ${mins}m`;
 }
 
-function toneFromStatus(status?: string | null): "success" | "warning" | "danger" | "pending" | "neutral" {
-  const key = String(status || "").trim().toLowerCase();
-  if (["present", "approved", "resolved", "corrected"].includes(key)) return "success";
-  if (["late", "pending", "submitted", "review"].includes(key)) return "warning";
+function toneFromStatus(
+  status?: string | null,
+): "success" | "warning" | "danger" | "pending" | "neutral" {
+  const key = String(status || "")
+    .trim()
+    .toLowerCase();
+  if (["present", "approved", "resolved", "corrected"].includes(key))
+    return "success";
+  if (["late", "pending", "submitted", "review"].includes(key))
+    return "warning";
   if (["absent", "rejected", "outside"].includes(key)) return "danger";
-  if (["remote", "field", "holiday", "off_day", "leave"].includes(key)) return "pending";
+  if (["remote", "field", "holiday", "off_day", "leave"].includes(key))
+    return "pending";
   return "neutral";
 }
 
-function StatusDot({ tone }: { tone: "success" | "warning" | "danger" | "pending" | "neutral" }) {
+function StatusDot({
+  tone,
+}: {
+  tone: "success" | "warning" | "danger" | "pending" | "neutral";
+}) {
   const toneClass: Record<typeof tone, string> = {
     success: "bg-success",
     warning: "bg-warning",
@@ -106,13 +120,19 @@ function StatusDot({ tone }: { tone: "success" | "warning" | "danger" | "pending
     neutral: "bg-slate-400",
   };
 
-  return <span className={["inline-flex h-2.5 w-2.5 rounded-full", toneClass[tone]].join(" ")} />;
+  return (
+    <span
+      className={["inline-flex h-2.5 w-2.5 rounded-full", toneClass[tone]].join(
+        " ",
+      )}
+    />
+  );
 }
 
 function issueDescription(
   item:
     | (AttendanceCorrection & { kind: "correction" })
-    | (AttendanceException & { kind: "exception" })
+    | (AttendanceException & { kind: "exception" }),
 ) {
   if (item.kind === "correction") {
     return item.reason || item.review_notes || "No details provided.";
@@ -133,10 +153,23 @@ function SummaryTile({
 }) {
   return (
     <div className="rounded-[18px] border border-slate-100 bg-white p-4 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
-      <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </p>
       <div className="mt-3 flex items-end justify-between gap-3">
-        <p className={["text-2xl font-semibold tracking-tight", accentClass].join(" ")}>{value}</p>
-        {note ? <span className="text-[0.72rem] font-semibold text-success">{note}</span> : null}
+        <p
+          className={[
+            "text-2xl font-semibold tracking-tight",
+            accentClass,
+          ].join(" ")}
+        >
+          {value}
+        </p>
+        {note ? (
+          <span className="text-[0.72rem] font-semibold text-success">
+            {note}
+          </span>
+        ) : null}
       </div>
     </div>
   );
@@ -154,7 +187,7 @@ export function AttendancePage() {
   const { data, loading, error, refetch } = useCachedQuery(
     "attendance:me",
     () => getMyAttendance(),
-    { ttlMs: 1000 * 30, storage: "memory" }
+    { ttlMs: 1000 * 30, storage: "memory" },
   );
 
   const entries = data?.entries ?? [];
@@ -167,17 +200,31 @@ export function AttendancePage() {
   const currentState = data?.current_state;
 
   useEffect(() => {
-    const inferredMode = String(today?.expected_mode || today?.attendance_mode || "onsite").toLowerCase() as AttendanceMode;
-    setSelectedMode(inferredMode === "remote" || inferredMode === "field" ? inferredMode : "onsite");
-    setSelectedOfficeLocationId(String(today?.office_location_id || officeLocations[0]?.id || ""));
-  }, [officeLocations, today?.attendance_mode, today?.expected_mode, today?.office_location_id]);
+    const inferredMode = String(
+      today?.expected_mode || today?.attendance_mode || "onsite",
+    ).toLowerCase() as AttendanceMode;
+    setSelectedMode(
+      inferredMode === "remote" || inferredMode === "field"
+        ? inferredMode
+        : "onsite",
+    );
+    setSelectedOfficeLocationId(
+      String(today?.office_location_id || officeLocations[0]?.id || ""),
+    );
+  }, [
+    officeLocations,
+    today?.attendance_mode,
+    today?.expected_mode,
+    today?.office_location_id,
+  ]);
 
   useEffect(() => {
     if (today?.geofence_status === "outside") {
       showToast({
         tone: "warning",
         title: "Premises check alert",
-        message: "You appear to be outside the designated premises for today's onsite attendance.",
+        message:
+          "You appear to be outside the designated premises for today's onsite attendance.",
       });
     }
   }, [showToast, today?.geofence_status]);
@@ -189,10 +236,26 @@ export function AttendancePage() {
       return acc;
     }, {});
     return [
-      { label: "Present", value: String(counts.present ?? 0), accentClass: "text-slate-950" },
-      { label: "Remote", value: String(counts.remote ?? 0), accentClass: "text-slate-950" },
-      { label: "Late", value: String(counts.late ?? 0), accentClass: "text-warning" },
-      { label: "Absent", value: String(counts.absent ?? 0), accentClass: "text-danger" },
+      {
+        label: "Present",
+        value: String(counts.present ?? 0),
+        accentClass: "text-slate-950",
+      },
+      {
+        label: "Remote",
+        value: String(counts.remote ?? 0),
+        accentClass: "text-slate-950",
+      },
+      {
+        label: "Late",
+        value: String(counts.late ?? 0),
+        accentClass: "text-warning",
+      },
+      {
+        label: "Absent",
+        value: String(counts.absent ?? 0),
+        accentClass: "text-danger",
+      },
     ];
   }, [daily]);
 
@@ -200,19 +263,32 @@ export function AttendancePage() {
   const recentEntries = entries.slice(0, 8);
   const recentIssues = useMemo(
     () =>
-      [...corrections.map((row) => ({ ...row, kind: "correction" as const })), ...exceptions.map((row) => ({ ...row, kind: "exception" as const }))]
-        .sort((a, b) => String("requested_at" in b ? b.requested_at : b.created_at).localeCompare(String("requested_at" in a ? a.requested_at : a.created_at)))
+      [
+        ...corrections.map((row) => ({ ...row, kind: "correction" as const })),
+        ...exceptions.map((row) => ({ ...row, kind: "exception" as const })),
+      ]
+        .sort((a, b) =>
+          String(
+            "requested_at" in b ? b.requested_at : b.created_at,
+          ).localeCompare(
+            String("requested_at" in a ? a.requested_at : a.created_at),
+          ),
+        )
         .slice(0, 4),
-    [corrections, exceptions]
+    [corrections, exceptions],
   );
 
   async function getCoords() {
     if (!("geolocation" in navigator)) return {};
     return new Promise<{ latitude?: number; longitude?: number }>((resolve) => {
       navigator.geolocation.getCurrentPosition(
-        (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude }),
+        (position) =>
+          resolve({
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+          }),
         () => resolve({}),
-        { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 }
+        { enableHighAccuracy: true, timeout: 7000, maximumAge: 60000 },
       );
     });
   }
@@ -223,7 +299,10 @@ export function AttendancePage() {
       const coords = await getCoords();
       const payload = {
         attendance_mode: selectedMode,
-        office_location_id: selectedMode === "onsite" ? selectedOfficeLocationId || undefined : undefined,
+        office_location_id:
+          selectedMode === "onsite"
+            ? selectedOfficeLocationId || undefined
+            : undefined,
         ...coords,
       };
       if (type === "in") {
@@ -235,13 +314,19 @@ export function AttendancePage() {
       showToast({
         tone: "success",
         title: type === "in" ? "Clock in recorded" : "Clock out recorded",
-        message: type === "in" ? "Your attendance entry was saved." : "Your workday has been closed out.",
+        message:
+          type === "in"
+            ? "Your attendance entry was saved."
+            : "Your workday has been closed out.",
       });
     } catch (actionError) {
       showToast({
         tone: "danger",
         title: type === "in" ? "Clock in failed" : "Clock out failed",
-        message: actionError instanceof Error ? actionError.message : "Please try again.",
+        message:
+          actionError instanceof Error
+            ? actionError.message
+            : "Please try again.",
       });
     } finally {
       setActing(null);
@@ -260,7 +345,9 @@ export function AttendancePage() {
     try {
       setSubmittingCorrection(true);
       const proposedAt = correctionForm.proposed_at
-        ? new Date(`${correctionForm.work_date}T${correctionForm.proposed_at}:00`).toISOString()
+        ? new Date(
+            `${correctionForm.work_date}T${correctionForm.proposed_at}:00`,
+          ).toISOString()
         : undefined;
       await createAttendanceCorrection({
         work_date: correctionForm.work_date,
@@ -268,7 +355,8 @@ export function AttendancePage() {
         reason: correctionForm.reason.trim(),
         proposed_at: proposedAt,
         proposed_mode: correctionForm.proposed_mode || undefined,
-        proposed_office_location_id: correctionForm.proposed_office_location_id || undefined,
+        proposed_office_location_id:
+          correctionForm.proposed_office_location_id || undefined,
       });
       setCorrectionForm(defaultCorrectionForm);
       setShowCorrectionForm(false);
@@ -282,27 +370,48 @@ export function AttendancePage() {
       showToast({
         tone: "danger",
         title: "Unable to submit correction",
-        message: submitError instanceof Error ? submitError.message : "Please try again.",
+        message:
+          submitError instanceof Error
+            ? submitError.message
+            : "Please try again.",
       });
     } finally {
       setSubmittingCorrection(false);
     }
   }
 
-  const todayStatus = humanize(String(today?.status || (currentState?.is_clocked_in ? "present" : "not_started")));
-  const todayMode = humanize(String(today?.attendance_mode || today?.expected_mode || selectedMode));
-  const openSessionDate = currentState?.last_clock_in_work_date ? formatDate(currentState.last_clock_in_work_date) : null;
-  const openSessionDateLabel = currentState?.last_clock_in_work_date ? formatDate(currentState.last_clock_in_work_date) : null;
+  const todayStatus = humanize(
+    String(
+      today?.status ||
+        (currentState?.is_clocked_in ? "present" : "not_started"),
+    ),
+  );
+  const todayMode = humanize(
+    String(today?.attendance_mode || today?.expected_mode || selectedMode),
+  );
+  const openSessionDate = currentState?.last_clock_in_work_date
+    ? formatDate(currentState.last_clock_in_work_date)
+    : null;
+  const openSessionDateLabel = currentState?.last_clock_in_work_date
+    ? formatDate(currentState.last_clock_in_work_date)
+    : null;
   const openSessionMessage = currentState?.is_clocked_in
     ? currentState?.last_clock_in_at
       ? `Open session started ${formatDateTime(currentState.last_clock_in_at)}${openSessionDate ? ` (${openSessionDate})` : ""}. Clock out is available now, even if the shift crossed into another day.`
       : "An open session is active. Clock out is available now, even if the shift crossed into another day."
     : null;
   const locationName =
-    officeLocations.find((location) => location.id === String(today?.office_location_id || selectedOfficeLocationId))?.name ||
+    officeLocations.find(
+      (location) =>
+        location.id ===
+        String(today?.office_location_id || selectedOfficeLocationId),
+    )?.name ||
     officeLocations[0]?.name ||
     "No office selected";
-  const premisesTone = toneFromStatus(today?.geofence_status || (selectedMode === "onsite" ? "unknown" : "not_applicable"));
+  const premisesTone = toneFromStatus(
+    today?.geofence_status ||
+      (selectedMode === "onsite" ? "unknown" : "not_applicable"),
+  );
 
   return (
     <AppShell
@@ -313,21 +422,27 @@ export function AttendancePage() {
     >
       <div className="hidden lg:block">
         <PageHeader
-          breadcrumbs={[
-            { label: "Home", path: "/" },
-            { label: "Attendance" },
-          ]}
+          breadcrumbs={[{ label: "Home", path: "/" }, { label: "Attendance" }]}
           title="Staff Attendance"
           description={formatDate(new Date().toISOString())}
           actions={
-            <Button variant="secondary" className="gap-2" onClick={() => void refetch()} disabled={loading}>
+            <Button
+              variant="secondary"
+              className="gap-2"
+              onClick={() => void refetch()}
+              disabled={loading}
+            >
               <Icon name="refresh" className="text-[18px]" />
               {loading ? "Refreshing..." : "Refresh"}
             </Button>
           }
         />
 
-        {error ? <div className="mb-6 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">{error}</div> : null}
+        {error ? (
+          <div className="mb-6 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
+            {error}
+          </div>
+        ) : null}
 
         <div className="grid gap-6 lg:grid-cols-12">
           <div className="space-y-6 lg:col-span-8">
@@ -335,49 +450,75 @@ export function AttendancePage() {
               <div className="space-y-5">
                 <div className="grid gap-3 sm:grid-cols-2">
                   <div className="rounded-2xl bg-slate-100 p-4">
-                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">Current Status</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-950">{todayStatus}</p>
+                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">
+                      Current Status
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-slate-950">
+                      {todayStatus}
+                    </p>
                   </div>
                   <div className="rounded-2xl bg-slate-100 p-4">
-                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">Shift Hours</p>
-                    <p className="mt-2 text-lg font-semibold text-slate-950">{policy ? `${policy.start_time} - ${policy.end_time}` : "Not set"}</p>
+                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">
+                      Shift Hours
+                    </p>
+                    <p className="mt-2 text-lg font-semibold text-slate-950">
+                      {policy
+                        ? `${policy.start_time} - ${policy.end_time}`
+                        : "Not set"}
+                    </p>
                   </div>
                 </div>
 
                 <div className="space-y-3">
-                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">Select Attendance Mode</p>
-                  <div className="grid grid-cols-3 gap-3" role="group" aria-label="Attendance mode">
-                    {(["onsite", "remote", "field"] as AttendanceMode[]).map((mode) => {
-                      const active = selectedMode === mode;
-                      return (
-                        <button
-                          key={mode}
-                          type="button"
-                          onClick={() => setSelectedMode(mode)}
-                          aria-pressed={active}
-                          className={[
-                            "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition",
-                            active
-                              ? "border-brand-900 bg-brand-900/5 text-brand-900 shadow-[0_0_0_1px_rgba(3,71,133,0.12)]"
-                              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                          ].join(" ")}
-                        >
-                          <Icon
-                            name={mode === "onsite" ? "location_on" : mode === "remote" ? "home_work" : "travel_explore"}
-                            className="text-[18px]"
-                            fill={active}
-                          />
-                          {humanize(mode)}
-                        </button>
-                      );
-                    })}
+                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    Select Attendance Mode
+                  </p>
+                  <div
+                    className="grid grid-cols-3 gap-3"
+                    role="group"
+                    aria-label="Attendance mode"
+                  >
+                    {(["onsite", "remote", "field"] as AttendanceMode[]).map(
+                      (mode) => {
+                        const active = selectedMode === mode;
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setSelectedMode(mode)}
+                            aria-pressed={active}
+                            className={[
+                              "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition",
+                              active
+                                ? "border-brand-900 bg-brand-900/5 text-brand-900 shadow-[0_0_0_1px_rgba(3,71,133,0.12)]"
+                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                            ].join(" ")}
+                          >
+                            <Icon
+                              name={
+                                mode === "onsite"
+                                  ? "location_on"
+                                  : mode === "remote"
+                                    ? "home_work"
+                                    : "travel_explore"
+                              }
+                              className="text-[18px]"
+                              fill={active}
+                            />
+                            {humanize(mode)}
+                          </button>
+                        );
+                      },
+                    )}
                   </div>
                 </div>
 
                 <SelectField
                   label="Office/Location"
                   value={selectedOfficeLocationId}
-                  onChange={(event) => setSelectedOfficeLocationId(event.target.value)}
+                  onChange={(event) =>
+                    setSelectedOfficeLocationId(event.target.value)
+                  }
                   disabled={selectedMode !== "onsite"}
                 >
                   <option value="">Select office location</option>
@@ -418,7 +559,10 @@ export function AttendancePage() {
                         </span>
                       ) : null}
                     </div>
-                    <span className="font-semibold text-brand-900">Open session:</span> {openSessionMessage}
+                    <span className="font-semibold text-brand-900">
+                      Open session:
+                    </span>{" "}
+                    {openSessionMessage}
                   </div>
                 ) : null}
 
@@ -433,14 +577,47 @@ export function AttendancePage() {
             <SectionCard title="Premises Check">
               <div className="flex flex-col gap-4 rounded-[24px] border border-slate-200 bg-slate-50 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex items-start gap-4">
-                  <div className={["flex h-12 w-12 items-center justify-center rounded-2xl", premisesTone === "danger" ? "bg-danger/10 text-danger" : premisesTone === "success" ? "bg-success/10 text-success" : "bg-slate-200 text-slate-600"].join(" ")}>
-                    <Icon name={premisesTone === "danger" ? "location_off" : "location_on"} className="text-[22px]" />
+                  <div
+                    className={[
+                      "flex h-12 w-12 items-center justify-center rounded-2xl",
+                      premisesTone === "danger"
+                        ? "bg-danger/10 text-danger"
+                        : premisesTone === "success"
+                          ? "bg-success/10 text-success"
+                          : "bg-slate-200 text-slate-600",
+                    ].join(" ")}
+                  >
+                    <Icon
+                      name={
+                        premisesTone === "danger"
+                          ? "location_off"
+                          : "location_on"
+                      }
+                      className="text-[22px]"
+                    />
                   </div>
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-950">{locationName}</p>
-                      <Chip variant={premisesTone === "danger" ? "danger" : premisesTone === "success" ? "success" : "neutral"}>
-                        {humanize(String(today?.geofence_status || (selectedMode === "onsite" ? "unknown" : "not_applicable")))}
+                      <p className="text-sm font-semibold text-slate-950">
+                        {locationName}
+                      </p>
+                      <Chip
+                        variant={
+                          premisesTone === "danger"
+                            ? "danger"
+                            : premisesTone === "success"
+                              ? "success"
+                              : "neutral"
+                        }
+                      >
+                        {humanize(
+                          String(
+                            today?.geofence_status ||
+                              (selectedMode === "onsite"
+                                ? "unknown"
+                                : "not_applicable"),
+                          ),
+                        )}
                       </Chip>
                     </div>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
@@ -479,15 +656,33 @@ export function AttendancePage() {
                     {recentDaily.map((row) => (
                       <TableRow key={row.id}>
                         <TableCell className="rounded-l-2xl">
-                          <p className="text-sm font-semibold text-slate-950">{formatDate(row.work_date)}</p>
+                          <p className="text-sm font-semibold text-slate-950">
+                            {formatDate(row.work_date)}
+                          </p>
                         </TableCell>
-                        <TableCell className="text-sm font-semibold text-slate-700">{formatClockTime(row.first_in_at)}</TableCell>
-                        <TableCell className="text-sm font-semibold text-slate-700">{formatClockTime(row.last_out_at)}</TableCell>
+                        <TableCell className="text-sm font-semibold text-slate-700">
+                          {formatClockTime(row.first_in_at)}
+                        </TableCell>
+                        <TableCell className="text-sm font-semibold text-slate-700">
+                          {formatClockTime(row.last_out_at)}
+                        </TableCell>
                         <TableCell>
-                          <Chip variant="neutral">{humanize(String(row.attendance_mode || row.expected_mode || "-"))}</Chip>
+                          <Chip variant="neutral">
+                            {humanize(
+                              String(
+                                row.attendance_mode || row.expected_mode || "-",
+                              ),
+                            )}
+                          </Chip>
                         </TableCell>
                         <TableCell className="rounded-r-2xl">
-                          <Chip variant={toneFromStatus(row.status) === "neutral" ? "neutral" : toneFromStatus(row.status)}>
+                          <Chip
+                            variant={
+                              toneFromStatus(row.status) === "neutral"
+                                ? "neutral"
+                                : toneFromStatus(row.status)
+                            }
+                          >
                             {humanize(row.status)}
                           </Chip>
                         </TableCell>
@@ -495,7 +690,10 @@ export function AttendancePage() {
                     ))}
                     {!loading && recentDaily.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="px-3 py-6 text-center text-sm text-slate-500">
+                        <td
+                          colSpan={5}
+                          className="px-3 py-6 text-center text-sm text-slate-500"
+                        >
                           No attendance history yet.
                         </td>
                       </tr>
@@ -507,19 +705,34 @@ export function AttendancePage() {
           </div>
 
           <RightRail className="lg:col-span-4">
-            <SectionCard title="Activity Summary" action={<Chip variant="neutral">Last 30 Days</Chip>}>
+            <SectionCard
+              title="Activity Summary"
+              action={<Chip variant="neutral">Last 30 Days</Chip>}
+            >
               <div className="grid grid-cols-2 gap-3">
                 {stats.map((metric) => (
-                  <SummaryTile key={metric.label} label={metric.label} value={metric.value} accentClass={metric.accentClass} />
+                  <SummaryTile
+                    key={metric.label}
+                    label={metric.label}
+                    value={metric.value}
+                    accentClass={metric.accentClass}
+                  />
                 ))}
               </div>
             </SectionCard>
 
             <div className="section-card relative overflow-hidden bg-brand-900 px-5 py-5 text-white">
               <div className="relative z-10">
-                <p className="text-[0.72rem] font-bold uppercase tracking-[0.2em] text-white/70">Worked This Cycle</p>
+                <p className="text-[0.72rem] font-bold uppercase tracking-[0.2em] text-white/70">
+                  Worked This Cycle
+                </p>
                 <p className="mt-3 text-5xl font-semibold tracking-tight">
-                  {formatMinutes(recentDaily.reduce((sum, row) => sum + (row.worked_minutes || 0), 0))}
+                  {formatMinutes(
+                    recentDaily.reduce(
+                      (sum, row) => sum + (row.worked_minutes || 0),
+                      0,
+                    ),
+                  )}
                 </p>
                 <p className="mt-3 max-w-[16rem] text-sm leading-6 text-white/85">
                   Total worked time captured across your recent attendance days.
@@ -530,7 +743,12 @@ export function AttendancePage() {
             <SectionCard
               title="Corrections"
               action={
-                <Button size="sm" variant="secondary" className="gap-2" onClick={() => setShowCorrectionForm((value) => !value)}>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  className="gap-2"
+                  onClick={() => setShowCorrectionForm((value) => !value)}
+                >
                   <Icon name="add" className="text-[18px]" />
                   {showCorrectionForm ? "Close" : "Submit New"}
                 </Button>
@@ -543,12 +761,22 @@ export function AttendancePage() {
                       label="Work Date"
                       type="date"
                       value={correctionForm.work_date}
-                      onChange={(event) => setCorrectionForm((prev) => ({ ...prev, work_date: event.target.value }))}
+                      onChange={(event) =>
+                        setCorrectionForm((prev) => ({
+                          ...prev,
+                          work_date: event.target.value,
+                        }))
+                      }
                     />
                     <SelectField
                       label="Request Type"
                       value={correctionForm.request_type}
-                      onChange={(event) => setCorrectionForm((prev) => ({ ...prev, request_type: event.target.value }))}
+                      onChange={(event) =>
+                        setCorrectionForm((prev) => ({
+                          ...prev,
+                          request_type: event.target.value,
+                        }))
+                      }
                     >
                       <option value="clock_in">Missed Clock In</option>
                       <option value="clock_out">Missed Clock Out</option>
@@ -559,12 +787,22 @@ export function AttendancePage() {
                       label="Proposed Time"
                       type="time"
                       value={correctionForm.proposed_at}
-                      onChange={(event) => setCorrectionForm((prev) => ({ ...prev, proposed_at: event.target.value }))}
+                      onChange={(event) =>
+                        setCorrectionForm((prev) => ({
+                          ...prev,
+                          proposed_at: event.target.value,
+                        }))
+                      }
                     />
                     <SelectField
                       label="Proposed Mode"
                       value={correctionForm.proposed_mode}
-                      onChange={(event) => setCorrectionForm((prev) => ({ ...prev, proposed_mode: event.target.value }))}
+                      onChange={(event) =>
+                        setCorrectionForm((prev) => ({
+                          ...prev,
+                          proposed_mode: event.target.value,
+                        }))
+                      }
                     >
                       <option value="">Keep current</option>
                       <option value="onsite">Onsite</option>
@@ -574,7 +812,12 @@ export function AttendancePage() {
                     <SelectField
                       label="Proposed Office Location"
                       value={correctionForm.proposed_office_location_id}
-                      onChange={(event) => setCorrectionForm((prev) => ({ ...prev, proposed_office_location_id: event.target.value }))}
+                      onChange={(event) =>
+                        setCorrectionForm((prev) => ({
+                          ...prev,
+                          proposed_office_location_id: event.target.value,
+                        }))
+                      }
                     >
                       <option value="">Not applicable</option>
                       {officeLocations.map((location) => (
@@ -586,11 +829,22 @@ export function AttendancePage() {
                     <TextAreaField
                       label="Reason"
                       value={correctionForm.reason}
-                      onChange={(event) => setCorrectionForm((prev) => ({ ...prev, reason: event.target.value }))}
+                      onChange={(event) =>
+                        setCorrectionForm((prev) => ({
+                          ...prev,
+                          reason: event.target.value,
+                        }))
+                      }
                       placeholder="Explain what needs correction and why."
                     />
-                    <Button className="w-full justify-center" onClick={() => void submitCorrection()} disabled={submittingCorrection}>
-                      {submittingCorrection ? "Submitting..." : "Submit Correction"}
+                    <Button
+                      className="w-full justify-center"
+                      onClick={() => void submitCorrection()}
+                      disabled={submittingCorrection}
+                    >
+                      {submittingCorrection
+                        ? "Submitting..."
+                        : "Submit Correction"}
                     </Button>
                   </div>
                 </div>
@@ -608,14 +862,26 @@ export function AttendancePage() {
                           {formatDate(item.work_date)}
                         </p>
                         <h3 className="mt-2 text-sm font-semibold text-slate-950">
-                          {humanize(item.kind === "correction" ? item.request_type : item.exception_type)}
+                          {humanize(
+                            item.kind === "correction"
+                              ? item.request_type
+                              : item.exception_type,
+                          )}
                         </h3>
                       </div>
-                      <Chip variant={toneFromStatus(item.status) === "neutral" ? "neutral" : toneFromStatus(item.status)}>
+                      <Chip
+                        variant={
+                          toneFromStatus(item.status) === "neutral"
+                            ? "neutral"
+                            : toneFromStatus(item.status)
+                        }
+                      >
                         {humanize(item.status)}
                       </Chip>
                     </div>
-                    <p className="mt-3 text-sm leading-6 text-slate-500">{issueDescription(item)}</p>
+                    <p className="mt-3 text-sm leading-6 text-slate-500">
+                      {issueDescription(item)}
+                    </p>
                   </article>
                 ))}
                 {!loading && recentIssues.length === 0 ? (
@@ -636,52 +902,90 @@ export function AttendancePage() {
             <Icon name="chevron_right" className="text-[15px] text-slate-400" />
             <span className="text-brand-900">Attendance</span>
           </div>
-          <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">Attendance</h1>
+          <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">
+            Attendance
+          </h1>
         </div>
 
-        {error ? <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">{error}</div> : null}
+        {error ? (
+          <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
+            {error}
+          </div>
+        ) : null}
 
         <SectionCard title="Today’s Attendance">
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl bg-slate-100 p-4">
-                <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">Current Status</p>
-                <p className="mt-2 text-base font-semibold text-slate-950">{todayStatus}</p>
+                <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">
+                  Current Status
+                </p>
+                <p className="mt-2 text-base font-semibold text-slate-950">
+                  {todayStatus}
+                </p>
               </div>
               <div className="rounded-2xl bg-slate-100 p-4">
-                <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">Shift Hours</p>
-                <p className="mt-2 text-base font-semibold text-slate-950">{policy ? `${policy.start_time} - ${policy.end_time}` : "Not set"}</p>
+                <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">
+                  Shift Hours
+                </p>
+                <p className="mt-2 text-base font-semibold text-slate-950">
+                  {policy
+                    ? `${policy.start_time} - ${policy.end_time}`
+                    : "Not set"}
+                </p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">Attendance Mode</p>
-              <div className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-2" role="group" aria-label="Attendance mode">
-                {(["onsite", "remote", "field"] as AttendanceMode[]).map((mode) => {
-                  const active = selectedMode === mode;
-                  return (
-                    <button
-                      key={mode}
-                      type="button"
-                      onClick={() => setSelectedMode(mode)}
-                      aria-pressed={active}
-                      className={[
-                        "flex items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-xs font-semibold transition",
-                        active ? "bg-brand-900 text-white shadow-soft" : "text-slate-600",
-                      ].join(" ")}
-                    >
-                      <Icon name={mode === "onsite" ? "location_on" : mode === "remote" ? "home_work" : "travel_explore"} className="text-[16px]" fill={active} />
-                      {humanize(mode)}
-                    </button>
-                  );
-                })}
+              <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+                Attendance Mode
+              </p>
+              <div
+                className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-2"
+                role="group"
+                aria-label="Attendance mode"
+              >
+                {(["onsite", "remote", "field"] as AttendanceMode[]).map(
+                  (mode) => {
+                    const active = selectedMode === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setSelectedMode(mode)}
+                        aria-pressed={active}
+                        className={[
+                          "flex items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-xs font-semibold transition",
+                          active
+                            ? "bg-brand-900 text-white shadow-soft"
+                            : "text-slate-600",
+                        ].join(" ")}
+                      >
+                        <Icon
+                          name={
+                            mode === "onsite"
+                              ? "location_on"
+                              : mode === "remote"
+                                ? "home_work"
+                                : "travel_explore"
+                          }
+                          className="text-[16px]"
+                          fill={active}
+                        />
+                        {humanize(mode)}
+                      </button>
+                    );
+                  },
+                )}
               </div>
             </div>
 
             <SelectField
               label="Office/Location"
               value={selectedOfficeLocationId}
-              onChange={(event) => setSelectedOfficeLocationId(event.target.value)}
+              onChange={(event) =>
+                setSelectedOfficeLocationId(event.target.value)
+              }
               disabled={selectedMode !== "onsite"}
             >
               <option value="">Select office location</option>
@@ -693,10 +997,19 @@ export function AttendancePage() {
             </SelectField>
 
             <div className="grid gap-3">
-              <Button className="w-full justify-center py-4 text-base shadow-soft" onClick={() => void runClockAction("in")} disabled={acting !== null || !currentState?.can_clock_in}>
+              <Button
+                className="w-full justify-center py-4 text-base shadow-soft"
+                onClick={() => void runClockAction("in")}
+                disabled={acting !== null || !currentState?.can_clock_in}
+              >
                 {acting === "in" ? "Clocking In..." : "Clock In Now"}
               </Button>
-              <Button variant="secondary" className="w-full justify-center py-4 text-base" onClick={() => void runClockAction("out")} disabled={acting !== null || !currentState?.can_clock_out}>
+              <Button
+                variant="secondary"
+                className="w-full justify-center py-4 text-base"
+                onClick={() => void runClockAction("out")}
+                disabled={acting !== null || !currentState?.can_clock_out}
+              >
                 {acting === "out" ? "Clocking Out..." : "Clock Out"}
               </Button>
             </div>
@@ -705,18 +1018,51 @@ export function AttendancePage() {
 
         <SectionCard title="Premises Check">
           <div className="flex items-start gap-3 rounded-[20px] bg-slate-100 px-4 py-4">
-            <div className={["flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl", premisesTone === "danger" ? "bg-danger/10 text-danger" : premisesTone === "success" ? "bg-success/10 text-success" : "bg-slate-200 text-slate-600"].join(" ")}>
-              <Icon name={premisesTone === "danger" ? "location_off" : "location_on"} className="text-[20px]" />
+            <div
+              className={[
+                "flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl",
+                premisesTone === "danger"
+                  ? "bg-danger/10 text-danger"
+                  : premisesTone === "success"
+                    ? "bg-success/10 text-success"
+                    : "bg-slate-200 text-slate-600",
+              ].join(" ")}
+            >
+              <Icon
+                name={
+                  premisesTone === "danger" ? "location_off" : "location_on"
+                }
+                className="text-[20px]"
+              />
             </div>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <p className="text-sm font-semibold text-slate-950">{locationName}</p>
-                <Chip variant={premisesTone === "danger" ? "danger" : premisesTone === "success" ? "success" : "neutral"}>
-                  {humanize(String(today?.geofence_status || (selectedMode === "onsite" ? "unknown" : "not_applicable")))}
+                <p className="text-sm font-semibold text-slate-950">
+                  {locationName}
+                </p>
+                <Chip
+                  variant={
+                    premisesTone === "danger"
+                      ? "danger"
+                      : premisesTone === "success"
+                        ? "success"
+                        : "neutral"
+                  }
+                >
+                  {humanize(
+                    String(
+                      today?.geofence_status ||
+                        (selectedMode === "onsite"
+                          ? "unknown"
+                          : "not_applicable"),
+                    ),
+                  )}
                 </Chip>
               </div>
               <p className="mt-1 text-sm leading-6 text-slate-500">
-                {selectedMode === "onsite" ? "Latest premises validation for your onsite attendance." : `Working ${humanize(selectedMode)} today.`}
+                {selectedMode === "onsite"
+                  ? "Latest premises validation for your onsite attendance."
+                  : `Working ${humanize(selectedMode)} today.`}
               </p>
             </div>
           </div>
@@ -725,7 +1071,12 @@ export function AttendancePage() {
         <SectionCard title="Activity Summary">
           <div className="grid grid-cols-2 gap-3">
             {stats.map((metric) => (
-              <SummaryTile key={metric.label} label={metric.label} value={metric.value} accentClass={metric.accentClass} />
+              <SummaryTile
+                key={metric.label}
+                label={metric.label}
+                value={metric.value}
+                accentClass={metric.accentClass}
+              />
             ))}
           </div>
         </SectionCard>
@@ -733,7 +1084,12 @@ export function AttendancePage() {
         <SectionCard
           title="Corrections"
           action={
-            <Button size="sm" variant="secondary" className="gap-2" onClick={() => setShowCorrectionForm((value) => !value)}>
+            <Button
+              size="sm"
+              variant="secondary"
+              className="gap-2"
+              onClick={() => setShowCorrectionForm((value) => !value)}
+            >
               <Icon name="add" className="text-[18px]" />
               {showCorrectionForm ? "Close" : "Submit New"}
             </Button>
@@ -745,12 +1101,22 @@ export function AttendancePage() {
                 label="Work Date"
                 type="date"
                 value={correctionForm.work_date}
-                onChange={(event) => setCorrectionForm((prev) => ({ ...prev, work_date: event.target.value }))}
+                onChange={(event) =>
+                  setCorrectionForm((prev) => ({
+                    ...prev,
+                    work_date: event.target.value,
+                  }))
+                }
               />
               <SelectField
                 label="Request Type"
                 value={correctionForm.request_type}
-                onChange={(event) => setCorrectionForm((prev) => ({ ...prev, request_type: event.target.value }))}
+                onChange={(event) =>
+                  setCorrectionForm((prev) => ({
+                    ...prev,
+                    request_type: event.target.value,
+                  }))
+                }
               >
                 <option value="clock_in">Missed Clock In</option>
                 <option value="clock_out">Missed Clock Out</option>
@@ -760,9 +1126,18 @@ export function AttendancePage() {
               <TextAreaField
                 label="Reason"
                 value={correctionForm.reason}
-                onChange={(event) => setCorrectionForm((prev) => ({ ...prev, reason: event.target.value }))}
+                onChange={(event) =>
+                  setCorrectionForm((prev) => ({
+                    ...prev,
+                    reason: event.target.value,
+                  }))
+                }
               />
-              <Button className="w-full justify-center" onClick={() => void submitCorrection()} disabled={submittingCorrection}>
+              <Button
+                className="w-full justify-center"
+                onClick={() => void submitCorrection()}
+                disabled={submittingCorrection}
+              >
                 {submittingCorrection ? "Submitting..." : "Submit Correction"}
               </Button>
             </div>
@@ -770,23 +1145,42 @@ export function AttendancePage() {
 
           <div className="space-y-3">
             {recentIssues.map((item) => (
-              <article key={`${item.kind}-${item.id}`} className="rounded-[18px] border border-slate-100 bg-slate-50 p-4">
+              <article
+                key={`${item.kind}-${item.id}`}
+                className="rounded-[18px] border border-slate-100 bg-slate-50 p-4"
+              >
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">{formatDate(item.work_date)}</p>
+                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-400">
+                      {formatDate(item.work_date)}
+                    </p>
                     <h3 className="mt-2 text-sm font-semibold text-slate-950">
-                      {humanize(item.kind === "correction" ? item.request_type : item.exception_type)}
+                      {humanize(
+                        item.kind === "correction"
+                          ? item.request_type
+                          : item.exception_type,
+                      )}
                     </h3>
                   </div>
-                  <Chip variant={toneFromStatus(item.status) === "neutral" ? "neutral" : toneFromStatus(item.status)}>
+                  <Chip
+                    variant={
+                      toneFromStatus(item.status) === "neutral"
+                        ? "neutral"
+                        : toneFromStatus(item.status)
+                    }
+                  >
                     {humanize(item.status)}
                   </Chip>
                 </div>
-                <p className="mt-3 text-sm leading-6 text-slate-500">{issueDescription(item)}</p>
+                <p className="mt-3 text-sm leading-6 text-slate-500">
+                  {issueDescription(item)}
+                </p>
               </article>
             ))}
             {!loading && recentIssues.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">No corrections or exceptions yet.</div>
+              <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                No corrections or exceptions yet.
+              </div>
             ) : null}
           </div>
         </SectionCard>
@@ -794,32 +1188,58 @@ export function AttendancePage() {
         <SectionCard title="Attendance History">
           <div className="space-y-2">
             {recentDaily.map((row) => (
-              <div key={row.id} className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-4">
+              <div
+                key={row.id}
+                className="flex items-center justify-between gap-3 rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-4"
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex h-11 w-11 flex-col items-center justify-center rounded-2xl bg-white text-[10px] font-bold uppercase tracking-[0.14em] text-slate-500 shadow-sm">
-                    <span>{new Date(row.work_date).toLocaleDateString("en-NG", { month: "short" })}</span>
-                    <span className="text-sm tracking-normal text-slate-950">{new Date(row.work_date).getDate()}</span>
+                    <span>
+                      {new Date(row.work_date).toLocaleDateString("en-NG", {
+                        month: "short",
+                      })}
+                    </span>
+                    <span className="text-sm tracking-normal text-slate-950">
+                      {new Date(row.work_date).getDate()}
+                    </span>
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-950">{humanize(row.status)}</p>
-                      <Chip variant={toneFromStatus(row.status) === "neutral" ? "neutral" : toneFromStatus(row.status)}>
+                      <p className="text-sm font-semibold text-slate-950">
+                        {humanize(row.status)}
+                      </p>
+                      <Chip
+                        variant={
+                          toneFromStatus(row.status) === "neutral"
+                            ? "neutral"
+                            : toneFromStatus(row.status)
+                        }
+                      >
                         {humanize(row.status)}
                       </Chip>
                     </div>
                     <p className="mt-1 text-xs font-medium text-slate-500">
-                      In {formatClockTime(row.first_in_at)} • Out {formatClockTime(row.last_out_at)}
+                      In {formatClockTime(row.first_in_at)} • Out{" "}
+                      {formatClockTime(row.last_out_at)}
                     </p>
                   </div>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">{humanize(String(row.attendance_mode || row.expected_mode || "-"))}</p>
-                  <p className="mt-1 text-xs text-slate-500">{formatMinutes(row.worked_minutes)}</p>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+                    {humanize(
+                      String(row.attendance_mode || row.expected_mode || "-"),
+                    )}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatMinutes(row.worked_minutes)}
+                  </p>
                 </div>
               </div>
             ))}
             {!loading && recentDaily.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">No attendance history yet.</div>
+              <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                No attendance history yet.
+              </div>
             ) : null}
           </div>
         </SectionCard>
@@ -827,16 +1247,26 @@ export function AttendancePage() {
         <SectionCard title="Recent Activity">
           <div className="space-y-3">
             {recentEntries.map((row) => (
-              <article key={row.id} className="flex items-start gap-3 rounded-[18px] border border-slate-100 bg-slate-50 p-4">
+              <article
+                key={row.id}
+                className="flex items-start gap-3 rounded-[18px] border border-slate-100 bg-slate-50 p-4"
+              >
                 <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-brand-900/10 text-brand-900">
-                  <Icon name={row.entry_type === "clock_out" ? "logout" : "login"} className="text-[18px]" />
+                  <Icon
+                    name={row.entry_type === "clock_out" ? "logout" : "login"}
+                    className="text-[18px]"
+                  />
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-950">{humanize(row.entry_type)}</p>
+                      <p className="text-sm font-semibold text-slate-950">
+                        {humanize(row.entry_type)}
+                      </p>
                       <p className="mt-1 text-sm text-slate-500">
-                        {humanize(String(row.attendance_mode || row.source || "-"))}
+                        {humanize(
+                          String(row.attendance_mode || row.source || "-"),
+                        )}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 text-xs text-slate-500">
@@ -848,7 +1278,9 @@ export function AttendancePage() {
               </article>
             ))}
             {!loading && recentEntries.length === 0 ? (
-              <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">No recent activity yet.</div>
+              <div className="rounded-[18px] border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
+                No recent activity yet.
+              </div>
             ) : null}
           </div>
         </SectionCard>

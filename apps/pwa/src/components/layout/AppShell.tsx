@@ -1,7 +1,13 @@
 import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import { hasAnyPermission, hasApprovalAccess, hasModuleAccess, roleLabel, sortRoles } from "@stanforte/shared";
-import { useAuth } from "@/features/auth/AuthProvider";
+import {
+  hasAnyPermission,
+  hasApprovalAccess,
+  hasModuleAccess,
+  roleLabel,
+  sortRoles,
+} from "@stanforte/shared";
+import { useAuth } from "@/context/AuthProvider";
 import { useCachedQuery } from "@/lib/core";
 import {
   getWorkspaceProfile,
@@ -50,7 +56,7 @@ export function AppShell({
     {
       ttlMs: 1000 * 60,
       storage: "memory",
-    }
+    },
   );
   const { data: notifications, refetch: refetchNotifications } = useCachedQuery(
     "workspace:notifications:preview",
@@ -58,7 +64,7 @@ export function AppShell({
     {
       ttlMs: 1000 * 30,
       storage: "memory",
-    }
+    },
   );
   const { data: unreadCount, refetch: refetchUnreadCount } = useCachedQuery(
     "workspace:notifications:unread-count",
@@ -66,7 +72,7 @@ export function AppShell({
     {
       ttlMs: 1000 * 30,
       storage: "memory",
-    }
+    },
   );
 
   useEffect(() => {
@@ -79,10 +85,16 @@ export function AppShell({
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    window.localStorage.setItem("se:pwa:sidebar-collapsed", sidebarCollapsed ? "true" : "false");
+    window.localStorage.setItem(
+      "se:pwa:sidebar-collapsed",
+      sidebarCollapsed ? "true" : "false",
+    );
   }, [sidebarCollapsed]);
 
-  const topNotifications = useMemo(() => (notifications ?? []).slice(0, 6), [notifications]);
+  const topNotifications = useMemo(
+    () => (notifications ?? []).slice(0, 6),
+    [notifications],
+  );
   const visibleNavigation = useMemo(
     () =>
       navigation.reduce<SidebarItem[]>((acc, item) => {
@@ -92,7 +104,9 @@ export function AppShell({
             ...(profile?.teams ?? []),
             ...(profile?.projects ?? []),
           ].some((group) =>
-            String(group?.role ?? "").toLowerCase().includes("lead"),
+            String(group?.role ?? "")
+              .toLowerCase()
+              .includes("lead"),
           ),
         );
         const canAccessItem =
@@ -109,8 +123,10 @@ export function AppShell({
               const canAccessChild =
                 (!child.permissions?.length ||
                   hasAnyPermission(authUser, child.permissions) ||
-                  (child.requiresTeamLeadAssignment && hasApprovalAccess(authUser))) &&
-                (!item.moduleKey || hasModuleAccess(authUser, item.moduleKey)) &&
+                  (child.requiresTeamLeadAssignment &&
+                    hasApprovalAccess(authUser))) &&
+                (!item.moduleKey ||
+                  hasModuleAccess(authUser, item.moduleKey)) &&
                 (!child.requiresTeamLeadAssignment ||
                   teamLeadAssigned ||
                   hasApprovalAccess(authUser));
@@ -127,16 +143,24 @@ export function AppShell({
   );
   const shellUser = useMemo(() => {
     const profileTitle = profile?.employee_profile?.job_title?.trim() || "";
-    const profileDisplayName = `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
-    const authDisplayName = `${authUser?.first_name ?? ""} ${authUser?.last_name ?? ""}`.trim() || authUser?.username || authUser?.email || "";
+    const profileDisplayName =
+      `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
+    const authDisplayName =
+      `${authUser?.first_name ?? ""} ${authUser?.last_name ?? ""}`.trim() ||
+      authUser?.username ||
+      authUser?.email ||
+      "";
     const roles = sortRoles(
       Array.from(
         new Set(
-          (authUser?.roles?.length ? authUser.roles : String(user.role || "").split("|"))
+          (authUser?.roles?.length
+            ? authUser.roles
+            : String(user.role || "").split("|")
+          )
             .map((entry) => String(entry).trim().toLowerCase())
-            .filter(Boolean)
-        )
-      )
+            .filter(Boolean),
+        ),
+      ),
     );
     const primaryRole = roles[0] ? roleLabel(roles[0]) : "Staff";
     const extraRoles = roles.slice(1).map(roleLabel);
@@ -145,7 +169,20 @@ export function AppShell({
       name: profileDisplayName || authDisplayName || user.name,
       title: profileTitle || primaryRole,
     };
-  }, [authUser?.email, authUser?.first_name, authUser?.last_name, authUser?.roles, authUser?.username, profile?.employee_profile?.job_title, profile?.first_name, profile?.last_name, profile?.projects, profile?.teams, user.name, user.role]);
+  }, [
+    authUser?.email,
+    authUser?.first_name,
+    authUser?.last_name,
+    authUser?.roles,
+    authUser?.username,
+    profile?.employee_profile?.job_title,
+    profile?.first_name,
+    profile?.last_name,
+    profile?.projects,
+    profile?.teams,
+    user.name,
+    user.role,
+  ]);
 
   async function handleMarkNotificationRead(id: string) {
     await markWorkspaceNotificationRead(id);
@@ -169,7 +206,11 @@ export function AppShell({
         onMarkAllNotificationsRead={handleMarkAllNotificationsRead}
         onSignOut={() => signOut()}
       />
-      <MobileTopBar user={shellUser} unreadCount={unreadCount ?? 0} onSignOut={() => signOut()} />
+      <MobileTopBar
+        user={shellUser}
+        unreadCount={unreadCount ?? 0}
+        onSignOut={() => signOut()}
+      />
       <Sidebar
         navigation={visibleNavigation}
         activeLabel={activeLabel}
@@ -177,7 +218,12 @@ export function AppShell({
         onSignOut={() => signOut()}
       />
 
-      <div className={[sidebarCollapsed ? "lg:ml-20" : "lg:ml-64", "min-h-screen pb-24 pt-24 transition-[margin] duration-300 lg:pb-12"].join(" ")}>
+      <div
+        className={[
+          sidebarCollapsed ? "lg:ml-20" : "lg:ml-64",
+          "min-h-screen pb-24 pt-24 transition-[margin] duration-300 lg:pb-12",
+        ].join(" ")}
+      >
         <main className="px-4 lg:px-8">
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>

@@ -7,6 +7,7 @@ import {
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import { Icon } from "./Icon";
 
 type FieldShellProps = {
   label: string;
@@ -99,6 +100,48 @@ export function SelectField({
         children,
       })}
     </FieldShell>
+  );
+}
+
+type InlineSelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
+  label: string;
+  icon?: string;
+  wrapperClassName?: string;
+};
+
+export function InlineSelectField({
+  label,
+  icon,
+  wrapperClassName,
+  className,
+  children,
+  ...props
+}: InlineSelectProps) {
+  return (
+    <label
+      className={[
+        "flex min-w-0 items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600 focus-within:ring-4 focus-within:ring-brand-900/10",
+        wrapperClassName,
+      ]
+        .filter(Boolean)
+        .join(" ")}
+    >
+      <span className="inline-flex items-center gap-2">
+        {icon ? <Icon name={icon} className="text-[18px] text-slate-400" /> : null}
+        <span className="font-medium text-slate-600">{label}</span>
+      </span>
+      <select
+        className={[
+          "min-w-0 border-0 bg-transparent py-0 pl-2 pr-6 text-sm font-semibold text-slate-700 outline-none focus:ring-0",
+          className,
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        {...props}
+      >
+        {children}
+      </select>
+    </label>
   );
 }
 
