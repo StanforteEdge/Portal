@@ -1,4 +1,4 @@
-import { httpRequest } from "@/lib/core";
+import { httpRequest } from "@/shared/lib/core";
 
 export type AttendanceMode = "onsite" | "remote" | "field";
 

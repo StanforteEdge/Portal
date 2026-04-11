@@ -20,12 +20,12 @@ import {
   useToast,
 } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
-import { AppShell } from "@/components/layout/AppShell";
-import { useCachedQuery } from "@/lib/core";
+import { AppShell } from "@/shared/components/layout/AppShell";
+import { useCachedQuery } from "@/shared/lib/core";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/lib/requests/requests-data";
+} from "@/features/requests/requests-data";
 import {
   clockIn,
   clockOut,
@@ -37,7 +37,7 @@ import {
   type AttendanceException,
   type AttendanceMode,
   type OfficeLocation,
-} from "../../api/attendance/attendance-api";
+} from "@/modules/hr/attendance-api";
 
 const defaultCorrectionForm = {
   work_date: new Date().toISOString().slice(0, 10),
@@ -913,7 +913,7 @@ export function AttendancePage() {
           </div>
         ) : null}
 
-        <SectionCard title="Today’s Attendance">
+        <SectionCard title="Today's Attendance">
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="rounded-2xl bg-slate-100 p-4">

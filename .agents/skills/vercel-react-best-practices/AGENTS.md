@@ -1,3 +1,28 @@
+# context-mode Routing Rules (Codex)
+
+You have `context-mode` MCP tools available. Use them to avoid flooding context with raw command/file output.
+
+## Mandatory Routing
+
+1. For multi-command exploration and large-output shell work, prefer `ctx_batch_execute`.
+2. For analysis/counting/parsing/filtering, use `ctx_execute` and print only the final summarized result.
+3. For file analysis (not direct editing), prefer `ctx_execute_file` instead of dumping full file content.
+4. For web content, use `ctx_fetch_and_index` then query via `ctx_search`.
+5. Use `ctx_search` for follow-up queries on indexed output/content.
+
+## Avoid
+
+1. Direct `curl`/`wget` output into chat context.
+2. Inline HTTP one-liners (`node -e`, `python -c`) that dump raw payloads.
+3. Repeated broad `grep`/search dumps when indexed search can answer the question.
+
+## Quick Commands
+
+- `ctx stats`
+- `ctx doctor`
+- `ctx upgrade`
+- `ctx purge`
+
 # React Best Practices
 
 **Version 1.0.0**  
