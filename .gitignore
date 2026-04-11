@@ -18,3 +18,5 @@ plugins
 output/
 tmp/
 .worktrees/
+apps/pwa/src-tauri/target/
+apps/pwa/.env.local
