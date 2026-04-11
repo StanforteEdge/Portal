@@ -82,6 +82,18 @@ function summaryCardTone(count: number) {
   return count > 0 ? "text-brand-900" : "text-slate-500";
 }
 
+function attentionHint(status: string, isApproval = false): {
+  label: string;
+  tone: "warning" | "danger" | "pending" | "neutral";
+} {
+  if (isApproval) return { label: "Approval needed", tone: "pending" };
+  const s = String(status || "").toLowerCase();
+  if (s === "draft") return { label: "Not submitted", tone: "warning" };
+  if (s === "returned") return { label: "Revision needed", tone: "danger" };
+  if (s === "disbursed") return { label: "Retirement required", tone: "warning" };
+  return { label: "Needs attention", tone: "neutral" };
+}
+
 export default function DashboardPage() {
   const { user } = useAuth();
   const { data: profile } = useCachedQuery(
@@ -149,7 +161,19 @@ export default function DashboardPage() {
   const groups = profile?.teams ?? [];
   const primaryGroup = groups[0];
   const today = attendance?.today;
-  const recentRequests = myRequests.slice(0, 4);
+
+  // Requests needing staff action
+  const ATTENTION_STATUSES = ["draft", "returned", "disbursed"];
+  const attentionRequests = myRequests.filter((r) =>
+    ATTENTION_STATUSES.includes(String(r.status || "").toLowerCase()),
+  );
+  const pendingApprovalItems = myApprovals
+    .filter((item) =>
+      pendingStatuses.includes(String(item.status || "").toLowerCase()),
+    )
+    .slice(0, 3);
+  const attentionCount = attentionRequests.length + pendingApprovalItems.length;
+
   const unreadNotifications = notifications ?? [];
   const latestNotice = unreadNotifications[0];
   const nextShiftTime = attendance?.policy?.start_time
@@ -316,7 +340,7 @@ export default function DashboardPage() {
             </section>
 
             <SectionCard
-              title="Recent Requests"
+              title="Needs Your Attention"
               action={
                 <Link
                   to="/requests"
@@ -327,8 +351,42 @@ export default function DashboardPage() {
               }
             >
               <div className="divide-y divide-slate-100">
-                {recentRequests.map((row) => {
+                {/* Pending approvals first */}
+                {pendingApprovalItems.map((row) => {
                   const family = requestFamilyFromType(row.request_type);
+                  const hint = attentionHint(row.status, true);
+                  return (
+                    <Link
+                      key={`approval-${row.id}`}
+                      to={`/requests/approvals`}
+                      className="flex items-center justify-between gap-4 px-1 py-4 transition hover:bg-slate-50/70"
+                    >
+                      <div className="flex min-w-0 items-center gap-4">
+                        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-900">
+                          <span className="material-symbols-outlined">
+                            {requestIcon(row.request_type?.name, family)}
+                          </span>
+                        </div>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-950">
+                            {row.request_type?.name ||
+                              row.request_number ||
+                              "Request"}
+                          </p>
+                          <p className="truncate text-xs text-slate-500">
+                            {requestSubtitle(row)}
+                          </p>
+                        </div>
+                      </div>
+                      <Chip variant={hint.tone}>{hint.label}</Chip>
+                    </Link>
+                  );
+                })}
+
+                {/* Own requests needing action */}
+                {attentionRequests.map((row) => {
+                  const family = requestFamilyFromType(row.request_type);
+                  const hint = attentionHint(row.status);
                   return (
                     <Link
                       key={row.id}
@@ -352,15 +410,19 @@ export default function DashboardPage() {
                           </p>
                         </div>
                       </div>
-                      <Chip variant={requestStatusTone(row.status)}>
-                        {formatRequestStatus(row.status)}
-                      </Chip>
+                      <Chip variant={hint.tone}>{hint.label}</Chip>
                     </Link>
                   );
                 })}
-                {!loadingRequests && recentRequests.length === 0 ? (
-                  <div className="px-1 py-8 text-sm text-slate-500">
-                    No recent requests yet.
+
+                {!loadingRequests && attentionCount === 0 ? (
+                  <div className="flex items-center gap-3 px-1 py-8">
+                    <span className="material-symbols-outlined text-emerald-500">
+                      check_circle
+                    </span>
+                    <p className="text-sm text-slate-500">
+                      All caught up — no requests need your attention right now.
+                    </p>
                   </div>
                 ) : null}
               </div>
@@ -561,7 +623,7 @@ export default function DashboardPage() {
         </section>
 
         <SectionCard
-          title="Recent Requests"
+          title="Needs Your Attention"
           action={
             <Link
               to="/requests"
@@ -572,27 +634,53 @@ export default function DashboardPage() {
           }
         >
           <div className="space-y-3">
-            {recentRequests.map((row) => (
-              <Link
-                key={row.id}
-                to={`/requests/details?id=${row.id}`}
-                className="block rounded-2xl border border-slate-100 p-4 transition hover:bg-slate-50"
-              >
-                <p className="text-sm font-semibold text-slate-950">
-                  {row.request_type?.name || row.request_number || "Request"}
-                </p>
-                <p className="mt-1 text-xs text-slate-500">
-                  {formatDisplayDate(row.created_at)}
-                </p>
-                <div className="mt-3">
-                  <Chip variant={requestStatusTone(row.status)}>
-                    {formatRequestStatus(row.status)}
-                  </Chip>
-                </div>
-              </Link>
-            ))}
-            {!loadingRequests && recentRequests.length === 0 ? (
-              <p className="text-sm text-slate-500">No recent requests yet.</p>
+            {pendingApprovalItems.map((row) => {
+              const hint = attentionHint(row.status, true);
+              return (
+                <Link
+                  key={`approval-${row.id}`}
+                  to="/requests/approvals"
+                  className="block rounded-2xl border border-brand-100 bg-brand-50/40 p-4 transition hover:bg-brand-50"
+                >
+                  <p className="text-sm font-semibold text-slate-950">
+                    {row.request_type?.name || row.request_number || "Request"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatDisplayDate(row.created_at)}
+                  </p>
+                  <div className="mt-3">
+                    <Chip variant={hint.tone}>{hint.label}</Chip>
+                  </div>
+                </Link>
+              );
+            })}
+            {attentionRequests.map((row) => {
+              const hint = attentionHint(row.status);
+              return (
+                <Link
+                  key={row.id}
+                  to={`/requests/details?id=${row.id}`}
+                  className="block rounded-2xl border border-slate-100 p-4 transition hover:bg-slate-50"
+                >
+                  <p className="text-sm font-semibold text-slate-950">
+                    {row.request_type?.name || row.request_number || "Request"}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    {formatDisplayDate(row.created_at)}
+                  </p>
+                  <div className="mt-3">
+                    <Chip variant={hint.tone}>{hint.label}</Chip>
+                  </div>
+                </Link>
+              );
+            })}
+            {!loadingRequests && attentionCount === 0 ? (
+              <div className="flex items-center gap-2 py-4">
+                <span className="material-symbols-outlined text-emerald-500 text-[18px]">
+                  check_circle
+                </span>
+                <p className="text-sm text-slate-500">All caught up.</p>
+              </div>
             ) : null}
           </div>
         </SectionCard>
