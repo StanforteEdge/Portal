@@ -101,14 +101,11 @@ export function buildRequestsNavigation(options?: {
     {
       label: "Profile",
       icon: "person",
-      path: "/profile",
       section: "Staff",
-    },
-    {
-      label: "Settings",
-      icon: "settings",
-      path: "/settings",
-      section: "Staff",
+      children: [
+        { label: "Profile", icon: "person", path: "/profile" },
+        { label: "Settings", icon: "settings", path: "/settings" },
+      ],
     },
     {
       label: "Finance",
