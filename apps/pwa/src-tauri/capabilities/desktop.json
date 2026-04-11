@@ -1,0 +1,7 @@
+{
+  "identifier": "desktop-capability",
+  "description": "Desktop-only capabilities for Stanforte Portal",
+  "platforms": ["macOS", "windows", "linux"],
+  "windows": ["main"],
+  "permissions": []
+}
