@@ -64,6 +64,10 @@ export default defineConfig(({ mode }) => {
       "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
       "import.meta.env.VITE_APP_BUILD_DATE": JSON.stringify(buildDate),
       "import.meta.env.VITE_CHANGELOG": JSON.stringify(JSON.stringify(changelog)),
+      "import.meta.env.VITE_DOWNLOAD_BASE_URL": JSON.stringify(
+        env.VITE_DOWNLOAD_BASE_URL ||
+          "https://github.com/edgdmedia/stanforteedge/releases/download"
+      ),
     },
     server: {
       port: 5173,
