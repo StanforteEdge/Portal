@@ -101,6 +101,13 @@ function parsePositiveNumber(value: string) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
+function parseDateOnly(value: string) {
+  if (!value) return null;
+  const date = new Date(`${value}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  return date;
+}
+
 function itemTotal(item: ItemState) {
   return (
     parsePositiveNumber(item.quantity) * parsePositiveNumber(item.unit_price)
@@ -221,7 +228,11 @@ function buildPayload(
   return payload;
 }
 
-function validateForm(form: FormState, family: RequestFamily) {
+function validateForm(
+  form: FormState,
+  family: RequestFamily,
+  options?: { minNoticeDays?: number; maxDaysPerRequest?: number },
+) {
   if (!form.request_type_id) return "Select a request type.";
   if (!form.purpose.trim())
     return family === "leave" ? "Reason is required." : "Purpose is required.";
@@ -234,6 +245,22 @@ function validateForm(form: FormState, family: RequestFamily) {
     }
     if (!form.leave_days_requested || Number(form.leave_days_requested) <= 0) {
       return "Leave days requested must be greater than zero.";
+    }
+    const leaveDaysRequested = Number(form.leave_days_requested);
+    if (
+      Number(options?.maxDaysPerRequest || 0) > 0 &&
+      leaveDaysRequested > Number(options?.maxDaysPerRequest)
+    ) {
+      return `Leave days requested cannot exceed ${options?.maxDaysPerRequest} day${options?.maxDaysPerRequest === 1 ? "" : "s"} for this leave type.`;
+    }
+    if (Number(options?.minNoticeDays || 0) > 0) {
+      const start = parseDateOnly(form.leave_start_date);
+      const minStart = new Date();
+      minStart.setHours(0, 0, 0, 0);
+      minStart.setDate(minStart.getDate() + Number(options?.minNoticeDays || 0));
+      if (start && start < minStart) {
+        return `Leave start date must be at least ${options?.minNoticeDays} day${options?.minNoticeDays === 1 ? "" : "s"} from today.`;
+      }
     }
     if (!form.leave_handover_user_id) return "Handover colleague is required.";
     if (!form.leave_handover_notes.trim())
@@ -526,6 +553,12 @@ export function RequestFormPage() {
     (selectedType?.form_schema as Record<string, unknown> | null)
       ?.min_notice_days ?? 0,
   );
+  const maxDaysPerRequest = Number(
+    (selectedType?.form_schema as Record<string, unknown> | null)
+      ?.max_days_per_request ??
+      (selectedType?.form_schema as Record<string, unknown> | null)?.max_days ??
+      0,
+  );
 
   const minStartDate = useMemo(() => {
     if (family !== "leave" || minNoticeDays <= 0) return "";
@@ -540,7 +573,10 @@ export function RequestFormPage() {
   const projectOptions = projects ?? [];
 
   async function handleSave(submitAfterSave: boolean) {
-    const error = validateForm(form, family);
+    const error = validateForm(form, family, {
+      minNoticeDays,
+      maxDaysPerRequest,
+    });
     if (error) {
       showToast({
         tone: "warning",
@@ -584,7 +620,12 @@ export function RequestFormPage() {
           ? "Your request has been submitted and routed for review."
           : "Your draft has been saved.",
       });
-      navigate(`/requests/details?id=${created.id}`, { replace: true });
+      navigate(
+        family === "leave"
+          ? `/leave/details?id=${created.id}&view=mine`
+          : `/requests/details?id=${created.id}`,
+        { replace: true },
+      );
     } catch (requestError) {
       showToast({
         tone: "danger",
@@ -904,6 +945,10 @@ export function RequestFormPage() {
                   title="Handover Plan"
                   description="Identify who will cover and how work will be handed over."
                 >
+                  <div className="rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3 text-xs leading-6 text-slate-600">
+                    Handover colleague receives an acknowledgement notice.
+                    Leave approval decisions are still made by team lead/workflow approvers.
+                  </div>
                   <div className="grid gap-4 lg:grid-cols-2">
                     <SelectField
                       label="Handover Colleague"
@@ -1217,6 +1262,25 @@ export function RequestFormPage() {
                       </p>
                     </div>
                   ) : null}
+                  {maxDaysPerRequest > 0 ? (
+                    <div className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-3">
+                      <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-white/70">
+                        Max Per Request
+                      </p>
+                      <p className="mt-2 text-lg font-semibold">
+                        {maxDaysPerRequest} day{maxDaysPerRequest === 1 ? "" : "s"}
+                      </p>
+                    </div>
+                  ) : null}
+                  <div className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-3">
+                    <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-white/70">
+                      Handover & Approval
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-white/85">
+                      Handover colleague is notified to acknowledge coverage.
+                      Team lead/workflow approvers still approve or reject leave.
+                    </p>
+                  </div>
                 </div>
               ) : null}
             </section>
@@ -1283,6 +1347,11 @@ export function RequestFormPage() {
               {minNoticeDays > 0 ? (
                 <p className="text-sm leading-6 text-white/70">
                   Notice required: {minNoticeDays} day{minNoticeDays === 1 ? "" : "s"} in advance
+                </p>
+              ) : null}
+              {maxDaysPerRequest > 0 ? (
+                <p className="text-sm leading-6 text-white/70">
+                  Max per request: {maxDaysPerRequest} day{maxDaysPerRequest === 1 ? "" : "s"}
                 </p>
               ) : null}
             </div>

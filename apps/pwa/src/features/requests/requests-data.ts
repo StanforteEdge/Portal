@@ -85,6 +85,7 @@ export function buildRequestsNavigation(options?: {
   return [
     { label: "Dashboard", icon: "grid_view", path: "/", section: "Staff" },
     { label: "Attendance", icon: "pending_actions", path: "/attendance", section: "Staff" },
+    { label: "Leave", icon: "event_available", path: "/leave", section: "Staff" },
     {
       label: "Requests",
       icon: "format_list_bulleted",
@@ -124,7 +125,7 @@ export function buildRequestsNavigation(options?: {
   ];
 }
 
-export function buildAppMobileNav(activeLabel: "Requests" | "Attendance" | "Dashboard" | "Finance" | "Messages" = "Requests") {
+export function buildAppMobileNav(activeLabel: "Requests" | "Attendance" | "Leave" | "Dashboard" | "Finance" | "Messages" = "Requests") {
   return [
     { label: "Dashboard", icon: "grid_view", path: "/", active: activeLabel === "Dashboard" },
     { label: "Attendance", icon: "pending_actions", path: "/attendance", active: activeLabel === "Attendance" },
@@ -134,7 +135,7 @@ export function buildAppMobileNav(activeLabel: "Requests" | "Attendance" | "Dash
       path: activeLabel === "Finance" ? "/finance" : "/requests",
       active: activeLabel === "Requests" || activeLabel === "Finance",
     },
-    { label: "More", icon: "menu", active: false },
+    { label: "Leave", icon: "event_available", path: "/leave", active: activeLabel === "Leave" },
   ];
 }
 

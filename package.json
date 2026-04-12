@@ -16,7 +16,9 @@
     "build:pwa": "npm run build -w PWA",
     "build:pwa2": "npm run build -w apps/pwa",
     "build:api": "npm run build -w api",
-    "deploy:server": "npm run deploy:server -w api"
+    "deploy:server": "npm run deploy:server -w api",
+    "tauri:dev": "npm run tauri:dev -w apps/pwa",
+    "tauri:build": "npm run tauri:build -w apps/pwa"
   },
   "overrides": {
     "react": "18.2.0",

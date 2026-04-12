@@ -277,6 +277,79 @@ function buildWorkflow(
   });
 }
 
+function buildLeaveWorkflow(
+  request: any,
+  pendingSteps: Array<{ step: string }>,
+  options?: { showDraftStep?: boolean },
+): WorkflowStep[] {
+  const status = deriveRequestWorkflowStatus(request);
+  const doneEntries = Array.isArray(request?.approvals?.done)
+    ? request.approvals.done
+    : [];
+  const requestTypeSteps = Array.isArray(
+    request?.request_type?.approval_flow_json?.steps,
+  )
+    ? request.request_type.approval_flow_json.steps
+    : [];
+  const approvalStepsSource = requestTypeSteps.length
+    ? requestTypeSteps
+    : [{ role: "team_lead" }, { role: "hr" }];
+  const approvalLabels = approvalStepsSource.map(
+    (step: Record<string, any>, index: number) =>
+      normalizeWorkflowLabel(step, index),
+  );
+  const approvalDoneCount = Math.min(doneEntries.length, approvalLabels.length);
+  const approvalCurrentIndex =
+    pendingSteps.length > 0
+      ? Math.min(approvalDoneCount, Math.max(0, approvalLabels.length - 1))
+      : -1;
+  const requestComplete = ["approved", "completed"].includes(String(status));
+  const requestRejected = String(status) === "rejected";
+  const showDraftStep = options?.showDraftStep ?? true;
+
+  const draftStep = showDraftStep
+    ? [
+        {
+          label: "Drafted",
+          detail: "Leave request initialized and saved.",
+          status:
+            status === "draft" && approvalDoneCount === 0
+              ? ("current" as const)
+              : ("complete" as const),
+        } satisfies WorkflowStep,
+      ]
+    : [];
+
+  const approvalSteps: WorkflowStep[] = approvalLabels.map((label: string, index: number) => {
+    const done = index < approvalDoneCount || requestComplete || requestRejected;
+    const isCurrent =
+      approvalCurrentIndex === index &&
+      ["approval", "sent", "under_review", "review"].includes(String(status));
+    return {
+      label,
+      detail: isCurrent
+        ? `Waiting on ${label}.`
+        : done
+          ? `${label} completed.`
+          : `Awaiting ${label}.`,
+      status:
+        done && !isCurrent ? "complete" : isCurrent ? "current" : "upcoming",
+    } satisfies WorkflowStep;
+  });
+
+  const finalStep: WorkflowStep = {
+    label: requestRejected ? "Rejected" : "Approved",
+    detail: requestRejected
+      ? "Leave request was rejected."
+      : requestComplete
+        ? "Leave request approved and closed."
+        : "Awaiting final decision.",
+    status: requestRejected || requestComplete ? "complete" : "upcoming",
+  };
+
+  return [...draftStep, ...approvalSteps, finalStep];
+}
+
 function deriveRequestWorkflowStatus(request: any) {
   const rawStatus = String(request?.status || "").toLowerCase();
   const stateEvents = Array.isArray(request?.data?.state_events)
@@ -413,8 +486,14 @@ function DownloadDropdown(props: {
   actionBusy: string;
   onDownloadRequestPdf: () => void;
   onDownloadFullDocument: () => void;
+  includeFullDocument?: boolean;
 }) {
-  const { actionBusy, onDownloadRequestPdf, onDownloadFullDocument } = props;
+  const {
+    actionBusy,
+    onDownloadRequestPdf,
+    onDownloadFullDocument,
+    includeFullDocument = true,
+  } = props;
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement | null>(null);
 
@@ -466,17 +545,19 @@ function DownloadDropdown(props: {
             <Icon name="description" className="text-[18px]" />
             Request PDF
           </button>
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-            onClick={() => {
-              setOpen(false);
-              onDownloadFullDocument();
-            }}
-          >
-            <Icon name="folder_zip" className="text-[18px]" />
-            Full Document
-          </button>
+          {includeFullDocument ? (
+            <button
+              type="button"
+              className="flex w-full items-center gap-2 px-4 py-3 text-left text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+              onClick={() => {
+                setOpen(false);
+                onDownloadFullDocument();
+              }}
+            >
+              <Icon name="folder_zip" className="text-[18px]" />
+              Full Document
+            </button>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -624,6 +705,23 @@ export function RequestDetailsPage() {
   const teamName =
     teams?.find((entry) => entry.id === String(requestData.team_id || ""))
       ?.name || String(requestData.team_name || requestData.team_id || "-");
+  const handoverUserId = String(requestData.handover_user_id || "");
+  const handoverColleagueName = useMemo(() => {
+    if (!handoverUserId) return "-";
+    for (const team of teams ?? []) {
+      for (const member of team.members ?? []) {
+        const memberId = String(member.userId || member.user.id || "");
+        if (memberId !== handoverUserId) continue;
+        return (
+          `${member.user.firstName ?? ""} ${member.user.lastName ?? ""}`.trim() ||
+          member.user.username ||
+          member.user.email ||
+          handoverUserId
+        );
+      }
+    }
+    return handoverUserId;
+  }, [handoverUserId, teams]);
   const organizationName =
     organizations?.find(
       (entry) =>
@@ -654,25 +752,37 @@ export function RequestDetailsPage() {
   const pendingApprovals = request?.approvals?.pending ?? [];
   const completedApprovals = request?.approvals?.done ?? [];
   const workflowStatus = deriveRequestWorkflowStatus(request);
-  const workflow = buildWorkflow(
-    request,
-    pendingApprovals,
-    paymentVouchers ?? [],
-    {
-      showDraftStep:
-        detailView === "mine" &&
-        workflowStatus === "draft" &&
-        requestHasDraftHistory(request),
-    },
-  );
+  const workflow =
+    family === "leave"
+      ? buildLeaveWorkflow(request, pendingApprovals, {
+          showDraftStep:
+            detailView === "mine" &&
+            workflowStatus === "draft" &&
+            requestHasDraftHistory(request),
+        })
+      : buildWorkflow(
+          request,
+          pendingApprovals,
+          paymentVouchers ?? [],
+          {
+            showDraftStep:
+              detailView === "mine" &&
+              workflowStatus === "draft" &&
+              requestHasDraftHistory(request),
+          },
+        );
   const parentPath =
-    detailView === "approvals"
+    detailView === "mine" && family === "leave"
+      ? "/leave"
+      : detailView === "approvals"
       ? "/requests/approvals"
       : detailView === "finance"
         ? "/finance/requests"
         : "/requests";
   const parentLabel =
-    detailView === "approvals"
+    detailView === "mine" && family === "leave"
+      ? "Leave Tracker"
+      : detailView === "approvals"
       ? "Approvals"
       : detailView === "finance"
         ? "Finance Requests"
@@ -1476,7 +1586,7 @@ export function RequestDetailsPage() {
               </Link>
               {canEditDraft ? (
                 <Link
-                  to={`/requests/new/form?edit=${id}&typeId=${request?.request_type?.id || ""}`}
+                  to={`${family === "leave" ? "/leave/new/form" : "/requests/new/form"}?edit=${id}&typeId=${request?.request_type?.id || ""}`}
                   className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                 >
                   <Icon name="edit" className="text-[18px]" />
@@ -1584,9 +1694,15 @@ export function RequestDetailsPage() {
                     />
                     <StatCard
                       label="Handover Colleague"
-                      value={String(requestData.handover_user_id || "-")}
+                      value={handoverColleagueName}
                       tone="neutral"
                     />
+                  </div>
+                  <div className="mt-4 rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
+                    Handover acknowledgement:
+                    {" "}
+                    {String(requestData.handover_ack_status || "Pending acknowledgement")}
+                    . Team lead/workflow approvers make the leave decision.
                   </div>
                   <div className="mt-4 rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
                     {String(
@@ -2024,6 +2140,7 @@ export function RequestDetailsPage() {
                     onDownloadFullDocument={() =>
                       void handleDownloadArtifact("full_document")
                     }
+                    includeFullDocument={family !== "leave"}
                   />
                   {canEditDraft ? (
                     <Button
@@ -2263,6 +2380,7 @@ export function RequestDetailsPage() {
                 onDownloadFullDocument={() =>
                   void handleDownloadArtifact("full_document")
                 }
+                includeFullDocument={family !== "leave"}
               />
               {canEditDraft ? (
                 <Button
