@@ -134,6 +134,10 @@ fn build_menu_bar(app: &tauri::App) -> tauri::Result<()> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_window_state::Builder::default().build())
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_updater::Builder::default().build())
+        .plugin(tauri_plugin_deep_link::init())
+        .plugin(tauri_plugin_global_shortcut::Builder::default().build())
         .setup(|app| {
             if cfg!(debug_assertions) {
                 app.handle().plugin(
@@ -147,6 +151,34 @@ pub fn run() {
 
             #[cfg(target_os = "macos")]
             build_menu_bar(app)?;
+
+            // Global shortcut: Cmd+Shift+P / Ctrl+Shift+P — raise window
+            use tauri_plugin_global_shortcut::{GlobalShortcutExt, Shortcut, ShortcutState};
+            let shortcut: Shortcut = "CommandOrControl+Shift+P"
+                .parse()
+                .expect("valid shortcut");
+            let handle = app.handle().clone();
+            app.global_shortcut().on_shortcut(
+                shortcut,
+                move |_app, _shortcut, event| {
+                    if event.state == ShortcutState::Pressed {
+                        if let Some(window) = handle.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                },
+            )?;
+
+            // Deep link handler — forward URL to frontend as an event
+            let handle2 = app.handle().clone();
+            app.listen("deep-link://new-url", move |event| {
+                if let Some(window) = handle2.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                    let _ = window.emit("deep-link", event.payload());
+                }
+            });
 
             Ok(())
         })

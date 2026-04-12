@@ -16,7 +16,8 @@ import {
   TableRow,
 } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { sendNativeNotification } from "@/lib/tauri-bridge";
 import { Link, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useCachedQuery } from "@/shared/lib/core";
@@ -240,6 +241,16 @@ export function ApprovalsPage() {
   const awaiting = filteredRows.filter((r) => isPendingLike(r)).length;
   const approved = filteredRows.filter((r) => r.tone === "success").length;
   const rejected = filteredRows.filter((r) => r.tone === "danger").length;
+
+  const notifiedRef = useRef(false);
+  useEffect(() => {
+    if (notifiedRef.current || awaiting === 0) return;
+    notifiedRef.current = true;
+    void sendNativeNotification(
+      "Approvals Pending",
+      `You have ${awaiting} request${awaiting === 1 ? "" : "s"} awaiting your approval.`,
+    );
+  }, [awaiting]);
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||

@@ -1,6 +1,10 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { useEffect } from "react";
+import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import { onDeepLink } from "@/lib/tauri-bridge";
 import AttendancePage from "@/modules/hr/AttendancePage";
 import LeavePage from "@/modules/hr/LeavePage";
+import LeaveRequestFormPage from "@/modules/hr/LeaveRequestFormPage";
+import LeaveRequestDetailsPage from "@/modules/hr/LeaveRequestDetailsPage";
 import DashboardPage from "@/pages/dashboard/DashboardPage";
 import FinanceDashboardPage from "@/modules/finance/FinanceDashboardPage";
 import FinanceRequestDetailsPage from "@/modules/finance/FinanceRequestDetailsPage";
@@ -33,6 +37,19 @@ import {
 } from "@/pages/system";
 
 export default function App() {
+  const navigate = useNavigate();
+  useEffect(() => {
+    const unlisten = onDeepLink((url) => {
+      try {
+        const path = new URL(url).pathname || "/";
+        navigate(path);
+      } catch {
+        // ignore malformed URLs
+      }
+    });
+    return unlisten;
+  }, [navigate]);
+
   return (
     <Routes>
       <Route element={<PublicOnlyRoute />}>
@@ -48,6 +65,8 @@ export default function App() {
         <Route path="/dashboard" element={<DashboardPage />} />
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/leave" element={<LeavePage />} />
+        <Route path="/leave/new/form" element={<LeaveRequestFormPage />} />
+        <Route path="/leave/details" element={<LeaveRequestDetailsPage />} />
         <Route path="/requests" element={<RequestsListPage />} />
         <Route element={<ApprovalRoute />}>
           <Route path="/requests/approvals" element={<ApprovalsPage />} />

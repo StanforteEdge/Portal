@@ -1,5 +1,6 @@
 import { Icon, SectionCard } from "@/shared";
 import { SystemShellPage } from "./page-helpers";
+import { checkForUpdates } from "@/lib/tauri-bridge";
 
 interface ChangelogSection {
   Added?: string[];
@@ -126,6 +127,17 @@ export default function DownloadPage() {
                   </a>
                 );
               })}
+            </div>
+
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => void checkForUpdates()}
+                className="flex items-center gap-2 text-sm font-semibold text-brand-900 hover:underline"
+              >
+                <Icon name="system_update" className="text-[18px]" />
+                Check for updates
+              </button>
             </div>
           </SectionCard>
 

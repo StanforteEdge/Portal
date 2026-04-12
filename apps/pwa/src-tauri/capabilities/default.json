@@ -8,6 +8,17 @@
     "core:tray:default",
     "core:tray:allow-set-icon",
     "core:tray:allow-set-tooltip",
-    "core:tray:allow-set-title"
+    "core:tray:allow-set-title",
+    "notification:default",
+    "notification:allow-request-permission",
+    "notification:allow-is-permission-granted",
+    "notification:allow-send-notification",
+    "updater:default",
+    "updater:allow-check",
+    "updater:allow-download-and-install",
+    "deep-link:default",
+    "global-shortcut:default",
+    "global-shortcut:allow-register",
+    "global-shortcut:allow-unregister"
   ]
 }
