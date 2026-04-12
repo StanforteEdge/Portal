@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
+import { setBadgeCount } from "@/lib/tauri-bridge";
 import { NavLink, useLocation } from "react-router-dom";
 import { Button, Chip, Icon } from "@/shared";
 import type { WorkspaceNotification } from "@/shared/api/workspace-api";
@@ -118,6 +119,10 @@ export function DesktopTopBar({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    void setBadgeCount(unreadCount);
+  }, [unreadCount]);
 
   async function handleMarkRead(id: string) {
     if (!onMarkNotificationRead) return;
