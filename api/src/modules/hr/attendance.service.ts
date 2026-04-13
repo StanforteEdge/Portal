@@ -1132,7 +1132,7 @@ export class AttendanceService {
     const requests = await this.prisma.requestInstance.findMany({
       where: {
         createdBy: userId,
-        status: { in: ['cleared', 'approved', 'completed'] }
+        status: { in: ['approved', 'completed'] }
       },
       select: {
         id: true,
