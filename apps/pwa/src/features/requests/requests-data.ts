@@ -1,4 +1,5 @@
-import type { SidebarItem, WorkflowStep } from "@/shared";
+import type { WorkflowStep } from "@/shared";
+import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 
 export type RequestStatusTone = "success" | "warning" | "pending" | "danger" | "neutral";
 
@@ -58,88 +59,10 @@ export type RequestLineItem = {
   attachmentTone: "success" | "pending" | "neutral";
 };
 
-export function buildRequestsNavigation(options?: {
-  includeDetails?: boolean;
-  detailsPath?: string;
-  detailsParent?: "requests" | "finance";
-}): SidebarItem[] {
-  const includeDetails = options?.includeDetails ?? false;
-  const detailsParent = options?.detailsParent ?? "requests";
-  const detailsPath =
-    options?.detailsPath ??
-    (detailsParent === "finance"
-      ? "/finance/requests/details"
-      : "/requests/details");
-  const requestDetailsItem = {
-    label: "Request Details",
-    icon: "description",
-    path: detailsPath,
-  };
-  const financeRequestDetailsItem = {
-    key: "finance-request-details",
-    label: "Request Details",
-    icon: "description",
-    path: detailsPath,
-  };
-
-  return [
-    { label: "Dashboard", icon: "grid_view", path: "/", section: "Staff" },
-    { label: "Attendance", icon: "pending_actions", path: "/attendance", section: "Staff" },
-    { label: "Leave", icon: "event_available", path: "/leave", section: "Staff" },
-    {
-      label: "Requests",
-      icon: "format_list_bulleted",
-      section: "Staff",
-      children: [
-        { label: "My Requests", icon: "list_alt", path: "/requests" },
-        { label: "Approvals", icon: "task_alt", path: "/requests/approvals", permissions: ["requests.approve"], requiresTeamLeadAssignment: true },
-        { label: "New Request", icon: "add_circle", path: "/requests/new" },
-        ...(includeDetails && detailsParent === "requests"
-          ? [requestDetailsItem]
-          : []),
-      ],
-    },
-    {
-      label: "Profile",
-      icon: "person",
-      section: "Staff",
-      children: [
-        { label: "Profile", icon: "person", path: "/profile" },
-        { label: "Settings", icon: "settings", path: "/settings" },
-      ],
-    },
-    {
-      label: "Finance",
-      icon: "account_balance_wallet",
-      section: "Admin",
-      moduleKey: "finance",
-      children: [
-        { key: "finance-dashboard", label: "Dashboard", icon: "grid_view", path: "/finance" },
-        { key: "finance-requests", label: "Requests", icon: "receipt_long", path: "/finance/requests" },
-        { key: "finance-vouchers", label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers" },
-        ...(includeDetails && detailsParent === "finance"
-          ? [financeRequestDetailsItem]
-          : []),
-      ],
-    },
-  ];
-}
-
-export function buildAppMobileNav(activeLabel: "Requests" | "Attendance" | "Leave" | "Dashboard" | "Finance" | "Messages" = "Requests") {
-  return [
-    { label: "Dashboard", icon: "grid_view", path: "/", active: activeLabel === "Dashboard" },
-    { label: "Attendance", icon: "pending_actions", path: "/attendance", active: activeLabel === "Attendance" },
-    {
-      label: activeLabel === "Finance" ? "Finance" : "Requests",
-      icon: activeLabel === "Finance" ? "account_balance_wallet" : "format_list_bulleted",
-      path: activeLabel === "Finance" ? "/finance" : "/requests",
-      active: activeLabel === "Requests" || activeLabel === "Finance",
-    },
-    { label: "Leave", icon: "event_available", path: "/leave", active: activeLabel === "Leave" },
-  ];
-}
-
+// Re-export navigation helpers for backward compatibility
+export const buildRequestsNavigation = buildAppNavigation;
 export const requestsMobileNav = buildAppMobileNav("Requests");
+export { buildAppMobileNav };
 
 export const listStats = [
   { label: "Total Requests", value: "24", tone: "neutral" as const, note: "" },

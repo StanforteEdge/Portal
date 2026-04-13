@@ -37,6 +37,11 @@ export class PayrollController {
     return this.payrollService.listMyPayslips(req.user?.id, query);
   }
 
+  @Get('my/payslips/:runId/:itemId')
+  myPayslipDetails(@Req() req: any, @Param('runId') runId: string, @Param('itemId') itemId: string) {
+    return this.payrollService.getMyPayslipDetails(req.user?.id, runId, itemId);
+  }
+
   @Post('my/payslips/:runId/:itemId')
   downloadMyPayslip(@Req() req: any, @Param('runId') runId: string, @Param('itemId') itemId: string) {
     return this.payrollService.generateMyPayslip(req.user?.id, runId, itemId);

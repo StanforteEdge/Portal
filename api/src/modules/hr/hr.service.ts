@@ -154,7 +154,17 @@ export class HrService {
           },
           null
         );
-        return this.getEmployee(profileId.toString());
+        
+        const profile = await tx.profile.findUnique({
+          where: { id: profileId },
+          include: this.employeeInclude()
+        });
+        
+        if (!profile || !['staff', 'employee'].includes(profile.type)) {
+          throw new NotFoundException('Employee not found');
+        }
+        
+        return this.serializeEmployee(profile);
       });
     } catch (error) {
       this.handleEmployeePersistenceError(error);

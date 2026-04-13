@@ -18,3 +18,4 @@ tmp/
 .worktrees/
 apps/pwa/src-tauri/target/
 apps/pwa/.env.local
+docs/_archive/
