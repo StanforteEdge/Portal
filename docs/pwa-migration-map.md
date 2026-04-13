@@ -143,9 +143,9 @@ Legend: ✅ Done | 🔨 In Progress | ⬜ Not Started | ❌ Drop / Won't Port
 
 | Old Route | Old Page | New Route | New Page | Status | Notes |
 |---|---|---|---|---|---|
-| `/appOld/hr` | `hr/dashboard/HrDashboard` | — | — | ⬜ | HR admin dashboard |
-| `/appOld/hr/employees` | `hr/employees/HrEmployees` | — | — | ⬜ | Employee directory |
-| `/appOld/hr/employees/:id` | `hr/employees/HrEmployeeEditor` | — | — | ⬜ | Employee profile/editor |
+| `/appOld/hr` | `hr/dashboard/HrDashboard` | `/hr` | `modules/hr/HrDashboardPage` | ✅ | Stats + quick actions |
+| `/appOld/hr/employees` | `hr/employees/HrEmployees` | `/hr/employees` | `modules/hr/employees/HrEmployeesPage` | ✅ | Full filter bar + table |
+| `/appOld/hr/employees/:id` | `hr/employees/HrEmployeeEditor` | `/hr/employees/:id` | `modules/hr/employees/HrEmployeeDetailPage` | ✅ | Tabbed editor (Profile, Job, Orgs, Actions) |
 | `/appOld/hr/attendance` | `hr/attendance/HrAttendance` | — | — | ⬜ | HR-side attendance view |
 | `/appOld/hr/leave` | `hr/leave/HrLeaveTracker` | — | — | ⬜ | Leave tracker (HR view) |
 | `/appOld/hr/leave/requests` | `hr/leave/HrLeaveRequests` | — | — | ⬜ | |
