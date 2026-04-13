@@ -11,6 +11,7 @@ import FinanceRequestDetailsPage from "@/modules/finance/FinanceRequestDetailsPa
 import FinancePaymentVouchersPage from "@/modules/finance/FinancePaymentVouchersPage";
 import FinanceRequestsPage from "@/modules/finance/FinanceRequestsPage";
 import HrDashboardPage from "@/modules/hr/HrDashboardPage";
+import HrLeavePage from "@/modules/hr/leave/HrLeavePage";
 import HrEmployeesPage from "@/modules/hr/employees/HrEmployeesPage";
 import HrEmployeeCreatePage from "@/modules/hr/employees/HrEmployeeCreatePage";
 import HrEmployeeDetailPage from "@/modules/hr/employees/HrEmployeeDetailPage";
@@ -107,6 +108,7 @@ export default function App() {
           <Route path="/hr/employees/new" element={<HrEmployeeCreatePage />} />
           <Route path="/hr/employees/:id" element={<HrEmployeeDetailPage />} />
           <Route path="/hr/attendance" element={<HrAttendancePage />} />
+          <Route path="/hr/leave" element={<HrLeavePage />} />
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/leave" element={<LeavePage />} />
           <Route path="/leave/new/form" element={<LeaveRequestFormPage />} />
