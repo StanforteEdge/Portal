@@ -68,7 +68,7 @@ export function buildAppNavigation(options?: {
 
     // Admin section
     {
-      label: "Finance Admin",
+      label: "Finance",
       icon: "account_balance_wallet",
       section: "Admin",
       moduleKey: "finance",
@@ -82,15 +82,15 @@ export function buildAppNavigation(options?: {
       ],
     },
     {
-      label: "HR Admin",
+      label: "HR",
       icon: "people",
       section: "Admin",
       moduleKey: "hr",
       children: [
         { key: "hr-dashboard", label: "Overview", icon: "dashboard", path: "/hr" },
         { key: "hr-employees", label: "Employees", icon: "group", path: "/hr/employees" },
-        { key: "hr-attendance", label: "Attendance", icon: "pending_actions", path: "/attendance" },
-        { key: "hr-leave", label: "Leave", icon: "event_available", path: "/leave" },
+        { key: "hr-attendance", label: "Attendance", icon: "pending_actions", path: "/hr/attendance" },
+        { key: "hr-leave", label: "Leave", icon: "event_available", path: "/hr/leave" },
       ],
     },
   ];
