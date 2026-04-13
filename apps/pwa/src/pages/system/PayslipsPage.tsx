@@ -110,6 +110,7 @@ export default function PayslipsPage() {
   return (
     <SystemShellPage
       activeLabel="Payslips"
+      eyebrow="My Account"
       breadcrumbs={[
         { label: "Profile", path: "/profile" },
         { label: "Payslips" },
@@ -134,7 +135,7 @@ export default function PayslipsPage() {
                   <TableHeaderCell>Gross</TableHeaderCell>
                   <TableHeaderCell>Net</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell />
+                  <TableHeaderCell>{""}</TableHeaderCell>
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
