@@ -295,15 +295,56 @@ export function AttendancePage() {
   async function runClockAction(type: "in" | "out") {
     try {
       setActing(type);
+      const isOnsite = selectedMode === "onsite";
+      const isField = selectedMode === "field";
+      const needsOfficeLocation = isOnsite;
+      const hasOfficeLocation = Boolean(selectedOfficeLocationId);
+
+      if (type === "in" && needsOfficeLocation && !hasOfficeLocation) {
+        showToast({
+          tone: "warning",
+          title: "Office location required",
+          message: "Select an office location before clocking in onsite.",
+        });
+        return;
+      }
+
       const coords = await getCoords();
+      const hasCoords =
+        typeof coords.latitude === "number" &&
+        typeof coords.longitude === "number";
+
+      if (type === "in" && isOnsite && !hasCoords) {
+        const proceed = window.confirm(
+          "We couldn't confirm your location. Do you want to clock in anyway? This will be marked as location unverified.",
+        );
+        if (!proceed) return;
+      }
+
+      if (type === "in" && hasCoords === false && !isOnsite) {
+        showToast({
+          tone: "warning",
+          title: "Location not confirmed",
+          message:
+            "We couldn't confirm your location. We'll record the clock-in but mark location as unverified.",
+        });
+      }
+
+      if (type === "in" && isField) {
+        showToast({
+          tone: "warning",
+          title: "Field work confirmation",
+          message:
+            "Field work should be pre-approved. Ensure your location and details are recorded in your request.",
+        });
+      }
+
       const payload = {
         attendance_mode: selectedMode,
-        office_location_id:
-          selectedMode === "onsite"
-            ? selectedOfficeLocationId || undefined
-            : undefined,
+        office_location_id: isOnsite ? selectedOfficeLocationId || undefined : undefined,
         ...coords,
       };
+
       if (type === "in") {
         await clockIn(payload);
       } else {
@@ -510,6 +551,11 @@ export function AttendancePage() {
                       },
                     )}
                   </div>
+                </div>
+
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                  Onsite requires an office location and a verified device location. Remote can proceed without an
+                  office location. Field work should be pre-approved with location/details recorded.
                 </div>
 
                 <SelectField
