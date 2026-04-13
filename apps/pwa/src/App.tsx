@@ -14,6 +14,7 @@ import HrDashboardPage from "@/modules/hr/HrDashboardPage";
 import HrEmployeesPage from "@/modules/hr/employees/HrEmployeesPage";
 import HrEmployeeCreatePage from "@/modules/hr/employees/HrEmployeeCreatePage";
 import HrEmployeeDetailPage from "@/modules/hr/employees/HrEmployeeDetailPage";
+import HrAttendancePage from "@/modules/hr/attendance/HrAttendancePage";
 import {
   ProtectedRoute,
   PublicOnlyRoute,
@@ -105,6 +106,7 @@ export default function App() {
           <Route path="/hr/employees" element={<HrEmployeesPage />} />
           <Route path="/hr/employees/new" element={<HrEmployeeCreatePage />} />
           <Route path="/hr/employees/:id" element={<HrEmployeeDetailPage />} />
+          <Route path="/hr/attendance" element={<HrAttendancePage />} />
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/leave" element={<LeavePage />} />
           <Route path="/leave/new/form" element={<LeaveRequestFormPage />} />
