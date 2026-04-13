@@ -1439,9 +1439,9 @@ export function FinanceRequestDetailsPage() {
   return (
     <AppShell
       navigation={buildRequestsNavigation({
-        includeDetails: detailView !== "finance",
-        detailsPath: `/requests/details?id=${id}&view=${detailView}`,
-        detailsParent: detailView === "finance" ? "finance" : "requests",
+        includeRequestDetails: detailView !== "finance",
+        requestDetailsPath: `/requests/details?id=${id}&view=${detailView}`,
+        requestDetailsParent: detailView === "finance" ? "finance" : "requests",
       })}
       activeLabel={detailActiveLabel}
       user={{ name: "Alex Sterling", role: "Fleet Operations" }}
