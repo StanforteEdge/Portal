@@ -15,6 +15,7 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -114,14 +115,25 @@ export default function LoginPage() {
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
                   />
                   <input
-                    className="input-base pl-10"
+                    className="input-base pl-10 pr-11"
                     autoComplete="current-password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     required
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                   />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    <Icon
+                      name={showPassword ? "visibility_off" : "visibility"}
+                      className="text-[20px]"
+                    />
+                  </button>
                 </div>
               </label>
 
@@ -252,14 +264,25 @@ export default function LoginPage() {
                     className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-outline"
                   />
                   <input
-                    className="input-base h-14 pl-10"
+                    className="input-base h-14 pl-10 pr-11"
                     autoComplete="current-password"
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     placeholder="••••••••"
                     required
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                   />
+                  <button
+                    type="button"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    <Icon
+                      name={showPassword ? "visibility_off" : "visibility"}
+                      className="text-[20px]"
+                    />
+                  </button>
                 </div>
               </label>
 

@@ -10,6 +10,8 @@ export default function ResetPasswordPage() {
 
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -86,15 +88,25 @@ export default function ResetPasswordPage() {
           >
             <label className="block">
               <span className="field-label">New Password</span>
-              <input
-                className="input-base"
-                autoComplete="new-password"
-                type="password"
-                required
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                placeholder="Enter at least 12 characters"
-              />
+              <div className="relative">
+                <input
+                  className="input-base pr-11"
+                  autoComplete="new-password"
+                  type={showPassword ? "text" : "password"}
+                  required
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  placeholder="Enter at least 12 characters"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  <Icon name={showPassword ? "visibility_off" : "visibility"} className="text-[20px]" />
+                </button>
+              </div>
             </label>
 
             <div className="rounded-2xl bg-surface-container-low p-4 text-sm text-on-surface-variant">
@@ -111,15 +123,25 @@ export default function ResetPasswordPage() {
 
             <label className="block">
               <span className="field-label">Confirm Password</span>
-              <input
-                className="input-base"
-                autoComplete="new-password"
-                type="password"
-                required
-                value={confirmPassword}
-                onChange={(event) => setConfirmPassword(event.target.value)}
-                placeholder="Re-type your password"
-              />
+              <div className="relative">
+                <input
+                  className="input-base pr-11"
+                  autoComplete="new-password"
+                  type={showConfirm ? "text" : "password"}
+                  required
+                  value={confirmPassword}
+                  onChange={(event) => setConfirmPassword(event.target.value)}
+                  placeholder="Re-type your password"
+                />
+                <button
+                  type="button"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface"
+                  onClick={() => setShowConfirm((v) => !v)}
+                  aria-label={showConfirm ? "Hide password" : "Show password"}
+                >
+                  <Icon name={showConfirm ? "visibility_off" : "visibility"} className="text-[20px]" />
+                </button>
+              </div>
             </label>
 
             <Button type="submit" className="w-full justify-center py-4 text-base" disabled={loading}>
