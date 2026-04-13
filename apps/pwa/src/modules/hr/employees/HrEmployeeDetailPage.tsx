@@ -65,7 +65,7 @@ export default function HrEmployeeDetailPage() {
         return (
             <AppShell
                 navigation={buildAppNavigation()}
-                activeLabel="Employees"
+                activeLabel="hr-employees"
                 user={{ name: userName, role: profile?.employee_profile?.job_title || "HR Staff" }}
                 mobileNav={buildAppMobileNav("Employees")}
             >
@@ -78,7 +78,7 @@ export default function HrEmployeeDetailPage() {
         return (
             <AppShell
                 navigation={buildAppNavigation()}
-                activeLabel="Employees"
+                activeLabel="hr-employees"
                 user={{ name: userName, role: profile?.employee_profile?.job_title || "HR Staff" }}
                 mobileNav={buildAppMobileNav("Employees")}
             >
@@ -107,7 +107,7 @@ export default function HrEmployeeDetailPage() {
     return (
         <AppShell
             navigation={buildAppNavigation()}
-            activeLabel="Employees"
+            activeLabel="hr-employees"
             user={{
                 name: userName,
                 role: profile?.employee_profile?.job_title || "HR Staff",

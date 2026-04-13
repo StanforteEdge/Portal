@@ -152,7 +152,7 @@ export default function HrAttendancePage() {
   return (
     <AppShell
       navigation={buildAppNavigation()}
-      activeLabel="Attendance"
+      activeLabel="hr-attendance"
       user={{
         name: userName,
         role: profile?.employee_profile?.job_title || "HR Staff",

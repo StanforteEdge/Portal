@@ -149,7 +149,7 @@ export default function HrLeavePage() {
   return (
     <AppShell
       navigation={buildAppNavigation()}
-      activeLabel="Leave"
+      activeLabel="hr-leave"
       user={{
         name: userName,
         role: profile?.employee_profile?.job_title || "HR Staff",
