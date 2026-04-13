@@ -156,7 +156,7 @@ export default function HrDashboardPage() {
                                                 {employee.job_title || "-"}
                                             </TableCell>
                                             <TableCell className="text-sm text-slate-700">
-                                                {formatDate(employee.hire_date)}
+                                                {formatDate(employee.hire_date ?? undefined)}
                                             </TableCell>
                                             <TableCell className="rounded-r-2xl">
                                                 <Chip variant={

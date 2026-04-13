@@ -141,8 +141,8 @@ export function createAuthApi(httpRequest: HttpRequest) {
 
   function acceptInvite(payload: {
     token: string;
-    first_name: string;
-    last_name: string;
+    first_name?: string;
+    last_name?: string;
     password: string;
   }) {
     return httpRequest("/auth/accept-invite", {

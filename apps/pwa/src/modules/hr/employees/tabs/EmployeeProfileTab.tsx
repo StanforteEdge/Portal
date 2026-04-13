@@ -4,8 +4,8 @@ import { updateEmployee, type EmployeeDetail } from "@/modules/hr/hr-api";
 
 export default function EmployeeProfileTab({ employee, onSaved }: { employee: EmployeeDetail; onSaved: () => void }) {
     const { showToast } = useToast();
-    const [firstName, setFirstName] = useState(employee.first_name);
-    const [lastName, setLastName] = useState(employee.last_name);
+    const [firstName, setFirstName] = useState(employee.first_name || "");
+    const [lastName, setLastName] = useState(employee.last_name || "");
     const [email, setEmail] = useState(employee.email);
     const [phone, setPhone] = useState(employee.phone || "");
     const [username, setUsername] = useState(employee.username || "");

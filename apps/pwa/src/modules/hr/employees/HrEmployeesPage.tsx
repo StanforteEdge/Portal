@@ -246,7 +246,7 @@ export default function HrEmployeesPage() {
                                                 </Chip>
                                             </TableCell>
                                             <TableCell className="text-sm text-slate-700">
-                                                {formatDate(employee.hire_date)}
+                                                {formatDate(employee.hire_date ?? undefined)}
                                             </TableCell>
                                             <TableCell className="rounded-r-2xl">
                                                 <Link to={`/hr/employees/${employee.id}`}>
