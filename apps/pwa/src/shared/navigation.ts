@@ -68,7 +68,7 @@ export function buildAppNavigation(options?: {
 
     // Admin section
     {
-      label: "Finance",
+      label: "Finance Admin",
       icon: "account_balance_wallet",
       section: "Admin",
       moduleKey: "finance",
@@ -82,7 +82,7 @@ export function buildAppNavigation(options?: {
       ],
     },
     {
-      label: "HR",
+      label: "HR Admin",
       icon: "people",
       section: "Admin",
       moduleKey: "hr",
