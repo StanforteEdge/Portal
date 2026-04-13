@@ -106,6 +106,7 @@ export function buildRequestsNavigation(options?: {
       children: [
         { label: "Profile", icon: "person", path: "/profile" },
         { label: "Settings", icon: "settings", path: "/settings" },
+        { label: "Payslips", icon: "receipt_long", path: "/profile/payslips" },
       ],
     },
     {

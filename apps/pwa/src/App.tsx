@@ -32,6 +32,7 @@ import {
   DownloadPage,
   HelpPage,
   NotificationsPage,
+  PayslipsPage,
   ProfilePage,
   SettingsPage,
 } from "@/pages/system";
@@ -80,6 +81,9 @@ export default function App() {
         <Route path="/help" element={<HelpPage />} />
         <Route path="/download" element={<DownloadPage />} />
         <Route path="/profile" element={<ProfilePage />} />
+        <Route element={<ModuleRoute moduleKey="payroll" />}>
+          <Route path="/profile/payslips" element={<PayslipsPage />} />
+        </Route>
         <Route element={<ModuleRoute moduleKey="finance" />}>
           <Route path="/finance" element={<FinanceDashboardPage />} />
           <Route path="/finance/requests" element={<FinanceRequestsPage />} />
