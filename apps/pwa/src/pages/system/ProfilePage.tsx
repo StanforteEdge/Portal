@@ -80,8 +80,8 @@ export default function ProfilePage() {
   const extraRoles = sortedRoles.slice(1).map(roleLabel);
   const managerName = profile?.employee_profile?.manager
     ? `${profile.employee_profile.manager.first_name ?? ""} ${profile.employee_profile.manager.last_name ?? ""}`.trim() ||
-      profile.employee_profile.manager.email ||
-      "-"
+    profile.employee_profile.manager.email ||
+    "-"
     : "-";
   const fullName =
     `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim() ||
@@ -94,7 +94,6 @@ export default function ProfilePage() {
         { label: "Workspace", path: "/profile" },
         { label: "Profile" },
       ]}
-      eyebrow="Workspace > Profile"
       title="Profile"
       description="Review and update your staff identity, organizations, and account details."
     >

@@ -2,6 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma } from '@prisma/client';
 import JSZip from 'jszip';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+import puppeteer from 'puppeteer-core';
+import { existsSync, readFileSync } from 'node:fs';
+import { extname, resolve } from 'node:path';
 import { MailService } from '../../common/mail/mail.service';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
@@ -94,6 +97,67 @@ export class PayrollService {
           : null,
       })),
       meta: { page, per_page: perPage, total, last_page: Math.max(1, Math.ceil(total / perPage)) }
+    };
+  }
+
+  async getMyPayslipDetails(userId: string, runId: string, itemId: string) {
+    const worker = await this.prisma.payrollWorker.findFirst({
+      where: { profileId: toBigInt(userId) },
+      select: { id: true }
+    });
+    if (!worker) throw new NotFoundException('Payslip not found');
+
+    const row = await this.prisma.payrollRunItem.findFirst({
+      where: { id: itemId, runId, workerId: worker.id },
+      include: {
+        run: true,
+        worker: true,
+        organization: { select: { id: true, name: true } },
+        lines: { include: { component: true }, orderBy: { createdAt: 'asc' } },
+        payslipDistributions: { orderBy: { createdAt: 'desc' }, take: 5 },
+      }
+    });
+    if (!row) throw new NotFoundException('Payslip not found');
+
+    const earnings = row.lines
+      .filter((line) => line.lineType === 'earning')
+      .map((line) => ({ label: line.component.name, amount: Number(line.amount || 0) }));
+    const deductions = row.lines
+      .filter((line) => line.lineType === 'deduction')
+      .map((line) => ({ label: line.component.name, amount: Number(line.amount || 0) }));
+    const employerCosts = row.lines
+      .filter((line) => line.lineType === 'employer_cost')
+      .map((line) => ({ label: line.component.name, amount: Number(line.amount || 0) }));
+    const employerCostTotal = employerCosts.reduce((sum, item) => sum + item.amount, 0);
+
+    return {
+      id: row.id,
+      run_id: row.runId,
+      run_name: row.run.name,
+      year: row.run.year,
+      month: row.run.month,
+      status: row.run.status,
+      currency: row.run.currency,
+      worker_name: row.worker.fullName,
+      worker_type: row.workerType,
+      organization_name: row.organization?.name || null,
+      gross_pay: Number(row.grossPay || 0),
+      total_deductions: Number(row.totalDeductions || 0),
+      net_pay: Number(row.netPay || 0),
+      employer_cost: employerCostTotal,
+      payment_status: row.paymentStatus,
+      payment_reference: row.paymentReference,
+      latest_distribution: row.payslipDistributions?.[0]
+        ? {
+            id: row.payslipDistributions[0].id,
+            status: row.payslipDistributions[0].status,
+            sent_at: row.payslipDistributions[0].sentAt,
+            created_at: row.payslipDistributions[0].createdAt,
+          }
+        : null,
+      earnings,
+      deductions,
+      employer_costs: employerCosts,
     };
   }
 
@@ -1915,60 +1979,104 @@ export class PayrollService {
     const totalDeductions = deductions.reduce((sum, line) => sum + Number(line.amount || 0), 0);
     const totalEmployerCost = employerCosts.reduce((sum, line) => sum + Number(line.amount || 0), 0);
     const net = gross - totalDeductions;
+    const logoDataUri = this.getPdfLogoDataUri();
 
-    const doc = await PDFDocument.create();
-    const page = doc.addPage([595.28, 841.89]);
-    const font = await doc.embedFont(StandardFonts.Helvetica);
-    const fontBold = await doc.embedFont(StandardFonts.HelveticaBold);
+    const renderRows = (items: Array<{ label: string; amount: number }>) =>
+      items
+        .map(
+          (line, index) =>
+            `<tr><td>${index + 1}</td><td>${this.escapeHtml(line.label)}</td><td style="text-align:right;">${this.formatCurrency(line.amount, currency)}</td></tr>`
+        )
+        .join('');
 
-    let y = 800;
-    page.drawText('Payroll Payslip Template', { x: 40, y, size: 20, font: fontBold, color: rgb(0.05, 0.1, 0.2) });
-    y -= 28;
-    page.drawText(dto.worker_name, { x: 40, y, size: 14, font: fontBold });
-    y -= 18;
-    page.drawText(`${dto.worker_type || 'worker'}${dto.organization_name ? ` • ${dto.organization_name}` : ''}`, { x: 40, y, size: 10, font, color: rgb(0.35, 0.35, 0.35) });
-    y -= 18;
-    page.drawText(`Period: ${dto.period_label || 'Manual template'}`, { x: 40, y, size: 10, font });
+    const earningsRows = earnings.length
+      ? renderRows(earnings)
+      : '<tr><td colspan="3" class="muted">No earnings recorded.</td></tr>';
+    const deductionRows = deductions.length
+      ? renderRows(deductions)
+      : '<tr><td colspan="3" class="muted">No deductions recorded.</td></tr>';
+    const employerRows = employerCosts.length
+      ? renderRows(employerCosts)
+      : '<tr><td colspan="3" class="muted">No employer costs recorded.</td></tr>';
 
-    const drawSection = (title: string, lines: Array<{ label: string; amount: number }>, startY: number) => {
-      let cursor = startY;
-      page.drawText(title, { x: 40, y: cursor, size: 12, font: fontBold });
-      cursor -= 16;
-      for (const line of lines) {
-        page.drawText(line.label, { x: 50, y: cursor, size: 10, font });
-        page.drawText(this.formatCurrency(line.amount, currency), { x: 420, y: cursor, size: 10, font });
-        cursor -= 14;
-      }
-      return cursor - 8;
-    };
+    const html = `<!doctype html><html><head><meta charset="utf-8" />
+      <style>
+        @page { size: A4; margin: 10mm; }
+        body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+        .card { border: 1px solid #000; border-radius: 6px; margin-bottom: 14px; }
+        .rowpad { padding: 12px; border-bottom: 1px solid #000; }
+        .rowpad:last-child { border-bottom: 0; }
+        .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
+        .title { font-size: 24px; font-weight: 700; text-align: right; }
+        .status { font-size: 12px; text-align: right; color: #334155; margin-top: 4px; }
+        .two-col { display: table; width: 100%; }
+        .two-col > div { display: table-cell; width: 50%; vertical-align: top; padding: 12px; }
+        .two-col > div:first-child { border-right: 1px solid #000; }
+        .detail-list div { margin-bottom: 5px; }
+        .tbl { width: 100%; border-collapse: collapse; }
+        .tbl th, .tbl td { border: 1px solid #000; padding: 7px; text-align: left; }
+        .tbl th { background: #f3f4f6; }
+        .muted { color: #475569; font-size: 11px; }
+      </style>
+      </head><body>
+      <div class="card">
+        <div class="rowpad">
+          <div class="header-row">
+            <div>${logoDataUri ? `<img src="${logoDataUri}" alt="Logo" style="height:42px;" />` : '<strong>Stanforte Edge</strong>'}</div>
+            <div>
+              <div class="title">Payslip</div>
+              <div class="status">${this.escapeHtml(dto.period_label || 'Manual template')}</div>
+            </div>
+          </div>
+        </div>
+        <div class="two-col">
+          <div>
+            <h3 style="margin:0 0 8px;">Employee Details</h3>
+            <div class="detail-list">
+              <div><strong>Name:</strong> ${this.escapeHtml(dto.worker_name)}</div>
+              <div><strong>Role:</strong> ${this.escapeHtml(dto.worker_type || 'Staff')}</div>
+              <div><strong>Organization:</strong> ${this.escapeHtml(dto.organization_name || '-')}</div>
+            </div>
+          </div>
+          <div>
+            <h3 style="margin:0 0 8px;">Payroll Summary</h3>
+            <div class="detail-list">
+              <div><strong>Gross Pay:</strong> ${this.formatCurrency(gross, currency)}</div>
+              <div><strong>Total Deductions:</strong> ${this.formatCurrency(totalDeductions, currency)}</div>
+              <div><strong>Net Pay:</strong> ${this.formatCurrency(net, currency)}</div>
+              ${employerCosts.length ? `<div><strong>Employer Cost:</strong> ${this.formatCurrency(totalEmployerCost, currency)}</div>` : ''}
+            </div>
+          </div>
+        </div>
+      </div>
 
-    y -= 32;
-    y = drawSection('Earnings', earnings, y);
-    y = drawSection('Deductions', deductions, y);
-    if (employerCosts.length) {
-      y = drawSection('Employer Costs', employerCosts, y);
-    }
+      <div class="card">
+        <div class="rowpad">
+          <h3 style="margin:0 0 8px;">Earnings</h3>
+          <table class="tbl">
+            <thead><tr><th style="width:56px;">S/N</th><th>Component</th><th style="width:160px; text-align:right;">Amount</th></tr></thead>
+            <tbody>${earningsRows}</tbody>
+          </table>
+        </div>
+        <div class="rowpad">
+          <h3 style="margin:0 0 8px;">Deductions</h3>
+          <table class="tbl">
+            <thead><tr><th style="width:56px;">S/N</th><th>Component</th><th style="width:160px; text-align:right;">Amount</th></tr></thead>
+            <tbody>${deductionRows}</tbody>
+          </table>
+        </div>
+        <div class="rowpad">
+          <h3 style="margin:0 0 8px;">Employer Costs</h3>
+          <table class="tbl">
+            <thead><tr><th style="width:56px;">S/N</th><th>Component</th><th style="width:160px; text-align:right;">Amount</th></tr></thead>
+            <tbody>${employerRows}</tbody>
+          </table>
+        </div>
+      </div>
+      ${dto.note ? `<div class="card"><div class="rowpad"><strong>Note:</strong> ${this.escapeHtml(dto.note)}</div></div>` : ''}
+      </body></html>`;
 
-    page.drawLine({ start: { x: 40, y }, end: { x: 555, y }, thickness: 1, color: rgb(0.8, 0.8, 0.8) });
-    y -= 18;
-    page.drawText(`Gross Pay: ${this.formatCurrency(gross, currency)}`, { x: 40, y, size: 11, font: fontBold });
-    y -= 16;
-    page.drawText(`Total Deductions: ${this.formatCurrency(totalDeductions, currency)}`, { x: 40, y, size: 11, font: fontBold });
-    y -= 16;
-    page.drawText(`Net Pay: ${this.formatCurrency(net, currency)}`, { x: 40, y, size: 12, font: fontBold, color: rgb(0.03, 0.4, 0.2) });
-    if (employerCosts.length) {
-      y -= 16;
-      page.drawText(`Employer Cost: ${this.formatCurrency(totalEmployerCost, currency)}`, { x: 40, y, size: 11, font: fontBold });
-    }
-
-    if (dto.note) {
-      y -= 28;
-      page.drawText('Note', { x: 40, y, size: 11, font: fontBold });
-      y -= 16;
-      page.drawText(dto.note, { x: 40, y, size: 10, font, maxWidth: 500, lineHeight: 13 });
-    }
-
-    const content = await doc.save();
+    const content = await this.renderPdfFromHtml(html);
     return {
       file_name: `${this.safeFileName(dto.worker_name || 'manual')}-payslip-template.pdf`,
       mime_type: 'application/pdf',
@@ -2030,6 +2138,82 @@ export class PayrollService {
       mime_type: 'application/pdf',
       content_base64: Buffer.from(content).toString('base64'),
     };
+  }
+
+  private escapeHtml(value: unknown): string {
+    return String(value ?? '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  private getPdfLogoDataUri(): string | null {
+    const explicit = process.env.PDF_LOGO_PATH;
+    const candidates = [
+      explicit,
+      resolve(process.cwd(), 'public/branding/logo.png'),
+      resolve(process.cwd(), '../PWA/public/logo/logo.png'),
+      resolve(process.cwd(), 'public/logo/logo.png')
+    ].filter((v): v is string => Boolean(v));
+
+    for (const path of candidates) {
+      if (!existsSync(path)) continue;
+      try {
+        const ext = extname(path).toLowerCase();
+        const mime = ext === '.svg' ? 'image/svg+xml' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'image/png';
+        const data = readFileSync(path);
+        return `data:${mime};base64,${data.toString('base64')}`;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  private resolveBrowserExecutablePath(): string {
+    const explicit = process.env.PDF_BROWSER_PATH;
+    if (explicit && existsSync(explicit)) return explicit;
+
+    const candidates = [
+      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
+      '/Applications/Chromium.app/Contents/MacOS/Chromium',
+      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
+      '/usr/bin/google-chrome',
+      '/usr/bin/chromium-browser',
+      '/usr/bin/chromium'
+    ];
+
+    for (const path of candidates) {
+      if (existsSync(path)) return path;
+    }
+
+    throw new BadRequestException(
+      'PDF browser executable not found. Set PDF_BROWSER_PATH in api/.env (e.g. /Applications/Google Chrome.app/Contents/MacOS/Google Chrome).'
+    );
+  }
+
+  private async renderPdfFromHtml(html: string): Promise<Buffer> {
+    const executablePath = this.resolveBrowserExecutablePath();
+    const browser = await puppeteer.launch({
+      executablePath,
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    try {
+      const page = await browser.newPage();
+      await page.setContent(html, { waitUntil: 'networkidle0' });
+      const pdf = await page.pdf({
+        format: 'A4',
+        printBackground: true,
+        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
+      });
+      return Buffer.from(pdf);
+    } finally {
+      await browser.close();
+    }
   }
 
   private async executeImportAnalysis(

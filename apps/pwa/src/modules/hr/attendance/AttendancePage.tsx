@@ -36,7 +36,7 @@ import {
   type AttendanceException,
   type AttendanceMode,
   type OfficeLocation,
-} from "@/modules/hr/attendance-api";
+} from "./attendance-api";
 
 const defaultCorrectionForm = {
   work_date: new Date().toISOString().slice(0, 10),
@@ -386,8 +386,8 @@ export function AttendancePage() {
       setSubmittingCorrection(true);
       const proposedAt = correctionForm.proposed_at
         ? new Date(
-            `${correctionForm.work_date}T${correctionForm.proposed_at}:00`,
-          ).toISOString()
+          `${correctionForm.work_date}T${correctionForm.proposed_at}:00`,
+        ).toISOString()
         : undefined;
       await createAttendanceCorrection({
         work_date: correctionForm.work_date,
@@ -423,7 +423,7 @@ export function AttendancePage() {
   const todayStatus = humanize(
     String(
       today?.status ||
-        (currentState?.is_clocked_in ? "present" : "not_started"),
+      (currentState?.is_clocked_in ? "present" : "not_started"),
     ),
   );
   const todayMode = humanize(
@@ -450,7 +450,7 @@ export function AttendancePage() {
     "No office selected";
   const premisesTone = toneFromStatus(
     today?.geofence_status ||
-      (selectedMode === "onsite" ? "unknown" : "not_applicable"),
+    (selectedMode === "onsite" ? "unknown" : "not_applicable"),
   );
 
   return (
@@ -662,9 +662,9 @@ export function AttendancePage() {
                         {humanize(
                           String(
                             today?.geofence_status ||
-                              (selectedMode === "onsite"
-                                ? "unknown"
-                                : "not_applicable"),
+                            (selectedMode === "onsite"
+                              ? "unknown"
+                              : "not_applicable"),
                           ),
                         )}
                       </Chip>
@@ -1101,9 +1101,9 @@ export function AttendancePage() {
                   {humanize(
                     String(
                       today?.geofence_status ||
-                        (selectedMode === "onsite"
-                          ? "unknown"
-                          : "not_applicable"),
+                      (selectedMode === "onsite"
+                        ? "unknown"
+                        : "not_applicable"),
                     ),
                   )}
                 </Chip>

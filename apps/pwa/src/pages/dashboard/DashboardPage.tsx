@@ -8,7 +8,7 @@ import { hasModuleAccess, humanize, userDisplayName } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { getMyAttendance } from "@/modules/hr/attendance-api";
+import { getMyAttendance } from "@/modules/hr/attendance/attendance-api";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
