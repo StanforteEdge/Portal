@@ -146,14 +146,14 @@ Legend: ✅ Done | 🔨 In Progress | ⬜ Not Started | ❌ Drop / Won't Port
 | `/appOld/hr` | `hr/dashboard/HrDashboard` | `/hr` | `modules/hr/HrDashboardPage` | ✅ | Stats + quick actions |
 | `/appOld/hr/employees` | `hr/employees/HrEmployees` | `/hr/employees` | `modules/hr/employees/HrEmployeesPage` | ✅ | Full filter bar + table |
 | `/appOld/hr/employees/:id` | `hr/employees/HrEmployeeEditor` | `/hr/employees/:id` | `modules/hr/employees/HrEmployeeDetailPage` | ✅ | Tabbed editor (Profile, Job, Orgs, Actions) |
-| `/appOld/hr/attendance` | `hr/attendance/HrAttendance` | — | — | ⬜ | HR-side attendance view |
-| `/appOld/hr/leave` | `hr/leave/HrLeaveTracker` | — | — | ⬜ | Leave tracker (HR view) |
+| `/appOld/hr/attendance` | `hr/attendance/HrAttendance` | `/hr/attendance` | `modules/hr/attendance/HrAttendancePage` | ✅ | HR-side attendance view |
+| `/appOld/hr/leave` | `hr/leave/HrLeaveTracker` | `/hr/leave` | `modules/hr/leave/HrLeavePage` | ✅ | Leave tracker (HR view) |
 | `/appOld/hr/leave/requests` | `hr/leave/HrLeaveRequests` | — | — | ⬜ | |
 | `/appOld/hr/onboarding` | `hr/onboarding/HrOnboarding` | — | — | ⬜ | |
 | `/appOld/hr/onboarding/:id` | `hr/onboarding/HrOnboardingEditor` | — | — | ⬜ | |
 | `/appOld/hr/work` | `hr/work/HrWorkManagement` | — | — | ⬜ | |
-| `/appOld/hr/settings` | `hr/settings/HrSettings` | — | — | ⬜ | |
-| `/appOld/hr/settings/leave` | `hr/settings/HrLeaveSettings` | — | — | ⬜ | |
+| `/appOld/hr/settings` | `hr/settings/HrSettings` | `/hr/settings` | `modules/hr/settings/HrSettingsPage` | ✅ | Dashboard for Attendance, Leave, Locations |
+| `/appOld/hr/settings/leave` | `hr/settings/HrLeaveSettings` | `/hr/settings` | `modules/hr/settings/HrSettingsPage` | ✅ | Integrated into SettingsPage tabs |
 | `/appOld/hr/settings/request-types/:id` | `hr/settings/HrRequestTypeEditor` | — | — | ⬜ | |
 
 ---

@@ -106,15 +106,6 @@ export default function EmployeeActionsTab({ employee, onSaved }: { employee: Em
             />
 
             <ActionCard
-                title="Suspend Employee"
-                description="Temporarily disable the employee's access. They will not be able to log in."
-                action="suspend"
-                disabled={false}
-                employee={employee}
-                onSuccess={onSaved}
-            />
-
-            <ActionCard
                 title="Exit Employee"
                 description="Permanently mark the employee as exited. This action should be used when an employee leaves the organization."
                 action="exit"

@@ -91,6 +91,16 @@ export function buildAppNavigation(options?: {
         { key: "hr-employees", label: "Employees", icon: "group", path: "/hr/employees" },
         { key: "hr-attendance", label: "Attendance", icon: "pending_actions", path: "/hr/attendance" },
         { key: "hr-leave", label: "Leave", icon: "event_available", path: "/hr/leave" },
+        { key: "hr-settings", label: "Settings", icon: "settings", path: "/hr/settings" },
+      ],
+    },
+    {
+      label: "Administration",
+      icon: "manage_accounts",
+      section: "Admin",
+      moduleKey: "admin",
+      children: [
+        { key: "admin-users", label: "Users", icon: "people", path: "/admin/users" },
       ],
     },
   ];

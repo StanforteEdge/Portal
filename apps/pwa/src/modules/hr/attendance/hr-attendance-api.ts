@@ -71,7 +71,29 @@ export async function listHrAttendance(params: {
   if (params.user_id) query.set("user_id", params.user_id);
   if (params.org_id) query.set("org_id", params.org_id);
   if (params.status) query.set("status", params.status);
-  return httpRequest<HrAttendanceListResponse>(`/hr/attendance/staff?${query.toString()}`);
+  
+  const res = await httpRequest<any>(`/hr/attendance/records?${query.toString()}`);
+  
+  // Normalize response: legacy /hr/attendance/records puts user details in 'profile' object
+  const normalizedData: StaffDailyRow[] = (res.data || []).map((row: any) => ({
+    user_id: row.user_id,
+    user_name: row.profile 
+      ? `${row.profile.first_name || ""} ${row.profile.last_name || ""}`.trim() || row.profile.username || "Unknown"
+      : "Unknown",
+    email: row.profile?.email || "-",
+    work_date: row.work_date,
+    status: row.status,
+    attendance_mode: row.attendance_mode,
+    first_in_at: row.first_in_at,
+    last_out_at: row.last_out_at,
+    worked_minutes: row.worked_minutes,
+    late_minutes: row.late_minutes,
+  }));
+
+  return {
+    data: normalizedData,
+    total: normalizedData.length,
+  };
 }
 
 export async function getStaffAttendance(
