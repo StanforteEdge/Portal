@@ -21,6 +21,7 @@ import {
   listRequestTypes,
   type PolicyRecord, 
 } from "./hr-settings-api";
+import LeaveOverrideSlideOver from "./LeaveOverrideSlideOver";
 
 export default function LeaveSettingsTab() {
   const { showToast } = useToast();
@@ -32,6 +33,7 @@ export default function LeaveSettingsTab() {
   // Form State
   const [defaultTypeId, setDefaultTypeId] = useState("");
   const [requestTypes, setRequestTypes] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [editingPolicy, setEditingPolicy] = useState<PolicyRecord | null | boolean>(false);
 
   const load = async () => {
     try {
@@ -113,7 +115,7 @@ export default function LeaveSettingsTab() {
             <h3 className="text-lg font-bold text-slate-900">Leave Entitlement Overrides</h3>
             <p className="text-sm text-slate-500 mt-1">Specific day counts for different groups or individuals.</p>
           </div>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={() => setEditingPolicy(true)}>
             <Icon name="add" className="mr-1" />
             Add Override
           </Button>
@@ -143,7 +145,7 @@ export default function LeaveSettingsTab() {
                 </TableCell>
                 <TableCell>{row.priority}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">
+                  <Button variant="ghost" size="sm" onClick={() => setEditingPolicy(row)}>
                     <Icon name="edit" />
                   </Button>
                 </TableCell>
@@ -161,6 +163,16 @@ export default function LeaveSettingsTab() {
           </TableBody>
         </Table>
       </div>
+      {editingPolicy !== false && (
+        <LeaveOverrideSlideOver
+          policy={typeof editingPolicy === 'object' ? editingPolicy : null}
+          onClose={() => setEditingPolicy(false)}
+          onSaved={() => {
+            setEditingPolicy(false);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }

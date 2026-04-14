@@ -18,8 +18,8 @@ import {
   listHrPolicies, 
   saveHrPolicy, 
   type PolicyRecord, 
-  type ScopeType 
 } from "./hr-settings-api";
+import AttendanceOverrideSlideOver from "./AttendanceOverrideSlideOver";
 
 const WEEKDAYS = [
   { label: "M", value: 1 },
@@ -37,12 +37,13 @@ export default function AttendanceSettingsTab() {
   const [overrides, setOverrides] = useState<PolicyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [editingPolicy, setEditingPolicy] = useState<PolicyRecord | null | boolean>(false);
 
   // Form State
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
   const [grace, setGrace] = useState(15);
-  const [onsiteDays, setOnsiteDays] = useState<number[]>([1, 5]);
+  const [onsiteDays, setOnsiteDays] = useState<number[]>([]);
 
   const load = async () => {
     try {
@@ -151,7 +152,7 @@ export default function AttendanceSettingsTab() {
             <h3 className="text-lg font-bold text-slate-900">Policy Overrides</h3>
             <p className="text-sm text-slate-500 mt-1">Exceptions for specific organizations, teams, or staff.</p>
           </div>
-          <Button variant="ghost" size="sm">
+          <Button variant="ghost" size="sm" onClick={() => setEditingPolicy(true)}>
             <Icon name="add" className="mr-1" />
             Add Override
           </Button>
@@ -178,9 +179,9 @@ export default function AttendanceSettingsTab() {
                     {row.is_active ? "Active" : "Disabled"}
                   </Chip>
                 </TableCell>
-                <TableCell className="text-right">
-                  <Button variant="ghost" size="sm">
-                    <Icon name="edit" />
+                <TableCell>
+                  <Button variant="ghost" size="sm" onClick={() => setEditingPolicy(row)}>
+                    Edit
                   </Button>
                 </TableCell>
               </TableRow>
@@ -194,6 +195,16 @@ export default function AttendanceSettingsTab() {
           </TableBody>
         </Table>
       </div>
+      {editingPolicy !== false && (
+        <AttendanceOverrideSlideOver
+          policy={typeof editingPolicy === 'object' ? editingPolicy : null}
+          onClose={() => setEditingPolicy(false)}
+          onSaved={() => {
+            setEditingPolicy(false);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }

@@ -19,11 +19,13 @@ import {
   saveOfficeLocation, 
   type OfficeLocation 
 } from "./hr-settings-api";
+import OfficeLocationSlideOver from "./OfficeLocationSlideOver";
 
 export default function OfficeLocationsTab() {
   const { showToast } = useToast();
   const [locations, setLocations] = useState<OfficeLocation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [editingLocation, setEditingLocation] = useState<OfficeLocation | null | boolean>(false);
 
   const load = async () => {
     try {
@@ -50,7 +52,7 @@ export default function OfficeLocationsTab() {
           <h3 className="text-lg font-bold text-slate-900">Attendance Geofences</h3>
           <p className="text-sm text-slate-500 mt-1">Authorized locations where staff can clock in and out.</p>
         </div>
-        <Button>
+        <Button onClick={() => setEditingLocation(true)}>
           <Icon name="add" className="mr-1" />
           Add Location
         </Button>
@@ -93,7 +95,7 @@ export default function OfficeLocationsTab() {
                 </Chip>
               </TableCell>
               <TableCell className="text-right">
-                <Button variant="ghost" size="sm">
+                <Button variant="ghost" size="sm" onClick={() => setEditingLocation(loc)}>
                   <Icon name="edit" />
                 </Button>
               </TableCell>
@@ -110,6 +112,16 @@ export default function OfficeLocationsTab() {
           )}
         </TableBody>
       </Table>
+      {editingLocation !== false && (
+        <OfficeLocationSlideOver
+          location={typeof editingLocation === 'object' ? editingLocation : null}
+          onClose={() => setEditingLocation(false)}
+          onSaved={() => {
+            setEditingLocation(false);
+            void load();
+          }}
+        />
+      )}
     </div>
   );
 }
