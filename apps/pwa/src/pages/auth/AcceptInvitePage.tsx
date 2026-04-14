@@ -54,7 +54,15 @@ export default function AcceptInvitePage() {
               role="alert"
               className="mt-5 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger"
             >
-              {error}
+              {error.includes("\\n") ? (
+                <ul className="list-disc pl-4 space-y-1">
+                  {error.split("\\n").map((err, i) => (
+                    <li key={i}>{err}</li>
+                  ))}
+                </ul>
+              ) : (
+                <p>{error}</p>
+              )}
             </div>
           ) : null}
           {success ? (
