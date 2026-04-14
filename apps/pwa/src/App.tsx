@@ -16,6 +16,8 @@ import HrEmployeesPage from "@/modules/hr/employees/HrEmployeesPage";
 import HrEmployeeCreatePage from "@/modules/hr/employees/HrEmployeeCreatePage";
 import HrEmployeeDetailPage from "@/modules/hr/employees/HrEmployeeDetailPage";
 import HrAttendancePage from "@/modules/hr/attendance/HrAttendancePage";
+import AdminUsersPage from "@/modules/admin/AdminUsersPage";
+import AdminUserDetailPage from "@/modules/admin/AdminUserDetailPage";
 import {
   ProtectedRoute,
   PublicOnlyRoute,
@@ -113,6 +115,10 @@ export default function App() {
           <Route path="/leave" element={<LeavePage />} />
           <Route path="/leave/new/form" element={<LeaveRequestFormPage />} />
           <Route path="/leave/details" element={<LeaveRequestDetailsPage />} />
+        </Route>
+        <Route element={<ModuleRoute moduleKey="admin" />}>
+          <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/users/:id" element={<AdminUserDetailPage />} />
         </Route>
       </Route>
 

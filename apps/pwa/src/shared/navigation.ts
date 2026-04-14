@@ -93,6 +93,15 @@ export function buildAppNavigation(options?: {
         { key: "hr-leave", label: "Leave", icon: "event_available", path: "/hr/leave" },
       ],
     },
+    {
+      label: "Administration",
+      icon: "manage_accounts",
+      section: "Admin",
+      moduleKey: "admin",
+      children: [
+        { key: "admin-users", label: "Users", icon: "people", path: "/admin/users" },
+      ],
+    },
   ];
 }
 
