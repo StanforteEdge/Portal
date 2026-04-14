@@ -27,7 +27,7 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [type, setType] = useState("staff");
-  const [selectedRole, setSelectedRole] = useState("staff");
+  const [selectedRoles, setSelectedRoles] = useState<string[]>(["staff"]);
   const [orgId, setOrgId] = useState("");
   const [sendInvite, setSendInvite] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -39,6 +39,12 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
     listOrganizations({ is_active: true }).then(setOrgs).catch(() => setOrgs([]));
     listRoleOptions().then(setRoles).catch(() => setRoles([]));
   }, []);
+
+  function toggleRole(slug: string) {
+    setSelectedRoles((prev) =>
+      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug],
+    );
+  }
 
   async function handleSubmit() {
     if (!email.trim()) {
@@ -55,8 +61,8 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
         status: "pending",
         primary_organization_id: orgId || undefined,
       });
-      if (selectedRole) {
-        await setAdminUserRoles(user.id, [selectedRole]);
+      if (selectedRoles.length > 0) {
+        await setAdminUserRoles(user.id, selectedRoles);
       }
       if (sendInvite) {
         await sendUserInvite(user.id);
@@ -132,18 +138,22 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
                 <option value="board_member">Board Member</option>
               </SelectField>
 
-              <SelectField
-                label="Role"
-                value={selectedRole}
-                onChange={(e) => setSelectedRole(e.target.value)}
-              >
-                <option value="">No role</option>
-                {roles.map((r) => (
-                  <option key={r.slug} value={r.slug}>
-                    {r.name}
-                  </option>
-                ))}
-              </SelectField>
+              <div className="space-y-3">
+                <p className="field-label">Roles</p>
+                <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                  {roles.map((r) => (
+                    <label key={r.slug} className="flex cursor-pointer items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedRoles.includes(r.slug)}
+                        onChange={() => toggleRole(r.slug)}
+                        className="h-4 w-4 rounded border-slate-300 text-brand-900 focus:ring-brand-900/10"
+                      />
+                      <span className="text-sm text-slate-700">{r.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
 
               <SelectField
                 label="Primary Organisation"

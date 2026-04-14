@@ -52,20 +52,20 @@ export default function AdminUserDetailPage() {
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
-  const { data: adminUser, loading: userLoading } = useCachedQuery(
+  const { data: adminUser, loading: userLoading, error: userError } = useCachedQuery(
     `admin:users:${id ?? ""}`,
     () => getAdminUser(id!),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const { data: rolesData, loading: rolesLoading } = useCachedQuery(
+  const { data: rolesData, loading: rolesLoading, error: rolesError } = useCachedQuery(
     `admin:users:${id ?? ""}:roles`,
     () => getAdminUserRoles(id!),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
   const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
-  const [selectedRole, setSelectedRole] = useState("");
+  const [selectedRoles, setSelectedRoles] = useState<string[]>([]);
   const [roleSaving, setRoleSaving] = useState(false);
   const [inviteSending, setInviteSending] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
@@ -88,8 +88,7 @@ export default function AdminUserDetailPage() {
 
   useEffect(() => {
     const currentRoles: AdminUserRole[] = rolesData?.roles ?? [];
-    const primary = currentRoles.find((r) => r.is_primary);
-    if (primary) setSelectedRole(primary.slug);
+    setSelectedRoles(currentRoles.map((r) => r.slug));
   }, [rolesData]);
 
   const userName =
@@ -117,11 +116,17 @@ export default function AdminUserDetailPage() {
     }
   }
 
+  function toggleRole(slug: string) {
+    setSelectedRoles((prev) =>
+      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug],
+    );
+  }
+
   async function handleSaveRole() {
     try {
       setRoleSaving(true);
-      await setAdminUserRoles(id!, selectedRole ? [selectedRole] : []);
-      showToast({ tone: "success", title: "Role updated", message: "User role has been updated." });
+      await setAdminUserRoles(id!, selectedRoles);
+      showToast({ tone: "success", title: "Roles updated", message: "User roles have been updated." });
     } catch (err) {
       showToast({ tone: "danger", title: "Role update failed", message: err instanceof Error ? err.message : "Unable to update role." });
     } finally {
@@ -141,7 +146,7 @@ export default function AdminUserDetailPage() {
     }
   }
 
-  async function handleStatusChange(status: "active" | "suspended") {
+  async function handleStatusChange(status: "active" | "suspended" | "deleted") {
     try {
       setStatusSaving(true);
       await updateAdminUserStatus(id!, { status });
@@ -152,6 +157,12 @@ export default function AdminUserDetailPage() {
       setStatusSaving(false);
     }
   }
+
+  const isAdmin =
+    (profile?.employee_profile?.job_title || "").toLowerCase().includes("admin") ||
+    (user?.roles || []).some((r) => r.toLowerCase().includes("admin")) ||
+    (user?.email || "").toLowerCase().includes("admin") ||
+    (profile?.groups ?? []).some((g) => g.role === "admin" || g.name.toLowerCase().includes("admin"));
 
   return (
     <AppShell
@@ -175,6 +186,10 @@ export default function AdminUserDetailPage() {
 
       {userLoading ? (
         <div className="text-sm text-slate-500">Loading user...</div>
+      ) : userError ? (
+        <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
+          {(userError as any)?.message || String(userError)}
+        </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-12">
           <div className="space-y-6 lg:col-span-8">
@@ -208,29 +223,30 @@ export default function AdminUserDetailPage() {
             </SectionCard>
 
             {/* Roles */}
-            <SectionCard title="Role">
+            <SectionCard title="Roles">
               {rolesLoading ? (
                 <div className="text-sm text-slate-500">Loading roles...</div>
               ) : (
                 <>
-                  <SelectField
-                    label="Assigned Role"
-                    value={selectedRole}
-                    onChange={(e) => setSelectedRole(e.target.value)}
-                  >
-                    <option value="">No role</option>
+                  <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
                     {roleOptions.map((r) => (
-                      <option key={r.slug} value={r.slug}>
-                        {r.name}
-                      </option>
+                      <label key={r.slug} className="flex cursor-pointer items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={selectedRoles.includes(r.slug)}
+                          onChange={() => toggleRole(r.slug)}
+                          className="h-4 w-4 rounded border-slate-300 text-brand-900 focus:ring-brand-900/10"
+                        />
+                        <span className="text-sm text-slate-700">{r.name}</span>
+                      </label>
                     ))}
-                  </SelectField>
+                  </div>
                   <Button
-                    className="mt-4"
+                    className="mt-6"
                     onClick={() => void handleSaveRole()}
                     disabled={roleSaving}
                   >
-                    {roleSaving ? "Saving..." : "Update Role"}
+                    {roleSaving ? "Saving..." : "Update Roles"}
                   </Button>
                 </>
               )}
@@ -246,7 +262,7 @@ export default function AdminUserDetailPage() {
                 </Chip>
               </div>
               <div className="flex flex-col gap-2">
-                {adminUser?.status !== "active" ? (
+                {adminUser?.status !== "active" && adminUser?.status !== "deleted" ? (
                   <Button
                     onClick={() => void handleStatusChange("active")}
                     disabled={statusSaving}
@@ -256,11 +272,25 @@ export default function AdminUserDetailPage() {
                 ) : null}
                 {adminUser?.status === "active" ? (
                   <Button
-                    variant="danger"
+                    variant="secondary"
+                    className="text-orange-600 border-orange-200 bg-orange-50 hover:bg-orange-100"
                     onClick={() => void handleStatusChange("suspended")}
                     disabled={statusSaving}
                   >
                     Suspend
+                  </Button>
+                ) : null}
+                {isAdmin && adminUser?.status !== "deleted" ? (
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      if (window.confirm("Are you sure you want to delete this user? This action cannot be undone.")) {
+                        void handleStatusChange("deleted");
+                      }
+                    }}
+                    disabled={statusSaving}
+                  >
+                    Delete User
                   </Button>
                 ) : null}
               </div>
@@ -290,7 +320,7 @@ export default function AdminUserDetailPage() {
                   This user has a staff account. HR can complete their employee
                   profile.
                 </p>
-                <Link to="/hr/employees">
+                <Link to={`/hr/employees/${adminUser?.id}`}>
                   <Button variant="ghost">
                     <Icon name="person" className="mr-2 text-[18px]" />
                     View in HR

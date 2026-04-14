@@ -38,6 +38,7 @@ const statusVariant: Record<string, "success" | "warning" | "danger" | "neutral"
   pending: "warning",
   suspended: "danger",
   inactive: "neutral",
+  deleted: "danger",
 };
 
 const typeLabel: Record<string, string> = {
@@ -62,7 +63,7 @@ export default function AdminUsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [listKey, setListKey] = useState(0); // bump to refresh
 
-  const { data, loading } = useCachedQuery(
+  const { data, loading, error } = useCachedQuery(
     `admin:users:${listKey}:${search}:${typeFilter}:${statusFilter}`,
     () =>
       listAdminUsers({
@@ -74,8 +75,12 @@ export default function AdminUsersPage() {
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const users: AdminUser[] = data?.data ?? [];
-  const total = data?.meta?.total ?? users.length;
+  const isDataArray = Array.isArray(data);
+  const users: AdminUser[] = isDataArray 
+    ? data 
+    : (Array.isArray(data?.data) ? data.data : []);
+  const metaTotal = !isDataArray ? data?.meta?.total : undefined;
+  const total = metaTotal ?? users.length;
   const active = users.filter((u) => u.status === "active").length;
   const pending = users.filter((u) => u.status === "pending").length;
   const suspended = users.filter((u) => u.status === "suspended").length;
@@ -150,11 +155,16 @@ export default function AdminUsersPage() {
               <option value="active">Active</option>
               <option value="pending">Pending</option>
               <option value="suspended">Suspended</option>
+              <option value="deleted">Deleted</option>
             </SelectField>
           </div>
 
           {loading ? (
             <div className="text-sm text-slate-500">Loading users...</div>
+          ) : error ? (
+            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
+              {(error as any)?.message || String(error)}
+            </div>
           ) : (
             <Table>
               <TableHead>
@@ -164,7 +174,7 @@ export default function AdminUsersPage() {
                   <TableHeaderCell>Type</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
                   <TableHeaderCell>Created</TableHeaderCell>
-                  <TableHeaderCell>{""}</TableHeaderCell>
+                  <TableHeaderCell className="text-right">{""}</TableHeaderCell>
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
@@ -174,7 +184,6 @@ export default function AdminUsersPage() {
                       <p className="font-semibold text-slate-900">
                         {[u.first_name, u.last_name].filter(Boolean).join(" ") || "-"}
                       </p>
-                      <p className="text-xs text-slate-500">{u.username || ""}</p>
                     </TableCell>
                     <TableCell>{u.email}</TableCell>
                     <TableCell>{typeLabel[u.type] ?? u.type}</TableCell>
@@ -184,10 +193,10 @@ export default function AdminUsersPage() {
                       </Chip>
                     </TableCell>
                     <TableCell>{formatDate(u.created_at)}</TableCell>
-                    <TableCell>
+                    <TableCell className="text-right">
                       <Link to={`/admin/users/${u.id}`}>
-                        <Button size="sm" variant="ghost">
-                          View
+                        <Button size="sm" variant="ghost" className="gap-2 text-brand-900">
+                          View <Icon name="arrow_forward" className="text-[16px]" />
                         </Button>
                       </Link>
                     </TableCell>

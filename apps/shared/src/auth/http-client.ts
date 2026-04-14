@@ -97,6 +97,9 @@ export function createHttpClient(config: {
       throw new Error(String(errorMessage));
     }
 
+    if (payload && typeof payload === "object" && "data" in payload && "meta" in payload) {
+      return payload as T;
+    }
     return ((payload as any)?.data ?? payload) as T;
   }
 
