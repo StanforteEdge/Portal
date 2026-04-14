@@ -89,8 +89,8 @@ export function buildAppNavigation(options?: {
       children: [
         { key: "hr-dashboard", label: "Overview", icon: "dashboard", path: "/hr" },
         { key: "hr-employees", label: "Employees", icon: "group", path: "/hr/employees" },
-        { key: "hr-attendance", label: "Attendance", icon: "pending_actions", path: "/attendance" },
-        { key: "hr-leave", label: "Leave", icon: "event_available", path: "/leave" },
+        { key: "hr-attendance", label: "Attendance", icon: "pending_actions", path: "/hr/attendance" },
+        { key: "hr-leave", label: "Leave", icon: "event_available", path: "/hr/leave" },
       ],
     },
   ];

@@ -91,7 +91,7 @@ export default function HrEmployeesPage() {
     return (
         <AppShell
             navigation={buildAppNavigation()}
-            activeLabel="Employees"
+            activeLabel="hr-employees"
             user={{
                 name: userName,
                 role: profile?.employee_profile?.job_title || "HR Staff",

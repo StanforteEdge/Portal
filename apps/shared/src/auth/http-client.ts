@@ -81,8 +81,14 @@ export function createHttpClient(config: {
 
     if (!response.ok) {
       const nestedError = (payload as any)?.error;
+      let rawMessage = (payload as any)?.message;
+      
+      if (Array.isArray(rawMessage)) {
+        rawMessage = rawMessage.join("\\n");
+      }
+
       const errorMessage =
-        (payload as any)?.message ??
+        rawMessage ??
         (typeof nestedError === "string" ? nestedError : undefined) ??
         nestedError?.message ??
         (payload as any)?.data?.message ??

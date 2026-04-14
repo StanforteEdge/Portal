@@ -3,8 +3,8 @@ import type { SidebarItem } from "@/shared";
 export const hrNavigation: SidebarItem[] = [
   { label: "Overview", icon: "dashboard", path: "/hr" },
   { label: "Employees", icon: "group", path: "/hr/employees" },
-  { label: "Attendance", icon: "pending_actions", path: "/attendance" },
-  { label: "Leave", icon: "event_available", path: "/leave" },
+  { label: "Attendance", icon: "pending_actions", path: "/hr/attendance" },
+  { label: "Leave", icon: "event_available", path: "/hr/leave" },
 ];
 
 export const EMPLOYMENT_TYPE_LABELS: Record<string, string> = {

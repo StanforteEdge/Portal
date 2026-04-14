@@ -63,7 +63,7 @@ export default function HrDashboardPage() {
     return (
         <AppShell
             navigation={buildAppNavigation()}
-            activeLabel="Overview"
+            activeLabel="hr-dashboard"
             user={{
                 name: userName,
                 role: profile?.employee_profile?.job_title || "HR Staff",
