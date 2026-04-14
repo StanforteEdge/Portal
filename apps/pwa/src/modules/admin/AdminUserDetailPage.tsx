@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Button,
   Chip,
@@ -45,6 +45,7 @@ export default function AdminUserDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { user } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const { data: profile } = useCachedQuery(
     "admin:profile",
@@ -73,6 +74,7 @@ export default function AdminUserDetailPage() {
   // Edit form
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [type, setType] = useState("staff");
   const [infoSaving, setInfoSaving] = useState(false);
 
   useEffect(() => {
@@ -83,6 +85,7 @@ export default function AdminUserDetailPage() {
     if (adminUser) {
       setFirstName(adminUser.first_name ?? "");
       setLastName(adminUser.last_name ?? "");
+      setType(adminUser.type ?? "staff");
     }
   }, [adminUser]);
 
@@ -107,6 +110,7 @@ export default function AdminUserDetailPage() {
       await updateAdminUser(id!, {
         first_name: firstName.trim() || undefined,
         last_name: lastName.trim() || undefined,
+        type: type,
       });
       showToast({ tone: "success", title: "Saved", message: "User details updated." });
     } catch (err) {
@@ -151,6 +155,9 @@ export default function AdminUserDetailPage() {
       setStatusSaving(true);
       await updateAdminUserStatus(id!, { status });
       showToast({ tone: "success", title: "Status updated", message: `User is now ${status}.` });
+      if (status === "deleted") {
+        navigate("/admin/users");
+      }
     } catch (err) {
       showToast({ tone: "danger", title: "Status update failed", message: err instanceof Error ? err.message : "Unable to update status." });
     } finally {
@@ -207,11 +214,16 @@ export default function AdminUserDetailPage() {
                   onChange={(e) => setLastName(e.target.value)}
                 />
                 <TextField label="Email" value={adminUser?.email ?? ""} readOnly />
-                <TextField
+                <SelectField
                   label="Type"
-                  value={typeLabel[adminUser?.type ?? ""] ?? adminUser?.type ?? "-"}
-                  readOnly
-                />
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                >
+                  <option value="staff">Staff / Employee</option>
+                  <option value="vendor">Vendor</option>
+                  <option value="client">Client</option>
+                  <option value="board_member">Board Member</option>
+                </SelectField>
               </div>
               <Button
                 className="mt-4"

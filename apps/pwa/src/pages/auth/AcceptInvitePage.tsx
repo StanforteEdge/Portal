@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Button, Icon } from "@/shared";
 import { authApi } from "@/shared/lib/core";
 import brandLogo from "../../../../shared/assets/brand/stanforte-logo.png";
@@ -19,6 +19,7 @@ export default function AcceptInvitePage() {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-surface px-6 py-12">
@@ -104,6 +105,10 @@ export default function AcceptInvitePage() {
                   password,
                 });
                 setSuccess("Account activated. You can now sign in.");
+                //redirect to login page after 2 seconds
+                setTimeout(() => {
+                  navigate("/login");
+                }, 2000);
               } catch (requestError) {
                 setError(
                   requestError instanceof Error
@@ -120,7 +125,7 @@ export default function AcceptInvitePage() {
               <span className="field-label">Invitation Token</span>
               <input
                 className="input-base"
-                required
+                required disabled
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
                 placeholder="Paste invitation token"

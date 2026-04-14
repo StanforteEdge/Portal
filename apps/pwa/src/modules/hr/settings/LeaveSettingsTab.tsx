@@ -18,6 +18,7 @@ import {
 import { 
   listHrPolicies, 
   saveHrPolicy, 
+  listRequestTypes,
   type PolicyRecord, 
 } from "./hr-settings-api";
 
@@ -30,6 +31,7 @@ export default function LeaveSettingsTab() {
 
   // Form State
   const [defaultTypeId, setDefaultTypeId] = useState("");
+  const [requestTypes, setRequestTypes] = useState<{ id: string; name: string; slug: string }[]>([]);
 
   const load = async () => {
     try {
@@ -44,6 +46,10 @@ export default function LeaveSettingsTab() {
       if (typePol?.config_json) {
         setDefaultTypeId(typePol.config_json.request_type_id || "");
       }
+
+      const typesRes = await listRequestTypes();
+      // Filter for leave-related types if possible, or just show all
+      setRequestTypes(typesRes);
     } catch (err) {
       showToast({ tone: "danger", title: "Error", message: "Failed to load leave settings." });
     } finally {
@@ -91,8 +97,9 @@ export default function LeaveSettingsTab() {
             onChange={(e) => setDefaultTypeId(e.target.value)}
           >
             <option value="">Select a default type</option>
-            <option value="annual">Annual Leave</option>
-            <option value="sick">Sick Leave</option>
+            {requestTypes.map((t) => (
+              <option key={t.id} value={t.id}>{t.name}</option>
+            ))}
           </SelectField>
           <Button onClick={() => void handleSaveDefault()} disabled={saving || !defaultTypeId}>
             {saving ? "Saving..." : "Save Default"}

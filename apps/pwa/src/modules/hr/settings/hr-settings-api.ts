@@ -72,14 +72,23 @@ export async function listOfficeLocations(params?: { is_active?: boolean }): Pro
     query.set("is_active", String(params.is_active));
   }
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return httpRequest<{ data: OfficeLocation[] }>(`/hr/attendance/locations${suffix}`);
+  const res = await httpRequest<{ data: OfficeLocation[] }>(`/hr/attendance/office-locations${suffix}`);
+  return res;
+}
+
+/**
+ * List leave request types (from general requests module)
+ */
+export async function listRequestTypes(): Promise<{ id: string; name: string; slug: string }[]> {
+  const res = await httpRequest<any[]>("/requests/types");
+  return res || [];
 }
 
 /**
  * Save an office location (create or update)
  */
 export async function saveOfficeLocation(data: any, id?: string): Promise<OfficeLocation> {
-  return httpRequest<OfficeLocation>(id ? `/hr/attendance/locations/${id}` : "/hr/attendance/locations", {
+  return httpRequest<OfficeLocation>(id ? `/hr/attendance/office-locations/${id}` : "/hr/attendance/office-locations", {
     method: id ? "PATCH" : "POST",
     body: data,
   });
