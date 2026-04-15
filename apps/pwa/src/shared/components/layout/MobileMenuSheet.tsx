@@ -1,7 +1,20 @@
 import { useEffect, useRef } from "react";
 import { NavLink } from "react-router-dom";
 import { Icon } from "../ui/Icon";
-import type { SidebarItem } from "./Sidebar";
+import type { SidebarChildItem, SidebarItem } from "./Sidebar";
+
+function nodeKey(node: { key?: string; label: string }) {
+  return node.key ?? node.label;
+}
+
+function nodeHasActiveDescendant(
+  node: { key?: string; label: string; children?: SidebarChildItem[] },
+  activeLabel: string,
+): boolean {
+  if (nodeKey(node) === activeLabel) return true;
+  if (!Array.isArray(node.children) || node.children.length === 0) return false;
+  return node.children.some((child) => nodeHasActiveDescendant(child, activeLabel));
+}
 
 type MobileMenuSheetProps = {
   open: boolean;
@@ -99,7 +112,7 @@ export function MobileMenuSheet({ open, navigation, activeLabel, user, onClose, 
         <div className="space-y-5">
           {navigation.map((item, index) => {
             const hasChildren = Array.isArray(item.children) && item.children.length > 0;
-            const active = item.label === activeLabel || item.children?.some((child) => child.label === activeLabel);
+            const active = nodeHasActiveDescendant(item, activeLabel);
             const previousSection = index > 0 ? navigation[index - 1]?.section : undefined;
             const showSectionLabel = item.section && item.section !== previousSection;
 
@@ -133,21 +146,50 @@ export function MobileMenuSheet({ open, navigation, activeLabel, user, onClose, 
                   {hasChildren ? (
                     <div className="mt-4 space-y-2 border-l border-slate-200 pl-4">
                       {item.children!.map((child) => {
-                        const childActive = child.label === activeLabel;
-                        return child.path ? (
-                          <NavLink
-                            key={`${item.label}-${child.label}`}
-                            to={child.path}
-                            onClick={onClose}
-                            className={[
-                              "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-                              childActive ? "bg-brand-900/10 text-brand-900" : "text-slate-600 hover:bg-slate-50",
-                            ].join(" ")}
-                          >
-                            {child.icon ? <Icon name={child.icon} className="text-[16px]" /> : null}
-                            <span>{child.label}</span>
-                          </NavLink>
-                        ) : null;
+                        const childActive = nodeHasActiveDescendant(child, activeLabel);
+                        const hasNestedChildren = Array.isArray(child.children) && child.children.length > 0;
+                        return (
+                          <div key={`${item.label}-${nodeKey(child)}`} className="space-y-2">
+                            {child.path ? (
+                              <NavLink
+                                to={child.path}
+                                onClick={onClose}
+                                className={[
+                                  "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                  childActive ? "bg-brand-900/10 text-brand-900" : "text-slate-600 hover:bg-slate-50",
+                                ].join(" ")}
+                              >
+                                {child.icon ? <Icon name={child.icon} className="text-[16px]" /> : null}
+                                <span>{child.label}</span>
+                              </NavLink>
+                            ) : (
+                              <p className="px-1 pt-1 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-400">
+                                {child.label}
+                              </p>
+                            )}
+                            {hasNestedChildren ? (
+                              <div className="space-y-2 border-l border-slate-100 pl-3">
+                                {child.children!.map((grandChild) => {
+                                  const grandChildActive = nodeHasActiveDescendant(grandChild, activeLabel);
+                                  return grandChild.path ? (
+                                    <NavLink
+                                      key={`${item.label}-${nodeKey(child)}-${nodeKey(grandChild)}`}
+                                      to={grandChild.path}
+                                      onClick={onClose}
+                                      className={[
+                                        "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                        grandChildActive ? "bg-brand-900/10 text-brand-900" : "text-slate-600 hover:bg-slate-50",
+                                      ].join(" ")}
+                                    >
+                                      <Icon name={grandChild.icon || child.icon || item.icon} className="text-[16px]" />
+                                      <span>{grandChild.label}</span>
+                                    </NavLink>
+                                  ) : null;
+                                })}
+                              </div>
+                            ) : null}
+                          </div>
+                        );
                       })}
                     </div>
                   ) : null}

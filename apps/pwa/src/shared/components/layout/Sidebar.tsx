@@ -11,15 +11,43 @@ export type SidebarItem = {
   moduleKey?: string;
   permissions?: string[];
   requiresTeamLeadAssignment?: boolean;
-  children?: Array<{
-    key?: string;
-    label: string;
-    icon?: string;
-    path?: string;
-    permissions?: string[];
-    requiresTeamLeadAssignment?: boolean;
-  }>;
+  children?: SidebarChildItem[];
 };
+
+export type SidebarChildItem = {
+  key?: string;
+  label: string;
+  icon?: string;
+  path?: string;
+  permissions?: string[];
+  requiresTeamLeadAssignment?: boolean;
+  children?: SidebarChildItem[];
+};
+
+function nodeKey(node: { key?: string; label: string }) {
+  return node.key ?? node.label;
+}
+
+function nodeHasActiveDescendant(
+  node: { key?: string; label: string; children?: SidebarChildItem[] },
+  activeLabel: string,
+): boolean {
+  if (nodeKey(node) === activeLabel) return true;
+  if (!Array.isArray(node.children) || node.children.length === 0) return false;
+  return node.children.some((child) => nodeHasActiveDescendant(child, activeLabel));
+}
+
+function flattenLeafNodes(children: SidebarChildItem[]): SidebarChildItem[] {
+  const leaves: SidebarChildItem[] = [];
+  children.forEach((child) => {
+    if (Array.isArray(child.children) && child.children.length > 0) {
+      leaves.push(...flattenLeafNodes(child.children));
+      return;
+    }
+    leaves.push(child);
+  });
+  return leaves;
+}
 
 type SidebarProps = {
   navigation: SidebarItem[];
@@ -37,8 +65,7 @@ export function Sidebar({
   const activeParentLabel =
     navigation.find(
       (item) =>
-        (item.key ?? item.label) === activeLabel ||
-        item.children?.some((child) => (child.key ?? child.label) === activeLabel),
+        nodeKey(item) === activeLabel || nodeHasActiveDescendant(item, activeLabel),
     )?.label ?? null;
   const [openItem, setOpenItem] = useState<string | null>(activeParentLabel);
   const navRef = useRef<HTMLElement | null>(null);
@@ -100,9 +127,9 @@ export function Sidebar({
           const hasChildren =
             Array.isArray(item.children) && item.children.length > 0;
           const childActive = hasChildren
-            ? item.children!.some((child) => (child.key ?? child.label) === activeLabel)
+            ? item.children!.some((child) => nodeHasActiveDescendant(child, activeLabel))
             : false;
-          const active = (item.key ?? item.label) === activeLabel || childActive;
+          const active = nodeKey(item) === activeLabel || childActive;
           const previousSection =
             index > 0 ? navigation[index - 1]?.section : undefined;
           const showSectionLabel =
@@ -189,24 +216,54 @@ export function Sidebar({
               {hasChildren && !collapsed && openItem === item.label ? (
                 <div className="ml-4 space-y-1 border-l border-slate-200 pl-3">
                   {item.children!.map((child) => {
-                    const childIsActive = (child.key ?? child.label) === activeLabel;
+                    const childIsActive = nodeHasActiveDescendant(child, activeLabel);
+                    const nestedChildren = Array.isArray(child.children) && child.children.length > 0;
                     return (
-                      <NavLink
-                        key={`${item.label}-${child.label}`}
-                        className={[
-                          "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-                          childIsActive
-                            ? "bg-brand-900/10 text-brand-900"
-                            : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
-                        ].join(" ")}
-                        to={child.path || "#"}
-                        aria-current={childIsActive ? "page" : undefined}
-                      >
-                        {child.icon ? (
-                          <Icon name={child.icon} className="text-[14px]" />
+                      <div key={`${item.label}-${nodeKey(child)}`} className="space-y-1">
+                        {child.path ? (
+                          <NavLink
+                            className={[
+                              "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                              childIsActive
+                                ? "bg-brand-900/10 text-brand-900"
+                                : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
+                            ].join(" ")}
+                            to={child.path}
+                            aria-current={childIsActive ? "page" : undefined}
+                          >
+                            {child.icon ? <Icon name={child.icon} className="text-[14px]" /> : null}
+                            <span className="flex-1">{child.label}</span>
+                          </NavLink>
+                        ) : (
+                          <div className="px-3 pt-2 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-400">
+                            {child.label}
+                          </div>
+                        )}
+
+                        {nestedChildren ? (
+                          <div className="ml-2 space-y-1 border-l border-slate-100 pl-2">
+                            {child.children!.map((grandChild) => {
+                              const grandChildIsActive = nodeHasActiveDescendant(grandChild, activeLabel);
+                              return grandChild.path ? (
+                                <NavLink
+                                  key={`${item.label}-${nodeKey(child)}-${nodeKey(grandChild)}`}
+                                  className={[
+                                    "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                    grandChildIsActive
+                                      ? "bg-brand-900/10 text-brand-900"
+                                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
+                                  ].join(" ")}
+                                  to={grandChild.path}
+                                  aria-current={grandChildIsActive ? "page" : undefined}
+                                >
+                                  <Icon name={grandChild.icon || child.icon || item.icon} className="text-[14px]" />
+                                  <span className="flex-1">{grandChild.label}</span>
+                                </NavLink>
+                              ) : null;
+                            })}
+                          </div>
                         ) : null}
-                        <span className="flex-1">{child.label}</span>
-                      </NavLink>
+                      </div>
                     );
                   })}
                 </div>
@@ -214,18 +271,18 @@ export function Sidebar({
 
               {hasChildren && collapsed && openItem === item.label ? (
                 <div className="mt-1 space-y-1">
-                  {item.children!.map((child) => {
-                    const childIsActive = (child.key ?? child.label) === activeLabel;
-                    return (
+                  {flattenLeafNodes(item.children!).map((child) => {
+                    const childIsActive = nodeHasActiveDescendant(child, activeLabel);
+                    return child.path ? (
                       <NavLink
-                        key={`${item.label}-${child.label}-collapsed`}
+                        key={`${item.label}-${nodeKey(child)}-collapsed`}
                         className={[
                           "group/child relative flex h-11 w-full items-center justify-center rounded-xl transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
                           childIsActive
                             ? "bg-brand-900/10 text-brand-900"
                             : "text-slate-500 hover:bg-slate-200/40 hover:text-slate-900",
                         ].join(" ")}
-                        to={child.path || "#"}
+                        to={child.path}
                         aria-current={childIsActive ? "page" : undefined}
                         title={child.label}
                       >
@@ -239,7 +296,7 @@ export function Sidebar({
                           {child.label}
                         </span>
                       </NavLink>
-                    );
+                    ) : null;
                   })}
                 </div>
               ) : null}

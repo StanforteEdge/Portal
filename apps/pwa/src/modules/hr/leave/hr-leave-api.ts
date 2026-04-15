@@ -7,6 +7,7 @@ import {
   rejectRequest,
   type RequestRecord,
 } from "@/features/requests/requests-api";
+import { requestFamilyFromRecord } from "@/features/requests/request-helpers";
 
 export type { RequestRecord };
 
@@ -40,12 +41,14 @@ export async function listHrLeaveRequests(params?: {
   if (params?.user_id) query.user_id = params.user_id;
   if (params?.from) query.from = params.from;
   if (params?.to) query.to = params.to;
-  return listRequests(query);
+  const requests = await listRequests(query);
+  return requests.filter((record) => requestFamilyFromRecord(record) === "leave");
 }
 
 // Leave requests pending HR approval
 export async function listHrLeaveApprovals(): Promise<RequestRecord[]> {
-  return listApprovals({ family: "leave" });
+  const approvals = await listApprovals({ family: "leave" });
+  return approvals.filter((record) => requestFamilyFromRecord(record) === "leave");
 }
 
 // Per-staff leave balances — HR-specific endpoint

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import {
   AppShell,
   Button,
@@ -38,6 +38,7 @@ function asDate(value: unknown) {
 
 export default function FinanceAssetsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [status, setStatus] = useState("all");
   const [queryText, setQueryText] = useState("");
 
@@ -83,6 +84,12 @@ export default function FinanceAssetsPage() {
         breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Assets" }]}
         title="Asset Register"
         description="Monitor assets, values, and disposal history from one operational view."
+        actions={
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={() => navigate("/finance/assets/disposals")}>Disposals</Button>
+            <Button onClick={() => navigate("/finance/assets/new")}>New Asset</Button>
+          </div>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -123,7 +130,15 @@ export default function FinanceAssetsPage() {
                 const statusKey = String(asset.status || "active").toLowerCase();
                 return (
                   <TableRow key={asset.id}>
-                    <TableCell>{asset.asset_name || asset.asset_code || asset.id.slice(0, 8)}</TableCell>
+                    <TableCell>
+                      <button
+                        type="button"
+                        className="font-semibold text-slate-900 hover:text-brand-700 hover:underline"
+                        onClick={() => navigate(`/finance/assets/${asset.id}`)}
+                      >
+                        {asset.asset_name || asset.asset_description || asset.asset_code || asset.id.slice(0, 8)}
+                      </button>
+                    </TableCell>
                     <TableCell>{asset.category || "-"}</TableCell>
                     <TableCell>
                       <Chip variant={statusKey === "active" ? "success" : statusKey === "disposed" ? "danger" : "pending"}>
@@ -157,7 +172,15 @@ export default function FinanceAssetsPage() {
             <TableBody>
               {disposals.slice(0, 6).map((asset: FinanceAssetRecord) => (
                 <TableRow key={`dispose-${asset.id}`}>
-                  <TableCell>{asset.asset_name || asset.asset_code || asset.id.slice(0, 8)}</TableCell>
+                  <TableCell>
+                    <button
+                      type="button"
+                      className="font-semibold text-slate-900 hover:text-brand-700 hover:underline"
+                      onClick={() => navigate(`/finance/assets/${asset.id}`)}
+                    >
+                      {asset.asset_name || asset.asset_description || asset.asset_code || asset.id.slice(0, 8)}
+                    </button>
+                  </TableCell>
                   <TableCell><Chip variant="danger">disposed</Chip></TableCell>
                   <TableCell>{asDate((asset as Record<string, unknown>).disposed_at)}</TableCell>
                   <TableCell className="text-right">{asMoney(asset.current_value, String(asset.currency || "NGN"))}</TableCell>

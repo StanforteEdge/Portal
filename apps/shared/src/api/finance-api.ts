@@ -70,12 +70,25 @@ export type FinanceBillRecord = {
 
 export type FinanceAssetRecord = {
   id: string;
+  asset_id?: string | null;
+  asset_description?: string | null;
   asset_code?: string | null;
   asset_name?: string | null;
   category?: string | null;
   status?: string | null;
+  condition?: string | null;
+  location_project?: string | null;
+  serial_tag_no?: string | null;
+  assigned_to_user_id?: string | null;
+  assigned_to_name?: string | null;
   purchase_date?: string | null;
   purchase_cost?: number | null;
+  useful_life_years?: number | null;
+  salvage_value?: number | null;
+  supplier?: string | null;
+  disposed_at?: string | null;
+  disposal_method?: string | null;
+  disposal_proceeds?: number | null;
   current_value?: number | null;
   location?: string | null;
   currency?: string | null;
@@ -278,6 +291,34 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<FinanceAssetRecord[]>(`/finance/assets/disposals${toQuery(params)}`);
     },
 
+    createAsset(payload: Record<string, unknown>) {
+      return httpRequest<FinanceAssetRecord>(`/finance/assets`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    updateAsset(id: string, payload: Record<string, unknown>) {
+      return httpRequest<FinanceAssetRecord>(`/finance/assets/${id}`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    verifyAsset(id: string, payload: Record<string, unknown>) {
+      return httpRequest<FinanceAssetRecord>(`/finance/assets/${id}/verify`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    disposeAsset(id: string, payload: Record<string, unknown>) {
+      return httpRequest<FinanceAssetRecord>(`/finance/assets/${id}/dispose`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
     listChartAccounts(params?: Record<string, unknown>) {
       return httpRequest<FinanceChartAccountRecord[]>(`/finance/chart-accounts${toQuery(params)}`);
     },
@@ -330,6 +371,14 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<Record<string, unknown>>(`/finance/reports/executive-summary${toQuery(params)}`);
     },
 
+    getIncomeSummary(params?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/reports/income-summary${toQuery(params)}`);
+    },
+
+    getExpenseSummary(params?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/reports/expense-summary${toQuery(params)}`);
+    },
+
     getProfitLoss(params?: Record<string, unknown>) {
       return httpRequest<Record<string, unknown>>(`/finance/reports/profit-loss${toQuery(params)}`);
     },
@@ -348,6 +397,10 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     getBudgetVsActualReport(params?: Record<string, unknown>) {
       return httpRequest<Record<string, unknown>>(`/finance/reports/budget-vs-actual${toQuery(params)}`);
+    },
+
+    getGrantUtilizationReport(params?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/reports/grant-utilization${toQuery(params)}`);
     },
   };
 }

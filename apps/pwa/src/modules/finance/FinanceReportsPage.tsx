@@ -15,6 +15,7 @@ import {
 import { buildAppMobileNav, buildRequestsNavigation } from "@/features/requests/requests-data";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
+import { Link } from "react-router-dom";
 
 function pickNumber(record: Record<string, unknown>, keys: string[]) {
   for (const key of keys) {
@@ -57,12 +58,18 @@ export default function FinanceReportsPage() {
     () => financeApi.getBudgetVsActualReport(),
     { ttlMs: 60_000, storage: "memory" },
   );
+  const { data: grantUtilizationData } = useCachedQuery(
+    "finance:reports:grant-utilization",
+    () => financeApi.getGrantUtilizationReport(),
+    { ttlMs: 60_000, storage: "memory" },
+  );
   const executive = executiveData ?? {};
   const profitLoss = profitLossData ?? {};
   const balances = balancesData ?? {};
   const receivables = receivablesData ?? {};
   const payables = payablesData ?? {};
   const budgetVsActual = budgetVsActualData ?? {};
+  const grantUtilization = grantUtilizationData ?? {};
 
   const cards = [
     {
@@ -112,40 +119,56 @@ export default function FinanceReportsPage() {
       <SectionCard title="Report Snapshots" description="Current output from core finance reporting endpoints.">
         <Table caption="Report snapshots">
           <TableHead>
-            <TableHeaderRow>
-              <TableHeaderCell>Report</TableHeaderCell>
-              <TableHeaderCell>Key Metric</TableHeaderCell>
-              <TableHeaderCell>Source</TableHeaderCell>
-            </TableHeaderRow>
-          </TableHead>
-          <TableBody>
-            <TableRow>
-              <TableCell>Executive Summary</TableCell>
-              <TableCell>{String(executive.summary_title || executive.title || "Ready")}</TableCell>
-              <TableCell>/finance/reports/executive-summary</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell>Profit &amp; Loss</TableCell>
-              <TableCell>{String(profitLoss.period_label || profitLoss.label || "Current period")}</TableCell>
-              <TableCell>/finance/reports/profit-loss</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell>Budget vs Actual</TableCell>
-              <TableCell>{String(budgetVsActual.period_label || budgetVsActual.label || "Current budget")}</TableCell>
-              <TableCell>/finance/reports/budget-vs-actual</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell>Receivables Aging</TableCell>
-              <TableCell>{String(receivables.bucket_label || receivables.label || "Aging view")}</TableCell>
-              <TableCell>/finance/reports/receivables</TableCell>
-            </TableRow>
-            <TableRow>
-              <TableCell>Payables Aging</TableCell>
-              <TableCell>{String(payables.bucket_label || payables.label || "Aging view")}</TableCell>
-              <TableCell>/finance/reports/payables</TableCell>
-            </TableRow>
-          </TableBody>
-        </Table>
+              <TableHeaderRow>
+                <TableHeaderCell>Report</TableHeaderCell>
+                <TableHeaderCell>Key Metric</TableHeaderCell>
+                <TableHeaderCell>Source</TableHeaderCell>
+                <TableHeaderCell className="text-right">Action</TableHeaderCell>
+              </TableHeaderRow>
+            </TableHead>
+            <TableBody>
+              <TableRow>
+                <TableCell>Activities</TableCell>
+                <TableCell>{String(executive.summary_title || executive.title || "Ready")}</TableCell>
+                <TableCell>/finance/reports/income-summary + /expense-summary</TableCell>
+                <TableCell className="text-right">
+                  <Link to="/finance/reports/activities" className="text-sm font-semibold text-brand-700 hover:underline">Open</Link>
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Position</TableCell>
+                <TableCell>{String(balances.period_label || balances.label || "Current position")}</TableCell>
+                <TableCell>/finance/reports/balances</TableCell>
+                <TableCell className="text-right">
+                  <Link to="/finance/reports/position" className="text-sm font-semibold text-brand-700 hover:underline">Open</Link>
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Budget vs Actual</TableCell>
+                <TableCell>{String(budgetVsActual.period_label || budgetVsActual.label || "Current budget")}</TableCell>
+                <TableCell>/finance/reports/budget-vs-actual</TableCell>
+                <TableCell className="text-right">
+                  <Link to="/finance/reports/budget-vs-actual" className="text-sm font-semibold text-brand-700 hover:underline">Open</Link>
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Aged Receivables</TableCell>
+                <TableCell>{String(receivables.bucket_label || receivables.label || "Aging view")}</TableCell>
+                <TableCell>/finance/reports/receivables</TableCell>
+                <TableCell className="text-right">
+                  <Link to="/finance/reports/aged-receivables" className="text-sm font-semibold text-brand-700 hover:underline">Open</Link>
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell>Grant Utilization</TableCell>
+                <TableCell>{String(grantUtilization.bucket_label || grantUtilization.label || "Grant view")}</TableCell>
+                <TableCell>/finance/reports/grant-utilization</TableCell>
+                <TableCell className="text-right">
+                  <Link to="/finance/reports/grant-utilization" className="text-sm font-semibold text-brand-700 hover:underline">Open</Link>
+                </TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
       </SectionCard>
 
       {!Object.keys(executive).length ? (

@@ -17,7 +17,7 @@ import {
   markWorkspaceNotificationRead,
 } from "@/shared/api/workspace-api";
 import { MobileBottomNav } from "./MobileBottomNav";
-import { Sidebar, type SidebarItem } from "./Sidebar";
+import { Sidebar, type SidebarChildItem, type SidebarItem } from "./Sidebar";
 import { DesktopTopBar, MobileTopBar } from "./TopBar";
 
 type UserInfo = {
@@ -96,19 +96,39 @@ export function AppShell({
     [notifications],
   );
   const visibleNavigation = useMemo(
-    () =>
-      navigation.reduce<SidebarItem[]>((acc, item) => {
-        const teamLeadAssigned = Boolean(
-          [
-            ...(profile?.groups ?? []),
-            ...(profile?.teams ?? []),
-            ...(profile?.projects ?? []),
-          ].some((group) =>
-            String(group?.role ?? "")
-              .toLowerCase()
-              .includes("lead"),
-          ),
-        );
+    () => {
+      const teamLeadAssigned = Boolean(
+        [
+          ...(profile?.groups ?? []),
+          ...(profile?.teams ?? []),
+          ...(profile?.projects ?? []),
+        ].some((group) =>
+          String(group?.role ?? "")
+            .toLowerCase()
+            .includes("lead"),
+        ),
+      );
+
+      function filterChildren(children: SidebarChildItem[] | undefined, moduleKey?: string): SidebarChildItem[] | undefined {
+        if (!Array.isArray(children) || children.length === 0) return undefined;
+        const filtered = children.reduce<SidebarChildItem[]>((childAcc, child) => {
+          const canAccessChild =
+            (!child.permissions?.length ||
+              hasAnyPermission(authUser, child.permissions) ||
+              (child.requiresTeamLeadAssignment && hasApprovalAccess(authUser))) &&
+            (!moduleKey || hasModuleAccess(authUser, moduleKey)) &&
+            (!child.requiresTeamLeadAssignment || teamLeadAssigned || hasApprovalAccess(authUser));
+
+          const nestedChildren = filterChildren(child.children, moduleKey);
+          if (canAccessChild || (nestedChildren?.length ?? 0) > 0) {
+            childAcc.push({ ...child, children: nestedChildren });
+          }
+          return childAcc;
+        }, []);
+        return filtered;
+      }
+
+      return navigation.reduce<SidebarItem[]>((acc, item) => {
         const canAccessItem =
           (!item.moduleKey || hasModuleAccess(authUser, item.moduleKey)) &&
           (!item.permissions?.length ||
@@ -118,27 +138,14 @@ export function AppShell({
             teamLeadAssigned ||
             hasApprovalAccess(authUser));
 
-        const children = Array.isArray(item.children)
-          ? item.children.filter((child) => {
-              const canAccessChild =
-                (!child.permissions?.length ||
-                  hasAnyPermission(authUser, child.permissions) ||
-                  (child.requiresTeamLeadAssignment &&
-                    hasApprovalAccess(authUser))) &&
-                (!item.moduleKey ||
-                  hasModuleAccess(authUser, item.moduleKey)) &&
-                (!child.requiresTeamLeadAssignment ||
-                  teamLeadAssigned ||
-                  hasApprovalAccess(authUser));
-              return canAccessChild;
-            })
-          : undefined;
+        const children = filterChildren(item.children, item.moduleKey);
 
         if (canAccessItem || (children?.length ?? 0) > 0) {
           acc.push({ ...item, children });
         }
         return acc;
-      }, []),
+      }, []);
+    },
     [authUser, navigation, profile?.groups, profile?.projects, profile?.teams],
   );
   const shellUser = useMemo(() => {

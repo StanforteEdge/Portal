@@ -1,7 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { NavLink } from "react-router-dom";
 import { Button, Icon } from "@/shared";
-import type { SidebarItem } from "./Sidebar";
+import type { SidebarChildItem, SidebarItem } from "./Sidebar";
+
+function nodeKey(node: { key?: string; label: string }) {
+  return node.key ?? node.label;
+}
+
+function nodeHasActiveDescendant(
+  node: { key?: string; label: string; children?: SidebarChildItem[] },
+  activeLabel: string,
+): boolean {
+  if (nodeKey(node) === activeLabel) return true;
+  if (!Array.isArray(node.children) || node.children.length === 0) return false;
+  return node.children.some((child) => nodeHasActiveDescendant(child, activeLabel));
+}
 
 type MobileNavItem = {
   label: string;
@@ -23,17 +36,13 @@ type MobileBottomNavProps = {
 };
 
 type DrawerEntry = {
+  key?: string;
   label: string;
   icon: string;
   path?: string;
   active: boolean;
   section?: string;
-  children?: Array<{
-    label: string;
-    icon: string;
-    path?: string;
-    active: boolean;
-  }>;
+  children?: DrawerEntry[];
 };
 
 export function MobileBottomNav({
@@ -90,18 +99,25 @@ export function MobileBottomNav({
   const drawerEntries = useMemo<DrawerEntry[]>(() => {
     return [
       ...navigation.map((item) => ({
+        key: item.key,
         label: item.label,
         icon: item.icon,
         path: item.path,
-        active:
-          item.label === activeLabel ||
-          Boolean(item.children?.some((child) => child.label === activeLabel)),
+        active: nodeHasActiveDescendant(item, activeLabel),
         section: item.section,
         children: item.children?.map((child) => ({
+          key: child.key,
           label: child.label,
           icon: child.icon || item.icon,
           path: child.path,
-          active: child.label === activeLabel,
+          active: nodeHasActiveDescendant(child, activeLabel),
+          children: child.children?.map((grandChild) => ({
+            key: grandChild.key,
+            label: grandChild.label,
+            icon: grandChild.icon || child.icon || item.icon,
+            path: grandChild.path,
+            active: nodeHasActiveDescendant(grandChild, activeLabel),
+          })),
         })),
       })),
       {
@@ -239,24 +255,55 @@ export function MobileBottomNav({
 
                       {hasChildren ? (
                         <div className="mt-4 space-y-2 border-l border-slate-200 pl-4">
-                          {entry.children!.map((child) =>
-                            child.path ? (
-                              <NavLink
-                                key={`${entry.label}-${child.label}`}
-                                to={child.path}
-                                onClick={() => setMenuOpen(false)}
-                                className={[
-                                  "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-                                  child.active
-                                    ? "bg-brand-900/10 text-brand-900"
-                                    : "text-slate-600 hover:bg-slate-50",
-                                ].join(" ")}
-                              >
-                                <Icon name={child.icon} className="text-[16px]" />
-                                <span>{child.label}</span>
-                              </NavLink>
-                            ) : null,
-                          )}
+                          {entry.children!.map((child) => {
+                            const nestedChildren = Array.isArray(child.children) && child.children.length > 0;
+                            return (
+                              <div key={`${entry.label}-${nodeKey(child)}`} className="space-y-2">
+                                {child.path ? (
+                                  <NavLink
+                                    to={child.path}
+                                    onClick={() => setMenuOpen(false)}
+                                    className={[
+                                      "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                      child.active
+                                        ? "bg-brand-900/10 text-brand-900"
+                                        : "text-slate-600 hover:bg-slate-50",
+                                    ].join(" ")}
+                                  >
+                                    <Icon name={child.icon} className="text-[16px]" />
+                                    <span>{child.label}</span>
+                                  </NavLink>
+                                ) : (
+                                  <p className="px-1 pt-1 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-400">
+                                    {child.label}
+                                  </p>
+                                )}
+
+                                {nestedChildren ? (
+                                  <div className="space-y-2 border-l border-slate-100 pl-3">
+                                    {child.children!.map((grandChild) =>
+                                      grandChild.path ? (
+                                        <NavLink
+                                          key={`${entry.label}-${nodeKey(child)}-${nodeKey(grandChild)}`}
+                                          to={grandChild.path}
+                                          onClick={() => setMenuOpen(false)}
+                                          className={[
+                                            "flex items-center gap-2 rounded-2xl px-3 py-2 text-sm font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                            grandChild.active
+                                              ? "bg-brand-900/10 text-brand-900"
+                                              : "text-slate-600 hover:bg-slate-50",
+                                          ].join(" ")}
+                                        >
+                                          <Icon name={grandChild.icon} className="text-[16px]" />
+                                          <span>{grandChild.label}</span>
+                                        </NavLink>
+                                      ) : null,
+                                    )}
+                                  </div>
+                                ) : null}
+                              </div>
+                            );
+                          })}
                         </div>
                       ) : null}
                     </div>

@@ -6176,7 +6176,7 @@ export class FinanceService {
     const [data, total] = await this.prisma.$transaction([
       this.prisma.financeItem.findMany({
         where,
-        include: { chartAccount: { select: { id: true, name: true, code: true } }, organization: { select: { id: true, name: true, code: true } } },
+        include: { chartAccount: { select: { id: true, name: true, code: true } } },
         orderBy: [{ code: 'asc' }, { name: 'asc' }],
         skip,
         take: perPage,

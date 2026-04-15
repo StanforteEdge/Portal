@@ -15,7 +15,10 @@ import FinanceBudgetsPage from "@/modules/finance/FinanceBudgetsPage";
 import FinanceReceivablesPage from "@/modules/finance/FinanceReceivablesPage";
 import FinancePayablesPage from "@/modules/finance/FinancePayablesPage";
 import FinanceAssetsPage from "@/modules/finance/FinanceAssetsPage";
+import FinanceAssetEditorPage from "@/modules/finance/FinanceAssetEditorPage";
+import FinanceAssetDisposalsPage from "@/modules/finance/FinanceAssetDisposalsPage";
 import FinanceReportsPage from "@/modules/finance/FinanceReportsPage";
+import FinanceReportDetailPage from "@/modules/finance/FinanceReportDetailPage";
 import FinanceSettingsPage from "@/modules/finance/FinanceSettingsPage";
 import FinanceChartAccountsPage from "@/modules/finance/FinanceChartAccountsPage";
 import FinanceCustomersPage from "@/modules/finance/FinanceCustomersPage";
@@ -148,7 +151,11 @@ export default function App() {
           <Route path="/finance/receivables/:id" element={<FinanceReceivablesPage />} />
           <Route path="/finance/payables" element={<FinancePayablesPage />} />
           <Route path="/finance/assets" element={<FinanceAssetsPage />} />
+          <Route path="/finance/assets/new" element={<FinanceAssetEditorPage />} />
+          <Route path="/finance/assets/:id" element={<FinanceAssetEditorPage />} />
+          <Route path="/finance/assets/disposals" element={<FinanceAssetDisposalsPage />} />
           <Route path="/finance/reports" element={<FinanceReportsPage />} />
+          <Route path="/finance/reports/:reportKey" element={<FinanceReportDetailPage />} />
           <Route path="/finance/settings" element={<FinanceSettingsPage />} />
           <Route path="/finance/customers" element={<FinanceCustomersPage />} />
           <Route path="/finance/vendors" element={<FinanceVendorsPage />} />
