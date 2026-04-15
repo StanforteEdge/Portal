@@ -21,8 +21,13 @@ import FinanceChartAccountsPage from "@/modules/finance/FinanceChartAccountsPage
 import FinanceCustomersPage from "@/modules/finance/FinanceCustomersPage";
 import FinanceVendorsPage from "@/modules/finance/FinanceVendorsPage";
 import FinanceAccountsPage from "@/modules/finance/FinanceAccountsPage";
+import FinanceAccountDetailPage from "@/modules/finance/FinanceAccountDetailPage";
 import FinanceItemsPage from "@/modules/finance/FinanceItemsPage";
 import FinanceExpensesPage from "@/modules/finance/FinanceExpensesPage";
+import FinanceIncomePage from "@/modules/finance/FinanceIncomePage";
+import FinanceBillsPage from "@/modules/finance/FinanceBillsPage";
+import FinanceSalesInvoicesPage from "@/modules/finance/FinanceSalesInvoicesPage";
+import FinanceManualEntryPage from "@/modules/finance/FinanceManualEntryPage";
 import AdminRolesPage from "@/modules/admin/AdminRolesPage";
 import HrDashboardPage from "@/modules/hr/HrDashboardPage";
 import HrLeavePage from "@/modules/hr/leave/HrLeavePage";
@@ -131,10 +136,16 @@ export default function App() {
           <Route path="/finance/ledger" element={<FinanceLedgerPage />} />
           <Route path="/finance/chart-accounts" element={<FinanceChartAccountsPage />} />
           <Route path="/finance/accounts" element={<FinanceAccountsPage />} />
+          <Route path="/finance/accounts/:id" element={<FinanceAccountDetailPage />} />
+          <Route path="/finance/manual-entry" element={<FinanceManualEntryPage />} />
           <Route path="/finance/items" element={<FinanceItemsPage />} />
           <Route path="/finance/expenses" element={<FinanceExpensesPage />} />
+          <Route path="/finance/income" element={<FinanceIncomePage />} />
+          <Route path="/finance/bills" element={<FinanceBillsPage />} />
+          <Route path="/finance/sales-invoices" element={<FinanceSalesInvoicesPage />} />
           <Route path="/finance/budgets" element={<FinanceBudgetsPage />} />
           <Route path="/finance/receivables" element={<FinanceReceivablesPage />} />
+          <Route path="/finance/receivables/:id" element={<FinanceReceivablesPage />} />
           <Route path="/finance/payables" element={<FinancePayablesPage />} />
           <Route path="/finance/assets" element={<FinanceAssetsPage />} />
           <Route path="/finance/reports" element={<FinanceReportsPage />} />

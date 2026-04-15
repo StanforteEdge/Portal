@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import {
   AppShell,
   Button,
@@ -38,8 +38,10 @@ function asDate(value: unknown) {
 
 export default function FinanceReceivablesPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
+  const { id: routeInvoiceId } = useParams<{ id?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const invoiceId = searchParams.get("id");
+  const invoiceId = routeInvoiceId || searchParams.get("id");
 
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
@@ -96,11 +98,7 @@ export default function FinanceReceivablesPage() {
             { label: invoice.invoice_number || invoiceId.slice(0, 8) },
           ]}
           title="Invoice Details"
-          actions={
-            <Button variant="secondary" onClick={() => setSearchParams({})}>
-              Back to List
-            </Button>
-          }
+          actions={<Button variant="secondary" onClick={() => navigate("/finance/receivables")}>Back to List</Button>}
         />
 
         <div className="grid gap-4 md:grid-cols-4">
@@ -223,7 +221,7 @@ export default function FinanceReceivablesPage() {
                   <TableRow
                     key={row.id}
                     className="cursor-pointer hover:bg-slate-50"
-                    onClick={() => setSearchParams({ id: row.id })}
+                      onClick={() => navigate(`/finance/receivables/${row.id}`)}
                   >
                     <TableCell>{row.invoice_number || row.id.slice(0, 8)}</TableCell>
                     <TableCell>{row.customer_name || "-"}</TableCell>

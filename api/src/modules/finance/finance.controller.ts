@@ -28,6 +28,7 @@ import { UpsertFinanceBudgetDto } from './dto/upsert-finance-budget.dto';
 import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
 import { UpsertFinanceItemDto } from './dto/upsert-finance-item.dto';
 import { CreateFinanceExpenseDto } from './dto/create-finance-expense.dto';
+import { CreateManualJournalEntryDto } from './dto/create-manual-journal-entry.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -357,6 +358,21 @@ export class FinanceController {
   @ApiOperation({ summary: 'List income entries' })
   listIncome(@Query() query: Record<string, any>) {
     return this.financeService.listIncome(query);
+  }
+
+  @Get('manual-entry')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List manual journal entries' })
+  listManualEntries(@Query() query: Record<string, any>) {
+    return this.financeService.listManualJournalEntries(query);
+  }
+
+  @Post('manual-entry')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Create manual journal entry' })
+  @ApiBody({ type: CreateManualJournalEntryDto })
+  createManualEntry(@Req() req: any, @Body() dto: CreateManualJournalEntryDto) {
+    return this.financeService.createManualJournalEntry(dto as any, req.user?.id);
   }
 
   @Get('items')

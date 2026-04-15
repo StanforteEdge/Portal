@@ -93,6 +93,22 @@ export type FinanceChartAccountRecord = {
   [key: string]: unknown;
 };
 
+export type FinanceAccountRecord = {
+  id: string;
+  name: string;
+  code?: string | null;
+  account_type?: string;
+  bank_name?: string | null;
+  account_name?: string | null;
+  account_number?: string | null;
+  branch_name?: string | null;
+  currency?: string;
+  opening_balance?: number;
+  current_balance?: number;
+  is_active?: boolean;
+  [key: string]: unknown;
+};
+
 export type FinanceReportingPeriodRecord = {
   id: string;
   year: number;
@@ -204,11 +220,26 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     listAccounts(params?: Record<string, unknown>) {
       const suffix = toQuery(params);
-      return httpRequest<FinanceChartAccountRecord[]>(`/finance/accounts${suffix}`);
+      return httpRequest<FinanceAccountRecord[]>(`/finance/accounts${suffix}`);
+    },
+
+    getAccount(id: string) {
+      return httpRequest<FinanceAccountRecord>(`/finance/accounts/${id}`);
     },
 
     listLedger(params?: Record<string, unknown>) {
       return httpRequest<FinanceLedgerEntry[]>(`/finance/ledger${toQuery(params)}`);
+    },
+
+    listManualEntries(params?: Record<string, unknown>) {
+      return httpRequest<{ data: Record<string, unknown>[]; meta?: Record<string, unknown> }>(`/finance/manual-entry${toQuery(params)}`);
+    },
+
+    createManualEntry(payload: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/manual-entry`, {
+        method: "POST",
+        body: payload,
+      });
     },
 
     listBudgets(params?: Record<string, unknown>) {

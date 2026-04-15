@@ -17,6 +17,7 @@ import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { resourceApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
+import { useNavigate } from "react-router-dom";
 
 type AccountType = "bank" | "cash" | "wallet" | "other";
 
@@ -30,6 +31,7 @@ const ACCOUNT_TYPES: { value: AccountType; label: string }[] = [
 export default function FinanceAccountsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
+  const navigate = useNavigate();
 
   const { data: profile } = useCachedQuery(
     "finance:profile",
@@ -231,7 +233,13 @@ export default function FinanceAccountsPage() {
                   {accounts.map((account: any) => (
                     <tr key={account.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="p-3">
-                        <p className="font-medium text-slate-900">{account.name}</p>
+                        <button
+                          type="button"
+                          onClick={() => navigate(`/finance/accounts/${account.id}`)}
+                          className="font-medium text-slate-900 hover:text-brand-700 hover:underline"
+                        >
+                          {account.name}
+                        </button>
                         {account.code && <p className="text-xs text-slate-400">{account.code}</p>}
                       </td>
                       <td className="p-3 capitalize text-slate-600">{account.account_type}</td>
@@ -249,6 +257,7 @@ export default function FinanceAccountsPage() {
                       <td className="p-3"><Chip variant={account.is_active ? "success" : "neutral"}>{account.is_active ? "Active" : "Inactive"}</Chip></td>
                       <td className="p-3 text-right">
                         <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="sm" onClick={() => navigate(`/finance/accounts/${account.id}`)}><Icon name="visibility" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => openEdit(account)}><Icon name="edit" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => void handleToggleStatus(account)}>
                             <Icon name={account.is_active ? "toggle_on" : "toggle_off"} />

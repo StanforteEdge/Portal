@@ -287,7 +287,7 @@ export default function FinanceSalesInvoicesPage() {
                         {formatDate(inv.invoiceDate ?? inv.invoice_date)}
                       </td>
                       <td className="p-3 font-medium text-slate-900">
-                        {inv.invoiceNumber ?? inv.invoice_number || "-"}
+                        {inv.invoiceNumber ?? inv.invoice_number ?? "-"}
                       </td>
                       <td className="p-3 text-slate-600">
                         {inv.customer?.name ?? "-"}

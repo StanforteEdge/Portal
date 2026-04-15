@@ -5808,6 +5808,109 @@ export class FinanceService {
     return lines.join('\r\n');
   }
 
+  async listManualJournalEntries(query: Record<string, any>) {
+    const where: Prisma.FinanceJournalEntryWhereInput = {
+      sourceType: 'manual_entry',
+    };
+
+    if (query.from || query.to) {
+      where.entryDate = {};
+      if (query.from) where.entryDate.gte = new Date(String(query.from));
+      if (query.to) where.entryDate.lte = new Date(String(query.to));
+    }
+
+    const page = Number(query.page ?? 1);
+    const perPage = Number(query.per_page ?? 50);
+    const skip = (page - 1) * perPage;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.financeJournalEntry.findMany({
+        where,
+        include: {
+          lines: {
+            include: {
+              chartAccount: { select: { id: true, code: true, name: true } },
+            },
+          },
+        },
+        orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+        skip,
+        take: perPage,
+      }),
+      this.prisma.financeJournalEntry.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: { page, per_page: perPage, total, last_page: Math.ceil(total / perPage) },
+    };
+  }
+
+  async createManualJournalEntry(dto: {
+    entry_date: string;
+    memo?: string;
+    currency?: string;
+    lines: Array<{
+      chart_account_id: string;
+      organization_id?: string;
+      team_id?: string;
+      fund_id?: string;
+      grant_id?: string;
+      debit: number;
+      credit: number;
+      description?: string;
+    }>;
+  }, actorId?: string) {
+    if (!Array.isArray(dto.lines) || dto.lines.length < 2) {
+      throw new BadRequestException('At least two journal lines are required');
+    }
+
+    const entryDate = new Date(dto.entry_date);
+    if (Number.isNaN(entryDate.getTime())) {
+      throw new BadRequestException('Invalid entry_date');
+    }
+
+    const totalDebit = dto.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
+    const totalCredit = dto.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
+    if (Math.abs(totalDebit - totalCredit) > 0.001) {
+      throw new BadRequestException('Journal entry is not balanced');
+    }
+
+    const period = await this.ensureReportingPeriod(entryDate, actorId);
+    const sourceId = `manual:${Date.now()}`;
+
+    const entry = await this.createJournalEntry({
+      entryDate,
+      periodId: period.id,
+      sourceType: 'manual_entry',
+      sourceId,
+      memo: dto.memo || 'Manual journal entry',
+      currency: String(dto.currency || 'NGN').toUpperCase(),
+      postedBy: actorId,
+      lines: dto.lines.map((line) => ({
+        chartAccountId: line.chart_account_id,
+        organizationId: line.organization_id ? toBigInt(line.organization_id) : null,
+        teamId: line.team_id ? toBigInt(line.team_id) : null,
+        fundId: line.fund_id || null,
+        grantId: line.grant_id || null,
+        debit: Number(line.debit || 0),
+        credit: Number(line.credit || 0),
+        description: line.description || undefined,
+      })),
+    });
+
+    return this.prisma.financeJournalEntry.findUnique({
+      where: { id: entry.id },
+      include: {
+        lines: {
+          include: {
+            chartAccount: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+    });
+  }
+
   private async postIncomeJournal(row: Prisma.FinanceIncomeEntryGetPayload<{}>, actorId?: string) {
     const period = await this.ensureReportingPeriod(row.receivedAt, actorId);
     const cashAccount = await this.ensureFinanceAccountChartAccount(row.accountId, actorId);

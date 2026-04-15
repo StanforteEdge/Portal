@@ -280,7 +280,7 @@ export default function FinanceBillsPage() {
                         {formatDate(bill.billDate ?? bill.bill_date)}
                       </td>
                       <td className="p-3 font-medium text-slate-900">
-                        {bill.billNumber ?? bill.bill_number || "-"}
+                        {bill.billNumber ?? bill.bill_number ?? "-"}
                       </td>
                       <td className="p-3 text-slate-600">
                         {bill.vendor?.name ?? "-"}
