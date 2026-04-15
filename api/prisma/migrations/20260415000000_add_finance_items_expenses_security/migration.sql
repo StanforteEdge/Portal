@@ -1,5 +1,6 @@
--- AlterTable: fix lockout_until column type (column already exists from prior DB change)
-ALTER TABLE "sta_profiles" ALTER COLUMN "lockout_until" SET DATA TYPE TIMESTAMP(3);
+-- AlterTable: ensure lockout_until exists for production environments
+ALTER TABLE "sta_profiles"
+  ADD COLUMN IF NOT EXISTS "lockout_until" TIMESTAMP(3);
 
 -- CreateTable
 CREATE TABLE "sta_finance_items" (
