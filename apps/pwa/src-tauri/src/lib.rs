@@ -18,14 +18,8 @@ fn set_badge_count(app: tauri::AppHandle, count: u32) {
 
     #[cfg(target_os = "macos")]
     {
-        if let Some(dock) = app.dock() {
-            let badge = if count > 0 {
-                Some(count.to_string())
-            } else {
-                None
-            };
-            let _ = dock.set_badge(badge.as_deref());
-        }
+        let badge_label = if count > 0 { Some(count.to_string()) } else { None };
+        let _ = app.set_badge_count(badge_label.as_ref().and_then(|s| s.parse::<i64>().ok()));
     }
 }
 
@@ -80,7 +74,6 @@ fn build_menu_bar(app: &tauri::App) -> tauri::Result<()> {
         app,
         "app",
         "Stanforte Portal",
-        true,
         &[
             &PredefinedMenuItem::about(
                 app,
@@ -103,7 +96,6 @@ fn build_menu_bar(app: &tauri::App) -> tauri::Result<()> {
         app,
         "edit",
         "Edit",
-        true,
         &[
             &PredefinedMenuItem::cut(app, Some("Cut"))?,
             &PredefinedMenuItem::copy(app, Some("Copy"))?,
@@ -116,7 +108,6 @@ fn build_menu_bar(app: &tauri::App) -> tauri::Result<()> {
         app,
         "window",
         "Window",
-        true,
         &[
             &PredefinedMenuItem::minimize(app, Some("Minimize"))?,
             &PredefinedMenuItem::separator(app)?,
@@ -172,7 +163,7 @@ pub fn run() {
 
             // Deep link handler — forward URL to frontend as an event
             let handle2 = app.handle().clone();
-            app.listen("deep-link://new-url", move |event| {
+            app.handle().listen("deep-link://new-url", move |event| {
                 if let Some(window) = handle2.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
