@@ -14,11 +14,8 @@ import {
   Chip,
   Icon,
 } from "@/shared";
-import { 
-  listHrPolicies, 
-  saveHrPolicy, 
-  type PolicyRecord, 
-} from "./hr-settings-api";
+import { policyApi } from "@/shared/lib/core";
+import { type PolicyRecord } from "@stanforte/shared";
 import AttendanceOverrideSlideOver from "./AttendanceOverrideSlideOver";
 
 const WEEKDAYS = [
@@ -48,9 +45,9 @@ export default function AttendanceSettingsTab() {
   const load = async () => {
     try {
       setLoading(true);
-      const res = await listHrPolicies({ module: "attendance", policy_key: "schedule" });
-      const global = res.data.find(p => p.scope_type === "global");
-      const list = res.data.filter(p => p.scope_type !== "global");
+      const filtered = await policyApi.listPolicies("attendance");
+      const global = filtered.find(p => p.scope_type === "global" && p.policy_key === "schedule");
+      const list = filtered.filter(p => (p.scope_type !== "global" || p.policy_key !== "schedule") && p.module === "attendance");
       
       setGlobalPolicy(global || null);
       setOverrides(list);
@@ -81,7 +78,7 @@ export default function AttendanceSettingsTab() {
         grace_minutes: Number(grace),
         onsite_weekdays: onsiteDays,
       };
-      await saveHrPolicy({
+      await policyApi.savePolicy({
         module: "attendance",
         policy_key: "schedule",
         scope_type: "global",

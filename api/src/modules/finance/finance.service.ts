@@ -21,6 +21,8 @@ import { CreateFinanceReceiptDto } from './dto/create-finance-receipt.dto';
 import { CreateFinanceVendorPaymentDto } from './dto/create-finance-vendor-payment.dto';
 import { UpsertFinanceReportNoteDto } from './dto/upsert-finance-report-note.dto';
 import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
+import { UpsertFinanceItemDto } from './dto/upsert-finance-item.dto';
+import { CreateFinanceExpenseDto } from './dto/create-finance-expense.dto';
 import { MailService } from '../../common/mail/mail.service';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
@@ -5806,6 +5808,109 @@ export class FinanceService {
     return lines.join('\r\n');
   }
 
+  async listManualJournalEntries(query: Record<string, any>) {
+    const where: Prisma.FinanceJournalEntryWhereInput = {
+      sourceType: 'manual_entry',
+    };
+
+    if (query.from || query.to) {
+      where.entryDate = {};
+      if (query.from) where.entryDate.gte = new Date(String(query.from));
+      if (query.to) where.entryDate.lte = new Date(String(query.to));
+    }
+
+    const page = Number(query.page ?? 1);
+    const perPage = Number(query.per_page ?? 50);
+    const skip = (page - 1) * perPage;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.financeJournalEntry.findMany({
+        where,
+        include: {
+          lines: {
+            include: {
+              chartAccount: { select: { id: true, code: true, name: true } },
+            },
+          },
+        },
+        orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+        skip,
+        take: perPage,
+      }),
+      this.prisma.financeJournalEntry.count({ where }),
+    ]);
+
+    return {
+      data,
+      meta: { page, per_page: perPage, total, last_page: Math.ceil(total / perPage) },
+    };
+  }
+
+  async createManualJournalEntry(dto: {
+    entry_date: string;
+    memo?: string;
+    currency?: string;
+    lines: Array<{
+      chart_account_id: string;
+      organization_id?: string;
+      team_id?: string;
+      fund_id?: string;
+      grant_id?: string;
+      debit: number;
+      credit: number;
+      description?: string;
+    }>;
+  }, actorId?: string) {
+    if (!Array.isArray(dto.lines) || dto.lines.length < 2) {
+      throw new BadRequestException('At least two journal lines are required');
+    }
+
+    const entryDate = new Date(dto.entry_date);
+    if (Number.isNaN(entryDate.getTime())) {
+      throw new BadRequestException('Invalid entry_date');
+    }
+
+    const totalDebit = dto.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
+    const totalCredit = dto.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
+    if (Math.abs(totalDebit - totalCredit) > 0.001) {
+      throw new BadRequestException('Journal entry is not balanced');
+    }
+
+    const period = await this.ensureReportingPeriod(entryDate, actorId);
+    const sourceId = `manual:${Date.now()}`;
+
+    const entry = await this.createJournalEntry({
+      entryDate,
+      periodId: period.id,
+      sourceType: 'manual_entry',
+      sourceId,
+      memo: dto.memo || 'Manual journal entry',
+      currency: String(dto.currency || 'NGN').toUpperCase(),
+      postedBy: actorId,
+      lines: dto.lines.map((line) => ({
+        chartAccountId: line.chart_account_id,
+        organizationId: line.organization_id ? toBigInt(line.organization_id) : null,
+        teamId: line.team_id ? toBigInt(line.team_id) : null,
+        fundId: line.fund_id || null,
+        grantId: line.grant_id || null,
+        debit: Number(line.debit || 0),
+        credit: Number(line.credit || 0),
+        description: line.description || undefined,
+      })),
+    });
+
+    return this.prisma.financeJournalEntry.findUnique({
+      where: { id: entry.id },
+      include: {
+        lines: {
+          include: {
+            chartAccount: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+    });
+  }
+
   private async postIncomeJournal(row: Prisma.FinanceIncomeEntryGetPayload<{}>, actorId?: string) {
     const period = await this.ensureReportingPeriod(row.receivedAt, actorId);
     const cashAccount = await this.ensureFinanceAccountChartAccount(row.accountId, actorId);
@@ -6049,5 +6154,198 @@ export class FinanceService {
     ) {
       throw new BadRequestException(`asset_id "${assetId}" already exists`);
     }
+  }
+
+  // ─── Items (Products/Services) ─────────────────────────────────
+
+  async listItems(query: Record<string, any>) {
+    const where: any = {};
+    if (query.item_type) where.itemType = String(query.item_type);
+    if (query.is_active !== undefined) where.isActive = String(query.is_active) === 'true';
+    if (query.search) {
+      where.OR = [
+        { name: { contains: String(query.search), mode: 'insensitive' } },
+        { code: { contains: String(query.search), mode: 'insensitive' } },
+      ];
+    }
+
+    const page = Number(query.page ?? 1);
+    const perPage = Number(query.per_page ?? 50);
+    const skip = (page - 1) * perPage;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.financeItem.findMany({
+        where,
+        include: { chartAccount: { select: { id: true, name: true, code: true } }, organization: { select: { id: true, name: true, code: true } } },
+        orderBy: [{ code: 'asc' }, { name: 'asc' }],
+        skip,
+        take: perPage,
+      }),
+      this.prisma.financeItem.count({ where }),
+    ]);
+
+    return { data, meta: { page, per_page: perPage, total, last_page: Math.ceil(total / perPage) } };
+  }
+
+  async createItem(userId: string, dto: UpsertFinanceItemDto) {
+    const data: any = {
+      name: dto.name,
+      code: dto.code || null,
+      description: dto.description || null,
+      itemType: dto.itemType || 'service',
+      unit: dto.unit || null,
+      unitPrice: dto.unitPrice ?? 0,
+      costPrice: dto.costPrice ?? null,
+      currency: (dto.currency || 'NGN').toUpperCase(),
+      chartAccountId: dto.chartAccountId || null,
+      isActive: dto.isActive ?? true,
+      createdBy: BigInt(userId),
+    };
+
+    const item = await this.prisma.financeItem.create({ data });
+    return this.prisma.financeItem.findUnique({ where: { id: item.id }, include: { chartAccount: { select: { id: true, name: true, code: true } } } });
+  }
+
+  async updateItem(userId: string, id: string, dto: UpsertFinanceItemDto) {
+    const existing = await this.prisma.financeItem.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Item not found');
+
+    const data: any = { updatedBy: BigInt(userId) };
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.code !== undefined) data.code = dto.code;
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.itemType !== undefined) data.itemType = dto.itemType;
+    if (dto.unit !== undefined) data.unit = dto.unit;
+    if (dto.unitPrice !== undefined) data.unitPrice = dto.unitPrice;
+    if (dto.costPrice !== undefined) data.costPrice = dto.costPrice;
+    if (dto.currency !== undefined) data.currency = dto.currency.toUpperCase();
+    if (dto.chartAccountId !== undefined) data.chartAccountId = dto.chartAccountId;
+    if (dto.isActive !== undefined) data.isActive = dto.isActive;
+
+    await this.prisma.financeItem.update({ where: { id }, data });
+    return this.prisma.financeItem.findUnique({ where: { id }, include: { chartAccount: { select: { id: true, name: true, code: true } } } });
+  }
+
+  // ─── Expenses ──────────────────────────────────────────────────
+
+  async listExpenses(query: Record<string, any>) {
+    const where: any = {};
+    if (query.status) where.status = String(query.status);
+    if (query.category) where.category = String(query.category);
+    if (query.vendor_id) where.vendorId = String(query.vendor_id);
+    if (query.account_id) where.accountId = String(query.account_id);
+    if (query.from || query.to) {
+      where.expenseDate = {};
+      if (query.from) where.expenseDate.gte = new Date(String(query.from));
+      if (query.to) where.expenseDate.lte = new Date(String(query.to));
+    }
+    if (query.search) {
+      where.OR = [
+        { description: { contains: String(query.search), mode: 'insensitive' } },
+        { reference: { contains: String(query.search), mode: 'insensitive' } },
+        { expenseNumber: { contains: String(query.search), mode: 'insensitive' } },
+      ];
+    }
+
+    const page = Number(query.page ?? 1);
+    const perPage = Number(query.per_page ?? 50);
+    const skip = (page - 1) * perPage;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.financeExpense.findMany({
+        where,
+        include: {
+          vendor: { select: { id: true, name: true } },
+          account: { select: { id: true, name: true, code: true, accountType: true } },
+          chartAccount: { select: { id: true, name: true, code: true } },
+        },
+        orderBy: { expenseDate: 'desc' },
+        skip,
+        take: perPage,
+      }),
+      this.prisma.financeExpense.count({ where }),
+    ]);
+
+    return { data, meta: { page, per_page: perPage, total, last_page: Math.ceil(total / perPage) } };
+  }
+
+  async createExpense(userId: string, dto: CreateFinanceExpenseDto) {
+    const lastExpense = await this.prisma.financeExpense.findFirst({
+      orderBy: { createdAt: 'desc' },
+      select: { expenseNumber: true },
+    });
+    const nextNum = lastExpense ? parseInt(lastExpense.expenseNumber.replace(/\D/g, '') || '0', 10) + 1 : 1;
+    const expenseNumber = `EXP-${String(nextNum).padStart(5, '0')}`;
+
+    const amount = Number(dto.amount ?? 0);
+    const taxAmount = dto.taxAmount != null ? Number(dto.taxAmount) : null;
+    const totalAmount = taxAmount != null ? amount + taxAmount : null;
+
+    const data: any = {
+      expenseNumber,
+      vendorId: dto.vendorId || null,
+      accountId: dto.accountId,
+      chartAccountId: dto.chartAccountId || null,
+      organizationId: dto.organizationId ? BigInt(dto.organizationId) : null,
+      teamId: dto.teamId ? BigInt(dto.teamId) : null,
+      fundId: dto.fundId || null,
+      grantId: dto.grantId || null,
+      expenseDate: new Date(dto.expenseDate),
+      category: dto.category || null,
+      description: dto.description || null,
+      amount,
+      currency: (dto.currency || 'NGN').toUpperCase(),
+      taxAmount,
+      totalAmount,
+      reference: dto.reference || null,
+      receiptFileId: dto.receiptFileId || null,
+      notes: dto.notes || null,
+      status: dto.status || 'draft',
+      createdBy: BigInt(userId),
+    };
+
+    const expense = await this.prisma.financeExpense.create({ data });
+    return this.prisma.financeExpense.findUnique({
+      where: { id: expense.id },
+      include: {
+        vendor: { select: { id: true, name: true } },
+        account: { select: { id: true, name: true, code: true, accountType: true } },
+        chartAccount: { select: { id: true, name: true, code: true } },
+      },
+    });
+  }
+
+  async updateExpense(userId: string, id: string, dto: CreateFinanceExpenseDto) {
+    const existing = await this.prisma.financeExpense.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Expense not found');
+
+    const data: any = { updatedBy: BigInt(userId) };
+    if (dto.vendorId !== undefined) data.vendorId = dto.vendorId;
+    if (dto.accountId !== undefined) data.accountId = dto.accountId;
+    if (dto.chartAccountId !== undefined) data.chartAccountId = dto.chartAccountId;
+    if (dto.category !== undefined) data.category = dto.category;
+    if (dto.description !== undefined) data.description = dto.description;
+    if (dto.amount !== undefined) data.amount = Number(dto.amount);
+    if (dto.taxAmount !== undefined) data.taxAmount = Number(dto.taxAmount);
+    if (dto.reference !== undefined) data.reference = dto.reference;
+    if (dto.notes !== undefined) data.notes = dto.notes;
+    if (dto.status !== undefined) data.status = dto.status;
+    if (dto.expenseDate !== undefined) data.expenseDate = new Date(dto.expenseDate);
+
+    if (data.amount !== undefined || data.taxAmount !== undefined) {
+      const amt = data.amount ?? Number(existing.amount);
+      const tax = data.taxAmount ?? (existing.taxAmount ? Number(existing.taxAmount) : null);
+      data.totalAmount = tax != null ? amt + tax : null;
+    }
+
+    await this.prisma.financeExpense.update({ where: { id }, data });
+    return this.prisma.financeExpense.findUnique({
+      where: { id },
+      include: {
+        vendor: { select: { id: true, name: true } },
+        account: { select: { id: true, name: true, code: true, accountType: true } },
+        chartAccount: { select: { id: true, name: true, code: true } },
+      },
+    });
   }
 }

@@ -8,55 +8,55 @@ import { CreateTeamDto } from './dto/create-team.dto';
 import { SetGroupMemberScopesDto } from './dto/set-group-member-scopes.dto';
 import { SetGroupOrganizationsDto } from './dto/set-group-organizations.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
-import { TeamsService } from './teams.service';
+import { GroupsService } from './groups.service';
 
-@Controller('teams')
+@Controller('groups')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
-@ApiTags('Teams')
+@ApiTags('Groups')
 @ApiBearerAuth('bearer')
-export class TeamsController {
-  constructor(private readonly teamsService: TeamsService) {}
+export class GroupsController {
+  constructor(private readonly groupsService: GroupsService) {}
 
   @Get()
   @Permissions('groups.view')
   list(@Query() query: Record<string, any>) {
-    return this.teamsService.list(query);
+    return this.groupsService.list(query);
   }
 
   @Get(':id')
   @Permissions('groups.view')
   get(@Param('id') id: string) {
-    return this.teamsService.get(id);
+    return this.groupsService.get(id);
   }
 
   @Post()
   @Permissions('groups.manage')
   create(@Req() req: any, @Body() dto: CreateTeamDto) {
-    return this.teamsService.create(req.user?.id, dto);
+    return this.groupsService.create(req.user?.id, dto);
   }
 
   @Post(':id')
   @Permissions('groups.manage')
   update(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTeamDto) {
-    return this.teamsService.update(id, req.user?.id, dto);
+    return this.groupsService.update(id, req.user?.id, dto);
   }
 
   @Post(':id/members')
   @Permissions('groups.manage')
   addMember(@Req() req: any, @Param('id') id: string, @Body() dto: AddGroupMemberDto) {
-    return this.teamsService.addMember(id, req.user?.id, dto);
+    return this.groupsService.addMember(id, req.user?.id, dto);
   }
 
   @Delete(':id/members/:userId')
   @Permissions('groups.manage')
   removeMember(@Param('id') id: string, @Param('userId') userId: string) {
-    return this.teamsService.removeMember(id, userId);
+    return this.groupsService.removeMember(id, userId);
   }
 
   @Post(':id/organizations')
   @Permissions('groups.manage')
   setOrganizations(@Param('id') id: string, @Body() dto: SetGroupOrganizationsDto) {
-    return this.teamsService.setOrganizations(id, dto);
+    return this.groupsService.setOrganizations(id, dto);
   }
 
   @Post(':id/members/:userId/scopes')
@@ -66,6 +66,6 @@ export class TeamsController {
     @Param('userId') userId: string,
     @Body() dto: SetGroupMemberScopesDto
   ) {
-    return this.teamsService.setMemberScopes(id, userId, dto);
+    return this.groupsService.setMemberScopes(id, userId, dto);
   }
 }

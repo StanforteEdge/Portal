@@ -26,6 +26,9 @@ import { UpsertFinanceFundDto } from './dto/upsert-finance-fund.dto';
 import { UpsertFinanceGrantDto } from './dto/upsert-finance-grant.dto';
 import { UpsertFinanceBudgetDto } from './dto/upsert-finance-budget.dto';
 import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
+import { UpsertFinanceItemDto } from './dto/upsert-finance-item.dto';
+import { CreateFinanceExpenseDto } from './dto/create-finance-expense.dto';
+import { CreateManualJournalEntryDto } from './dto/create-manual-journal-entry.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -355,6 +358,67 @@ export class FinanceController {
   @ApiOperation({ summary: 'List income entries' })
   listIncome(@Query() query: Record<string, any>) {
     return this.financeService.listIncome(query);
+  }
+
+  @Get('manual-entry')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List manual journal entries' })
+  listManualEntries(@Query() query: Record<string, any>) {
+    return this.financeService.listManualJournalEntries(query);
+  }
+
+  @Post('manual-entry')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Create manual journal entry' })
+  @ApiBody({ type: CreateManualJournalEntryDto })
+  createManualEntry(@Req() req: any, @Body() dto: CreateManualJournalEntryDto) {
+    return this.financeService.createManualJournalEntry(dto as any, req.user?.id);
+  }
+
+  @Get('items')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance items (products/services)' })
+  listItems(@Query() query: Record<string, any>) {
+    return this.financeService.listItems(query);
+  }
+
+  @Post('items')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Create finance item (product/service)' })
+  @ApiBody({ type: UpsertFinanceItemDto })
+  createItem(@Req() req: any, @Body() dto: UpsertFinanceItemDto) {
+    return this.financeService.createItem(req.user?.id, dto);
+  }
+
+  @Post('items/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update finance item (product/service)' })
+  @ApiBody({ type: UpsertFinanceItemDto })
+  updateItem(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceItemDto) {
+    return this.financeService.updateItem(req.user?.id, id, dto);
+  }
+
+  @Get('expenses')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance expenses' })
+  listExpenses(@Query() query: Record<string, any>) {
+    return this.financeService.listExpenses(query);
+  }
+
+  @Post('expenses')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Create finance expense' })
+  @ApiBody({ type: CreateFinanceExpenseDto })
+  createExpense(@Req() req: any, @Body() dto: CreateFinanceExpenseDto) {
+    return this.financeService.createExpense(req.user?.id, dto);
+  }
+
+  @Post('expenses/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update finance expense' })
+  @ApiBody({ type: CreateFinanceExpenseDto })
+  updateExpense(@Req() req: any, @Param('id') id: string, @Body() dto: CreateFinanceExpenseDto) {
+    return this.financeService.updateExpense(req.user?.id, id, dto);
   }
 
   @Get('sales-invoices')

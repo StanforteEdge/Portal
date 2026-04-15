@@ -127,6 +127,8 @@ model Profile {
   employmentType        String?   @map("employment_type") @db.VarChar(20)
   primaryOrganizationId BigInt?   @map("primary_organization_id")
   lastLogin             DateTime? @map("last_login") @db.Timestamp(6)
+  failedLoginAttempts   Int       @default(0) @map("failed_login_attempts")
+  lockoutUntil          DateTime? @map("lockout_until")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
@@ -202,6 +204,10 @@ model Profile {
   createdTeamObjectives          TeamObjective[]            @relation("TeamObjectiveCreatedBy")
   ownedTeamKpis                  TeamKpi[]                  @relation("TeamKpiOwner")
   createdTeamKpis                TeamKpi[]                  @relation("TeamKpiCreatedBy")
+  createdFinanceItems            FinanceItem[]              @relation("FinanceItemCreatedBy")
+  updatedFinanceItems            FinanceItem[]              @relation("FinanceItemUpdatedBy")
+  createdFinanceExpenses         FinanceExpense[]           @relation("FinanceExpenseCreatedBy")
+  updatedFinanceExpenses         FinanceExpense[]           @relation("FinanceExpenseUpdatedBy")
 
   @@map("sta_profiles")
 }
@@ -913,6 +919,7 @@ model FinanceAccount {
   receipts        FinanceReceipt[]
   vendorPayments  FinanceVendorPayment[]
   payrollRuns     PayrollRun[]
+  expenses        FinanceExpense[]
 
   @@unique([organizationId, name], name: "unique_finance_account_name_per_org")
   @@index([organizationId])
@@ -1062,6 +1069,8 @@ model FinanceChartAccount {
   payrollComponents PayrollComponent[]
   payrollSettingsExpense PayrollSetting[] @relation("PayrollDefaultExpenseAccount")
   payrollSettingsCash    PayrollSetting[] @relation("PayrollDefaultCashAccount")
+  items                  FinanceItem[]
+  expenses               FinanceExpense[]
 
   @@unique([organizationId, code], name: "unique_finance_chart_account_code_per_org")
   @@index([type])
@@ -1356,6 +1365,7 @@ model FinanceVendor {
   updatedByUser Profile?               @relation("FinanceVendorUpdatedBy", fields: [updatedBy], references: [id], onDelete: SetNull)
   bills         FinanceBillHeader[]
   payments      FinanceVendorPayment[]
+  expenses      FinanceExpense[]
 
   @@unique([organizationId, name], name: "unique_finance_vendor_name_per_org")
   @@index([isActive])
@@ -3026,4 +3036,72 @@ model FormSubmissionHistory {
   submission FormSubmission @relation(fields: [submissionId], references: [id])
 
   @@map("sta_form_submission_history")
+}
+
+model FinanceItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(255)
+  code           String?  @db.VarChar(60)
+  description    String?
+  itemType       String   @default("service") @map("item_type") @db.VarChar(30)
+  unit           String?  @db.VarChar(30)
+  unitPrice      Decimal  @default(0) @map("unit_price") @db.Decimal(15, 4)
+  costPrice      Decimal? @map("cost_price") @db.Decimal(15, 4)
+  currency       String   @default("NGN") @db.VarChar(5)
+  chartAccountId String?  @map("chart_account_id") @db.Uuid
+  organizationId BigInt?  @map("organization_id")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdBy      BigInt   @map("created_by")
+  updatedBy      BigInt?  @map("updated_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  chartAccount FinanceChartAccount? @relation(fields: [chartAccountId], references: [id], onDelete: SetNull)
+  creator      Profile              @relation("FinanceItemCreatedBy", fields: [createdBy], references: [id])
+  updater      Profile?             @relation("FinanceItemUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@index([itemType])
+  @@index([isActive])
+  @@index([organizationId])
+  @@map("sta_finance_items")
+}
+
+model FinanceExpense {
+  id             String    @id @default(uuid()) @db.Uuid
+  expenseNumber  String    @unique @map("expense_number") @db.VarChar(60)
+  vendorId       String?   @map("vendor_id") @db.Uuid
+  accountId      String    @map("account_id") @db.Uuid
+  chartAccountId String?   @map("chart_account_id") @db.Uuid
+  organizationId BigInt?   @map("organization_id")
+  teamId         BigInt?   @map("team_id")
+  fundId         String?   @map("fund_id") @db.Uuid
+  grantId        String?   @map("grant_id") @db.Uuid
+  expenseDate    DateTime  @map("expense_date") @db.Date
+  category       String?   @db.VarChar(60)
+  description    String?
+  amount         Decimal   @db.Decimal(15, 2)
+  currency       String    @default("NGN") @db.VarChar(5)
+  taxAmount      Decimal?  @map("tax_amount") @db.Decimal(15, 2)
+  totalAmount    Decimal?  @map("total_amount") @db.Decimal(15, 2)
+  reference      String?   @db.VarChar(120)
+  receiptFileId  String?   @map("receipt_file_id") @db.Uuid
+  notes          String?
+  status         String    @default("draft") @db.VarChar(20)
+  createdBy      BigInt    @map("created_by")
+  updatedBy      BigInt?   @map("updated_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  vendor       FinanceVendor?       @relation(fields: [vendorId], references: [id], onDelete: SetNull)
+  account      FinanceAccount       @relation(fields: [accountId], references: [id])
+  chartAccount FinanceChartAccount? @relation(fields: [chartAccountId], references: [id], onDelete: SetNull)
+  creator      Profile              @relation("FinanceExpenseCreatedBy", fields: [createdBy], references: [id])
+  updater      Profile?             @relation("FinanceExpenseUpdatedBy", fields: [updatedBy], references: [id])
+
+  @@index([status])
+  @@index([expenseDate])
+  @@index([vendorId])
+  @@index([accountId])
+  @@index([organizationId])
+  @@map("sta_finance_expenses")
 }

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import {
   Button,
   TextField,
@@ -7,7 +7,9 @@ import {
   SectionCard,
   Icon,
 } from "@/shared";
-import { listHrPolicies, saveHrPolicy, type PolicyRecord, type ScopeType } from "./hr-settings-api";
+import { policyApi } from "@/shared/lib/core";
+import { type PolicyRecord, type ScopeType } from "@stanforte/shared";
+import { useDirectory } from "@/shared/lib/use-directory";
 
 type Props = {
   policy?: PolicyRecord | null;
@@ -28,6 +30,7 @@ const WEEKDAYS = [
 export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }: Props) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
+  const { organizations, teams, employees } = useDirectory();
 
   // Form State
   const [scopeType, setScopeType] = useState<ScopeType>(policy?.scope_type || "organization");
@@ -53,7 +56,7 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
     }
     try {
       setSaving(true);
-      await saveHrPolicy({
+      await policyApi.savePolicy({
         module: "attendance",
         policy_key: "schedule",
         scope_type: scopeType,
@@ -78,8 +81,8 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
-      <div className="flex h-full w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
+      <div className="flex h-screen w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Attendance Policies</p>
@@ -103,13 +106,28 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
                 <option value="team">Team</option>
                 <option value="user">Specific User</option>
               </SelectField>
-              <TextField 
-                label="Target ID / Name" 
-                placeholder={scopeType === 'user' ? 'User email or ID' : 'Organization/Team ID'}
-                value={scopeId} 
-                onChange={(e) => setScopeId(e.target.value)}
-                disabled={!!policy}
-              />
+
+              {scopeType === "organization" && (
+                <SelectField label="Target Organization" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                  <option value="">Select organization…</option>
+                  {organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </SelectField>
+              )}
+
+              {scopeType === "team" && (
+                <SelectField label="Target Team" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                  <option value="">Select team…</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </SelectField>
+              )}
+
+              {scopeType === "user" && (
+                <SelectField label="Target Employee" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                  <option value="">Select staff member…</option>
+                  {employees.map(s => <option key={s.id} value={s.id}>{s.name} ({s.subtitle})</option>)}
+                </SelectField>
+              )}
+
               <TextField 
                 label="Priority (Higher wins)" 
                 type="number"

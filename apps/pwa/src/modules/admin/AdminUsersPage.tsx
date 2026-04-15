@@ -61,7 +61,7 @@ export default function AdminUsersPage() {
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const [listKey, setListKey] = useState(0); // bump to refresh
+  const [listKey, setListKey] = useState(0);
 
   const { data, loading, error } = useCachedQuery(
     `admin:users:${listKey}:${search}:${typeFilter}:${statusFilter}`,
@@ -76,7 +76,7 @@ export default function AdminUsersPage() {
   );
 
   const isDataArray = Array.isArray(data);
-  const users: AdminUser[] = isDataArray 
+  const users: (AdminUser & { primary_organization_id?: string | null })[] = isDataArray 
     ? data 
     : (Array.isArray(data?.data) ? data.data : []);
   const metaTotal = !isDataArray ? data?.meta?.total : undefined;
@@ -171,6 +171,7 @@ export default function AdminUsersPage() {
                 <TableHeaderRow>
                   <TableHeaderCell>Name</TableHeaderCell>
                   <TableHeaderCell>Email</TableHeaderCell>
+                  <TableHeaderCell>Organization</TableHeaderCell>
                   <TableHeaderCell>Type</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
                   <TableHeaderCell>Created</TableHeaderCell>
@@ -178,33 +179,42 @@ export default function AdminUsersPage() {
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
-                {users.map((u) => (
-                  <TableRow key={u.id}>
-                    <TableCell>
-                      <p className="font-semibold text-slate-900">
-                        {[u.first_name, u.last_name].filter(Boolean).join(" ") || "-"}
-                      </p>
-                    </TableCell>
-                    <TableCell>{u.email}</TableCell>
-                    <TableCell>{typeLabel[u.type] ?? u.type}</TableCell>
-                    <TableCell>
-                      <Chip variant={statusVariant[u.status] ?? "neutral"}>
-                        {u.status}
-                      </Chip>
-                    </TableCell>
-                    <TableCell>{formatDate(u.created_at)}</TableCell>
-                    <TableCell className="text-right">
-                      <Link to={`/admin/users/${u.id}`}>
-                        <Button size="sm" variant="ghost" className="gap-2 text-brand-900">
-                          View <Icon name="arrow_forward" className="text-[16px]" />
-                        </Button>
-                      </Link>
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {users.map((u) => {
+                  return (
+                    <TableRow key={u.id}>
+                      <TableCell>
+                        <p className="font-semibold text-slate-900">
+                          {[u.first_name, u.last_name].filter(Boolean).join(" ") || "-"}
+                        </p>
+                      </TableCell>
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>
+                        {u.primary_organization?.name ? (
+                          <span className="text-sm">{u.primary_organization.name}</span>
+                        ) : (
+                          <span className="text-sm text-slate-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{typeLabel[u.type] ?? u.type}</TableCell>
+                      <TableCell>
+                        <Chip variant={statusVariant[u.status] ?? "neutral"}>
+                          {u.status}
+                        </Chip>
+                      </TableCell>
+                      <TableCell>{formatDate(u.created_at)}</TableCell>
+                      <TableCell className="text-right">
+                        <Link to={`/admin/users/${u.id}`}>
+                          <Button size="sm" variant="ghost" className="gap-2 text-brand-900">
+                            View <Icon name="arrow_forward" className="text-[16px]" />
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
                 {!users.length ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="py-10 text-center">
+                    <TableCell colSpan={7} className="py-10 text-center">
                       <EmptyState
                         title="No users found"
                         description="Try adjusting your filters or add a new user."

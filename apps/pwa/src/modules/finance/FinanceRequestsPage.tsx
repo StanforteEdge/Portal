@@ -26,19 +26,15 @@ import {
   buildAppMobileNav,
   buildRequestsNavigation,
 } from "@/features/requests/requests-data";
+import { formatDisplayDate } from "@stanforte/shared";
 import {
-  formatDisplayDate,
   formatPersonName,
   formatRequestStatus,
   requestStatusTone,
 } from "@/features/requests/request-helpers";
 import type { RequestRecord } from "@/features/requests/requests-api";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { useCachedQuery } from "@/shared/lib/core";
-import {
-  listFinanceRequests,
-  type FinanceRequestListResponse,
-} from "@/modules/finance/finance-api";
+import { financeApi, useCachedQuery } from "@/shared/lib/core";
 
 function toTitleCase(value: string) {
   return String(value || "")
@@ -158,21 +154,16 @@ export default function FinanceRequestsPage() {
     error,
   } = useCachedQuery(
     `finance-admin:requests:${JSON.stringify(financeRequestQuery)}`,
-    () => listFinanceRequests(financeRequestQuery),
+    () => financeApi.listRequests(financeRequestQuery),
     {
       ttlMs: 1000 * 30,
       storage: "memory",
     },
   );
 
-  const requestResponse = financeRequests as
-    | FinanceRequestListResponse
-    | undefined;
-  const queue: RequestRecord[] = Array.isArray(requestResponse?.data)
-    ? requestResponse.data
-    : [];
-  const total = requestResponse?.meta?.total ?? queue.length;
-  const lastPage = requestResponse?.meta?.last_page ?? 1;
+  const queue: RequestRecord[] = Array.isArray(financeRequests) ? financeRequests : [];
+  const total = queue.length;
+  const lastPage = 1;
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
@@ -180,7 +171,7 @@ export default function FinanceRequestsPage() {
   const optionsQuery = useCachedQuery(
     "finance-admin:requests-options",
     () =>
-      listFinanceRequests({
+      financeApi.listRequests({
         page: 1,
         per_page: 100,
         order_by: "created_at",
@@ -191,11 +182,7 @@ export default function FinanceRequestsPage() {
       storage: "memory",
     },
   );
-  const optionsQueue: RequestRecord[] = Array.isArray(
-    (optionsQuery.data as FinanceRequestListResponse | undefined)?.data,
-  )
-    ? ((optionsQuery.data as FinanceRequestListResponse).data ?? [])
-    : [];
+  const optionsQueue: RequestRecord[] = Array.isArray(optionsQuery.data) ? optionsQuery.data : [];
   const statsQueue = optionsQueue.length ? optionsQueue : queue;
   const cleared = statsQueue.filter(
     (entry: RequestRecord) => resolveFinanceStatus(entry) === "cleared",
@@ -241,10 +228,10 @@ export default function FinanceRequestsPage() {
               };
               return String(
                 (data as any).team_name ||
-                  (data as any).team ||
-                  payload.group_name ||
-                  payload.group?.name ||
-                  "",
+                (data as any).team ||
+                payload.group_name ||
+                payload.group?.name ||
+                "",
               ).trim();
             })
             .filter(Boolean),

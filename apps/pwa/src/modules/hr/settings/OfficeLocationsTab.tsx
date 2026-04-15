@@ -14,11 +14,8 @@ import {
   EmptyState,
   Icon,
 } from "@/shared";
-import { 
-  listOfficeLocations, 
-  saveOfficeLocation, 
-  type OfficeLocation 
-} from "./hr-settings-api";
+import { attendanceApi } from "@/shared/lib/core";
+import { type OfficeLocation } from "@stanforte/shared";
 import OfficeLocationSlideOver from "./OfficeLocationSlideOver";
 
 export default function OfficeLocationsTab() {
@@ -30,7 +27,7 @@ export default function OfficeLocationsTab() {
   const load = async () => {
     try {
       setLoading(true);
-      const res = await listOfficeLocations();
+      const res = await attendanceApi.listOfficeLocations();
       setLocations(res.data);
     } catch (err) {
       showToast({ tone: "danger", title: "Error", message: "Failed to load office locations." });

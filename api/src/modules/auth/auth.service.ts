@@ -39,6 +39,13 @@ export class AuthService {
     const organizationCode = dto.organization?.trim();
     const profile = await this.prisma.profile.findUnique({ where: { email } });
     if (!profile) this.throwUnauthorized('Invalid credentials', 'AUTH_INVALID_CREDENTIALS');
+
+    // SECURITY: Account Lockout Check
+    if (profile.lockoutUntil && profile.lockoutUntil > new Date()) {
+      const mins = Math.ceil((profile.lockoutUntil.getTime() - Date.now()) / 60000);
+      this.throwUnauthorized(`Account is temporarily locked. Try again in ${mins} minutes.`, 'AUTH_ACCOUNT_LOCKED');
+    }
+
     if (profile.status !== 'active') {
       this.throwUnauthorized('Account is inactive. Contact administrator.', 'AUTH_ACCOUNT_INACTIVE');
     }
@@ -73,7 +80,21 @@ export class AuthService {
     }
 
     const ok = await bcrypt.compare(dto.password, profile.passwordHash);
-    if (!ok) this.throwUnauthorized('Invalid credentials', 'AUTH_INVALID_CREDENTIALS');
+    if (!ok) {
+      // SECURITY: Increment failed attempts
+      const attempts = profile.failedLoginAttempts + 1;
+      const lockoutUntil = attempts >= 3 ? new Date(Date.now() + 15 * 60 * 1000) : null;
+      
+      await this.prisma.profile.update({
+        where: { id: profile.id },
+        data: { 
+          failedLoginAttempts: attempts,
+          lockoutUntil
+        }
+      });
+
+      this.throwUnauthorized('Invalid credentials', 'AUTH_INVALID_CREDENTIALS');
+    }
 
     const authContext = await this.buildAuthContext(profile.id);
     const tokens = await this.issueTokens(profile.id, authContext.permissions, authContext.roles);
@@ -81,7 +102,11 @@ export class AuthService {
 
     await this.prisma.profile.update({
       where: { id: profile.id },
-      data: { lastLogin: new Date() }
+      data: { 
+        lastLogin: new Date(),
+        failedLoginAttempts: 0,
+        lockoutUntil: null
+      }
     });
 
     return {
@@ -97,8 +122,9 @@ export class AuthService {
         roles: authContext.roles,
         permissions: authContext.permissions,
         enabled_modules: authContext.enabledModules
-      },
-      ...tokens
+      }
+      // SECURITY: Tokens are now ONLY in httpOnly cookies.
+      // We no longer return them in the JSON body.
     };
   }
 
@@ -234,7 +260,10 @@ export class AuthService {
     const tokens = await this.issueTokens(tokenRow.profileId, authContext.permissions, authContext.roles);
     this.setAuthCookies(res, tokens.accessToken, tokens.refreshToken, tokens.expiresIn);
 
-    return tokens;
+    return {
+      authenticated: true,
+      expiresIn: tokens.expiresIn
+    };
   }
 
   async forgotPassword(dto: ForgotPasswordDto) {

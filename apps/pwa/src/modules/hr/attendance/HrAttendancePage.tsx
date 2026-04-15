@@ -23,39 +23,14 @@ import { useAuth } from "@/shared/context/AuthProvider";
 import { useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import {
-  getHrAttendanceStats,
-  listHrAttendance,
-  listHrCorrections,
-  reviewCorrection,
-  type AdminCorrectionRow,
-  type StaffDailyRow,
-} from "./hr-attendance-api";
+import { attendanceApi } from "@/shared/lib/core";
+import { 
+  type AdminCorrectionRow, 
+  type StaffDailyRow 
+} from "@stanforte/shared";
 import StaffAttendanceSlideOver from "./StaffAttendanceSlideOver";
-
-function today() {
-  return new Date().toISOString().slice(0, 10);
-}
-
-function daysAgo(n: number) {
-  const d = new Date();
-  d.setDate(d.getDate() - n);
-  return d.toISOString().slice(0, 10);
-}
-
-function formatTime(value: string | null) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatMins(mins: number) {
-  if (!mins) return "0h";
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h ? `${h}h ${m}m` : `${m}m`;
-}
+import CorrectionReviewSlideOver from "./CorrectionReviewSlideOver";
+import { formatDate, formatTime, formatDuration } from "@/shared/lib/format-utils";
 
 const rowStatusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   present: "success",
@@ -79,29 +54,27 @@ export default function HrAttendancePage() {
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
-  const [dateFrom, setDateFrom] = useState(daysAgo(6));
-  const [dateTo, setDateTo] = useState(today());
+  const [dateFrom, setDateFrom] = useState(new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
   const [statusFilter, setStatusFilter] = useState("");
   const [slideOver, setSlideOver] = useState<{
     userId: string;
     userName: string;
   } | null>(null);
-  const [reviewingId, setReviewingId] = useState<string | null>(null);
-  const [reviewNotes, setReviewNotes] = useState("");
-  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewingItem, setReviewingItem] = useState<AdminCorrectionRow | null>(null);
 
-  const todayStr = today();
+  const todayStr = new Date().toISOString().slice(0, 10);
 
   const { data: stats } = useCachedQuery(
     `hr:attendance:stats:${todayStr}`,
-    () => getHrAttendanceStats(todayStr),
+    () => attendanceApi.getStats(todayStr),
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
   const { data: attendanceData, loading: attLoading } = useCachedQuery(
     `hr:attendance:list:${dateFrom}:${dateTo}:${statusFilter}`,
     () =>
-      listHrAttendance({
+      attendanceApi.listRecords({
         from: dateFrom,
         to: dateTo,
         status: statusFilter || undefined,
@@ -111,43 +84,17 @@ export default function HrAttendancePage() {
 
   const { data: correctionsData, loading: corrLoading } = useCachedQuery(
     "hr:attendance:corrections",
-    () => listHrCorrections(),
+    () => attendanceApi.listCorrections(),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const rows: StaffDailyRow[] = attendanceData?.data ?? [];
-  const corrections: AdminCorrectionRow[] = correctionsData?.data ?? [];
+  const rows: StaffDailyRow[] = (attendanceData || []) as any;
+  const corrections: AdminCorrectionRow[] = (correctionsData || []) as any;
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
     "HR Staff";
-
-  async function handleReview(id: string, status: "approved" | "rejected") {
-    try {
-      setReviewLoading(true);
-      await reviewCorrection(id, {
-        status,
-        review_notes: reviewNotes || undefined,
-      });
-      showToast({
-        tone: "success",
-        title: "Correction reviewed",
-        message: `Marked as ${status}.`,
-      });
-      setReviewingId(null);
-      setReviewNotes("");
-    } catch (err) {
-      showToast({
-        tone: "danger",
-        title: "Review failed",
-        message:
-          err instanceof Error ? err.message : "Unable to submit review.",
-      });
-    } finally {
-      setReviewLoading(false);
-    }
-  }
 
   return (
     <AppShell
@@ -250,13 +197,13 @@ export default function HrAttendancePage() {
                       </p>
                       <p className="text-xs text-slate-500">{row.email}</p>
                     </TableCell>
-                    <TableCell>{row.work_date}</TableCell>
+                    <TableCell>{formatDate(row.work_date)}</TableCell>
                     <TableCell>{formatTime(row.first_in_at)}</TableCell>
                     <TableCell>{formatTime(row.last_out_at)}</TableCell>
-                    <TableCell>{formatMins(row.worked_minutes)}</TableCell>
+                    <TableCell>{formatDuration(row.worked_minutes)}</TableCell>
                     <TableCell>
                       {row.late_minutes > 0
-                        ? formatMins(row.late_minutes)
+                        ? formatDuration(row.late_minutes)
                         : "-"}
                     </TableCell>
                     <TableCell className="capitalize">
@@ -331,7 +278,7 @@ export default function HrAttendancePage() {
                         </p>
                         <p className="text-xs text-slate-500">{c.email}</p>
                       </TableCell>
-                      <TableCell>{c.work_date}</TableCell>
+                      <TableCell>{formatDate(c.work_date)}</TableCell>
                       <TableCell className="capitalize">
                         {c.request_type.replace(/_/g, " ")}
                       </TableCell>
@@ -346,11 +293,11 @@ export default function HrAttendancePage() {
                         </Chip>
                       </TableCell>
                       <TableCell>
-                        {c.status === "pending" && reviewingId !== c.id ? (
+                        {c.status === "pending" ? (
                           <Button
                             size="sm"
                             variant="ghost"
-                            onClick={() => setReviewingId(c.id)}
+                            onClick={() => setReviewingItem(c)}
                           >
                             Review
                           </Button>
@@ -359,57 +306,7 @@ export default function HrAttendancePage() {
                     </TableRow>
                   );
 
-                  if (reviewingId !== c.id) return [mainRow];
-
-                  const reviewRow = (
-                    <TableRow key={`${c.id}-review`}>
-                      <TableCell
-                        colSpan={6}
-                        className="bg-slate-50 px-4 py-3"
-                      >
-                        <div className="flex flex-wrap items-end gap-3">
-                          <div className="flex-1">
-                            <TextField
-                              label="Review notes (optional)"
-                              value={reviewNotes}
-                              onChange={(e) => setReviewNotes(e.target.value)}
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            onClick={() =>
-                              void handleReview(c.id, "approved")
-                            }
-                            disabled={reviewLoading}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            onClick={() =>
-                              void handleReview(c.id, "rejected")
-                            }
-                            disabled={reviewLoading}
-                          >
-                            Reject
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setReviewingId(null);
-                              setReviewNotes("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-
-                  return [mainRow, reviewRow];
+                  return [mainRow];
                 })}
               </TableBody>
             </Table>
@@ -429,6 +326,18 @@ export default function HrAttendancePage() {
           from={dateFrom}
           to={dateTo}
           onClose={() => setSlideOver(null)}
+        />
+      ) : null}
+
+      {reviewingItem ? (
+        <CorrectionReviewSlideOver 
+          correction={reviewingItem}
+          onClose={() => setReviewingItem(null)}
+          onReviewed={() => {
+            setReviewingItem(null);
+            // Quick fix to refresh data after review
+            window.location.reload(); 
+          }}
         />
       ) : null}
     </AppShell>

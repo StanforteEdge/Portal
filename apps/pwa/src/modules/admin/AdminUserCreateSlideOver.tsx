@@ -6,7 +6,7 @@ import {
   TextField,
   useToast,
 } from "@/shared";
-import { listOrganizations, type OrganizationRecord } from "@/shared/api/organization-api";
+import { resourceApi } from "@/shared/lib/core";
 import {
   createAdminUser,
   setAdminUserRoles,
@@ -14,6 +14,7 @@ import {
   listRoleOptions,
   type RoleOption,
 } from "./admin-users-api";
+import type { OrganizationItem } from "@/shared";
 
 type Props = {
   onClose: () => void;
@@ -28,16 +29,21 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
   const [lastName, setLastName] = useState("");
   const [type, setType] = useState("staff");
   const [selectedRoles, setSelectedRoles] = useState<string[]>(["staff"]);
-  const [orgId, setOrgId] = useState("");
+  const [organizationId, setOrganizationId] = useState("");
   const [sendInvite, setSendInvite] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const [orgs, setOrgs] = useState<OrganizationRecord[]>([]);
   const [roles, setRoles] = useState<RoleOption[]>([]);
+  const [organizations, setOrganizations] = useState<OrganizationItem[]>([]);
 
   useEffect(() => {
-    listOrganizations({ is_active: true }).then(setOrgs).catch(() => setOrgs([]));
-    listRoleOptions().then(setRoles).catch(() => setRoles([]));
+    Promise.all([
+      listRoleOptions().catch(() => []),
+      resourceApi.listOrganizations().catch(() => []),
+    ]).then(([roleData, orgData]) => {
+      setRoles(roleData);
+      setOrganizations(orgData);
+    });
   }, []);
 
   function toggleRole(slug: string) {
@@ -51,6 +57,10 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
       showToast({ tone: "warning", title: "Email required", message: "Please enter a valid email address." });
       return;
     }
+    if (!organizationId) {
+      showToast({ tone: "warning", title: "Organization required", message: "Please select an organization for this user." });
+      return;
+    }
     try {
       setSaving(true);
       const user = await createAdminUser({
@@ -59,7 +69,7 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
         last_name: lastName.trim() || undefined,
         type,
         status: "pending",
-        primary_organization_id: orgId || undefined,
+        organization_id: organizationId,
       });
       if (selectedRoles.length > 0) {
         await setAdminUserRoles(user.id, selectedRoles);
@@ -109,6 +119,7 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="user@organization.com"
               />
               <div className="grid gap-4 sm:grid-cols-2">
                 <TextField
@@ -123,6 +134,24 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
                 />
               </div>
             </div>
+          </SectionCard>
+
+          <SectionCard title="Organization">
+            <SelectField
+              label="Primary Organization"
+              value={organizationId}
+              onChange={(e) => setOrganizationId(e.target.value)}
+            >
+              <option value="">Select organization...</option>
+              {organizations.map((org) => (
+                <option key={org.id} value={org.id}>
+                  {org.name} {org.code ? `(${org.code})` : ""}
+                </option>
+              ))}
+            </SelectField>
+            <p className="mt-2 text-xs text-slate-500">
+              Every user must belong to at least one organization. You can add more organizations later.
+            </p>
           </SectionCard>
 
           <SectionCard title="Access">
@@ -154,19 +183,6 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
                   ))}
                 </div>
               </div>
-
-              <SelectField
-                label="Primary Organisation"
-                value={orgId}
-                onChange={(e) => setOrgId(e.target.value)}
-              >
-                <option value="">Select organisation…</option>
-                {orgs.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.name} {o.code ? `(${o.code})` : ""}
-                  </option>
-                ))}
-              </SelectField>
             </div>
           </SectionCard>
 

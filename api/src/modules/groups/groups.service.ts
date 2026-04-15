@@ -9,7 +9,7 @@ import { SetGroupOrganizationsDto } from './dto/set-group-organizations.dto';
 import { UpdateTeamDto } from './dto/update-team.dto';
 
 @Injectable()
-export class TeamsService {
+export class GroupsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: Record<string, any>) {

@@ -64,6 +64,44 @@ export function SelectField({
   );
 }
 
+type SelectOption = { label: string; value: string };
+
+type SelectComponentProps = {
+  label: string;
+  options: SelectOption[];
+  value: string;
+  onChange: (value: string) => void;
+  helpText?: string;
+  error?: string;
+  className?: string;
+};
+
+export function Select({
+  label,
+  options,
+  value,
+  onChange,
+  helpText,
+  error,
+  className,
+}: SelectComponentProps) {
+  return (
+    <FieldShell label={label} helpText={helpText} error={error}>
+      <select
+        className={["input-base", className].filter(Boolean).join(" ")}
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {options.map((opt) => (
+          <option key={opt.value} value={opt.value}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </FieldShell>
+  );
+}
+
 type TextareaProps = TextareaHTMLAttributes<HTMLTextAreaElement> & {
   label: string;
   helpText?: string;

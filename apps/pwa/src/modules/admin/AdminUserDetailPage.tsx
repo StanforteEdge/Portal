@@ -13,7 +13,7 @@ import {
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { useCachedQuery } from "@/shared/lib/core";
+import { resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
@@ -27,6 +27,7 @@ import {
   type AdminUserRole,
   type RoleOption,
 } from "./admin-users-api";
+import type { OrganizationItem } from "@/shared";
 
 const statusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   active: "success",
@@ -71,14 +72,23 @@ export default function AdminUserDetailPage() {
   const [inviteSending, setInviteSending] = useState(false);
   const [statusSaving, setStatusSaving] = useState(false);
 
+  const [organizations, setOrganizations] = useState<OrganizationItem[]>([]);
+
   // Edit form
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [type, setType] = useState("staff");
+  const [organizationId, setOrganizationId] = useState("");
   const [infoSaving, setInfoSaving] = useState(false);
 
   useEffect(() => {
-    listRoleOptions().then(setRoleOptions).catch(() => setRoleOptions([]));
+    Promise.all([
+      listRoleOptions().catch(() => []),
+      resourceApi.listOrganizations().catch(() => []),
+    ]).then(([roleData, orgData]) => {
+      setRoleOptions(roleData);
+      setOrganizations(orgData);
+    });
   }, []);
 
   useEffect(() => {
@@ -86,6 +96,7 @@ export default function AdminUserDetailPage() {
       setFirstName(adminUser.first_name ?? "");
       setLastName(adminUser.last_name ?? "");
       setType(adminUser.type ?? "staff");
+      setOrganizationId((adminUser as any).primary_organization_id ?? "");
     }
   }, [adminUser]);
 
@@ -111,6 +122,7 @@ export default function AdminUserDetailPage() {
         first_name: firstName.trim() || undefined,
         last_name: lastName.trim() || undefined,
         type: type,
+        organization_id: organizationId || undefined,
       });
       showToast({ tone: "success", title: "Saved", message: "User details updated." });
     } catch (err) {
@@ -214,6 +226,18 @@ export default function AdminUserDetailPage() {
                   onChange={(e) => setLastName(e.target.value)}
                 />
                 <TextField label="Email" value={adminUser?.email ?? ""} readOnly />
+                <SelectField
+                  label="Primary Organization"
+                  value={organizationId}
+                  onChange={(e) => setOrganizationId(e.target.value)}
+                >
+                  <option value="">Select organization...</option>
+                  {organizations.map((org) => (
+                    <option key={org.id} value={org.id}>
+                      {org.name} {org.code ? `(${org.code})` : ""}
+                    </option>
+                  ))}
+                </SelectField>
                 <SelectField
                   label="Type"
                   value={type}

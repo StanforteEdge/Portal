@@ -29,7 +29,7 @@ import {
   listMyOrganizations,
   listProjects,
   listRequestTypes,
-  listTeams,
+  listGroups,
   submitRequest,
   updateRequest,
   type MyOrganization,
@@ -335,8 +335,8 @@ export function RequestFormPage() {
     },
   );
   const { data: teams } = useCachedQuery(
-    "requests:teams",
-    () => listTeams({ active_only: false }),
+    "requests:groups",
+    () => listGroups({ active_only: false }),
     {
       ttlMs: 1000 * 60 * 10,
       storage: "memory",

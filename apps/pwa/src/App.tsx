@@ -10,15 +10,42 @@ import FinanceDashboardPage from "@/modules/finance/FinanceDashboardPage";
 import FinanceRequestDetailsPage from "@/modules/finance/FinanceRequestDetailsPage";
 import FinancePaymentVouchersPage from "@/modules/finance/FinancePaymentVouchersPage";
 import FinanceRequestsPage from "@/modules/finance/FinanceRequestsPage";
+import FinanceLedgerPage from "@/modules/finance/FinanceLedgerPage";
+import FinanceBudgetsPage from "@/modules/finance/FinanceBudgetsPage";
+import FinanceReceivablesPage from "@/modules/finance/FinanceReceivablesPage";
+import FinancePayablesPage from "@/modules/finance/FinancePayablesPage";
+import FinanceAssetsPage from "@/modules/finance/FinanceAssetsPage";
+import FinanceReportsPage from "@/modules/finance/FinanceReportsPage";
+import FinanceSettingsPage from "@/modules/finance/FinanceSettingsPage";
+import FinanceChartAccountsPage from "@/modules/finance/FinanceChartAccountsPage";
+import FinanceCustomersPage from "@/modules/finance/FinanceCustomersPage";
+import FinanceVendorsPage from "@/modules/finance/FinanceVendorsPage";
+import FinanceAccountsPage from "@/modules/finance/FinanceAccountsPage";
+import FinanceAccountDetailPage from "@/modules/finance/FinanceAccountDetailPage";
+import FinanceItemsPage from "@/modules/finance/FinanceItemsPage";
+import FinanceExpensesPage from "@/modules/finance/FinanceExpensesPage";
+import FinanceIncomePage from "@/modules/finance/FinanceIncomePage";
+import FinanceBillsPage from "@/modules/finance/FinanceBillsPage";
+import FinanceSalesInvoicesPage from "@/modules/finance/FinanceSalesInvoicesPage";
+import FinanceManualEntryPage from "@/modules/finance/FinanceManualEntryPage";
+import AdminRolesPage from "@/modules/admin/AdminRolesPage";
 import HrDashboardPage from "@/modules/hr/HrDashboardPage";
 import HrLeavePage from "@/modules/hr/leave/HrLeavePage";
 import HrEmployeesPage from "@/modules/hr/employees/HrEmployeesPage";
 import HrEmployeeCreatePage from "@/modules/hr/employees/HrEmployeeCreatePage";
 import HrEmployeeDetailPage from "@/modules/hr/employees/HrEmployeeDetailPage";
+import HrEmployeeEditPage from "@/modules/hr/employees/HrEmployeeEditPage";
 import HrAttendancePage from "@/modules/hr/attendance/HrAttendancePage";
 import HrSettingsPage from "@/modules/hr/settings/HrSettingsPage";
 import AdminUsersPage from "@/modules/admin/AdminUsersPage";
 import AdminUserDetailPage from "@/modules/admin/AdminUserDetailPage";
+import AdminSettingsPage from "@/modules/admin/AdminSettingsPage";
+import AdminGroupsPage from "@/modules/admin/AdminGroupsPage";
+import AdminProjectsPage from "@/modules/admin/AdminProjectsPage";
+import AdminFilesPage from "@/modules/admin/AdminFilesPage";
+import ProjectsPage from "@/pages/projects/ProjectsPage";
+import ProjectDetailPage from "@/pages/projects/ProjectDetailPage";
+import FilesPage from "@/pages/files/FilesPage";
 import {
   ProtectedRoute,
   PublicOnlyRoute,
@@ -42,6 +69,7 @@ import {
   HelpPage,
   NotificationsPage,
   PayslipsPage,
+  TimesheetsPage,
   ProfilePage,
   SettingsPage,
 } from "@/pages/system";
@@ -92,6 +120,7 @@ export default function App() {
         <Route path="/profile" element={<ProfilePage />} />
         <Route element={<ModuleRoute moduleKey="payroll" />}>
           <Route path="/profile/payslips" element={<PayslipsPage />} />
+          <Route path="/profile/timesheets" element={<TimesheetsPage />} />
         </Route>
         <Route element={<ModuleRoute moduleKey="finance" />}>
           <Route path="/finance" element={<FinanceDashboardPage />} />
@@ -104,12 +133,32 @@ export default function App() {
             path="/finance/payment-vouchers"
             element={<FinancePaymentVouchersPage />}
           />
+          <Route path="/finance/ledger" element={<FinanceLedgerPage />} />
+          <Route path="/finance/chart-accounts" element={<FinanceChartAccountsPage />} />
+          <Route path="/finance/accounts" element={<FinanceAccountsPage />} />
+          <Route path="/finance/accounts/:id" element={<FinanceAccountDetailPage />} />
+          <Route path="/finance/manual-entry" element={<FinanceManualEntryPage />} />
+          <Route path="/finance/items" element={<FinanceItemsPage />} />
+          <Route path="/finance/expenses" element={<FinanceExpensesPage />} />
+          <Route path="/finance/income" element={<FinanceIncomePage />} />
+          <Route path="/finance/bills" element={<FinanceBillsPage />} />
+          <Route path="/finance/sales-invoices" element={<FinanceSalesInvoicesPage />} />
+          <Route path="/finance/budgets" element={<FinanceBudgetsPage />} />
+          <Route path="/finance/receivables" element={<FinanceReceivablesPage />} />
+          <Route path="/finance/receivables/:id" element={<FinanceReceivablesPage />} />
+          <Route path="/finance/payables" element={<FinancePayablesPage />} />
+          <Route path="/finance/assets" element={<FinanceAssetsPage />} />
+          <Route path="/finance/reports" element={<FinanceReportsPage />} />
+          <Route path="/finance/settings" element={<FinanceSettingsPage />} />
+          <Route path="/finance/customers" element={<FinanceCustomersPage />} />
+          <Route path="/finance/vendors" element={<FinanceVendorsPage />} />
         </Route>
         <Route element={<ModuleRoute moduleKey="hr" />}>
           <Route path="/hr" element={<HrDashboardPage />} />
           <Route path="/hr/employees" element={<HrEmployeesPage />} />
           <Route path="/hr/employees/new" element={<HrEmployeeCreatePage />} />
           <Route path="/hr/employees/:id" element={<HrEmployeeDetailPage />} />
+          <Route path="/hr/employees/:id/edit" element={<HrEmployeeEditPage />} />
           <Route path="/hr/attendance" element={<HrAttendancePage />} />
           <Route path="/hr/leave" element={<HrLeavePage />} />
           <Route path="/hr/settings" element={<HrSettingsPage />} />
@@ -117,10 +166,18 @@ export default function App() {
           <Route path="/leave" element={<LeavePage />} />
           <Route path="/leave/new/form" element={<LeaveRequestFormPage />} />
           <Route path="/leave/details" element={<LeaveRequestDetailsPage />} />
+          <Route path="/projects" element={<ProjectsPage />} />
+          <Route path="/projects/:id" element={<ProjectDetailPage />} />
+          <Route path="/files" element={<FilesPage />} />
         </Route>
         <Route element={<ModuleRoute moduleKey="admin" />}>
           <Route path="/admin/users" element={<AdminUsersPage />} />
           <Route path="/admin/users/:id" element={<AdminUserDetailPage />} />
+          <Route path="/admin/roles" element={<AdminRolesPage />} />
+          <Route path="/admin/groups" element={<AdminGroupsPage />} />
+          <Route path="/admin/projects" element={<AdminProjectsPage />} />
+          <Route path="/admin/files" element={<AdminFilesPage />} />
+          <Route path="/admin/settings" element={<AdminSettingsPage />} />
         </Route>
       </Route>
 

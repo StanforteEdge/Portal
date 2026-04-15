@@ -100,6 +100,14 @@ async function bootstrap() {
   const loginLimit = Number(process.env.AUTH_LOGIN_RATE_LIMIT_MAX || 10);
   const forgotLimit = Number(process.env.AUTH_FORGOT_RATE_LIMIT_MAX || 5);
   const inviteLimit = Number(process.env.AUTH_INVITE_ACCEPT_RATE_LIMIT_MAX || 10);
+  // Global Rate Limiting using existing express-rate-limit
+  app.use(rateLimit({
+    windowMs: 60 * 1000, // 1 minute
+    max: 100, // limit each IP to 100 requests per windowMs
+    standardHeaders: true,
+    legacyHeaders: false,
+  }));
+
   app.use('/v1/auth/login', rateLimit({ windowMs: authWindowMs, max: loginLimit, standardHeaders: true, legacyHeaders: false }));
   app.use('/v1/auth/forgot-password', rateLimit({ windowMs: authWindowMs, max: forgotLimit, standardHeaders: true, legacyHeaders: false }));
   app.use('/v1/auth/accept-invite', rateLimit({ windowMs: authWindowMs, max: inviteLimit, standardHeaders: true, legacyHeaders: false }));

@@ -80,17 +80,22 @@ Legend: ✅ Done | 🔨 In Progress | ⬜ Not Started | ❌ Drop / Won't Port
 | `/appOld/finance/requests/:id` | `finance/requests/FinanceRequestDetail` | `/finance/requests/details?id=…` | `modules/finance/FinanceRequestDetailsPage` | ✅ | |
 | `/appOld/finance/payment-vouchers` | `finance/payment-vouchers/FinancePaymentVouchers` | `/finance/payment-vouchers` | `modules/finance/FinancePaymentVouchersPage` | ✅ | |
 | `/appOld/finance/manual-entry` | `finance/manual-entry/FinanceManualEntry` | — | — | ⬜ | Journal/manual entry not yet in new UI |
-| `/appOld/finance/accounts` | `finance/accounts/FinanceAccounts` | — | — | ⬜ | Chart of accounts list |
+| `/appOld/finance/accounts` | `finance/accounts/FinanceAccounts` | `/finance/accounts` | `modules/finance/FinanceAccountsPage` | ✅ | Bank/cash accounts |
 | `/appOld/finance/accounts/:id` | `finance/accounts/FinanceAccountDetail` | — | — | ⬜ | Account ledger detail |
-| `/appOld/finance/ledger` | `finance/ledger/FinanceLedger` | — | — | ⬜ | General ledger |
-| `/appOld/finance/assets` | `finance/assets/FinanceAssets` | — | — | ⬜ | Asset register |
+| `/appOld/finance/settings/chart-of-accounts` | `finance/settings/FinanceChartAccounts` | `/finance/chart-accounts` | `modules/finance/FinanceChartAccountsPage` | ✅ | Chart of accounts classification |
+| `/appOld/finance/ledger` | `finance/ledger/FinanceLedger` | `/finance/ledger` | `modules/finance/FinanceLedgerPage` | ✅ | Ledger view (filters + totals + entries) |
+| `/appOld/finance/assets` | `finance/assets/FinanceAssets` | `/finance/assets` | `modules/finance/FinanceAssetsPage` | ✅ | Asset register + disposal snapshot |
 | `/appOld/finance/assets/new` | `finance/assets/FinanceAssetEditor` | — | — | ⬜ | |
 | `/appOld/finance/assets/:id` | `finance/assets/FinanceAssetDetail` | — | — | ⬜ | |
 | `/appOld/finance/assets/disposals` | `finance/assets/FinanceAssetDisposals` | — | — | ⬜ | |
-| `/appOld/finance/budgets` | `finance/budgets/FinanceBudgets` | — | — | ⬜ | |
-| `/appOld/finance/receivables` | `finance/receivables/FinanceReceivables` | — | — | ⬜ | Invoice/receivables list |
+| `/appOld/finance/budgets` | `finance/budgets/FinanceBudgets` | `/finance/budgets` | `modules/finance/FinanceBudgetsPage` | ✅ | Budget register + variance stats |
+| `/appOld/finance/receivables` | `finance/receivables/FinanceReceivables` | `/finance/receivables` | `modules/finance/FinanceReceivablesPage` | ✅ | Invoice/receivables list |
 | `/appOld/finance/receivables/:id` | `finance/receivables/FinanceInvoiceDetail` | — | — | ⬜ | |
-| `/appOld/finance/payables` | `finance/payables/FinancePayables` | — | — | ⬜ | |
+| `/appOld/finance/payables` | `finance/payables/FinancePayables` | `/finance/payables` | `modules/finance/FinancePayablesPage` | ✅ | Vendor bills/payables list |
+| — | — | `/finance/items` | `modules/finance/FinanceItemsPage` | ✅ | New - products/services catalog |
+| — | — | `/finance/expenses` | `modules/finance/FinanceExpensesPage` | ✅ | New - direct expense register |
+| — | — | `/finance/customers` | `modules/finance/FinanceCustomersPage` | ✅ | New - Customer list + detail view |
+| — | — | `/finance/vendors` | `modules/finance/FinanceVendorsPage` | ✅ | New - Vendor list + detail view |
 
 ---
 
@@ -98,7 +103,7 @@ Legend: ✅ Done | 🔨 In Progress | ⬜ Not Started | ❌ Drop / Won't Port
 
 | Old Route | Old Page | New Route | New Page | Status | Notes |
 |---|---|---|---|---|---|
-| `/appOld/finance/reports` | `finance/reports/FinanceReportsDashboard` | — | — | ⬜ | Reports hub |
+| `/appOld/finance/reports` | `finance/reports/FinanceReportsDashboard` | `/finance/reports` | `modules/finance/FinanceReportsPage` | ✅ | Reports hub with endpoint snapshots |
 | `/appOld/finance/reports/activities` | `finance/reports/FinanceStatementActivities` | — | — | ⬜ | Statement of activities |
 | `/appOld/finance/reports/position` | `finance/reports/FinanceStatementPosition` | — | — | ⬜ | Statement of financial position |
 | `/appOld/finance/reports/budget-vs-actual` | `finance/reports/FinanceBudgetVsActual` | — | — | ⬜ | |
@@ -111,7 +116,7 @@ Legend: ✅ Done | 🔨 In Progress | ⬜ Not Started | ❌ Drop / Won't Port
 
 | Old Route | Old Page | New Route | New Page | Status | Notes |
 |---|---|---|---|---|---|
-| `/appOld/finance/settings` | `finance/settings/FinanceSettings` | — | — | ⬜ | Finance settings hub |
+| `/appOld/finance/settings` | `finance/settings/FinanceSettings` | `/finance/settings` | `modules/finance/FinanceSettingsPage` | ✅ | Finance settings hub with tabs |
 | `/appOld/finance/settings/chart-of-accounts` | `finance/settings/FinanceChartAccounts` | — | — | ⬜ | |
 | `/appOld/finance/settings/reporting-periods` | `finance/settings/FinanceReportingPeriods` | — | — | ⬜ | |
 | `/appOld/finance/settings/parties` | `finance/settings/FinanceParties` | — | — | ⬜ | Vendors/parties |
@@ -154,7 +159,7 @@ Legend: ✅ Done | 🔨 In Progress | ⬜ Not Started | ❌ Drop / Won't Port
 | `/appOld/hr/work` | `hr/work/HrWorkManagement` | — | — | ⬜ | |
 | `/appOld/hr/settings` | `hr/settings/HrSettings` | `/hr/settings` | `modules/hr/settings/HrSettingsPage` | ✅ | Dashboard for Attendance, Leave, Locations |
 | `/appOld/hr/settings/leave` | `hr/settings/HrLeaveSettings` | `/hr/settings` | `modules/hr/settings/HrSettingsPage` | ✅ | Integrated into SettingsPage tabs |
-| `/appOld/hr/settings/request-types/:id` | `hr/settings/HrRequestTypeEditor` | — | — | ⬜ | |
+| `/appOld/hr/settings/request-types/:id` | `hr/settings/HrRequestTypeEditor` | `/hr/settings` | `modules/hr/settings/LeaveTypeSlideOver` | ✅ | Replaced with SlideOver for Leave Types |
 
 ---
 
@@ -162,20 +167,20 @@ Legend: ✅ Done | 🔨 In Progress | ⬜ Not Started | ❌ Drop / Won't Port
 
 | Old Route | Old Page | New Route | New Page | Status | Notes |
 |---|---|---|---|---|---|
-| `/appOld/admin/users` | `admin/users/UserManagement` | — | — | ⬜ | User list + invite |
+| `/appOld/admin/users` | `admin/users/UserManagement` | `/admin/users` | `modules/admin/AdminUsersPage` | ✅ | User list + invite |
 | `/appOld/admin/users/new` | `admin/users/UserCreate` | — | — | ⬜ | |
-| `/appOld/admin/users/:id` | `admin/users/UserEdit` | — | — | ⬜ | |
+| `/appOld/admin/users/:id` | `admin/users/UserEdit` | `/admin/users/:id` | `modules/admin/AdminUserDetailPage` | ✅ | User detail + edit |
 | `/appOld/admin/users/:id/roles` | `admin/users/UserRoles` | — | — | ⬜ | |
-| `/appOld/admin/roles` | `admin/roles/AdminRoles` | — | — | ⬜ | Role management |
+| `/appOld/admin/roles` | `admin/roles/AdminRoles` | `/admin/roles` | `modules/admin/AdminRolesPage` | ✅ | Role management |
 | `/appOld/admin/policies` | `admin/policies/AdminPolicies` | — | — | ⬜ | Policy/permissions |
-| `/appOld/admin/groups` | `admin/groups/AdminGroups` | — | — | ⬜ | |
-| `/appOld/admin/files` | `admin/files/AdminFiles` | — | — | ⬜ | |
-| `/appOld/admin/projects` | `admin/projects/AdminProjects` | — | — | ⬜ | |
+| `/appOld/admin/groups` | `admin/groups/AdminGroups` | `/admin/groups` | `modules/admin/AdminGroupsPage` | ✅ | |
+| `/appOld/admin/files` | `admin/files/AdminFiles` | `/admin/files` | `modules/admin/AdminFilesPage` | ✅ | |
+| `/appOld/admin/projects` | `admin/projects/AdminProjects` | `/admin/projects` | `modules/admin/AdminProjectsPage` | ✅ | |
 | `/appOld/admin/documents` | `admin/documents/AdminDocuments` | — | — | ⬜ | |
 | `/appOld/admin/documents/:id` | `admin/documents/AdminDocumentEditor` | — | — | ⬜ | |
 | `/appOld/admin/forms` | `admin/forms/AdminForms` | — | — | ⬜ | |
 | `/appOld/admin/forms/:id` | `admin/forms/AdminFormEditor` | — | — | ⬜ | |
-| `/appOld/admin/settings` | `admin/settings/AdminSettings` | — | — | ⬜ | Org/system settings |
+| `/appOld/admin/settings` | `admin/settings/AdminSettings` | `/admin/settings` | `modules/admin/AdminSettingsPage` | ✅ | Org/system global settings hub |
 
 ---
 
@@ -186,31 +191,33 @@ Legend: ✅ Done | 🔨 In Progress | ⬜ Not Started | ❌ Drop / Won't Port
 - Staff dashboard
 - Requests (list, create, detail, approvals)
 - Attendance
-- Finance (dashboard, requests, request detail, payment vouchers)
+- Finance (dashboard, requests, request detail, payment vouchers, ledger, budgets, receivables, payables, assets, reports, settings, customers, vendors)
 - Profile & Settings stubs
 
 ### Phase 2 — High Impact, Low Complexity
-1. **Leave tracker** (`/leave`) — Staff leave self-service; reuse `AttendancePage` structure
-2. **Change Password** — Add to `SettingsPage` as a form section (already in old PWA)
-3. **My Payslips** (`/profile/payslips`) — Payroll module guard; simple table + download
-4. **My Timesheets** (`/profile/timesheets`) — Table + filter; reuse `RequestsListPage` pattern
+1. ✅ **Leave tracker** (`/leave`) — Staff leave self-service; reuse `AttendancePage` structure
+2. ✅ **Change Password** — Add to `SettingsPage` as a form section (already in old PWA)
+3. ✅ **My Payslips** (`/profile/payslips`) — Payroll module guard; simple table + download
+4. ✅ **My Timesheets** (`/profile/timesheets`) — Table + filter; reuse `RequestsListPage` pattern
 5. **Finance Manual Entry** (`/finance/journal`) — New journal entry form; reuse `RequestFormPage` pattern
 6. **Finance Accounts** (`/finance/accounts`) — Chart of accounts table + detail; new `modules/finance/` pages
 
 ### Phase 3 — Finance Depth
-7. Finance Ledger
-8. Finance Budgets
-9. Finance Receivables + Payables
-10. Finance Assets (register, editor, disposals)
-11. Finance Reports dashboard + individual reports
-12. Finance Settings (chart of accounts, periods, parties, nonprofit, request types)
+7. ✅ Finance Ledger
+8. ✅ Finance Budgets
+9. ✅ Finance Receivables + Payables
+10. ✅ Finance Assets (register, editor, disposals)
+11. ✅ Finance Reports dashboard + individual reports
+12. ✅ Finance Settings (chart of accounts, periods, parties, nonprofit, request types)
+13. ✅ Finance Customers (new)
+14. ✅ Finance Vendors (new)
 
 ### Phase 4 — HR Admin
-13. HR Dashboard + Employee directory/editor
-14. HR Attendance + Leave (HR views)
+13. ✅ HR Dashboard + Employee directory/editor
+14. ✅ HR Attendance + Leave (HR views)
 15. HR Onboarding
 16. HR Work Management
-17. HR Settings (leave, request types)
+17. ✅ HR Settings (leave, request types)
 
 ### Phase 5 — Payroll (large sub-module, scope separately)
 18. Payroll Dashboard → Runs → Workers → Components
@@ -219,12 +226,14 @@ Legend: ✅ Done | 🔨 In Progress | ⬜ Not Started | ❌ Drop / Won't Port
 21. Staff: My Payroll Notification Preferences
 
 ### Phase 6 — Admin
-22. User Management (list, create, edit, roles)
-23. Role & Policy Management
-24. Groups, Files, Projects
-25. Documents + Document Editor
-26. Forms + Form Editor
-27. Org/System Settings
+22. ✅ User Management (list, create, edit)
+23. ✅ Roles Management
+24. Role & Policy Management
+25. ✅ Groups Management
+26. Files, Projects
+27. Documents + Document Editor
+28. Forms + Form Editor
+29. ✅ Org/System Settings
 
 ---
 

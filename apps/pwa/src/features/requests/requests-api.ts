@@ -323,10 +323,10 @@ export async function listMyOrganizations() {
   return httpRequest<MyOrganization[]>("/organizations/my");
 }
 
-export async function listTeams(params?: { active_only?: boolean }) {
+export async function listGroups(params?: { active_only?: boolean }) {
   const query = new URLSearchParams();
   query.set("active_only", params?.active_only === false ? "false" : "true");
-  return httpRequest<TeamOption[]>(`/teams?${query.toString()}`);
+  return httpRequest<TeamOption[]>(`/groups?${query.toString()}`);
 }
 
 export async function getMyLeaveBalance(params?: { year?: number; leave_type_key?: string }) {

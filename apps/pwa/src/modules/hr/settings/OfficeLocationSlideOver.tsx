@@ -7,8 +7,8 @@ import {
   SectionCard,
   Icon,
 } from "@/shared";
-import { listOrganizations, type OrganizationRecord } from "@/shared/api/organization-api";
-import { saveOfficeLocation, type OfficeLocation } from "./hr-settings-api";
+import { resourceApi, attendanceApi } from "@/shared/lib/core";
+import { type OfficeLocation, type OrganizationItem } from "@/shared";
 
 type Props = {
   location?: OfficeLocation | null;
@@ -19,7 +19,7 @@ type Props = {
 export default function OfficeLocationSlideOver({ location, onClose, onSaved }: Props) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [orgs, setOrgs] = useState<OrganizationRecord[]>([]);
+  const [orgs, setOrgs] = useState<OrganizationItem[]>([]);
 
   // Form State
   const [name, setName] = useState(location?.name || "");
@@ -28,15 +28,20 @@ export default function OfficeLocationSlideOver({ location, onClose, onSaved }: 
   const [longitude, setLongitude] = useState(location?.longitude || 0);
   const [radius, setRadius] = useState(location?.radius_meters || 200);
   const [isActive, setIsActive] = useState(location?.is_active ?? true);
-  const [primaryOrgId, setPrimaryOrgId] = useState("");
+  const [selectedOrgIds, setSelectedOrgIds] = useState<string[]>([]);
 
   useEffect(() => {
-    listOrganizations({ is_active: true }).then(setOrgs).catch(() => setOrgs([]));
+    resourceApi.listOrganizations().then(setOrgs).catch(() => setOrgs([]));
     if (location) {
-      const primary = location.organizations.find(o => o.is_primary);
-      if (primary) setPrimaryOrgId(primary.id);
+      setSelectedOrgIds(location.organizations.map((o: { id: string }) => o.id));
     }
   }, [location]);
+
+  function toggleOrg(id: string) {
+    setSelectedOrgIds(prev =>
+      prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]
+    );
+  }
 
   async function handleSubmit() {
     if (!name.trim()) {
@@ -45,14 +50,14 @@ export default function OfficeLocationSlideOver({ location, onClose, onSaved }: 
     }
     try {
       setSaving(true);
-      await saveOfficeLocation({
+      await attendanceApi.saveOfficeLocation({
         name: name.trim(),
         address: address.trim() || undefined,
         latitude: Number(latitude),
         longitude: Number(longitude),
         radius_meters: Number(radius),
         is_active: isActive,
-        primary_organization_id: primaryOrgId || undefined,
+        organization_ids: selectedOrgIds,
       }, location?.id);
 
       showToast({ tone: "success", title: "Saved", message: `Office location ${location ? "updated" : "created"}.` });
@@ -65,8 +70,8 @@ export default function OfficeLocationSlideOver({ location, onClose, onSaved }: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
-      <div className="flex h-full w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
+      <div className="flex h-screen w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -96,16 +101,22 @@ export default function OfficeLocationSlideOver({ location, onClose, onSaved }: 
                 value={address} 
                 onChange={(e) => setAddress(e.target.value)} 
               />
-              <SelectField
-                label="Primary Organization"
-                value={primaryOrgId}
-                onChange={(e) => setPrimaryOrgId(e.target.value)}
-              >
-                <option value="">Select organization…</option>
-                {orgs.map((o) => (
-                  <option key={o.id} value={o.id}>{o.name}</option>
-                ))}
-              </SelectField>
+              <div>
+                <p className="field-label mb-2">Attached Organizations</p>
+                <div className="grid gap-2 max-h-40 overflow-y-auto p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                  {orgs.map((o) => (
+                    <label key={o.id} className="flex items-center gap-3 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={selectedOrgIds.includes(o.id)} 
+                        onChange={() => toggleOrg(o.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-brand-900"
+                      />
+                      <span className="text-sm text-slate-700">{o.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
             </div>
           </SectionCard>
 
