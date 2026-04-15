@@ -30,7 +30,7 @@ export class AuthTokensDto {
   expiresIn!: string;
 }
 
-export class LoginResponseDto extends AuthTokensDto {
+export class LoginResponseDto {
   @ApiProperty({ type: AuthUserDto })
   user!: AuthUserDto;
 }
