@@ -48,21 +48,17 @@ import {
   listMyOrganizations,
   listProjects,
   rejectRequest,
-  listTeams,
+  listGroups,
   retireRequest,
   submitRequest,
 } from "@/features/requests/requests-api";
 import { listEntityTags, listManagedTaxonomies } from "@/features/taxonomy/taxonomy-api";
 import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
-import {
-  listFinanceAccounts,
-  listRequestPaymentVouchers,
-  type FinancePaymentVoucherRecord,
-  updateRequestPaymentVoucher,
-} from "@/modules/finance/finance-api";
+import { financeApi } from "@/shared/lib/core";
+import type { FinancePaymentVoucherRecord } from "@/shared";
 import { downloadBase64File } from "@/shared/lib/download";
+import { formatDisplayDate } from "@stanforte/shared";
 import {
-  formatDisplayDate,
   formatPersonName,
   formatRequestStatus,
   formatViewerRequestStatus,
@@ -172,14 +168,14 @@ function buildWorkflow(
   const showDraftStep = options?.showDraftStep ?? true;
   const draftedStatus: WorkflowStepStatus =
     showDraftStep &&
-    (status === "draft" ||
-      stateEvents.some(
-        (event: Record<string, unknown>) =>
-          String(event.from || "").toLowerCase() === "draft",
-      )) &&
-    !approvalDoneCount &&
-    disbursedTotal === 0 &&
-    retiredTotal === 0
+      (status === "draft" ||
+        stateEvents.some(
+          (event: Record<string, unknown>) =>
+            String(event.from || "").toLowerCase() === "draft",
+        )) &&
+      !approvalDoneCount &&
+      disbursedTotal === 0 &&
+      retiredTotal === 0
       ? "current"
       : "complete";
   const approvalSteps: WorkflowStep[] = approvalLabels.map(
@@ -255,12 +251,12 @@ function buildWorkflow(
   const steps: WorkflowStep[] = [
     ...(showDraftStep
       ? [
-          {
-            label: "Drafted",
-            detail: "Request initialized and saved.",
-            status: draftedStatus,
-          } satisfies WorkflowStep,
-        ]
+        {
+          label: "Drafted",
+          detail: "Request initialized and saved.",
+          status: draftedStatus,
+        } satisfies WorkflowStep,
+      ]
       : []),
     ...approvalSteps,
     ...financeSteps,
@@ -309,15 +305,15 @@ function buildLeaveWorkflow(
 
   const draftStep = showDraftStep
     ? [
-        {
-          label: "Drafted",
-          detail: "Leave request initialized and saved.",
-          status:
-            status === "draft" && approvalDoneCount === 0
-              ? ("current" as const)
-              : ("complete" as const),
-        } satisfies WorkflowStep,
-      ]
+      {
+        label: "Drafted",
+        detail: "Leave request initialized and saved.",
+        status:
+          status === "draft" && approvalDoneCount === 0
+            ? ("current" as const)
+            : ("complete" as const),
+      } satisfies WorkflowStep,
+    ]
     : [];
 
   const approvalSteps: WorkflowStep[] = approvalLabels.map((label: string, index: number) => {
@@ -445,7 +441,7 @@ async function buildCertificateOfHonorPdf(input: {
   write("Declaration", 13, true);
   [
     input.declaration ||
-      "I hereby certify that the cash advance and/or disbursed funds referenced above were used for official purposes.",
+    "I hereby certify that the cash advance and/or disbursed funds referenced above were used for official purposes.",
     "Supporting receipts are not available for the full amount because:",
     input.reason || "No additional explanation provided.",
   ].forEach((line) => write(line, 11, false, 12, 16));
@@ -655,7 +651,7 @@ export function RequestDetailsPage() {
       storage: "memory",
     },
   );
-  const { data: teams } = useCachedQuery("requests:teams", () => listTeams(), {
+  const { data: teams } = useCachedQuery("requests:groups", () => listGroups(), {
     ttlMs: 1000 * 60 * 10,
     storage: "memory",
   });
@@ -674,13 +670,13 @@ export function RequestDetailsPage() {
   );
   const { data: financeAccounts } = useCachedQuery(
     "finance:accounts:options",
-    () => listFinanceAccounts({ is_active: true }),
+    () => financeApi.listAccounts({ is_active: true }),
     { ttlMs: 1000 * 60 * 10, storage: "memory" },
   );
   const { data: paymentVouchers, refetch: refetchPaymentVouchers } =
     useCachedQuery(
       `requests:detail:payment-vouchers:${id || "none"}`,
-      () => (id ? listRequestPaymentVouchers(id) : Promise.resolve([])),
+      () => (id ? financeApi.listRequestPaymentVouchers(id) : Promise.resolve([])),
       { ttlMs: 1000 * 60, storage: "memory" },
     );
 
@@ -755,38 +751,38 @@ export function RequestDetailsPage() {
   const workflow =
     family === "leave"
       ? buildLeaveWorkflow(request, pendingApprovals, {
+        showDraftStep:
+          detailView === "mine" &&
+          workflowStatus === "draft" &&
+          requestHasDraftHistory(request),
+      })
+      : buildWorkflow(
+        request,
+        pendingApprovals,
+        paymentVouchers ?? [],
+        {
           showDraftStep:
             detailView === "mine" &&
             workflowStatus === "draft" &&
             requestHasDraftHistory(request),
-        })
-      : buildWorkflow(
-          request,
-          pendingApprovals,
-          paymentVouchers ?? [],
-          {
-            showDraftStep:
-              detailView === "mine" &&
-              workflowStatus === "draft" &&
-              requestHasDraftHistory(request),
-          },
-        );
+        },
+      );
   const parentPath =
     detailView === "mine" && family === "leave"
       ? "/leave"
       : detailView === "approvals"
-      ? "/requests/approvals"
-      : detailView === "finance"
-        ? "/finance/requests"
-        : "/requests";
+        ? "/requests/approvals"
+        : detailView === "finance"
+          ? "/finance/requests"
+          : "/requests";
   const parentLabel =
     detailView === "mine" && family === "leave"
       ? "Leave Tracker"
       : detailView === "approvals"
-      ? "Approvals"
-      : detailView === "finance"
-        ? "Finance Requests"
-        : "My Requests";
+        ? "Approvals"
+        : detailView === "finance"
+          ? "Finance Requests"
+          : "My Requests";
   const detailActiveLabel =
     detailView === "finance"
       ? "Finance Requests"
@@ -969,8 +965,8 @@ export function RequestDetailsPage() {
 
   const disbursementButtonLabel =
     requestStatus === "disbursed" &&
-    requestTotal > 0 &&
-    disbursedTotal < requestTotal
+      requestTotal > 0 &&
+      disbursedTotal < requestTotal
       ? "Disburse More"
       : "Disburse Request";
 
@@ -1061,12 +1057,12 @@ export function RequestDetailsPage() {
       retired_amount:
         voucher || retireableVoucher
           ? String(
-              voucher?.voucher_balance ||
-                voucher?.amount ||
-                retireableVoucher?.voucher_balance ||
-                retireableVoucher?.amount ||
-                "",
-            )
+            voucher?.voucher_balance ||
+            voucher?.amount ||
+            retireableVoucher?.voucher_balance ||
+            retireableVoucher?.amount ||
+            "",
+          )
           : current.retired_amount,
     }));
     setShowCertificateHonorForm(false);
@@ -1216,14 +1212,14 @@ export function RequestDetailsPage() {
     const created: ActivityItem[] =
       detailView === "mine" && request?.created_at
         ? [
-            {
-              title: "Request created",
-              description: "The request was saved into the workflow.",
-              time: formatDisplayDate(request.created_at),
-              tone: "neutral",
-              icon: "add_task",
-            },
-          ]
+          {
+            title: "Request created",
+            description: "The request was saved into the workflow.",
+            time: formatDisplayDate(request.created_at),
+            tone: "neutral",
+            icon: "add_task",
+          },
+        ]
         : [];
 
     const done: ActivityItem[] = completedApprovals.map((entry) => ({
@@ -1398,7 +1394,7 @@ export function RequestDetailsPage() {
           evidence_file_ids: disburseFiles.map((file) => file.id),
         };
         if (disburseMode === "edit" && editingVoucherId) {
-          await updateRequestPaymentVoucher(
+          await financeApi.updatePaymentVoucher(
             id,
             editingVoucherId,
             disbursePayload,
@@ -1556,15 +1552,15 @@ export function RequestDetailsPage() {
           breadcrumbs={
             detailView === "finance"
               ? [
-                  { label: "Finance", path: "/finance" },
-                  { label: parentLabel, path: parentPath },
-                  { label: request?.request_number || "Details" },
-                ]
+                { label: "Finance", path: "/finance" },
+                { label: parentLabel, path: parentPath },
+                { label: request?.request_number || "Details" },
+              ]
               : [
-                  { label: "Requests", path: parentPath },
-                  { label: parentLabel, path: parentPath },
-                  { label: request?.request_number || "Details" },
-                ]
+                { label: "Requests", path: parentPath },
+                { label: parentLabel, path: parentPath },
+                { label: request?.request_number || "Details" },
+              ]
           }
           title={
             request?.request_number ||
@@ -1617,8 +1613,8 @@ export function RequestDetailsPage() {
                 <p className="max-w-3xl text-sm leading-7 text-slate-600">
                   {String(
                     requestData.purpose ||
-                      requestData.leave_reason ||
-                      "No summary provided.",
+                    requestData.leave_reason ||
+                    "No summary provided.",
                   )}
                 </p>
                 {family !== "leave" ? (
@@ -1707,7 +1703,7 @@ export function RequestDetailsPage() {
                   <div className="mt-4 rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
                     {String(
                       requestData.handover_notes ||
-                        "No handover notes captured.",
+                      "No handover notes captured.",
                     )}
                   </div>
                 </SectionCard>
@@ -1898,8 +1894,8 @@ export function RequestDetailsPage() {
                                       : "View"}
                                   </Button>
                                   {ownerActionsVisible &&
-                                  availableActions.includes("retire") &&
-                                  Number(voucher.voucher_balance || 0) > 0 ? (
+                                    availableActions.includes("retire") &&
+                                    Number(voucher.voucher_balance || 0) > 0 ? (
                                     <Button
                                       size="sm"
                                       variant="secondary"
@@ -2028,9 +2024,9 @@ export function RequestDetailsPage() {
                   </div>
                 ) : null}
                 {approvalActionsVisible &&
-                availableActions.some((action) =>
-                  ["approve", "reject"].includes(action),
-                ) ? (
+                  availableActions.some((action) =>
+                    ["approve", "reject"].includes(action),
+                  ) ? (
                   <div className="mt-4 space-y-3">
                     <TextAreaField
                       label="Decision note"
@@ -2079,9 +2075,9 @@ export function RequestDetailsPage() {
                   </Button>
                 ) : null}
                 {financeActionsVisible &&
-                (requestStatus === "cleared" ||
-                  (requestStatus === "disbursed" &&
-                    requestTotal > disbursedTotal)) ? (
+                  (requestStatus === "cleared" ||
+                    (requestStatus === "disbursed" &&
+                      requestTotal > disbursedTotal)) ? (
                   <Button
                     variant="secondary"
                     className="mt-4 w-full justify-center"
@@ -2116,7 +2112,7 @@ export function RequestDetailsPage() {
                   </Button>
                 ) : null}
                 {financeActionsVisible &&
-                availableActions.includes("complete") ? (
+                  availableActions.includes("complete") ? (
                   <Button
                     variant="secondary"
                     className="mt-4 w-full justify-center"
@@ -2237,8 +2233,8 @@ export function RequestDetailsPage() {
               <p className="text-sm leading-6 text-slate-600">
                 {String(
                   requestData.purpose ||
-                    requestData.leave_reason ||
-                    "No summary provided.",
+                  requestData.leave_reason ||
+                  "No summary provided.",
                 )}
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -2337,9 +2333,9 @@ export function RequestDetailsPage() {
                           <TableCell className="text-sm text-slate-700">
                             {Number(voucher.retired_amount || 0) > 0
                               ? formatCurrency(
-                                  voucher.retired_amount,
-                                  request.currency,
-                                )
+                                voucher.retired_amount,
+                                request.currency,
+                              )
                               : "-"}
                           </TableCell>
                           <TableCell className="text-right">
@@ -2393,9 +2389,9 @@ export function RequestDetailsPage() {
                 </Button>
               ) : null}
               {approvalActionsVisible &&
-              availableActions.some(
-                (action) => action === "approve" || action === "reject",
-              ) ? (
+                availableActions.some(
+                  (action) => action === "approve" || action === "reject",
+                ) ? (
                 <>
                   <TextAreaField
                     label="Decision note"
@@ -2442,9 +2438,9 @@ export function RequestDetailsPage() {
                 </Button>
               ) : null}
               {financeActionsVisible &&
-              (requestStatus === "cleared" ||
-                (requestStatus === "disbursed" &&
-                  requestTotal > disbursedTotal)) ? (
+                (requestStatus === "cleared" ||
+                  (requestStatus === "disbursed" &&
+                    requestTotal > disbursedTotal)) ? (
                 <Button
                   variant="secondary"
                   className="mt-4 w-full justify-center"
@@ -2479,7 +2475,7 @@ export function RequestDetailsPage() {
                 </Button>
               ) : null}
               {financeActionsVisible &&
-              availableActions.includes("complete") ? (
+                availableActions.includes("complete") ? (
                 <Button
                   variant="secondary"
                   className="mt-4 w-full justify-center"
@@ -3054,10 +3050,10 @@ export function RequestDetailsPage() {
                 placeholder={
                   retireableVoucher
                     ? String(
-                        retireableVoucher.voucher_balance ||
-                          retireableVoucher.amount ||
-                          "",
-                      )
+                      retireableVoucher.voucher_balance ||
+                      retireableVoucher.amount ||
+                      "",
+                    )
                     : ""
                 }
               />
@@ -3079,9 +3075,9 @@ export function RequestDetailsPage() {
                       currentReason === defaultCertificateReason;
                     return shouldMirrorNotes
                       ? {
-                          ...current,
-                          reason: nextNotes.trim() || defaultCertificateReason,
-                        }
+                        ...current,
+                        reason: nextNotes.trim() || defaultCertificateReason,
+                      }
                       : current;
                   });
                 }}
@@ -3218,9 +3214,9 @@ export function RequestDetailsPage() {
                                   amountLabel: formatCertificateCurrency(
                                     Number(
                                       retireForm.retired_amount ||
-                                        selectedVoucher.voucher_balance ||
-                                        selectedVoucher.amount ||
-                                        0,
+                                      selectedVoucher.voucher_balance ||
+                                      selectedVoucher.amount ||
+                                      0,
                                     ),
                                     request?.currency,
                                   ),

@@ -1,20 +1,13 @@
 import { Button, Chip, Icon, SelectField, useToast } from "@/shared";
 import { useEffect, useMemo, useState } from "react";
-import {
-    addEmployeeOrganization,
-    removeEmployeeOrganization,
-    addEmployeeTeam,
-    removeEmployeeTeam,
-    type EmployeeDetail,
-} from "@/modules/hr/hr-api";
-import { listOrganizations, type OrganizationRecord } from "@/shared/api/organization-api";
-import { listTeams, type TeamOption } from "@/shared/api/team-api";
+import { hrApi, resourceApi } from "@/shared/lib/core";
+import { type EmployeeDetail, type OrganizationItem, type TeamOption } from "@stanforte/shared";
 
 export default function EmployeeOrgsTeamsTab({ employee, onSaved }: { employee: EmployeeDetail; onSaved: () => void }) {
     const { showToast } = useToast();
-    const [organizations, setOrganizations] = useState(employee.organizations);
-    const [teams, setTeams] = useState(employee.teams);
-    const [allOrganizations, setAllOrganizations] = useState<OrganizationRecord[]>([]);
+    const [organizations, setOrganizations] = useState<any[]>(employee.organizations || []);
+    const [teams, setTeams] = useState<any[]>(employee.teams || []);
+    const [allOrganizations, setAllOrganizations] = useState<OrganizationItem[]>([]);
     const [allTeams, setAllTeams] = useState<TeamOption[]>([]);
     const [newOrgId, setNewOrgId] = useState("");
     const [orgIsPrimary, setOrgIsPrimary] = useState(false);
@@ -26,8 +19,8 @@ export default function EmployeeOrgsTeamsTab({ employee, onSaved }: { employee: 
     // Load organizations and teams for dropdowns
     useEffect(() => {
         Promise.all([
-            listOrganizations({ is_active: true }),
-            listTeams({ active_only: true }),
+            resourceApi.listOrganizations(),
+            resourceApi.listGroups(),
         ])
             .then(([orgs, tms]) => {
                 setAllOrganizations(orgs);
@@ -46,7 +39,7 @@ export default function EmployeeOrgsTeamsTab({ employee, onSaved }: { employee: 
         }
         try {
             setActingOrg("add");
-            await addEmployeeOrganization(employee.id, { organization_id: newOrgId.trim(), is_primary: orgIsPrimary });
+            await hrApi.addOrganization(employee.id, { organization_id: newOrgId.trim(), is_primary: orgIsPrimary });
             const selectedOrg = allOrganizations.find(o => o.id === newOrgId);
             setOrganizations([...organizations, { id: newOrgId.trim(), name: selectedOrg?.name || newOrgId, is_primary: orgIsPrimary }]);
             setNewOrgId("");
@@ -63,7 +56,7 @@ export default function EmployeeOrgsTeamsTab({ employee, onSaved }: { employee: 
     async function handleRemoveOrg(orgId: string) {
         try {
             setActingOrg(orgId);
-            await removeEmployeeOrganization(employee.id, orgId);
+            await hrApi.removeOrganization(employee.id, orgId);
             setOrganizations(organizations.filter((o) => o.id !== orgId));
             showToast({ tone: "success", title: "Removed", message: "Organization removed." });
             onSaved();
@@ -77,7 +70,7 @@ export default function EmployeeOrgsTeamsTab({ employee, onSaved }: { employee: 
     async function handleSetPrimaryOrg(orgId: string) {
         try {
             setActingOrg(orgId);
-            await addEmployeeOrganization(employee.id, { organization_id: orgId, is_primary: true });
+            await hrApi.addOrganization(employee.id, { organization_id: orgId, is_primary: true });
             setOrganizations(organizations.map((o) => ({ ...o, is_primary: o.id === orgId })));
             showToast({ tone: "success", title: "Updated", message: "Primary organization set." });
             onSaved();
@@ -95,9 +88,9 @@ export default function EmployeeOrgsTeamsTab({ employee, onSaved }: { employee: 
         }
         try {
             setActingTeam("add");
-            await addEmployeeTeam(employee.id, { team_id: newTeamId.trim(), role: teamRole });
+            await hrApi.addTeam(employee.id, { team_id: newTeamId.trim(), role: teamRole });
             const selectedTeam = allTeams.find(t => t.id === newTeamId);
-            setTeams([...teams, { id: newTeamId.trim(), name: selectedTeam?.name || newTeamId, type: selectedTeam?.type, role: teamRole }]);
+            setTeams([...teams, { id: newTeamId.trim(), name: selectedTeam?.name || newTeamId, type: selectedTeam?.groupType, role: teamRole }]);
             setNewTeamId("");
             showToast({ tone: "success", title: "Added", message: "Team assigned." });
             onSaved();
@@ -111,7 +104,7 @@ export default function EmployeeOrgsTeamsTab({ employee, onSaved }: { employee: 
     async function handleRemoveTeam(teamId: string) {
         try {
             setActingTeam(teamId);
-            await removeEmployeeTeam(employee.id, teamId);
+            await hrApi.removeTeam(employee.id, teamId);
             setTeams(teams.filter((t) => t.id !== teamId));
             showToast({ tone: "success", title: "Removed", message: "Team removed." });
             onSaved();

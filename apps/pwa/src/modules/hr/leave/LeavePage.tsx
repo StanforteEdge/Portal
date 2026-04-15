@@ -23,8 +23,8 @@ import {
   listRequests,
   type RequestRecord,
 } from "@/features/requests/requests-api";
+import { formatDisplayDate } from "@stanforte/shared";
 import {
-  formatDisplayDate,
   requestFamilyFromRecord,
   requestStatusTone,
 } from "@/features/requests/request-helpers";

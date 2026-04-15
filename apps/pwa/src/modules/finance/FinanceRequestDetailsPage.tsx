@@ -30,7 +30,7 @@ import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { cacheStore, useCachedQuery } from "@/shared/lib/core";
+import { cacheStore, financeApi, useCachedQuery } from "@/shared/lib/core";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
@@ -48,7 +48,7 @@ import {
   listMyOrganizations,
   listProjects,
   rejectRequest,
-  listTeams,
+  listGroups,
   retireRequest,
   submitRequest,
 } from "@/features/requests/requests-api";
@@ -57,15 +57,10 @@ import {
   listManagedTaxonomies,
 } from "@/features/taxonomy/taxonomy-api";
 import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
-import {
-  listFinanceAccounts,
-  listRequestPaymentVouchers,
-  type FinancePaymentVoucherRecord,
-  updateRequestPaymentVoucher,
-} from "@/modules/finance/finance-api";
+import type { FinancePaymentVoucherRecord } from "@/shared";
 import { downloadBase64File } from "@/shared/lib/download";
+import { formatDisplayDate } from "@stanforte/shared";
 import {
-  formatDisplayDate,
   formatPersonName,
   formatRequestStatus,
   formatViewerRequestStatus,
@@ -175,14 +170,14 @@ function buildWorkflow(
   const showDraftStep = options?.showDraftStep ?? true;
   const draftedStatus: WorkflowStepStatus =
     showDraftStep &&
-    (status === "draft" ||
-      stateEvents.some(
-        (event: Record<string, unknown>) =>
-          String(event.from || "").toLowerCase() === "draft",
-      )) &&
-    !approvalDoneCount &&
-    disbursedTotal === 0 &&
-    retiredTotal === 0
+      (status === "draft" ||
+        stateEvents.some(
+          (event: Record<string, unknown>) =>
+            String(event.from || "").toLowerCase() === "draft",
+        )) &&
+      !approvalDoneCount &&
+      disbursedTotal === 0 &&
+      retiredTotal === 0
       ? "current"
       : "complete";
   const approvalSteps: WorkflowStep[] = approvalLabels.map(
@@ -258,12 +253,12 @@ function buildWorkflow(
   const steps: WorkflowStep[] = [
     ...(showDraftStep
       ? [
-          {
-            label: "Drafted",
-            detail: "Request initialized and saved.",
-            status: draftedStatus,
-          } satisfies WorkflowStep,
-        ]
+        {
+          label: "Drafted",
+          detail: "Request initialized and saved.",
+          status: draftedStatus,
+        } satisfies WorkflowStep,
+      ]
       : []),
     ...approvalSteps,
     ...financeSteps,
@@ -375,7 +370,7 @@ async function buildCertificateOfHonorPdf(input: {
   write("Declaration", 13, true);
   [
     input.declaration ||
-      "I hereby certify that the cash advance and/or disbursed funds referenced above were used for official purposes.",
+    "I hereby certify that the cash advance and/or disbursed funds referenced above were used for official purposes.",
     "Supporting receipts are not available for the full amount because:",
     input.reason || "No additional explanation provided.",
   ].forEach((line) => write(line, 11, false, 12, 16));
@@ -581,7 +576,7 @@ export function FinanceRequestDetailsPage() {
       storage: "memory",
     },
   );
-  const { data: teams } = useCachedQuery("requests:teams", () => listTeams(), {
+  const { data: teams } = useCachedQuery("requests:groups", () => listGroups(), {
     ttlMs: 1000 * 60 * 10,
     storage: "memory",
   });
@@ -600,13 +595,13 @@ export function FinanceRequestDetailsPage() {
   );
   const { data: financeAccounts } = useCachedQuery(
     "finance:accounts:options",
-    () => listFinanceAccounts({ is_active: true }),
+    () => financeApi.listAccounts({ is_active: true }),
     { ttlMs: 1000 * 60 * 10, storage: "memory" },
   );
   const { data: paymentVouchers, refetch: refetchPaymentVouchers } =
     useCachedQuery(
       `requests:detail:payment-vouchers:${id || "none"}`,
-      () => (id ? listRequestPaymentVouchers(id) : Promise.resolve([])),
+      () => (id ? financeApi.listRequestPaymentVouchers(id) : Promise.resolve([])),
       { ttlMs: 1000 * 60, storage: "memory" },
     );
 
@@ -866,8 +861,8 @@ export function FinanceRequestDetailsPage() {
 
   const disbursementButtonLabel =
     requestStatus === "disbursed" &&
-    requestTotal > 0 &&
-    disbursedTotal < requestTotal
+      requestTotal > 0 &&
+      disbursedTotal < requestTotal
       ? "Disburse More"
       : "Disburse Request";
 
@@ -958,12 +953,12 @@ export function FinanceRequestDetailsPage() {
       retired_amount:
         voucher || retireableVoucher
           ? String(
-              voucher?.voucher_balance ||
-                voucher?.amount ||
-                retireableVoucher?.voucher_balance ||
-                retireableVoucher?.amount ||
-                "",
-            )
+            voucher?.voucher_balance ||
+            voucher?.amount ||
+            retireableVoucher?.voucher_balance ||
+            retireableVoucher?.amount ||
+            "",
+          )
           : current.retired_amount,
     }));
     setShowCertificateHonorForm(false);
@@ -1112,14 +1107,14 @@ export function FinanceRequestDetailsPage() {
     const created: ActivityItem[] =
       detailView === "mine" && request?.created_at
         ? [
-            {
-              title: "Request created",
-              description: "The request was saved into the workflow.",
-              time: formatDisplayDate(request.created_at),
-              tone: "neutral",
-              icon: "add_task",
-            },
-          ]
+          {
+            title: "Request created",
+            description: "The request was saved into the workflow.",
+            time: formatDisplayDate(request.created_at),
+            tone: "neutral",
+            icon: "add_task",
+          },
+        ]
         : [];
 
     const done: ActivityItem[] = completedApprovals.map((entry) => ({
@@ -1294,7 +1289,7 @@ export function FinanceRequestDetailsPage() {
           evidence_file_ids: disburseFiles.map((file) => file.id),
         };
         if (disburseMode === "edit" && editingVoucherId) {
-          await updateRequestPaymentVoucher(
+          await financeApi.updatePaymentVoucher(
             id,
             editingVoucherId,
             disbursePayload,
@@ -1452,15 +1447,15 @@ export function FinanceRequestDetailsPage() {
           breadcrumbs={
             detailView === "finance"
               ? [
-                  { label: "Finance", path: "/finance" },
-                  { label: parentLabel, path: parentPath },
-                  { label: request?.request_number || "Details" },
-                ]
+                { label: "Finance", path: "/finance" },
+                { label: parentLabel, path: parentPath },
+                { label: request?.request_number || "Details" },
+              ]
               : [
-                  { label: "Requests", path: parentPath },
-                  { label: parentLabel, path: parentPath },
-                  { label: request?.request_number || "Details" },
-                ]
+                { label: "Requests", path: parentPath },
+                { label: parentLabel, path: parentPath },
+                { label: request?.request_number || "Details" },
+              ]
           }
           title={
             request?.request_number ||
@@ -1510,10 +1505,10 @@ export function FinanceRequestDetailsPage() {
                   <span className={[
                     "inline-flex items-center rounded-full px-4 py-1.5 text-sm font-bold uppercase tracking-[0.1em]",
                     viewerStatus.tone === "success" ? "bg-success/10 text-success" :
-                    viewerStatus.tone === "danger" ? "bg-danger/10 text-danger" :
-                    viewerStatus.tone === "warning" ? "bg-amber-500/10 text-amber-700" :
-                    viewerStatus.tone === "pending" ? "bg-blue-500/10 text-blue-700" :
-                    "bg-slate-100 text-slate-700"
+                      viewerStatus.tone === "danger" ? "bg-danger/10 text-danger" :
+                        viewerStatus.tone === "warning" ? "bg-amber-500/10 text-amber-700" :
+                          viewerStatus.tone === "pending" ? "bg-blue-500/10 text-blue-700" :
+                            "bg-slate-100 text-slate-700"
                   ].join(" ")}>
                     {viewerStatus.label}
                   </span>
@@ -1522,8 +1517,8 @@ export function FinanceRequestDetailsPage() {
                 <p className="max-w-3xl text-sm leading-7 text-slate-600">
                   {String(
                     requestData.purpose ||
-                      requestData.leave_reason ||
-                      "No summary provided.",
+                    requestData.leave_reason ||
+                    "No summary provided.",
                   )}
                 </p>
                 {family !== "leave" && requestTags.length > 0 ? (
@@ -1603,7 +1598,7 @@ export function FinanceRequestDetailsPage() {
                   <div className="mt-4 rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
                     {String(
                       requestData.handover_notes ||
-                        "No handover notes captured.",
+                      "No handover notes captured.",
                     )}
                   </div>
                 </SectionCard>
@@ -1794,8 +1789,8 @@ export function FinanceRequestDetailsPage() {
                                       : "View"}
                                   </Button>
                                   {ownerActionsVisible &&
-                                  availableActions.includes("retire") &&
-                                  Number(voucher.voucher_balance || 0) > 0 ? (
+                                    availableActions.includes("retire") &&
+                                    Number(voucher.voucher_balance || 0) > 0 ? (
                                     <Button
                                       size="sm"
                                       variant="secondary"
@@ -1917,9 +1912,9 @@ export function FinanceRequestDetailsPage() {
                   </div>
                 ) : null}
                 {approvalActionsVisible &&
-                availableActions.some((action) =>
-                  ["approve", "reject"].includes(action),
-                ) ? (
+                  availableActions.some((action) =>
+                    ["approve", "reject"].includes(action),
+                  ) ? (
                   <div className="mt-4 space-y-3">
                     <TextAreaField
                       label="Decision note"
@@ -1968,9 +1963,9 @@ export function FinanceRequestDetailsPage() {
                   </Button>
                 ) : null}
                 {financeActionsVisible &&
-                (requestStatus === "cleared" ||
-                  (requestStatus === "disbursed" &&
-                    requestTotal > disbursedTotal)) ? (
+                  (requestStatus === "cleared" ||
+                    (requestStatus === "disbursed" &&
+                      requestTotal > disbursedTotal)) ? (
                   <Button
                     variant="secondary"
                     className="mt-4 w-full justify-center"
@@ -2005,7 +2000,7 @@ export function FinanceRequestDetailsPage() {
                   </Button>
                 ) : null}
                 {financeActionsVisible &&
-                availableActions.includes("complete") ? (
+                  availableActions.includes("complete") ? (
                   <Button
                     variant="secondary"
                     className="mt-4 w-full justify-center"
@@ -2133,8 +2128,8 @@ export function FinanceRequestDetailsPage() {
               <p className="text-sm leading-6 text-slate-600">
                 {String(
                   requestData.purpose ||
-                    requestData.leave_reason ||
-                    "No summary provided.",
+                  requestData.leave_reason ||
+                  "No summary provided.",
                 )}
               </p>
               <div className="mt-4 grid gap-3 sm:grid-cols-2">
@@ -2233,9 +2228,9 @@ export function FinanceRequestDetailsPage() {
                           <TableCell className="text-sm text-slate-700">
                             {Number(voucher.retired_amount || 0) > 0
                               ? formatCurrency(
-                                  voucher.retired_amount,
-                                  request.currency,
-                                )
+                                voucher.retired_amount,
+                                request.currency,
+                              )
                               : "-"}
                           </TableCell>
                           <TableCell className="text-right">
@@ -2288,9 +2283,9 @@ export function FinanceRequestDetailsPage() {
                 </Button>
               ) : null}
               {approvalActionsVisible &&
-              availableActions.some(
-                (action) => action === "approve" || action === "reject",
-              ) ? (
+                availableActions.some(
+                  (action) => action === "approve" || action === "reject",
+                ) ? (
                 <>
                   <TextAreaField
                     label="Decision note"
@@ -2337,9 +2332,9 @@ export function FinanceRequestDetailsPage() {
                 </Button>
               ) : null}
               {financeActionsVisible &&
-              (requestStatus === "cleared" ||
-                (requestStatus === "disbursed" &&
-                  requestTotal > disbursedTotal)) ? (
+                (requestStatus === "cleared" ||
+                  (requestStatus === "disbursed" &&
+                    requestTotal > disbursedTotal)) ? (
                 <Button
                   variant="secondary"
                   className="mt-4 w-full justify-center"
@@ -2374,7 +2369,7 @@ export function FinanceRequestDetailsPage() {
                 </Button>
               ) : null}
               {financeActionsVisible &&
-              availableActions.includes("complete") ? (
+                availableActions.includes("complete") ? (
                 <Button
                   variant="secondary"
                   className="mt-4 w-full justify-center"
@@ -2949,10 +2944,10 @@ export function FinanceRequestDetailsPage() {
                 placeholder={
                   retireableVoucher
                     ? String(
-                        retireableVoucher.voucher_balance ||
-                          retireableVoucher.amount ||
-                          "",
-                      )
+                      retireableVoucher.voucher_balance ||
+                      retireableVoucher.amount ||
+                      "",
+                    )
                     : ""
                 }
               />
@@ -2974,9 +2969,9 @@ export function FinanceRequestDetailsPage() {
                       currentReason === defaultCertificateReason;
                     return shouldMirrorNotes
                       ? {
-                          ...current,
-                          reason: nextNotes.trim() || defaultCertificateReason,
-                        }
+                        ...current,
+                        reason: nextNotes.trim() || defaultCertificateReason,
+                      }
                       : current;
                   });
                 }}
@@ -3113,9 +3108,9 @@ export function FinanceRequestDetailsPage() {
                                   amountLabel: formatCertificateCurrency(
                                     Number(
                                       retireForm.retired_amount ||
-                                        selectedVoucher.voucher_balance ||
-                                        selectedVoucher.amount ||
-                                        0,
+                                      selectedVoucher.voucher_balance ||
+                                      selectedVoucher.amount ||
+                                      0,
                                     ),
                                     request?.currency,
                                   ),

@@ -4,6 +4,7 @@ type ChipVariant = "neutral" | "success" | "warning" | "pending" | "danger";
 
 type ChipProps = {
   variant?: ChipVariant;
+  className?: string;
   children: ReactNode;
 };
 
@@ -15,13 +16,14 @@ const styles: Record<ChipVariant, string> = {
   danger: "bg-danger/10 text-danger",
 };
 
-export function Chip({ variant = "neutral", children }: ChipProps) {
+export function Chip({ variant = "neutral", className = "", children }: ChipProps) {
   return (
     <span
       className={[
         "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold",
         styles[variant],
-      ].join(" ")}
+        className,
+      ].filter(Boolean).join(" ")}
     >
       {children}
     </span>

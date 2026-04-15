@@ -38,15 +38,12 @@ export function createHttpClient(config: {
       return refreshPromise;
     }
 
-    const currentSession = session?.getStoredSession();
-    const hasStoredRefreshToken = Boolean(currentSession?.refreshToken);
-
+    // When using httpOnly cookies, we don't pass the refresh_token in the body.
+    // The browser automatically attaches the se_refresh_token cookie.
     refreshPromise = fetch(`${apiBaseUrl}/auth/refresh`, {
       method: "POST",
-      headers: hasStoredRefreshToken ? { "Content-Type": "application/json" } : undefined,
-      body: hasStoredRefreshToken
-        ? JSON.stringify({ refresh_token: currentSession?.refreshToken })
-        : undefined,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
       credentials: "include",
     })
       .then(async (response) => {

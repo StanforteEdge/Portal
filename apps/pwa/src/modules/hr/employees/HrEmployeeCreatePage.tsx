@@ -12,11 +12,10 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { useCachedQuery } from "@/shared/lib/core";
-import { createEmployee, type EmploymentType } from "@/modules/hr/hr-api";
+import { hrApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
+import { type EmploymentType, type OrganizationItem } from "@stanforte/shared";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { listOrganizations, type OrganizationRecord } from "@/shared/api/organization-api";
 
 
 export default function HrEmployeeCreatePage() {
@@ -30,7 +29,7 @@ export default function HrEmployeeCreatePage() {
     const { showToast } = useToast();
     const navigate = useNavigate();
 
-    const [organizations, setOrganizations] = useState<OrganizationRecord[]>([]);
+    const [organizations, setOrganizations] = useState<OrganizationItem[]>([]);
     const [primaryOrgId, setPrimaryOrgId] = useState("");
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
@@ -43,7 +42,7 @@ export default function HrEmployeeCreatePage() {
 
     // Load organizations for dropdown
     useEffect(() => {
-        listOrganizations({ is_active: true })
+        resourceApi.listOrganizations()
             .then(setOrganizations)
             .catch(() => setOrganizations([]));
     }, []);
@@ -67,7 +66,7 @@ export default function HrEmployeeCreatePage() {
 
         try {
             setSubmitting(true);
-            const result = await createEmployee({
+            const result = await hrApi.createEmployee({
                 first_name: firstName.trim(),
                 last_name: lastName.trim(),
                 email: email.trim(),

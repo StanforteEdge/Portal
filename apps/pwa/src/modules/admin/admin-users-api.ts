@@ -9,6 +9,8 @@ export type AdminUser = {
   first_name?: string | null;
   last_name?: string | null;
   created_at?: string;
+  primary_organization?: { id: string; name: string } | null;
+  organizations?: Array<{ id: string; name: string; is_primary?: boolean }>;
 };
 
 export type AdminUserRole = {
@@ -19,7 +21,6 @@ export type AdminUserRole = {
 };
 
 export type AdminUserDetail = AdminUser & {
-  primary_organization_id?: string | null;
   roles?: AdminUserRole[];
 };
 
@@ -66,7 +67,7 @@ export async function createAdminUser(payload: {
   last_name?: string;
   type?: string;
   status?: string;
-  primary_organization_id?: string;
+  organization_id?: string;
 }): Promise<AdminUser> {
   return httpRequest<AdminUser>("/admin/users", {
     method: "POST",
@@ -81,7 +82,7 @@ export async function updateAdminUser(
     first_name?: string;
     last_name?: string;
     type?: string;
-    primary_organization_id?: string;
+    organization_id?: string;
   },
 ): Promise<AdminUser> {
   return httpRequest<AdminUser>(`/admin/users/${id}`, {

@@ -1,6 +1,7 @@
 import { Button, Chip, Icon, TextField, useToast } from "@/shared";
 import { useState } from "react";
-import { runEmployeeAction, type EmployeeDetail, type EmployeeAction } from "@/modules/hr/hr-api";
+import { hrApi } from "@/shared/lib/core";
+import { type EmployeeDetail, type EmployeeAction } from "@stanforte/shared";
 
 function humanize(value: string) {
     return String(value || "")
@@ -26,7 +27,7 @@ function ActionCard({ title, description, action, disabled, employee, onSuccess 
     async function handleSubmit() {
         try {
             setSubmitting(true);
-            await runEmployeeAction(employee.id, {
+            await hrApi.runAction(employee.id, {
                 action,
                 effective_date: effectiveDate || undefined,
                 notes: notes.trim() || undefined,

@@ -1,6 +1,7 @@
 import { Button, Icon, TextField, useToast } from "@/shared";
 import { useState } from "react";
-import { updateEmployee, type EmployeeDetail } from "@/modules/hr/hr-api";
+import { hrApi } from "@/shared/lib/core";
+import { type EmployeeDetail } from "@stanforte/shared";
 
 export default function EmployeeProfileTab({ employee, onSaved }: { employee: EmployeeDetail; onSaved: () => void }) {
     const { showToast } = useToast();
@@ -30,7 +31,7 @@ export default function EmployeeProfileTab({ employee, onSaved }: { employee: Em
 
         try {
             setSaving(true);
-            await updateEmployee(employee.id, {
+            await hrApi.updateEmployee(employee.id, {
                 first_name: firstName.trim(),
                 last_name: lastName.trim(),
                 email: email.trim(),

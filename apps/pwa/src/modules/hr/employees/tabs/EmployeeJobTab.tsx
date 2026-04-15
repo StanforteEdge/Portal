@@ -1,7 +1,8 @@
 import { Button, Chip, Icon, SelectField, TextAreaField, TextField, useToast } from "@/shared";
 import { useEffect, useMemo, useState } from "react";
-import { updateEmployee, type EmployeeDetail, type EmploymentType, type WorkMode } from "@/modules/hr/hr-api";
-import { listEmployees, type EmployeeSummary } from "@/modules/hr/hr-api";
+import { hrApi } from "@/shared/lib/core";
+import { type EmployeeDetail, type EmploymentType, type WorkMode } from "@stanforte/shared";
+import { useDirectory } from "@/shared/lib/use-directory";
 
 function humanize(value: string) {
     return String(value || "")
@@ -18,7 +19,7 @@ function formatDate(value?: string | null) {
 
 export default function EmployeeJobTab({ employee, onSaved }: { employee: EmployeeDetail; onSaved: () => void }) {
     const { showToast } = useToast();
-    const [allEmployees, setAllEmployees] = useState<EmployeeSummary[]>([]);
+    const { employees: allEmployees } = useDirectory();
     const [jobTitle, setJobTitle] = useState(employee.job_title || "");
     const [jobDescription, setJobDescription] = useState(employee.job_description || "");
     const [employmentType, setEmploymentType] = useState<EmploymentType>(employee.employment_type || "full_time");
@@ -30,17 +31,10 @@ export default function EmployeeJobTab({ employee, onSaved }: { employee: Employ
     const [saving, setSaving] = useState(false);
     const [apiError, setApiError] = useState<string | null>(null);
 
-    // Load all employees for manager dropdown
-    useEffect(() => {
-        listEmployees({ page: 1, per_page: 200 })
-            .then(res => setAllEmployees(res.data))
-            .catch(() => setAllEmployees([]));
-    }, []);
-
     const managerOptions = useMemo(
         () => allEmployees.map(emp => ({
             value: emp.id,
-            label: `${emp.first_name || ""} ${emp.last_name || ""}`.trim() || emp.username || emp.email,
+            label: `${emp.name} (${emp.subtitle})`,
         })),
         [allEmployees],
     );
@@ -64,7 +58,7 @@ export default function EmployeeJobTab({ employee, onSaved }: { employee: Employ
 
         try {
             setSaving(true);
-            await updateEmployee(employee.id, {
+            await hrApi.updateEmployee(employee.id, {
                 job_title: jobTitle.trim(),
                 job_description: jobDescription.trim() || null,
                 employment_type: employmentType,

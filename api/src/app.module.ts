@@ -18,7 +18,7 @@ import { FilesModule } from './modules/files/files.module';
 import { TaxonomyModule } from './modules/taxonomy/taxonomy.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { ProjectsModule } from './modules/projects/projects.module';
-import { TeamsModule } from './modules/teams/teams.module';
+import { GroupsModule } from './modules/groups/groups.module';
 import { OnboardingModule } from './modules/onboarding/onboarding.module';
 import { AcknowledgementsModule } from './modules/acknowledgements/acknowledgements.module';
 import { PoliciesModule } from './modules/policies/policies.module';
@@ -46,12 +46,13 @@ import { WorkModule } from './modules/work/work.module';
     TaxonomyModule,
     AuditModule,
     ProjectsModule,
-    TeamsModule,
+    GroupsModule,
     OnboardingModule,
     AcknowledgementsModule,
     PoliciesModule,
     PayrollModule,
     WorkModule
-  ]
+  ],
+  providers: [],
 })
 export class AppModule {}

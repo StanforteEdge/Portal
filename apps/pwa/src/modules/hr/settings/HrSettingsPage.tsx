@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { AppShell, PageHeader, SectionCard, Button } from "@/shared";
+import { AppShell, PageHeader, SectionCard, SidebarTabs } from "@/shared";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { useCachedQuery } from "@/shared/lib/core";
@@ -42,34 +42,13 @@ export default function HrSettingsPage() {
         description="Manage organization-wide attendance rules, leave entitlements, and office geofences."
       />
 
-      <div className="flex flex-col md:flex-row gap-8 mt-6">
-        {/* Sidebar Nav */}
-        <aside className="w-full md:w-64 flex flex-col gap-1">
-          {navItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id as any)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
-                activeTab === item.id
-                  ? "bg-primary text-white shadow-lg shadow-primary/20"
-                  : "text-slate-600 hover:bg-slate-100"
-              }`}
-            >
-              <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-              <span className="font-medium">{item.label}</span>
-            </button>
-          ))}
-        </aside>
-
-        {/* Content Area */}
-        <main className="flex-1 min-w-0">
-          <SectionCard title={navItems.find(i => i.id === activeTab)?.label || "Settings"}>
-            {activeTab === "attendance" && <AttendanceSettingsTab />}
-            {activeTab === "leave" && <LeaveSettingsTab />}
-            {activeTab === "locations" && <OfficeLocationsTab />}
-          </SectionCard>
-        </main>
-      </div>
+      <SidebarTabs items={navItems} activeTab={activeTab} onTabChange={(id) => setActiveTab(id as typeof activeTab)}>
+        <SectionCard title={navItems.find((i) => i.id === activeTab)?.label || "Settings"}>
+          {activeTab === "attendance" && <AttendanceSettingsTab />}
+          {activeTab === "leave" && <LeaveSettingsTab />}
+          {activeTab === "locations" && <OfficeLocationsTab />}
+        </SectionCard>
+      </SidebarTabs>
     </AppShell>
   );
 }

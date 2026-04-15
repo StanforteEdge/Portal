@@ -11,25 +11,10 @@ import {
   TableHeaderRow,
   TableRow,
 } from "@/shared";
-import { useCachedQuery } from "@/shared/lib/core";
-import {
-  getStaffAttendance,
-  type AttendanceDaily,
-} from "./hr-attendance-api";
+import { attendanceApi, useCachedQuery } from "@/shared/lib/core";
+import { type AttendanceDaily } from "@stanforte/shared";
 
-function formatTime(value: string | null) {
-  if (!value) return "-";
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return "-";
-  return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
-}
-
-function formatMins(mins: number) {
-  if (!mins) return "0h";
-  const h = Math.floor(mins / 60);
-  const m = mins % 60;
-  return h ? `${h}h ${m}m` : `${m}m`;
-}
+import { formatDate, formatTime, formatDuration } from "@/shared/lib/format-utils";
 
 const statusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   present: "success",
@@ -54,15 +39,15 @@ export default function StaffAttendanceSlideOver({
 }: Props) {
   const { data, loading, error } = useCachedQuery(
     `hr:attendance:staff:${userId}:${from}:${to}`,
-    () => getStaffAttendance(userId, { from, to }),
+    () => attendanceApi.listRecords({ from, to, user_id: userId }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const daily: AttendanceDaily[] = data?.daily ?? [];
+  const daily: AttendanceDaily[] = (data || []) as any;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40">
-      <div className="flex h-full w-full max-w-2xl flex-col bg-white shadow-xl">
+    <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
+      <div className="flex h-screen w-full max-w-2xl flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -99,12 +84,12 @@ export default function StaffAttendanceSlideOver({
                 <TableBody>
                   {daily.map((row) => (
                     <TableRow key={row.id}>
-                      <TableCell>{row.work_date}</TableCell>
+                      <TableCell>{formatDate(row.work_date)}</TableCell>
                       <TableCell>{formatTime(row.first_in_at)}</TableCell>
                       <TableCell>{formatTime(row.last_out_at)}</TableCell>
-                      <TableCell>{formatMins(row.worked_minutes)}</TableCell>
+                      <TableCell>{formatDuration(row.worked_minutes)}</TableCell>
                       <TableCell>
-                        {row.late_minutes > 0 ? formatMins(row.late_minutes) : "-"}
+                        {row.late_minutes > 0 ? formatDuration(row.late_minutes) : "-"}
                       </TableCell>
                       <TableCell>
                         <Chip variant={statusVariant[row.status] ?? "neutral"}>

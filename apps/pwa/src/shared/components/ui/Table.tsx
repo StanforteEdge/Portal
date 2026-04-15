@@ -6,6 +6,11 @@ type TableProps = TableHTMLAttributes<HTMLTableElement> & {
   children: ReactNode;
 };
 
+type RowProps = TableHTMLAttributes<HTMLTableRowElement> & {
+  children: ReactNode;
+  className?: string;
+};
+
 type CellProps = TdHTMLAttributes<HTMLTableCellElement> & {
   children: ReactNode;
 };
@@ -49,8 +54,18 @@ export function TableBody({ children }: { children: ReactNode }) {
   return <tbody>{children}</tbody>;
 }
 
-export function TableRow({ children, className }: { children: ReactNode; className?: string }) {
-  return <tr className={["border-t border-slate-100 bg-white", className].filter(Boolean).join(" ")}>{children}</tr>;
+export function TableRow({ children, className, onClick, ...props }: RowProps) {
+  return (
+    <tr
+      className={["border-t border-slate-100 bg-white", onClick ? "cursor-pointer hover:bg-slate-50" : "", className]
+        .filter(Boolean)
+        .join(" ")}
+      onClick={onClick}
+      {...props}
+    >
+      {children}
+    </tr>
+  );
 }
 
 export function TableCell({ children, className, ...props }: CellProps) {

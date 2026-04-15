@@ -12,7 +12,7 @@ import {
   TableRow,
   StatCard,
 } from "@/shared";
-import { formatCurrency } from "@stanforte/shared";
+import { formatCurrency, formatDisplayDate } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -21,13 +21,11 @@ import {
   buildRequestsNavigation,
 } from "@/features/requests/requests-data";
 import {
-  formatDisplayDate,
   formatRequestStatus,
   requestStatusTone,
 } from "@/features/requests/request-helpers";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { useCachedQuery } from "@/shared/lib/core";
-import { listFinancePaymentVouchers } from "@/modules/finance/finance-api";
+import { financeApi, useCachedQuery } from "@/shared/lib/core";
 
 function retirementLabel(value: string) {
   const key = String(value || "")
@@ -67,7 +65,7 @@ export default function FinancePaymentVouchersPage() {
     error,
   } = useCachedQuery(
     "finance-vouchers:list",
-    () => listFinancePaymentVouchers(),
+    () => financeApi.listPaymentVouchers(),
     {
       ttlMs: 1000 * 30,
       storage: "memory",

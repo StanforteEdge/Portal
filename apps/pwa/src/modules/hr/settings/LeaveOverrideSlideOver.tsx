@@ -7,7 +7,10 @@ import {
   SectionCard,
   Icon,
 } from "@/shared";
-import { listHrPolicies, saveHrPolicy, listRequestTypes, type PolicyRecord, type ScopeType } from "./hr-settings-api";
+import { policyApi, requestApi } from "@/shared/lib/core";
+import { type PolicyRecord, type ScopeType, type RequestType } from "@stanforte/shared";
+import { useDirectory } from "@/shared/lib/use-directory";
+
 
 type Props = {
   policy?: PolicyRecord | null;
@@ -18,19 +21,18 @@ type Props = {
 export default function LeaveOverrideSlideOver({ policy, onClose, onSaved }: Props) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
-  const [requestTypes, setRequestTypes] = useState<{ id: string; name: string; slug: string }[]>([]);
+  const [requestTypes, setRequestTypes] = useState<RequestType[]>([]);
+  const { organizations, teams, employees } = useDirectory();
 
   // Form State
   const [scopeType, setScopeType] = useState<ScopeType>(policy?.scope_type || "organization");
   const [scopeId, setScopeId] = useState(policy?.scope_id || "");
   const [priority, setPriority] = useState(policy?.priority || 200);
   const [isActive, setIsActive] = useState(policy?.is_active ?? true);
-  
-  // Entitlements (Dynamic list based on request types)
   const [entitlements, setEntitlements] = useState<Record<string, number>>(policy?.config_json || {});
 
   useEffect(() => {
-    listRequestTypes().then(setRequestTypes).catch(() => setRequestTypes([]));
+    requestApi.listTypes().then(setRequestTypes).catch(() => setRequestTypes([]));
   }, []);
 
   const updateEntitlement = (slug: string, days: number) => {
@@ -38,17 +40,17 @@ export default function LeaveOverrideSlideOver({ policy, onClose, onSaved }: Pro
   };
 
   async function handleSubmit() {
-    if (!scopeId.trim()) {
+    if (scopeType !== "global" && !scopeId.trim()) {
       showToast({ tone: "warning", title: "Missing ID", message: "Please provide the Target ID." });
       return;
     }
     try {
       setSaving(true);
-      await saveHrPolicy({
+      await policyApi.savePolicy({
         module: "leave",
         policy_key: "leave_entitlements",
         scope_type: scopeType,
-        scope_id: scopeId.trim(),
+        scope_id: scopeType === "global" ? undefined : scopeId.trim(),
         priority: Number(priority),
         is_active: isActive,
         config_json: entitlements,
@@ -64,8 +66,8 @@ export default function LeaveOverrideSlideOver({ policy, onClose, onSaved }: Pro
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
-      <div className="flex h-full w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
+      <div className="flex h-screen w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Leave Policies</p>
@@ -85,18 +87,50 @@ export default function LeaveOverrideSlideOver({ policy, onClose, onSaved }: Pro
                 onChange={(e) => setScopeType(e.target.value as ScopeType)}
                 disabled={!!policy}
               >
+                <option value="global">Global (Default for everyone)</option>
                 <option value="organization">Organization</option>
                 <option value="team">Team</option>
                 <option value="staff_type">Staff Type</option>
                 <option value="user">Specific User</option>
               </SelectField>
-              <TextField 
-                label="Target ID / Identifier" 
-                placeholder="e.g. Org ID, Team Slug, or User Email"
-                value={scopeId} 
-                onChange={(e) => setScopeId(e.target.value)}
-                disabled={!!policy}
-              />
+
+              {scopeType === "global" && (
+                <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 text-xs text-primary leading-relaxed">
+                  <strong>Global Rule:</strong> These entitlements will apply to all employees in the system unless overridden by a more specific rule (Organization, Team, or User).
+                </div>
+              )}
+
+              {scopeType === "organization" && (
+                <SelectField label="Target Organization" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                  <option value="">Select organization…</option>
+                  {organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+                </SelectField>
+              )}
+
+              {scopeType === "team" && (
+                <SelectField label="Target Team" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                  <option value="">Select team…</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </SelectField>
+              )}
+
+              {scopeType === "staff_type" && (
+                <SelectField label="Staff Type" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                  <option value="">Select type…</option>
+                  <option value="staff">Regular Staff</option>
+                  <option value="vendor">Vendor</option>
+                  <option value="client">Client</option>
+                  <option value="board_member">Board Member</option>
+                </SelectField>
+              )}
+
+              {scopeType === "user" && (
+                <SelectField label="Target Employee" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                  <option value="">Select staff member…</option>
+                  {employees.map(s => <option key={s.id} value={s.id}>{s.name} ({s.subtitle})</option>)}
+                </SelectField>
+              )}
+
               <TextField 
                 label="Priority" 
                 type="number"

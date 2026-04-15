@@ -26,11 +26,7 @@ import {
 } from "@/features/requests/request-helpers";
 import type { RequestRecord } from "@/features/requests/requests-api";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { useCachedQuery } from "@/shared/lib/core";
-import {
-  listFinanceRequests,
-  type FinanceRequestListResponse,
-} from "@/modules/finance/finance-api";
+import { financeApi, useCachedQuery } from "@/shared/lib/core";
 
 function toTitleCase(value: string) {
   return String(value || "")
@@ -60,24 +56,20 @@ export default function FinanceDashboardPage() {
   // Recent queue — top 8 for the dashboard preview
   const { data: recentData, loading, error } = useCachedQuery(
     "finance-admin:dashboard:recent",
-    () => listFinanceRequests({ page: 1, per_page: 8, order_by: "created_at", order_dir: "desc" }),
+    () => financeApi.listRequests({ page: 1, per_page: 8, order_by: "created_at", order_dir: "desc" }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
   // Stats query — broader fetch for accurate counts
   const { data: statsData } = useCachedQuery(
     "finance-admin:dashboard:stats",
-    () => listFinanceRequests({ page: 1, per_page: 100, order_by: "created_at", order_dir: "desc" }),
+    () => financeApi.listRequests({ page: 1, per_page: 100, order_by: "created_at", order_dir: "desc" }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const recentQueue: RequestRecord[] = Array.isArray((recentData as FinanceRequestListResponse | undefined)?.data)
-    ? (recentData as FinanceRequestListResponse).data
-    : [];
-  const statsQueue: RequestRecord[] = Array.isArray((statsData as FinanceRequestListResponse | undefined)?.data)
-    ? (statsData as FinanceRequestListResponse).data
-    : recentQueue;
-  const totalCount = (statsData as FinanceRequestListResponse | undefined)?.meta?.total ?? statsQueue.length;
+  const recentQueue: RequestRecord[] = Array.isArray(recentData) ? recentData : [];
+  const statsQueue: RequestRecord[] = Array.isArray(statsData) ? statsData : recentQueue;
+  const totalCount = statsQueue.length;
 
   const cleared = statsQueue.filter(
     (e) => String(e.status || "").toLowerCase() === "cleared",

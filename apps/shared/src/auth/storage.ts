@@ -39,8 +39,10 @@ export function createSessionStorage(prefix = "se"): SessionStorageAdapter {
     const store = safeLocalStorage();
     if (!store) return;
 
-    store.setItem(ACCESS_TOKEN_KEY, accessToken);
-    store.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    // SECURITY: We are moving to httpOnly cookies. 
+    // We no longer store tokens in localStorage to prevent XSS theft.
+    // store.setItem(ACCESS_TOKEN_KEY, accessToken);
+    // store.setItem(REFRESH_TOKEN_KEY, refreshToken);
 
     if (typeof expiresInSeconds === "number" && Number.isFinite(expiresInSeconds)) {
       store.setItem(EXPIRES_AT_KEY, String(Date.now() + expiresInSeconds * 1000));
@@ -53,11 +55,12 @@ export function createSessionStorage(prefix = "se"): SessionStorageAdapter {
     const store = safeLocalStorage();
     if (!store) return;
 
-    store.setItem(ACCESS_TOKEN_KEY, accessToken);
+    // SECURITY: We no longer store tokens in localStorage.
+    // store.setItem(ACCESS_TOKEN_KEY, accessToken);
 
-    if (refreshToken) {
-      store.setItem(REFRESH_TOKEN_KEY, refreshToken);
-    }
+    // if (refreshToken) {
+    //   store.setItem(REFRESH_TOKEN_KEY, refreshToken);
+    // }
 
     if (typeof expiresInSeconds === "number" && Number.isFinite(expiresInSeconds)) {
       store.setItem(EXPIRES_AT_KEY, String(Date.now() + expiresInSeconds * 1000));

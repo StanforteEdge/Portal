@@ -16,8 +16,8 @@ import {
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { useCachedQuery } from "@/shared/lib/core";
-import { getHrSummary, type HrSummary, type EmployeeSummary } from "@/modules/hr/hr-api";
+import { hrApi, useCachedQuery } from "@/shared/lib/core";
+import { type HrSummary, type EmployeeSummary } from "@stanforte/shared";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 
@@ -27,16 +27,7 @@ function humanize(value: string) {
         .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-function formatDate(value?: string) {
-    if (!value) return "-";
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return "-";
-    return date.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-    });
-}
+import { formatDate } from "@/shared/lib/format-utils";
 
 export default function HrDashboardPage() {
     const { user } = useAuth();
@@ -48,7 +39,7 @@ export default function HrDashboardPage() {
 
     const { data: summaryData, loading, error } = useCachedQuery(
         "hr:summary",
-        () => getHrSummary(),
+        () => hrApi.getSummary(),
         { ttlMs: 1000 * 30, storage: "memory" },
     );
 

@@ -7,13 +7,11 @@ export function normalizeTokens(payload: any): AuthTokens {
     payload?.refresh_token ?? payload?.refreshToken ?? payload?.tokens?.refresh_token ?? payload?.tokens?.refreshToken;
   const expiresIn = payload?.expires_in ?? payload?.expiresIn ?? payload?.tokens?.expires_in ?? payload?.tokens?.expiresIn;
 
-  if (!accessToken || !refreshToken) {
-    throw new Error("Invalid auth token response.");
-  }
-
+  // In cookie-only mode, these might be undefined in the JSON body
+  // but they are present in httpOnly cookies.
   return {
-    access_token: String(accessToken),
-    refresh_token: String(refreshToken),
+    access_token: accessToken ? String(accessToken) : "",
+    refresh_token: refreshToken ? String(refreshToken) : "",
     expires_in: typeof expiresIn === "number" ? expiresIn : Number(expiresIn) || undefined,
   };
 }

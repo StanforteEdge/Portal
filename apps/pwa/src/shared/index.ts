@@ -33,7 +33,10 @@ export {
   TableRow,
   TableCell,
 } from "./components/ui/Table";
-export { TextField, SelectField, TextAreaField } from "./components/ui/fields";
+export { TextField, SelectField, Select, TextAreaField } from "./components/ui/fields";
+export { TextInput } from "./components/ui/TextInput";
+export { SlideOver, SlideOverPanel, SlideOverHeader, SlideOverContent, SlideOverFooter } from "./components/ui/SlideOver";
+export { SidebarTabs } from "./components/ui/SidebarTabs";
 
 // ─── Feedback ─────────────────────────────────────────────────────────────────
 export { ToastProvider, useToast } from "./components/feedback/ToastProvider";
@@ -41,3 +44,6 @@ export { ToastProvider, useToast } from "./components/feedback/ToastProvider";
 // ─── Media ────────────────────────────────────────────────────────────────────
 export { MediaPickerModal } from "./components/media/MediaPickerModal";
 export type { MediaPickerItem, MediaPickerModalProps } from "./components/media/MediaPickerModal";
+
+// ─── Re-exports from @stanforte/shared ─────────────────────────────────────────
+export type { OrganizationItem, TeamItem, OfficeLocation, FinancePaymentVoucherRecord } from "@stanforte/shared";
