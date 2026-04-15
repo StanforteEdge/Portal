@@ -2,7 +2,7 @@ use tauri::{
     image::Image,
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Manager,
+    Emitter, Manager,
 };
 
 #[tauri::command]
@@ -163,7 +163,7 @@ pub fn run() {
 
             // Deep link handler — forward URL to frontend as an event
             let handle2 = app.handle().clone();
-            app.handle().listen("deep-link://new-url", move |event| {
+            app.handle().listen("deep-link://new-url", move |event: tauri::Event| {
                 if let Some(window) = handle2.get_webview_window("main") {
                     let _ = window.show();
                     let _ = window.set_focus();
