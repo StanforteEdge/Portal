@@ -188,6 +188,20 @@ export class RequestsController {
     return this.requestsService.rejectRequest(id, req.user?.id, dto);
   }
 
+  @Post(':id/return')
+  @Permissions('requests.approve')
+  @ApiOperation({ summary: 'Return request to requester for edit before finance clearance' })
+  @ApiOkResponse({ type: RequestResponseDto })
+  @ApiBody({
+    type: ActionRequestDto,
+    examples: {
+      default: { value: { action: 'return', comment: 'Please update the amount and attach invoice support.' } }
+    }
+  })
+  returnRequest(@Req() req: any, @Param('id') id: string, @Body() dto: ActionRequestDto) {
+    return this.requestsService.returnRequest(id, req.user?.id, dto);
+  }
+
   @Get()
   @Permissions('requests.view')
   @ApiOkResponse({ type: RequestResponseDto, isArray: true })

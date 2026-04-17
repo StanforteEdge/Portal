@@ -830,12 +830,13 @@ export class RequestsService {
     if (request.createdBy !== toBigInt(userId)) {
       throw new BadRequestException('Only owner can submit request');
     }
-    if (request.status !== 'draft') {
-      throw new BadRequestException('Request is not in draft state');
+    if (!['draft', 'returned_for_edit'].includes(request.status)) {
+      throw new BadRequestException('Request is not editable for submission');
     }
 
+    const submitAction = request.status === 'returned_for_edit' ? 'resubmit' : 'submit';
     const updated = await this.transitionRequestStatus(request, 'sent', userId, {
-      action: 'submit',
+      action: submitAction,
       comment: dto.comment
     });
 
@@ -868,12 +869,18 @@ export class RequestsService {
       await this.notificationsService.create({
         userId,
         type: 'action',
-        title: 'Request submitted',
-        message: `Request #${request.id.toString()} submitted for approval.`,
+        title: request.status === 'returned_for_edit' ? 'Request resubmitted' : 'Request submitted',
+        message:
+          request.status === 'returned_for_edit'
+            ? `Request #${request.id.toString()} resubmitted for approval.`
+            : `Request #${request.id.toString()} submitted for approval.`,
         data: { requestId: request.id.toString(), comment: dto.comment },
         notifiableType: 'request',
         notifiableId: request.id,
-        emailSubject: `Request submitted (${formattedRequestNumber})`,
+        emailSubject:
+          request.status === 'returned_for_edit'
+            ? `Request resubmitted (${formattedRequestNumber})`
+            : `Request submitted (${formattedRequestNumber})`,
         emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
       });
 
@@ -984,6 +991,55 @@ export class RequestsService {
     return this.getRequest(updated.id.toString(), userId);
   }
 
+  async returnRequest(id: string, userId: string, dto: ActionRequestDto) {
+    const request = await this.getRequestOrThrow(id);
+    if (!['sent', 'approval'].includes(request.status)) {
+      throw new BadRequestException('Request is not pending approval');
+    }
+    const reason = String(dto.comment ?? '').trim();
+    if (!reason) {
+      throw new BadRequestException('Return comment is required');
+    }
+
+    if (request.workflowInstanceId) {
+      await this.workflowService.processDecision({
+        instanceId: request.workflowInstanceId,
+        action: 'reject',
+        performedBy: userId,
+        comment: reason
+      });
+    }
+
+    const updated = await this.prisma.requestInstance.update({
+      where: { id: request.id },
+      data: {
+        status: 'returned_for_edit',
+        workflowInstanceId: null,
+        data: this.withStateEvent(request.data, {
+          from: request.status,
+          to: 'returned_for_edit',
+          by: userId,
+          action: 'return',
+          comment: reason
+        })
+      }
+    });
+
+    await this.notificationsService.create({
+      userId: request.createdBy,
+      type: 'warning',
+      title: 'Request returned for edit',
+      message: `Request #${request.id.toString()} was returned for correction and resubmission.`,
+      data: { requestId: request.id.toString(), comment: reason },
+      notifiableType: 'request',
+      notifiableId: request.id,
+      emailSubject: `Request returned for edit (${await this.getFormattedRequestNumber(request.id)})`,
+      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+    });
+
+    return this.getRequest(updated.id.toString(), userId);
+  }
+
   async listRequests(filters: Record<string, any>, userId: string) {
     const where: any = {};
 
@@ -1029,8 +1085,8 @@ export class RequestsService {
     if (request.createdBy !== toBigInt(userId)) {
       throw new BadRequestException('Only owner can update request');
     }
-    if (request.status !== 'draft') {
-      throw new BadRequestException('Only draft requests can be updated');
+    if (!['draft', 'returned_for_edit'].includes(request.status)) {
+      throw new BadRequestException('Only draft or returned requests can be updated');
     }
 
     if (dto.items) {
@@ -1270,10 +1326,10 @@ export class RequestsService {
     const request = await this.getRequestOrThrow(id);
     const isOwner = request.createdBy === toBigInt(userId);
 
-    if (request.status === 'draft') return isOwner ? ['submit'] : [];
+    if (['draft', 'returned_for_edit'].includes(request.status)) return isOwner ? ['submit'] : [];
     if (['sent', 'approval'].includes(request.status)) {
       const canAct = await this.isPendingApprovalForUser(id, userId);
-      return canAct ? ['approve', 'reject'] : [];
+      return canAct ? ['approve', 'reject', 'return'] : [];
     }
     if (request.status === 'cleared') return ['disburse'];
     if (request.status === 'disbursed') return ['confirm'];

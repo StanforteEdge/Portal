@@ -29,7 +29,20 @@ export class WorkflowService {
     });
 
     if (!existing) throw new NotFoundException('Request not found');
-    if (existing.workflowInstanceId) return { instanceId: existing.workflowInstanceId, workflowStatus: 'pending' as const };
+    if (existing.workflowInstanceId) {
+      const current = await this.prisma.workflowInstance.findUnique({
+        where: { id: existing.workflowInstanceId },
+        select: { id: true, status: true }
+      });
+      if (current?.status === 'pending') {
+        return { instanceId: existing.workflowInstanceId, workflowStatus: 'pending' as const };
+      }
+
+      await this.prisma.requestInstance.update({
+        where: { id: params.requestId },
+        data: { workflowInstanceId: null }
+      });
+    }
 
     const baseSteps = this.extractApprovalSteps(existing.requestType.approvalFlowJson, params.amount ?? undefined);
     const steps = this.normalizeStepsForLeave(existing.requestType.categoryKey, baseSteps);
