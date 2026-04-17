@@ -48,6 +48,7 @@ import {
   listMyOrganizations,
   listProjects,
   rejectRequest,
+  returnRequest,
   listGroups,
   retireRequest,
   submitRequest,
@@ -792,8 +793,9 @@ export function RequestDetailsPage() {
   const detailMobileNav =
     detailView === "finance" ? buildAppMobileNav("Finance") : requestsMobileNav;
   const canSubmit =
-    (requestActions ?? []).includes("submit") && workflowStatus === "draft";
-  const canEditDraft = workflowStatus === "draft";
+    (requestActions ?? []).includes("submit") &&
+    ["draft", "returned_for_edit"].includes(workflowStatus);
+  const canEditRequest = ["draft", "returned_for_edit"].includes(workflowStatus);
   const roles = (user?.roles ?? []).map((entry) =>
     String(entry).trim().toLowerCase(),
   );
@@ -803,7 +805,9 @@ export function RequestDetailsPage() {
   const availableActions = requestActions ?? [];
   const requestStatus = workflowStatus;
   const approvalActionsVisible =
-    availableActions.includes("approve") || availableActions.includes("reject");
+    availableActions.includes("approve") ||
+    availableActions.includes("reject") ||
+    availableActions.includes("return");
   const financeActionsVisible = detailView === "finance";
   const ownerActionsVisible = detailView === "mine";
   const viewerStatus = useMemo(() => {
@@ -1362,6 +1366,7 @@ export function RequestDetailsPage() {
       | "submit"
       | "approve"
       | "reject"
+      | "return"
       | "disburse"
       | "confirm"
       | "retire"
@@ -1376,6 +1381,18 @@ export function RequestDetailsPage() {
         await approveRequest(id, actionComment.trim() || undefined);
       } else if (action === "reject") {
         await rejectRequest(id, actionComment.trim() || undefined);
+      } else if (action === "return") {
+        const reason = actionComment.trim();
+        if (!reason) {
+          showToast({
+            tone: "warning",
+            title: "Return note required",
+            message:
+              "Please add a reason so the requester knows what to correct before resubmitting.",
+          });
+          return;
+        }
+        await returnRequest(id, reason);
       } else if (action === "disburse") {
         const traceId =
           typeof crypto !== "undefined" && "randomUUID" in crypto
@@ -1580,13 +1597,13 @@ export function RequestDetailsPage() {
                 <Icon name="arrow_back" className="text-[18px]" />
                 Back to {parentLabel}
               </Link>
-              {canEditDraft ? (
+              {canEditRequest ? (
                 <Link
                   to={`${family === "leave" ? "/leave/new/form" : "/requests/new/form"}?edit=${id}&typeId=${request?.request_type?.id || ""}`}
                   className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                 >
                   <Icon name="edit" className="text-[18px]" />
-                  Edit Draft
+                  {workflowStatus === "returned_for_edit" ? "Edit Returned Request" : "Edit Draft"}
                 </Link>
               ) : null}
             </div>
@@ -2025,18 +2042,22 @@ export function RequestDetailsPage() {
                 ) : null}
                 {approvalActionsVisible &&
                   availableActions.some((action) =>
-                    ["approve", "reject"].includes(action),
+                    ["approve", "reject", "return"].includes(action),
                   ) ? (
                   <div className="mt-4 space-y-3">
                     <TextAreaField
                       label="Decision note"
-                      helpText="Optional context for the requester and audit trail."
+                      helpText={
+                        availableActions.includes("return")
+                          ? "Required for Return. Optional for Approve/Reject."
+                          : "Optional context for the requester and audit trail."
+                      }
                       value={actionComment}
                       onChange={(event) => setActionComment(event.target.value)}
                       rows={3}
                       className="border-white/20 bg-white/10 text-white placeholder:text-white/50"
                     />
-                    <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="grid gap-3 sm:grid-cols-3">
                       <Button
                         variant="secondary"
                         className="w-full justify-center"
@@ -2059,6 +2080,18 @@ export function RequestDetailsPage() {
                       >
                         {actionBusy === "reject" ? "Rejecting..." : "Reject "}
                       </Button>
+                      {availableActions.includes("return") ? (
+                        <Button
+                          variant="secondary"
+                          className="w-full justify-center"
+                          onClick={() => void handleWorkflowAction("return")}
+                          disabled={actionBusy !== ""}
+                        >
+                          {actionBusy === "return"
+                            ? "Returning..."
+                            : "Return for Edit"}
+                        </Button>
+                      ) : null}
                     </div>
                   </div>
                 ) : null}
@@ -2071,7 +2104,9 @@ export function RequestDetailsPage() {
                   >
                     {actionBusy === "submit"
                       ? "Submitting..."
-                      : "Submit Request"}
+                      : workflowStatus === "returned_for_edit"
+                        ? "Resubmit Request"
+                        : "Submit Request"}
                   </Button>
                 ) : null}
                 {financeActionsVisible &&
@@ -2138,7 +2173,7 @@ export function RequestDetailsPage() {
                     }
                     includeFullDocument={family !== "leave"}
                   />
-                  {canEditDraft ? (
+                  {workflowStatus === "draft" ? (
                     <Button
                       variant="danger"
                       className="w-full justify-center"
@@ -2378,7 +2413,7 @@ export function RequestDetailsPage() {
                 }
                 includeFullDocument={family !== "leave"}
               />
-              {canEditDraft ? (
+              {workflowStatus === "draft" ? (
                 <Button
                   variant="danger"
                   className="mb-4 w-full justify-center"
@@ -2390,17 +2425,24 @@ export function RequestDetailsPage() {
               ) : null}
               {approvalActionsVisible &&
                 availableActions.some(
-                  (action) => action === "approve" || action === "reject",
+                  (action) =>
+                    action === "approve" ||
+                    action === "reject" ||
+                    action === "return",
                 ) ? (
                 <>
                   <TextAreaField
                     label="Decision note"
-                    helpText="Optional context for the requester and audit trail."
+                    helpText={
+                      availableActions.includes("return")
+                        ? "Required for Return. Optional for Approve/Reject."
+                        : "Optional context for the requester and audit trail."
+                    }
                     value={actionComment}
                     onChange={(event) => setActionComment(event.target.value)}
                     rows={3}
                   />
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
                     <Button
                       variant="secondary"
                       className="w-full justify-center"
@@ -2425,6 +2467,18 @@ export function RequestDetailsPage() {
                         ? "Rejecting..."
                         : "Reject Request"}
                     </Button>
+                    {availableActions.includes("return") ? (
+                      <Button
+                        variant="secondary"
+                        className="w-full justify-center"
+                        onClick={() => void handleWorkflowAction("return")}
+                        disabled={actionBusy !== ""}
+                      >
+                        {actionBusy === "return"
+                          ? "Returning..."
+                          : "Return for Edit"}
+                      </Button>
+                    ) : null}
                   </div>
                 </>
               ) : null}
@@ -2434,7 +2488,11 @@ export function RequestDetailsPage() {
                   onClick={() => void handleWorkflowAction("submit")}
                   disabled={actionBusy !== ""}
                 >
-                  {actionBusy === "submit" ? "Submitting..." : "Submit Request"}
+                  {actionBusy === "submit"
+                    ? "Submitting..."
+                    : workflowStatus === "returned_for_edit"
+                      ? "Resubmit Request"
+                      : "Submit Request"}
                 </Button>
               ) : null}
               {financeActionsVisible &&

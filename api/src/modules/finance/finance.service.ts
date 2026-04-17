@@ -40,6 +40,12 @@ export class FinanceService {
     const where: any = {
       status: {
         in: ['cleared', 'disbursed', 'confirmed', 'retired', 'completed']
+      },
+      requestType: {
+        OR: [
+          { categoryKey: null },
+          { categoryKey: { not: { contains: 'leave', mode: 'insensitive' } } }
+        ]
       }
     };
 
@@ -174,6 +180,14 @@ export class FinanceService {
     }
 
     const filtered = rows.filter((row) => {
+      const isLeaveRequest =
+        this.isLeaveRequestType(
+          row.requestType?.name ?? null,
+          row.requestType?.categoryKey ?? null,
+          row.requestType?.formSchema ?? null
+        );
+      if (isLeaveRequest) return false;
+
       if (row.status !== 'approval') return true;
       if (!row.workflowInstanceId) return false;
       return financeApprovalInstanceIds.has(row.workflowInstanceId);
@@ -358,6 +372,25 @@ export class FinanceService {
         last_page: Math.max(1, Math.ceil(total / perPage))
       }
     };
+  }
+
+  private isLeaveRequestType(
+    name: string | null,
+    categoryKey: string | null,
+    formSchema: unknown
+  ) {
+    const normalizedName = String(name ?? '').toLowerCase();
+    const normalizedCategory = String(categoryKey ?? '').toLowerCase();
+    const schema =
+      formSchema && typeof formSchema === 'object' && !Array.isArray(formSchema)
+        ? (formSchema as Record<string, unknown>)
+        : {};
+    const schemaLeaveTypeKey = String(schema.leave_type_key ?? '').trim().toLowerCase();
+    return (
+      normalizedCategory.includes('leave') ||
+      normalizedName.includes('leave') ||
+      schemaLeaveTypeKey.length > 0
+    );
   }
 
   async disburseRequest(requestId: string, dto: DisburseRequestDto, actorId?: string, traceId?: string) {

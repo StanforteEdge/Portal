@@ -217,6 +217,13 @@ export async function rejectRequest(id: string, comment?: string) {
   });
 }
 
+export async function returnRequest(id: string, comment?: string) {
+  return httpRequest<RequestRecord>(`/requests/${id}/return`, {
+    method: "POST",
+    body: { action: "return", comment: comment || undefined },
+  });
+}
+
 export async function confirmRequest(id: string) {
   return httpRequest<RequestRecord>(`/requests/${id}/confirm`, {
     method: "POST",
