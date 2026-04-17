@@ -31,4 +31,12 @@ export class UpdateAdminUserDto {
   @MinLength(8)
   @Matches(PASSWORD_POLICY_REGEX, { message: PASSWORD_POLICY_MESSAGE })
   password?: string;
+
+  @IsOptional()
+  @IsString()
+  organization_id?: string;
+
+  @IsOptional()
+  @IsString()
+  primary_organization_id?: string;
 }

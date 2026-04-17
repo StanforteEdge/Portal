@@ -30,4 +30,12 @@ export class CreateAdminUserDto {
   @IsOptional()
   @IsString()
   status?: string;
+
+  @IsOptional()
+  @IsString()
+  organization_id?: string;
+
+  @IsOptional()
+  @IsString()
+  primary_organization_id?: string;
 }

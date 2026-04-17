@@ -23,7 +23,14 @@ export type MediaPickerModalProps = {
   onClose: () => void;
   onSelect: (files: MediaPickerItem[]) => void;
   loadFiles: (search?: string) => Promise<MediaPickerItem[]>;
-  uploadFiles?: (files: FileList) => Promise<void>;
+  uploadFiles?: (
+    files: FileList,
+    onProgress?: (state: {
+      uploaded: number;
+      total: number;
+      current_file_name?: string;
+    }) => void,
+  ) => Promise<void>;
   title?: string;
   multiple?: boolean;
   selectedIds?: string[];
@@ -57,6 +64,11 @@ export function MediaPickerModal({
   const [search, setSearch] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>("");
+  const [uploadProgress, setUploadProgress] = useState<{
+    uploaded: number;
+    total: number;
+    current_file_name?: string;
+  } | null>(null);
 
   const selectedRows = useMemo(() => items.filter((item) => selected.includes(item.id)), [items, selected]);
 
@@ -65,9 +77,10 @@ export function MediaPickerModal({
       setBusy(true);
       setError("");
       const rows = await loadFiles(term?.trim() || undefined);
-      setItems(rows);
+      setItems(Array.isArray(rows) ? rows : []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Unable to load files.");
+      setItems([]);
     } finally {
       setBusy(false);
     }
@@ -85,11 +98,23 @@ export function MediaPickerModal({
     try {
       setBusy(true);
       setError("");
-      await uploadFiles(files);
+      setUploadProgress({
+        uploaded: 0,
+        total: files.length,
+        current_file_name: files[0]?.name,
+      });
+      await uploadFiles(files, (state) => {
+        setUploadProgress({
+          uploaded: Math.min(Math.max(0, state.uploaded), state.total),
+          total: Math.max(1, state.total),
+          current_file_name: state.current_file_name,
+        });
+      });
       await load(search);
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
     } finally {
+      setUploadProgress(null);
       setBusy(false);
     }
   }
@@ -132,8 +157,8 @@ export function MediaPickerModal({
             </button>
           </div>
 
-          <div className="mt-5 grid gap-3 lg:grid-cols-12">
-            <div className="lg:col-span-5">
+          <div className="mt-5 flex flex-wrap items-end gap-3">
+            <div className="min-w-[260px] flex-1">
               <TextField
                 label="Search existing files"
                 id={searchId}
@@ -142,7 +167,7 @@ export function MediaPickerModal({
                 placeholder="Search by name..."
               />
             </div>
-            <div className="flex items-end gap-3 lg:col-span-7">
+            <div className="flex items-end gap-3">
               <Button variant="secondary" onClick={() => void load(search)} disabled={busy}>
                 Find
               </Button>
@@ -165,6 +190,30 @@ export function MediaPickerModal({
               ) : null}
             </div>
           </div>
+
+          {uploadProgress ? (
+            <div className="mt-4 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3">
+              <div className="flex items-center justify-between gap-3 text-sm text-brand-900">
+                <span className="font-semibold">
+                  Uploading {uploadProgress.uploaded} of {uploadProgress.total}
+                </span>
+                <span className="truncate text-xs text-brand-900/70">
+                  {uploadProgress.current_file_name || "Preparing upload..."}
+                </span>
+              </div>
+              <div className="mt-2 h-2 w-full overflow-hidden rounded-full bg-brand-100">
+                <div
+                  className="h-full rounded-full bg-brand-900 transition-all duration-200"
+                  style={{
+                    width: `${Math.max(
+                      6,
+                      Math.round((uploadProgress.uploaded / uploadProgress.total) * 100),
+                    )}%`,
+                  }}
+                />
+              </div>
+            </div>
+          ) : null}
 
           {error ? <div className="mt-4 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-3 text-sm text-danger">{error}</div> : null}
         </div>

@@ -74,12 +74,15 @@ export default function AdminRoleSlideOver({ role, onClose, onSaved }: Props) {
     }
     try {
       setSaving(true);
+      const permission_ids = permissions
+        .filter((permission) => selectedPermissions.includes(permission.slug))
+        .map((permission) => permission.id);
       if (role) {
         await updateRole(role.id, {
           name: name.trim(),
           description: description.trim() || undefined,
           is_active: isActive,
-          permission_slugs: selectedPermissions,
+          permission_ids,
         });
         showToast({ tone: "success", title: "Role updated", message: `"${name}" has been updated.` });
       } else {
@@ -87,7 +90,7 @@ export default function AdminRoleSlideOver({ role, onClose, onSaved }: Props) {
           name: name.trim(),
           slug: slug.trim(),
           description: description.trim() || undefined,
-          permission_slugs: selectedPermissions,
+          permission_ids,
         });
         showToast({ tone: "success", title: "Role created", message: `"${name}" has been created.` });
       }
