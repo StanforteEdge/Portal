@@ -18,6 +18,7 @@ export type CacheStore = {
 
 export function createCacheStore(prefix = "app_cache:"): CacheStore {
   const memoryCache = new Map<string, CacheEnvelope<unknown>>();
+  const inFlightRequests = new Map<string, Promise<unknown>>();
 
   function canUseStorage() {
     return typeof window !== "undefined" && Boolean(window.localStorage);
@@ -99,9 +100,24 @@ export function createCacheStore(prefix = "app_cache:"): CacheStore {
       return cached.value;
     }
 
-    const value = await fetcher();
-    setCachedValue(key, value, options);
-    return value;
+    const requestKey = `${options.storage ?? "memory"}:${key}`;
+    const existingRequest = inFlightRequests.get(requestKey) as Promise<T> | undefined;
+    if (existingRequest) {
+      return existingRequest;
+    }
+
+    const request = (async () => {
+      const value = await fetcher();
+      setCachedValue(key, value, options);
+      return value;
+    })();
+
+    inFlightRequests.set(requestKey, request as Promise<unknown>);
+    try {
+      return await request;
+    } finally {
+      inFlightRequests.delete(requestKey);
+    }
   }
 
   return {

@@ -53,22 +53,14 @@ export default function FinanceDashboardPage() {
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
-  // Recent queue — top 8 for the dashboard preview
-  const { data: recentData, loading, error } = useCachedQuery(
-    "finance-admin:dashboard:recent",
-    () => financeApi.listRequests({ page: 1, per_page: 8, order_by: "created_at", order_dir: "desc" }),
-    { ttlMs: 1000 * 30, storage: "memory" },
-  );
-
-  // Stats query — broader fetch for accurate counts
-  const { data: statsData } = useCachedQuery(
-    "finance-admin:dashboard:stats",
+  const { data: allRequestsData, loading, error } = useCachedQuery(
+    "finance-admin:dashboard:requests",
     () => financeApi.listRequests({ page: 1, per_page: 100, order_by: "created_at", order_dir: "desc" }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const recentQueue: RequestRecord[] = Array.isArray(recentData) ? recentData : [];
-  const statsQueue: RequestRecord[] = Array.isArray(statsData) ? statsData : recentQueue;
+  const statsQueue: RequestRecord[] = Array.isArray(allRequestsData) ? allRequestsData : [];
+  const recentQueue: RequestRecord[] = statsQueue.slice(0, 8);
   const totalCount = statsQueue.length;
 
   const cleared = statsQueue.filter(
