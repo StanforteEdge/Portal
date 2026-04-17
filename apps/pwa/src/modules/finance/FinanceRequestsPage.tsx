@@ -59,6 +59,21 @@ function resolveFinanceStatus(entry: RequestRecord) {
   return String(source.request_status || entry.status || "").toLowerCase();
 }
 
+function isLeaveRequest(entry: RequestRecord) {
+  const typeName = String(entry.request_type?.name || "").toLowerCase();
+  const categoryKey = String(entry.request_type?.category_key || "").toLowerCase();
+  const schemaLeaveTypeKey = String(
+    (entry.request_type?.form_schema as Record<string, unknown> | null)?.leave_type_key || "",
+  )
+    .trim()
+    .toLowerCase();
+  return (
+    typeName.includes("leave") ||
+    categoryKey.includes("leave") ||
+    schemaLeaveTypeKey.length > 0
+  );
+}
+
 function financeActionLabel(status: string) {
   if (status === "cleared") return "Disburse";
   if (status === "disbursed") return "Disburse +";
@@ -161,7 +176,9 @@ export default function FinanceRequestsPage() {
     },
   );
 
-  const queue: RequestRecord[] = Array.isArray(financeRequests) ? financeRequests : [];
+  const queue: RequestRecord[] = (
+    Array.isArray(financeRequests) ? financeRequests : []
+  ).filter((entry) => !isLeaveRequest(entry));
   const total = queue.length;
   const lastPage = 1;
   const userName =

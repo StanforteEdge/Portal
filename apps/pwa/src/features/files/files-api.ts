@@ -33,9 +33,15 @@ export async function listFileAssets(params?: {
   }
 
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  const response = await httpRequest<Array<any>>(`/files${suffix}`);
-  return response.map(
-    (row) =>
+  const response = await httpRequest<any>(`/files${suffix}`);
+  const rows = Array.isArray(response)
+    ? response
+    : Array.isArray(response?.data)
+      ? response.data
+      : [];
+
+  return rows.map(
+    (row: any) =>
       ({
         id: String(row.id),
         file_name: String(row.file_name ?? row.fileName ?? ""),
