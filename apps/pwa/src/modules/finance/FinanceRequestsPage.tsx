@@ -168,22 +168,7 @@ export default function FinanceRequestsPage() {
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
     "Staff";
-  const optionsQuery = useCachedQuery(
-    "finance-admin:requests-options",
-    () =>
-      financeApi.listRequests({
-        page: 1,
-        per_page: 100,
-        order_by: "created_at",
-        order_dir: "desc",
-      }),
-    {
-      ttlMs: 1000 * 30,
-      storage: "memory",
-    },
-  );
-  const optionsQueue: RequestRecord[] = Array.isArray(optionsQuery.data) ? optionsQuery.data : [];
-  const statsQueue = optionsQueue.length ? optionsQueue : queue;
+  const statsQueue = queue;
   const cleared = statsQueue.filter(
     (entry: RequestRecord) => resolveFinanceStatus(entry) === "cleared",
   ).length;
@@ -203,7 +188,7 @@ export default function FinanceRequestsPage() {
     () =>
       Array.from(
         new Set(
-          optionsQueue
+          statsQueue
             .map((entry) => {
               const data =
                 entry?.data && typeof entry.data === "object" ? entry.data : {};
@@ -212,13 +197,13 @@ export default function FinanceRequestsPage() {
             .filter(Boolean),
         ),
       ),
-    [optionsQueue],
+    [statsQueue],
   );
   const groupOptions = useMemo(
     () =>
       Array.from(
         new Set(
-          optionsQueue
+          statsQueue
             .map((entry) => {
               const data =
                 entry?.data && typeof entry.data === "object" ? entry.data : {};
@@ -237,13 +222,13 @@ export default function FinanceRequestsPage() {
             .filter(Boolean),
         ),
       ),
-    [optionsQueue],
+    [statsQueue],
   );
   const organizationOptions = useMemo(
     () =>
       Array.from(
         new Set(
-          optionsQueue
+          statsQueue
             .map((entry) => {
               const data =
                 entry?.data && typeof entry.data === "object" ? entry.data : {};
@@ -252,7 +237,7 @@ export default function FinanceRequestsPage() {
             .filter(Boolean),
         ),
       ),
-    [optionsQueue],
+    [statsQueue],
   );
   const queueRows = isRequestsView ? queue : queue.slice(0, 8);
 

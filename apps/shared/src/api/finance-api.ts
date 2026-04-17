@@ -210,9 +210,16 @@ export type RequestRecord = {
 
 export function createFinanceApi(httpRequest: HttpRequest) {
   return {
-    listRequests(params?: Record<string, unknown>) {
+    async listRequests(params?: Record<string, unknown>) {
       const suffix = toQuery(params);
-      return httpRequest<RequestRecord[]>(`/finance/requests${suffix}`);
+      const response = await httpRequest<any>(`/finance/requests${suffix}`);
+      if (Array.isArray(response)) {
+        return response as RequestRecord[];
+      }
+      if (Array.isArray(response?.data)) {
+        return response.data as RequestRecord[];
+      }
+      return [];
     },
 
     listPaymentVouchers(params?: Record<string, unknown>) {
