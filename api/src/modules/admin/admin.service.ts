@@ -108,25 +108,74 @@ export class AdminService {
     if (usernameExists) throw new BadRequestException('Username already exists');
 
     const passwordHash = dto.password ? await bcrypt.hash(dto.password, 12) : null;
-
-    const user = await this.prisma.profile.create({
-      data: {
-        username,
-        email,
-        passwordHash,
-        firstName: dto.first_name,
-        lastName: dto.last_name,
-        type: dto.type ?? 'staff',
-        status: dto.status ?? 'active'
-      },
-      include: {
-        roles: {
-          include: {
-            role: true,
-            organization: true
-          }
+    const userType = dto.type ?? 'staff';
+    const orgInput = dto.primary_organization_id ?? dto.organization_id;
+    let primaryOrganizationId: bigint | null = null;
+    if (orgInput !== undefined) {
+      const trimmed = String(orgInput).trim();
+      if (trimmed) {
+        try {
+          primaryOrganizationId = toBigInt(trimmed);
+        } catch {
+          throw new BadRequestException('Invalid primary organization id');
         }
       }
+    }
+    if (['staff', 'employee'].includes(userType) && !primaryOrganizationId) {
+      throw new BadRequestException('Primary organization is required for staff');
+    }
+    if (primaryOrganizationId) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: primaryOrganizationId },
+        select: { id: true }
+      });
+      if (!organization) throw new BadRequestException('Organization not found');
+    }
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.profile.create({
+        data: {
+          username,
+          email,
+          passwordHash,
+          firstName: dto.first_name,
+          lastName: dto.last_name,
+          type: userType,
+          status: dto.status ?? 'active',
+          primaryOrganizationId
+        }
+      });
+
+      if (primaryOrganizationId) {
+        await tx.profileOrganization.upsert({
+          where: {
+            profile_org_unique: {
+              profileId: created.id,
+              organizationId: primaryOrganizationId
+            }
+          },
+          update: { isPrimary: true },
+          create: {
+            profileId: created.id,
+            organizationId: primaryOrganizationId,
+            isPrimary: true,
+            createdAt: new Date()
+          }
+        });
+      }
+
+      return tx.profile.findUniqueOrThrow({
+        where: { id: created.id },
+        include: {
+          organizations: { include: { organization: true } },
+          roles: {
+            include: {
+              role: true,
+              organization: true
+            }
+          }
+        }
+      });
     });
 
     return this.serializeUser(user);
@@ -144,6 +193,7 @@ export class AdminService {
       lastName?: string;
       type?: string;
       status?: string;
+      primaryOrganizationId?: bigint | null;
       passwordHash?: string | null;
       updatedAt: Date;
     } = { updatedAt: new Date() };
@@ -169,17 +219,77 @@ export class AdminService {
     if (dto.status !== undefined) data.status = dto.status;
     if (dto.password) data.passwordHash = await bcrypt.hash(dto.password, 12);
 
-    const user = await this.prisma.profile.update({
-      where: { id },
-      data,
-      include: {
-        roles: {
-          include: {
-            role: true,
-            organization: true
-          }
+    const orgInput = dto.primary_organization_id ?? dto.organization_id;
+    let nextPrimaryOrganizationId = existing.primaryOrganizationId;
+    if (orgInput !== undefined) {
+      const trimmed = String(orgInput).trim();
+      if (!trimmed) {
+        nextPrimaryOrganizationId = null;
+      } else {
+        try {
+          nextPrimaryOrganizationId = toBigInt(trimmed);
+        } catch {
+          throw new BadRequestException('Invalid primary organization id');
         }
       }
+      data.primaryOrganizationId = nextPrimaryOrganizationId;
+    }
+
+    const nextType = dto.type ?? existing.type;
+    if (['staff', 'employee'].includes(nextType) && !nextPrimaryOrganizationId) {
+      throw new BadRequestException('Primary organization is required for staff');
+    }
+
+    if (nextPrimaryOrganizationId) {
+      const organization = await this.prisma.organization.findUnique({
+        where: { id: nextPrimaryOrganizationId },
+        select: { id: true }
+      });
+      if (!organization) throw new BadRequestException('Organization not found');
+    }
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.profile.update({
+        where: { id },
+        data
+      });
+
+      if (orgInput !== undefined) {
+        await tx.profileOrganization.updateMany({
+          where: { profileId: id },
+          data: { isPrimary: false }
+        });
+        if (nextPrimaryOrganizationId) {
+          await tx.profileOrganization.upsert({
+            where: {
+              profile_org_unique: {
+                profileId: id,
+                organizationId: nextPrimaryOrganizationId
+              }
+            },
+            update: { isPrimary: true },
+            create: {
+              profileId: id,
+              organizationId: nextPrimaryOrganizationId,
+              isPrimary: true,
+              createdAt: new Date()
+            }
+          });
+        }
+      }
+
+      return tx.profile.findUniqueOrThrow({
+        where: { id: updated.id },
+        include: {
+          organizations: { include: { organization: true } },
+          roles: {
+            include: {
+              role: true,
+              organization: true
+            }
+          }
+        }
+      });
     });
 
     return this.serializeUser(user);
@@ -230,6 +340,7 @@ export class AdminService {
       avatar: user.avatar,
       created_at: user.createdAt,
       updated_at: user.updatedAt,
+      primary_organization_id: user.primaryOrganizationId ? user.primaryOrganizationId.toString() : null,
       roles: (user.roles ?? []).map((userRole: any) => ({
         id: userRole.role.id.toString(),
         name: userRole.role.name,
