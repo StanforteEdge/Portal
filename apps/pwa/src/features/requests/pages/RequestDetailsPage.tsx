@@ -574,6 +574,11 @@ export function RequestDetailsPage() {
     useState(false);
   const [previewVoucher, setPreviewVoucher] =
     useState<FinancePaymentVoucherRecord | null>(null);
+  const [voucherFilePreview, setVoucherFilePreview] = useState<{
+    name: string;
+    url: string;
+    mime_type: string | null;
+  } | null>(null);
   const [disburseMode, setDisburseMode] = useState<"create" | "edit">("create");
   const [editingVoucherId, setEditingVoucherId] = useState<string>("");
   const [disburseForm, setDisburseForm] = useState({
@@ -1052,6 +1057,27 @@ export function RequestDetailsPage() {
   function openVoucherPreview(voucher: FinancePaymentVoucherRecord) {
     setPreviewVoucher(voucher);
     setShowVoucherPreviewDialog(true);
+  }
+
+  function openVoucherEvidence(file: {
+    id: string;
+    file_name: string;
+    mime_type: string | null;
+    public_url: string | null;
+  }) {
+    if (!file.public_url) {
+      showToast({
+        tone: "warning",
+        title: "File unavailable",
+        message: "This file has no preview URL yet.",
+      });
+      return;
+    }
+    setVoucherFilePreview({
+      name: file.file_name,
+      url: file.public_url,
+      mime_type: file.mime_type,
+    });
   }
 
   function openRetireDialog(voucher?: FinancePaymentVoucherRecord | null) {
@@ -1855,7 +1881,11 @@ export function RequestDetailsPage() {
                               </TableCell>
                               <TableCell className="text-sm font-semibold text-slate-700">
                                 {Number(voucher.retired_amount || 0) > 0 ? (
-                                  <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-2 text-left hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                                    onClick={() => openVoucherPreview(voucher)}
+                                  >
                                     <Icon
                                       name={
                                         voucher.retirement_status === "verified"
@@ -1875,28 +1905,13 @@ export function RequestDetailsPage() {
                                         )}
                                       </span>
                                     </span>
-                                  </div>
+                                  </button>
                                 ) : (
                                   <span className="text-slate-400">-</span>
                                 )}
                               </TableCell>
                               <TableCell className="text-right">
                                 <div className="inline-flex flex-wrap justify-end gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() =>
-                                      void handleDownloadArtifact(
-                                        "pv_pdf",
-                                        voucher.id,
-                                      )
-                                    }
-                                    disabled={actionBusy !== ""}
-                                  >
-                                    {actionBusy === `download_pv:${voucher.id}`
-                                      ? "Downloading..."
-                                      : "Download PV"}
-                                  </Button>
                                   <Button
                                     size="sm"
                                     variant="secondary"
@@ -2351,44 +2366,38 @@ export function RequestDetailsPage() {
                         <TableHeaderCell>PV</TableHeaderCell>
                         <TableHeaderCell>Amount</TableHeaderCell>
                         <TableHeaderCell>Retirement</TableHeaderCell>
-                        <TableHeaderCell className="text-right">
-                          Action
-                        </TableHeaderCell>
                       </TableHeaderRow>
                     </TableHead>
                     <TableBody>
                       {(paymentVouchers ?? []).map((voucher) => (
                         <TableRow key={voucher.id}>
-                          <TableCell className="text-sm font-semibold text-brand-900">
-                            {voucher.voucher_number}
+                          <TableCell>
+                            <button
+                              type="button"
+                              className="text-left text-sm font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                              onClick={() => openVoucherPreview(voucher)}
+                            >
+                              {voucher.voucher_number}
+                            </button>
                           </TableCell>
                           <TableCell className="text-sm text-slate-700">
                             {formatCurrency(voucher.amount, request.currency)}
                           </TableCell>
                           <TableCell className="text-sm text-slate-700">
                             {Number(voucher.retired_amount || 0) > 0
-                              ? formatCurrency(
-                                voucher.retired_amount,
-                                request.currency,
+                              ? (
+                                <button
+                                  type="button"
+                                  className="font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                                  onClick={() => openVoucherPreview(voucher)}
+                                >
+                                  {formatCurrency(
+                                    voucher.retired_amount,
+                                    request.currency,
+                                  )}
+                                </button>
                               )
                               : "-"}
-                          </TableCell>
-                          <TableCell className="text-right">
-                            <Button
-                              size="sm"
-                              variant="secondary"
-                              onClick={() =>
-                                void handleDownloadArtifact(
-                                  "pv_pdf",
-                                  voucher.id,
-                                )
-                              }
-                              disabled={actionBusy !== ""}
-                            >
-                              {actionBusy === `download_pv:${voucher.id}`
-                                ? "Downloading..."
-                                : "Download PV"}
-                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -2869,10 +2878,6 @@ export function RequestDetailsPage() {
                   {previewVoucher.method || "-"}
                 </div>
                 <div className="text-sm text-slate-700">
-                  <span className="font-semibold text-slate-950">Account:</span>{" "}
-                  {previewVoucher.paid_from_account?.name || "-"}
-                </div>
-                <div className="text-sm text-slate-700">
                   <span className="font-semibold text-slate-950">
                     Disbursed:
                   </span>{" "}
@@ -2896,12 +2901,18 @@ export function RequestDetailsPage() {
                   </div>
                   <div className="mt-3 space-y-2">
                     {previewVoucher.evidence_files.map((file) => (
-                      <div
+                      <button
+                        type="button"
                         key={file.id}
-                        className="rounded-2xl bg-white px-3 py-2 text-sm text-slate-700"
+                        className="flex w-full items-center justify-between gap-2 rounded-2xl bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                        onClick={() => openVoucherEvidence(file)}
+                        disabled={!file.public_url}
                       >
-                        {file.file_name}
-                      </div>
+                        <span className="truncate">{file.file_name}</span>
+                        <span className="text-xs font-semibold text-brand-900">
+                          {file.public_url ? "View" : "Unavailable"}
+                        </span>
+                      </button>
                     ))}
                   </div>
                 </div>
@@ -2931,6 +2942,71 @@ export function RequestDetailsPage() {
           </section>
         </div>
       ) : null}
+      {voucherFilePreview ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 px-4 py-6">
+          <button
+            type="button"
+            aria-label="Close file preview"
+            className="absolute inset-0"
+            onClick={() => setVoucherFilePreview(null)}
+          />
+          <section
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="voucher-file-preview-title"
+            className="relative z-[91] flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-card"
+          >
+            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
+              <div className="min-w-0">
+                <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+                  File Preview
+                </p>
+                <h2
+                  id="voucher-file-preview-title"
+                  className="mt-2 truncate text-lg font-semibold text-slate-950"
+                >
+                  {voucherFilePreview.name}
+                </h2>
+              </div>
+              <button
+                type="button"
+                onClick={() => setVoucherFilePreview(null)}
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
+              >
+                <Icon name="close" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto bg-slate-100 p-4">
+              {voucherFilePreview.mime_type?.startsWith("image/") ? (
+                <img
+                  src={voucherFilePreview.url}
+                  alt={voucherFilePreview.name}
+                  className="mx-auto max-h-[70vh] rounded-2xl border border-slate-200 bg-white object-contain"
+                />
+              ) : (
+                <iframe
+                  src={voucherFilePreview.url}
+                  title={voucherFilePreview.name}
+                  className="h-[70vh] w-full rounded-2xl border border-slate-200 bg-white"
+                />
+              )}
+            </div>
+            <div className="border-t border-slate-100 px-6 py-4">
+              <div className="flex flex-wrap justify-end gap-3">
+                <a href={voucherFilePreview.url} target="_blank" rel="noreferrer">
+                  <Button variant="secondary">Open in new tab</Button>
+                </a>
+                <Button
+                  variant="secondary"
+                  onClick={() => setVoucherFilePreview(null)}
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </section>
+        </div>
+      ) : null}
       <MediaPickerModal
         open={showDisbursementMediaPicker}
         onClose={() => setShowDisbursementMediaPicker(false)}
@@ -2945,12 +3021,25 @@ export function RequestDetailsPage() {
             uploaded_by: currentUserId,
           })
         }
-        uploadFiles={async (files) => {
+        uploadFiles={async (files, onProgress) => {
+          const total = files.length;
+          let uploadedCount = 0;
           for (const file of Array.from(files)) {
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
+            });
             const uploaded = await uploadFileAsset(file, {
               organization_id:
                 String(requestData.organization_id || "") || undefined,
               metadata: { source: "request_disbursement", request_id: id },
+            });
+            uploadedCount += 1;
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
             });
             setDisburseFiles((current) => {
               if (current.some((row) => row.id === uploaded.id)) return current;
@@ -2981,12 +3070,25 @@ export function RequestDetailsPage() {
             uploaded_by: currentUserId,
           })
         }
-        uploadFiles={async (files) => {
+        uploadFiles={async (files, onProgress) => {
+          const total = files.length;
+          let uploadedCount = 0;
           for (const file of Array.from(files)) {
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
+            });
             const uploaded = await uploadFileAsset(file, {
               organization_id:
                 String(requestData.organization_id || "") || undefined,
               metadata: { source: "request_retirement", request_id: id },
+            });
+            uploadedCount += 1;
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
             });
             setRetireForm((current) => ({
               ...current,

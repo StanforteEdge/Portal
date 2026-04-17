@@ -52,7 +52,7 @@ export async function createRole(payload: {
   name: string;
   slug: string;
   description?: string;
-  permission_slugs?: string[];
+  permission_ids?: string[];
 }): Promise<Role> {
   return httpRequest<Role>("/admin/rbac/roles", {
     method: "POST",
@@ -66,7 +66,7 @@ export async function updateRole(
     name?: string;
     description?: string;
     is_active?: boolean;
-    permission_slugs?: string[];
+    permission_ids?: string[];
   },
 ): Promise<Role> {
   return httpRequest<Role>(`/admin/rbac/roles/${id}`, {

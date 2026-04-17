@@ -2781,12 +2781,25 @@ export function FinanceRequestDetailsPage() {
             uploaded_by: currentUserId,
           })
         }
-        uploadFiles={async (files) => {
+        uploadFiles={async (files, onProgress) => {
+          const total = files.length;
+          let uploadedCount = 0;
           for (const file of Array.from(files)) {
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
+            });
             const uploaded = await uploadFileAsset(file, {
               organization_id:
                 String(requestData.organization_id || "") || undefined,
               metadata: { source: "request_disbursement", request_id: id },
+            });
+            uploadedCount += 1;
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
             });
             setDisburseFiles((current) => {
               if (current.some((row) => row.id === uploaded.id)) return current;
@@ -2817,12 +2830,25 @@ export function FinanceRequestDetailsPage() {
             uploaded_by: currentUserId,
           })
         }
-        uploadFiles={async (files) => {
+        uploadFiles={async (files, onProgress) => {
+          const total = files.length;
+          let uploadedCount = 0;
           for (const file of Array.from(files)) {
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
+            });
             const uploaded = await uploadFileAsset(file, {
               organization_id:
                 String(requestData.organization_id || "") || undefined,
               metadata: { source: "request_retirement", request_id: id },
+            });
+            uploadedCount += 1;
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
             });
             setRetireForm((current) => ({
               ...current,

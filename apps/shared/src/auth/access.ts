@@ -55,15 +55,19 @@ export function hasModuleAccess(user: Pick<AuthUser, "roles" | "permissions" | "
   const enabledModules = new Set((user?.enabled_modules ?? []).map((entry) => String(entry).trim().toLowerCase()));
 
   if (permissionSet.has("*")) return true;
-  if (enabledModules.has("*") || enabledModules.has(module)) return true;
 
   if (module === "finance") {
-    return Array.from(roleSet).some((role) => FINANCE_ROLES.has(role));
+    const hasFinancePermission = Array.from(permissionSet).some(
+      (permission) => permission === "finance.*" || permission.startsWith("finance."),
+    );
+    return Array.from(roleSet).some((role) => FINANCE_ROLES.has(role)) || hasFinancePermission;
   }
 
   if (module === "admin") {
     return roleSet.has("administrator") || roleSet.has("admin") || hasAnyPermission(user, ["users.manage", "roles.manage", "settings.manage"]);
   }
+
+  if (enabledModules.has("*") || enabledModules.has(module)) return true;
 
   if (STAFF_MODULES.has(module)) {
     return true;
