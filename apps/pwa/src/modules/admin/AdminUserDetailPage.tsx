@@ -13,20 +13,10 @@ import {
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { resourceApi, useCachedQuery } from "@/shared/lib/core";
+import { adminUsersApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import {
-  getAdminUser,
-  getAdminUserRoles,
-  updateAdminUser,
-  updateAdminUserStatus,
-  setAdminUserRoles,
-  sendUserInvite,
-  listRoleOptions,
-  type AdminUserRole,
-  type RoleOption,
-} from "./admin-users-api";
+import type { AdminUserRole, RoleOption } from "@stanforte/shared";
 import type { OrganizationItem } from "@/shared";
 
 const statusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
@@ -56,13 +46,13 @@ export default function AdminUserDetailPage() {
 
   const { data: adminUser, loading: userLoading, error: userError } = useCachedQuery(
     `admin:users:${id ?? ""}`,
-    () => getAdminUser(id!),
+    () => adminUsersApi.getUser(id!),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
   const { data: rolesData, loading: rolesLoading, error: rolesError } = useCachedQuery(
     `admin:users:${id ?? ""}:roles`,
-    () => getAdminUserRoles(id!),
+    () => adminUsersApi.getUserRoles(id!),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
@@ -83,7 +73,7 @@ export default function AdminUserDetailPage() {
 
   useEffect(() => {
     Promise.all([
-      listRoleOptions().catch(() => []),
+      adminUsersApi.listRoleOptions().catch(() => []),
       resourceApi.listOrganizations().catch(() => []),
     ]).then(([roleData, orgData]) => {
       setRoleOptions(roleData);
@@ -118,7 +108,7 @@ export default function AdminUserDetailPage() {
   async function handleSaveInfo() {
     try {
       setInfoSaving(true);
-      await updateAdminUser(id!, {
+      await adminUsersApi.updateUser(id!, {
         first_name: firstName.trim() || undefined,
         last_name: lastName.trim() || undefined,
         type: type,
@@ -141,7 +131,7 @@ export default function AdminUserDetailPage() {
   async function handleSaveRole() {
     try {
       setRoleSaving(true);
-      await setAdminUserRoles(id!, selectedRoles);
+      await adminUsersApi.setUserRoles(id!, selectedRoles);
       showToast({ tone: "success", title: "Roles updated", message: "User roles have been updated." });
     } catch (err) {
       showToast({ tone: "danger", title: "Role update failed", message: err instanceof Error ? err.message : "Unable to update role." });
@@ -153,7 +143,7 @@ export default function AdminUserDetailPage() {
   async function handleSendInvite() {
     try {
       setInviteSending(true);
-      await sendUserInvite(id!);
+      await adminUsersApi.sendUserInvite(id!);
       showToast({ tone: "success", title: "Invite sent", message: `Invitation email sent to ${adminUser?.email}.` });
     } catch (err) {
       showToast({ tone: "danger", title: "Invite failed", message: err instanceof Error ? err.message : "Unable to send invite." });
@@ -165,7 +155,7 @@ export default function AdminUserDetailPage() {
   async function handleStatusChange(status: "active" | "suspended" | "deleted") {
     try {
       setStatusSaving(true);
-      await updateAdminUserStatus(id!, { status });
+      await adminUsersApi.updateUserStatus(id!, { status });
       showToast({ tone: "success", title: "Status updated", message: `User is now ${status}.` });
       if (status === "deleted") {
         navigate("/admin/users");

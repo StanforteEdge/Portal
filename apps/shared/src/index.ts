@@ -9,9 +9,17 @@ export type { OrganizationItem, TeamItem, TeamOption, TeamMember, OrganizationMa
 export { createPolicyApi } from "./api/policy-api";
 export { createAttendanceApi } from "./api/attendance-api";
 export { createRequestApi } from "./api/request-api";
+export { createAdminUsersApi } from "./api/admin-users-api";
 export type { ScopeType, PolicyRecord } from "./api/policy-api";
 export type { AttendanceDaily, StaffDailyRow, AdminCorrectionRow, OfficeLocation } from "./api/attendance-api";
 export type { RequestType, ResourceRequest } from "./api/request-api";
+export type {
+  AdminUser,
+  AdminUserRole,
+  AdminUserDetail,
+  AdminUsersResponse,
+  RoleOption,
+} from "./api/admin-users-api";
 export { createFinanceApi } from "./api/finance-api";
 export type {
   FinanceLedgerEntry,

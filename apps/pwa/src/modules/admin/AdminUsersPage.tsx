@@ -20,10 +20,10 @@ import {
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { useCachedQuery } from "@/shared/lib/core";
+import { adminUsersApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { listAdminUsers, type AdminUser } from "./admin-users-api";
+import type { AdminUser } from "@stanforte/shared";
 import AdminUserCreateSlideOver from "./AdminUserCreateSlideOver";
 
 function formatDate(value?: string) {
@@ -66,7 +66,7 @@ export default function AdminUsersPage() {
   const { data, loading, error } = useCachedQuery(
     `admin:users:${listKey}:${search}:${typeFilter}:${statusFilter}`,
     () =>
-      listAdminUsers({
+      adminUsersApi.listUsers({
         search: search || undefined,
         type: typeFilter || undefined,
         status: statusFilter || undefined,
@@ -76,9 +76,17 @@ export default function AdminUsersPage() {
   );
 
   const isDataArray = Array.isArray(data);
-  const users: (AdminUser & { primary_organization_id?: string | null })[] = isDataArray 
+  const users: AdminUser[] = isDataArray 
     ? data 
     : (Array.isArray(data?.data) ? data.data : []);
+  const { data: organizations } = useCachedQuery(
+    "admin:users:organizations",
+    () => resourceApi.listOrganizations(),
+    { ttlMs: 1000 * 60, storage: "memory" },
+  );
+  const organizationNameById = new Map(
+    (organizations ?? []).map((org) => [String(org.id), org.name]),
+  );
   const metaTotal = !isDataArray ? data?.meta?.total : undefined;
   const total = metaTotal ?? users.length;
   const active = users.filter((u) => u.status === "active").length;
@@ -180,6 +188,16 @@ export default function AdminUsersPage() {
               </TableHead>
               <TableBody>
                 {users.map((u) => {
+                  const primaryFromMembership = (u.organizations ?? []).find(
+                    (org) => org.id === u.primary_organization_id || org.is_primary,
+                  );
+                  const orgName =
+                    primaryFromMembership?.name ||
+                    (u.primary_organization_id
+                      ? organizationNameById.get(String(u.primary_organization_id))
+                      : undefined) ||
+                    u.primary_organization?.name ||
+                    null;
                   return (
                     <TableRow key={u.id}>
                       <TableCell>
@@ -189,8 +207,8 @@ export default function AdminUsersPage() {
                       </TableCell>
                       <TableCell>{u.email}</TableCell>
                       <TableCell>
-                        {u.primary_organization?.name ? (
-                          <span className="text-sm">{u.primary_organization.name}</span>
+                        {orgName ? (
+                          <span className="text-sm">{orgName}</span>
                         ) : (
                           <span className="text-sm text-slate-400">-</span>
                         )}
