@@ -65,6 +65,17 @@ export default function AttendanceSettingsTab() {
     }
   };
 
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this override?")) return;
+    try {
+      await policyApi.deletePolicy(id);
+      showToast({ tone: "success", title: "Deleted", message: "Override removed successfully." });
+      await load();
+    } catch {
+      showToast({ tone: "danger", title: "Error", message: "Failed to delete override." });
+    }
+  };
+
   useEffect(() => {
     void load();
   }, []);
@@ -179,6 +190,14 @@ export default function AttendanceSettingsTab() {
                 <TableCell>
                   <Button variant="ghost" size="sm" onClick={() => setEditingPolicy(row)}>
                     Edit
+                  </Button>
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => handleDelete(row.id)}
+                    className="ml-2 text-danger hover:text-danger"
+                  >
+                    Delete
                   </Button>
                 </TableCell>
               </TableRow>
