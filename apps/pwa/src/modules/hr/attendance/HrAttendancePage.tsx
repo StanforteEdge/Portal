@@ -32,6 +32,18 @@ import StaffAttendanceSlideOver from "./StaffAttendanceSlideOver";
 import CorrectionReviewSlideOver from "./CorrectionReviewSlideOver";
 import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@stanforte/shared";
 
+// Local test function for 12-hour time
+const testFormatTime = (date: string | Date | null | undefined): string => {
+  if (!date) return "-";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(d.getTime())) return "-";
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(d);
+};
+
 const rowStatusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   present: "success",
   late: "warning",
@@ -111,6 +123,12 @@ export default function HrAttendancePage() {
         title="Attendance"
         description="Monitor daily attendance, worked hours, and manage correction requests."
       />
+
+      {/* TEST: Current time */}
+      <div className="rounded-xl bg-blue-100 p-4 text-center">
+        <p className="text-sm text-blue-800">Test Local Time: {testFormatTime(new Date().toISOString())}</p>
+        <p className="text-xs text-blue-600">Test 19:44: {testFormatTime("2026-04-21T19:44:00Z")}</p>
+      </div>
 
       <div className="grid gap-6">
         {/* Today's snapshot */}
