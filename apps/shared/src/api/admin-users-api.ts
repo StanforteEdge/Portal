@@ -125,6 +125,11 @@ export function createAdminUsersApi(httpRequest: HttpRequest) {
       return httpRequest(`/users/${id}/invite`, { method: "POST", body: {} });
     },
 
+    searchUsers(query: string): Promise<AdminUser[]> {
+      const q = new URLSearchParams({ search: query, per_page: "20" }).toString();
+      return httpRequest<AdminUser[]>(`/admin/users?${q}`);
+    },
+
     async listRoleOptions(): Promise<RoleOption[]> {
       try {
         const data = await httpRequest<{ data: RoleOption[] }>("/admin/rbac/roles");
