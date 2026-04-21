@@ -55,8 +55,8 @@ export const formatTimeNextDay = (
     ? d.toDateString() === refD.toDateString()
     : true;
   
-  const timeStr = new Intl.DateTimeFormat("en-GB", {
-    hour: "2-digit",
+  const timeStr = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
     minute: "2-digit",
     hour12: true,
   }).format(d);

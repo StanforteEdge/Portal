@@ -109,14 +109,14 @@ export default function HrEmployeeCreatePage() {
 
         try {
             setSubmitting(true);
-            await hrApi.requestUserCreation({
+            const api = adminUsersApi as any;
+            await api.createUser({
+                email: email.trim(),
                 first_name: firstName.trim(),
                 last_name: lastName.trim(),
-                email: email.trim(),
-                job_title: jobTitle.trim() || undefined,
+                type: "staff",
+                status: "pending_invite",
                 organization_id: primaryOrgId || undefined,
-                employment_type: employmentType,
-                hire_date: hireDate || undefined,
             });
 
             showToast({
