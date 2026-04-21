@@ -93,7 +93,7 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
 
   return (
     <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
-      <div className="flex h-screen w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
+      <div className="fixed top-16 bottom-0 right-0 w-full max-w-lg flex flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Attendance Policies</p>
@@ -104,7 +104,7 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
           </Button>
         </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-6">
+        <div className="flex-1 min-h-0 space-y-6 overflow-y-auto p-6">
           <SectionCard title="Target Scope">
             <div className="grid gap-4">
               <SelectField
