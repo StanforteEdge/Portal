@@ -9,7 +9,7 @@ import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import EmployeeActionsTab from "@/modules/hr/employees/tabs/EmployeeActionsTab";
 import EmployeeAttendanceTab from "@/modules/hr/employees/tabs/EmployeeAttendanceTab";
-import { formatDate } from "@/shared/lib/format-utils";
+import { formatDate } from "@stanforte/shared";
 
 
 function humanize(value: string) {

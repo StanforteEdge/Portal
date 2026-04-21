@@ -8,7 +8,7 @@ import {
 } from "@/shared";
 import { attendanceApi } from "@/shared/lib/core";
 import { type AdminCorrectionRow } from "@stanforte/shared";
-import { formatDate, formatTime } from "@/shared/lib/format-utils";
+import { formatDate, formatTime } from "@stanforte/shared";
 
 type Props = {
   correction: AdminCorrectionRow;

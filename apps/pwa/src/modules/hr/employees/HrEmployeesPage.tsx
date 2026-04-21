@@ -32,7 +32,7 @@ function humanize(value: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-import { formatDate } from "@/shared/lib/format-utils";
+import { formatDate } from "@stanforte/shared";
 
 export default function HrEmployeesPage() {
   const { user } = useAuth();
