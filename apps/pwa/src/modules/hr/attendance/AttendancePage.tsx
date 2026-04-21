@@ -803,7 +803,7 @@ export function AttendancePage() {
                   onClick={() => setShowCorrectionForm((value) => !value)}
                 >
                   <Icon name="add" className="text-[18px]" />
-                  {showCorrectionForm ? "Close" : "Submit New"}
+                  {showCorrectionForm ? "Close" : " New"}
                 </Button>
               }
             >

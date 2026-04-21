@@ -46,8 +46,9 @@ export default function StaffAttendanceSlideOver({
   const daily: AttendanceDaily[] = (data || []) as any;
 
   return (
-    <div className="fixed top-16 bottom-0 inset-x-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
-      <div className="absolute top-0 bottom-0 right-0 w-full max-w-2xl flex flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-x-0 bottom-0 z-[100] flex justify-end">
+      <div className="absolute inset-0 top-16 bg-slate-950/40" onClick={onClose} />
+      <div className="relative w-full max-w-2xl flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)] animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
