@@ -14,7 +14,7 @@ import {
 import { attendanceApi, useCachedQuery } from "@/shared/lib/core";
 import { type AttendanceDaily } from "@stanforte/shared";
 
-import { formatDate, formatTime, formatDuration } from "@/shared/lib/format-utils";
+import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@/shared/lib/format-utils";
 
 const statusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   present: "success",
@@ -86,7 +86,7 @@ export default function StaffAttendanceSlideOver({
                     <TableRow key={row.id}>
                       <TableCell>{formatDate(row.work_date)}</TableCell>
                       <TableCell>{formatTime(row.first_in_at)}</TableCell>
-                      <TableCell>{formatTime(row.last_out_at)}</TableCell>
+                      <TableCell>{formatTimeNextDay(row.last_out_at, row.first_in_at)}</TableCell>
                       <TableCell>{formatDuration(row.worked_minutes)}</TableCell>
                       <TableCell>
                         {row.late_minutes > 0 ? formatDuration(row.late_minutes) : "-"}
