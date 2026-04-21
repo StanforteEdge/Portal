@@ -37,6 +37,8 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
   const [scopeId, setScopeId] = useState(policy?.scope_id || "");
   const [priority, setPriority] = useState(policy?.priority || 200);
   
+  const [scopeTypeChanged, setScopeTypeChanged] = useState(false);
+
   const [startTime, setStartTime] = useState(policy?.config_json?.start_time || "09:00");
   const [endTime, setEndTime] = useState(policy?.config_json?.end_time || "17:00");
   const [grace, setGrace] = useState(policy?.config_json?.grace_minutes || 15);
@@ -54,8 +56,17 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
       showToast({ tone: "warning", title: "Missing ID", message: "Please provide the Target ID (e.g. Org ID, Team ID or User Email)." });
       return;
     }
+
+    const isScopeChanged = scopeTypeChanged || 
+      (policy && (policy.scope_type !== scopeType || policy.scope_id !== scopeId));
+
     try {
       setSaving(true);
+      
+      if (isScopeChanged && policy?.id) {
+        await policyApi.deletePolicy(policy.id);
+      }
+      
       await policyApi.savePolicy({
         module: "attendance",
         policy_key: "schedule",
@@ -99,8 +110,11 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
               <SelectField
                 label="Scope Type"
                 value={scopeType}
-                onChange={(e) => setScopeType(e.target.value as ScopeType)}
-                disabled={!!policy}
+                onChange={(e) => {
+                  setScopeType(e.target.value as ScopeType);
+                  setScopeTypeChanged(true);
+                  setScopeId("");
+                }}
               >
                 <option value="organization">Organization</option>
                 <option value="team">Team</option>
@@ -108,21 +122,21 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
               </SelectField>
 
               {scopeType === "organization" && (
-                <SelectField label="Target Organization" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                <SelectField label="Target Organization" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
                   <option value="">Select organization…</option>
                   {organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </SelectField>
               )}
 
               {scopeType === "team" && (
-                <SelectField label="Target Team" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                <SelectField label="Target Team" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
                   <option value="">Select team…</option>
                   {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </SelectField>
               )}
 
               {scopeType === "user" && (
-                <SelectField label="Target Employee" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                <SelectField label="Target Employee" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
                   <option value="">Select staff member…</option>
                   {employees.map(s => <option key={s.id} value={s.id}>{s.name} ({s.subtitle})</option>)}
                 </SelectField>

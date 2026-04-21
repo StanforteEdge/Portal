@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { TagPicker } from "@/features/taxonomy/TagPicker";
-import { useCachedQuery } from "@/shared/lib/core";
+import { cacheStore, useCachedQuery } from "@/shared/lib/core";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
   buildRequestsNavigation,
@@ -620,6 +620,12 @@ export function RequestFormPage() {
           ? "Your request has been submitted and routed for review."
           : "Your draft has been saved.",
       });
+      [
+        "requests:list:mine",
+        "requests:list:approvals",
+        `requests:detail:${created.id}`,
+        `requests:actions:${created.id}`,
+      ].forEach((key) => cacheStore.invalidateCache(key));
       navigate(
         family === "leave"
           ? `/leave/details?id=${created.id}&view=mine`

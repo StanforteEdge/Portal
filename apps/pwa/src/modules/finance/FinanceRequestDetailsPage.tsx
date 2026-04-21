@@ -520,6 +520,10 @@ export function FinanceRequestDetailsPage() {
     retired_amount: "",
     notes: "",
     retirement_file_ids: [] as string[],
+    refund_amount: "",
+    refund_method: "bank_transfer",
+    refund_reference: "",
+    refund_date: new Date().toISOString().slice(0, 10),
   });
   const [showCertificateHonorForm, setShowCertificateHonorForm] =
     useState(false);
@@ -891,6 +895,17 @@ export function FinanceRequestDetailsPage() {
       null,
     [paymentVouchers],
   );
+  const selectedRetirementVoucher = useMemo(
+    () =>
+      (paymentVouchers ?? []).find(
+        (voucher) => voucher.id === retireForm.voucher_id,
+      ) || null,
+    [paymentVouchers, retireForm.voucher_id],
+  );
+  const retirementAmountValue = Number(retireForm.retired_amount || 0);
+  const retirementShortfall = selectedRetirementVoucher
+    ? Math.max(0, Number(selectedRetirementVoucher.amount || 0) - retirementAmountValue)
+    : 0;
   const canShowNudge =
     !availableActions.length &&
     Boolean(request) &&
@@ -941,6 +956,12 @@ export function FinanceRequestDetailsPage() {
     setShowDisburseDialog(true);
   }
 
+  function canEditVoucher(voucher: FinancePaymentVoucherRecord) {
+    const hasRetirement =
+      Number(voucher.retired_amount || 0) > 0 || Boolean(voucher.retired_at);
+    return financeActionsVisible && !hasRetirement;
+  }
+
   function openVoucherPreview(voucher: FinancePaymentVoucherRecord) {
     setPreviewVoucher(voucher);
     setShowVoucherPreviewDialog(true);
@@ -960,6 +981,10 @@ export function FinanceRequestDetailsPage() {
             "",
           )
           : current.retired_amount,
+      refund_amount: "",
+      refund_method: "bank_transfer",
+      refund_reference: "",
+      refund_date: new Date().toISOString().slice(0, 10),
     }));
     setShowCertificateHonorForm(false);
     setShowRetireDialog(true);
@@ -1300,15 +1325,56 @@ export function FinanceRequestDetailsPage() {
       } else if (action === "confirm") {
         await confirmRequest(id);
       } else if (action === "retire") {
+        const selectedVoucher =
+          (paymentVouchers ?? []).find(
+            (voucher) => voucher.id === retireForm.voucher_id,
+          ) || null;
+        const retiredAmount = retireForm.retired_amount.trim()
+          ? Number(retireForm.retired_amount)
+          : undefined;
+        const shortfall = selectedVoucher
+          ? Math.max(0, Number(selectedVoucher.amount || 0) - Number(retiredAmount || 0))
+          : 0;
+        const refundAmount = retireForm.refund_amount.trim()
+          ? Number(retireForm.refund_amount)
+          : 0;
+        const hasRefundDetails =
+          refundAmount >= shortfall &&
+          Boolean(retireForm.refund_method.trim()) &&
+          Boolean(retireForm.refund_reference.trim());
+        const hasRefundEvidence = retireForm.retirement_file_ids.length > 0;
+
+        if (shortfall > 0 && !hasRefundDetails && !hasRefundEvidence) {
+          showToast({
+            title: "Refund evidence required",
+            message:
+              "You retired less than disbursed. Add refund details or upload refund evidence before submitting.",
+            tone: "warning",
+          });
+          return;
+        }
+
         await retireRequest(id, {
           voucher_id: retireForm.voucher_id || undefined,
-          retired_amount: retireForm.retired_amount.trim()
-            ? Number(retireForm.retired_amount)
-            : undefined,
+          retired_amount: retiredAmount,
           notes: retireForm.notes.trim() || actionComment.trim() || undefined,
           retirement_file_ids: retireForm.retirement_file_ids.length
             ? retireForm.retirement_file_ids
             : undefined,
+          breakdown:
+            shortfall > 0
+              ? {
+                  refund: {
+                    required_amount: shortfall,
+                    refund_amount: refundAmount || undefined,
+                    refund_method: retireForm.refund_method || undefined,
+                    refund_reference:
+                      retireForm.refund_reference.trim() || undefined,
+                    refund_date: retireForm.refund_date || undefined,
+                    evidence_file_ids: retireForm.retirement_file_ids,
+                  },
+                }
+              : undefined,
         });
       } else if (action === "complete") {
         await completeRequest(id);
@@ -1332,6 +1398,10 @@ export function FinanceRequestDetailsPage() {
         retired_amount: "",
         notes: "",
         retirement_file_ids: [],
+        refund_amount: "",
+        refund_method: "bank_transfer",
+        refund_reference: "",
+        refund_date: new Date().toISOString().slice(0, 10),
       });
       setShowCertificateHonorForm(false);
       setRetirementCertificateForm({
@@ -1706,7 +1776,7 @@ export function FinanceRequestDetailsPage() {
                                   type="button"
                                   className="text-left text-sm font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                                   onClick={() =>
-                                    financeActionsVisible
+                                    canEditVoucher(voucher)
                                       ? openVoucherEditor(voucher)
                                       : openVoucherPreview(voucher)
                                   }
@@ -1733,7 +1803,11 @@ export function FinanceRequestDetailsPage() {
                               </TableCell>
                               <TableCell className="text-sm font-semibold text-slate-700">
                                 {Number(voucher.retired_amount || 0) > 0 ? (
-                                  <div className="flex items-center gap-2">
+                                  <button
+                                    type="button"
+                                    className="inline-flex items-center gap-2 text-left hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                                    onClick={() => openVoucherPreview(voucher)}
+                                  >
                                     <Icon
                                       name={
                                         voucher.retirement_status === "verified"
@@ -1753,7 +1827,7 @@ export function FinanceRequestDetailsPage() {
                                         )}
                                       </span>
                                     </span>
-                                  </div>
+                                  </button>
                                 ) : (
                                   <span className="text-slate-400">-</span>
                                 )}
@@ -1764,33 +1838,19 @@ export function FinanceRequestDetailsPage() {
                                     size="sm"
                                     variant="secondary"
                                     onClick={() =>
-                                      void handleDownloadArtifact(
-                                        "pv_pdf",
-                                        voucher.id,
-                                      )
-                                    }
-                                    disabled={actionBusy !== ""}
-                                  >
-                                    {actionBusy === `download_pv:${voucher.id}`
-                                      ? "Downloading..."
-                                      : "Download PV"}
-                                  </Button>
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() =>
-                                      financeActionsVisible
+                                      canEditVoucher(voucher)
                                         ? openVoucherEditor(voucher)
                                         : openVoucherPreview(voucher)
                                     }
                                   >
-                                    {financeActionsVisible
+                                    {canEditVoucher(voucher)
                                       ? "View / Edit"
                                       : "View"}
                                   </Button>
                                   {ownerActionsVisible &&
                                     availableActions.includes("retire") &&
-                                    Number(voucher.voucher_balance || 0) > 0 ? (
+                                    Number(voucher.voucher_balance || 0) > 0 &&
+                                    Number(voucher.retired_amount || 0) <= 0 ? (
                                     <Button
                                       size="sm"
                                       variant="secondary"
@@ -2219,35 +2279,49 @@ export function FinanceRequestDetailsPage() {
                     <TableBody>
                       {(paymentVouchers ?? []).map((voucher) => (
                         <TableRow key={voucher.id}>
-                          <TableCell className="text-sm font-semibold text-brand-900">
-                            {voucher.voucher_number}
+                          <TableCell>
+                            <button
+                              type="button"
+                              className="text-left text-sm font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                              onClick={() =>
+                                canEditVoucher(voucher)
+                                  ? openVoucherEditor(voucher)
+                                  : openVoucherPreview(voucher)
+                              }
+                            >
+                              {voucher.voucher_number}
+                            </button>
                           </TableCell>
                           <TableCell className="text-sm text-slate-700">
                             {formatCurrency(voucher.amount, request.currency)}
                           </TableCell>
                           <TableCell className="text-sm text-slate-700">
-                            {Number(voucher.retired_amount || 0) > 0
-                              ? formatCurrency(
-                                voucher.retired_amount,
-                                request.currency,
-                              )
-                              : "-"}
+                            {Number(voucher.retired_amount || 0) > 0 ? (
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-2 text-left hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                                onClick={() => openVoucherPreview(voucher)}
+                              >
+                                {formatCurrency(
+                                  voucher.retired_amount,
+                                  request.currency,
+                                )}
+                              </button>
+                            ) : (
+                              "-"
+                            )}
                           </TableCell>
                           <TableCell className="text-right">
                             <Button
                               size="sm"
                               variant="secondary"
                               onClick={() =>
-                                void handleDownloadArtifact(
-                                  "pv_pdf",
-                                  voucher.id,
-                                )
+                                canEditVoucher(voucher)
+                                  ? openVoucherEditor(voucher)
+                                  : openVoucherPreview(voucher)
                               }
-                              disabled={actionBusy !== ""}
                             >
-                              {actionBusy === `download_pv:${voucher.id}`
-                                ? "Downloading..."
-                                : "Download PV"}
+                              {canEditVoucher(voucher) ? "View / Edit" : "View"}
                             </Button>
                           </TableCell>
                         </TableRow>
@@ -2742,6 +2816,62 @@ export function FinanceRequestDetailsPage() {
                   </div>
                 </div>
               ) : null}
+              {previewVoucher.retirement_files?.length ? (
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-sm font-semibold text-slate-950">
+                    Retirement files
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {previewVoucher.retirement_files.map((file) => (
+                      <div
+                        key={file.id}
+                        className="rounded-2xl bg-white px-3 py-2 text-sm text-slate-700"
+                      >
+                        {file.file_name}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {(() => {
+                const requestData = request?.data as Record<string, unknown> | null;
+                const retirement = typeof requestData?.retirement === "object" && requestData.retirement ? (requestData.retirement as Record<string, unknown>) : null;
+                const breakdown = typeof retirement?.breakdown === "object" && retirement.breakdown ? (retirement.breakdown as Record<string, unknown>) : null;
+                const refund = typeof breakdown?.refund === "object" && breakdown.refund ? (breakdown.refund as Record<string, unknown>) : null;
+                const refundAmount = typeof refund?.refund_amount === "number" ? refund.refund_amount : null;
+                if (!refund || !refundAmount) return null;
+                return (
+                  <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-4">
+                    <div className="text-sm font-semibold text-amber-900">
+                      Refund
+                    </div>
+                    <div className="mt-2 space-y-1 text-sm text-amber-800">
+                      <p>
+                        <span className="font-medium">Amount:</span>{" "}
+                        {formatCurrency(refundAmount, request?.currency)}
+                      </p>
+                      {refund.refund_method ? (
+                        <p>
+                          <span className="font-medium">Method:</span>{" "}
+                          {String(refund.refund_method)}
+                        </p>
+                      ) : null}
+                      {refund.refund_reference ? (
+                        <p>
+                          <span className="font-medium">Reference:</span>{" "}
+                          {String(refund.refund_reference)}
+                        </p>
+                      ) : null}
+                      {refund.refund_date ? (
+                        <p>
+                          <span className="font-medium">Date:</span>{" "}
+                          {formatDisplayDate(String(refund.refund_date))}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="border-t border-slate-100 px-6 py-4">
               <div className="flex flex-wrap justify-end gap-3">
@@ -2977,6 +3107,68 @@ export function FinanceRequestDetailsPage() {
                     : ""
                 }
               />
+
+              {retirementShortfall > 0 ? (
+                <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-semibold text-amber-900">
+                    Refund Required: {formatCurrency(retirementShortfall, request?.currency)}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-800">
+                    You retired less than disbursed. Provide refund details below or upload refund evidence in Retirement Files.
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <TextField
+                      label="Refund Amount"
+                      type="number"
+                      min="0"
+                      value={retireForm.refund_amount}
+                      onChange={(event) =>
+                        setRetireForm((current) => ({
+                          ...current,
+                          refund_amount: event.target.value,
+                        }))
+                      }
+                      placeholder={String(retirementShortfall)}
+                    />
+                    <SelectField
+                      label="Refund Method"
+                      value={retireForm.refund_method}
+                      onChange={(event) =>
+                        setRetireForm((current) => ({
+                          ...current,
+                          refund_method: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="cash_deposit">Cash Deposit</option>
+                      <option value="cash_handin">Cash Hand-in</option>
+                    </SelectField>
+                    <TextField
+                      label="Refund Reference"
+                      value={retireForm.refund_reference}
+                      onChange={(event) =>
+                        setRetireForm((current) => ({
+                          ...current,
+                          refund_reference: event.target.value,
+                        }))
+                      }
+                      placeholder="Txn ref / teller / receipt no"
+                    />
+                    <TextField
+                      label="Refund Date"
+                      type="date"
+                      value={retireForm.refund_date}
+                      onChange={(event) =>
+                        setRetireForm((current) => ({
+                          ...current,
+                          refund_date: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
 
               <TextAreaField
                 label="Retirement Notes"

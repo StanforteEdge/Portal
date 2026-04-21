@@ -133,8 +133,17 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
       >) ?? [])
     : [];
   const rawStatus = String(request.status || "Pending");
+  const returnedForEdit = stateEvents.some((event) => {
+    const action = String(event.action || "").toLowerCase();
+    const to = String(event.to || "").toLowerCase();
+    return action === "return" || to === "returned" || to === "returned_for_edit";
+  });
   const normalizedStatus =
-    rawStatus.toLowerCase() === "draft" &&
+    rawStatus.toLowerCase() === "returned" || rawStatus.toLowerCase() === "returned_for_edit"
+      ? "returned"
+      : rawStatus.toLowerCase() === "draft" && returnedForEdit
+        ? "returned"
+        : rawStatus.toLowerCase() === "draft" &&
     (stateEvents.some((event) =>
       ["submit", "workflow_start", "workflow_auto_approved"].includes(
         String(event.action || "").toLowerCase(),
@@ -142,8 +151,8 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
     ) ||
       (request.approvals?.pending?.length ?? 0) > 0 ||
       (request.approvals?.done?.length ?? 0) > 0)
-      ? "submitted"
-      : rawStatus;
+          ? "submitted"
+          : rawStatus;
   const requestType = request.request_type?.name || "General Request";
   const itemCount = Array.isArray(request.items) ? request.items.length : 0;
   const amountLabel = formatCurrency(request.total_amount, request.currency);
@@ -564,6 +573,7 @@ function RequestsListTable({
               ) : null}
               <TableHeaderCell>Submitted</TableHeaderCell>
               <TableHeaderCell>Status</TableHeaderCell>
+              <TableHeaderCell className="text-right">Action</TableHeaderCell>
             </TableHeaderRow>
           </TableHead>
           <TableBody>
@@ -616,8 +626,26 @@ function RequestsListTable({
                 <TableCell className="text-sm text-slate-600">
                   {row.submitted}
                 </TableCell>
-                <TableCell className="rounded-r-2xl">
+                <TableCell>
                   <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
+                </TableCell>
+                <TableCell className="rounded-r-2xl text-right">
+                  {row.statusKey === "draft" || row.statusKey === "returned" ? (
+                    <Link
+                      to={`${row.family === "leave" ? "/leave/new/form" : "/requests/new/form"}?edit=${row.requestId}&typeId=${row.requestTypeId}`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline"
+                    >
+                      <Icon name="edit" className="text-[14px]" />
+                      Edit
+                    </Link>
+                  ) : (
+                    <Link
+                      to={`/requests/details?id=${row.requestId}&view=mine`}
+                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:underline"
+                    >
+                      View
+                    </Link>
+                  )}
                 </TableCell>
               </TableRow>
             ))}

@@ -1,6 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink, useLocation } from "react-router-dom";
 import { Icon } from "@/shared";
+
+function cn(...classes: (string | undefined | null | false)[]) {
+  return classes.filter(Boolean).join(" ");
+}
 
 export type SidebarItem = {
   key?: string;
@@ -68,9 +72,42 @@ export function Sidebar({
         nodeKey(item) === activeLabel || nodeHasActiveDescendant(item, activeLabel),
     )?.label ?? null;
   const [openItem, setOpenItem] = useState<string | null>(activeParentLabel);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(
+    () => new Set(["finance-group-overview"]),
+  );
+  const toggleGroup = (key: string) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
   const navRef = useRef<HTMLElement | null>(null);
   const [canScrollUp, setCanScrollUp] = useState(false);
   const [canScrollDown, setCanScrollDown] = useState(false);
+  const location = useLocation();
+  const pathname = location.pathname;
+
+  function handleGroupAutoOpen() {
+    for (const item of navigation) {
+      for (const child of item.children ?? []) {
+        if (!child.path && child.key && child.children) {
+          const hasActive = child.children.some(
+            (gc) => gc.path && pathname.startsWith(gc.path),
+          );
+          if (hasActive) {
+            setOpenGroups((prev) => {
+              if (prev.has(child.key!)) return prev;
+              return new Set([...prev, child.key!]);
+            });
+          }
+        }
+      }
+    }
+  }
+
+  useEffect(() => {
+    handleGroupAutoOpen();
+  }, [pathname]);
 
   function updateScrollState() {
     const el = navRef.current;
@@ -234,34 +271,47 @@ export function Sidebar({
                             {child.icon ? <Icon name={child.icon} className="text-[14px]" /> : null}
                             <span className="flex-1">{child.label}</span>
                           </NavLink>
-                        ) : (
-                          <div className="px-3 pt-2 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-400">
-                            {child.label}
-                          </div>
-                        )}
-
-                        {nestedChildren ? (
-                          <div className="ml-2 space-y-1 border-l border-slate-100 pl-2">
-                            {child.children!.map((grandChild) => {
-                              const grandChildIsActive = nodeHasActiveDescendant(grandChild, activeLabel);
-                              return grandChild.path ? (
-                                <NavLink
-                                  key={`${item.label}-${nodeKey(child)}-${nodeKey(grandChild)}`}
-                                  className={[
-                                    "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-                                    grandChildIsActive
-                                      ? "bg-brand-900/10 text-brand-900"
-                                      : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
-                                  ].join(" ")}
-                                  to={grandChild.path}
-                                  aria-current={grandChildIsActive ? "page" : undefined}
-                                >
-                                  <Icon name={grandChild.icon || child.icon || item.icon} className="text-[14px]" />
-                                  <span className="flex-1">{grandChild.label}</span>
-                                </NavLink>
-                              ) : null;
-                            })}
-                          </div>
+                        ) : child.children?.length ? (
+                          <>
+                            <button
+                              onClick={() => child.key && toggleGroup(child.key)}
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-[0.16em] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                "text-slate-400 hover:text-slate-600 hover:bg-slate-100",
+                              )}
+                            >
+                              <span>{child.label}</span>
+                              {child.key && (
+                                <Icon
+                                  name={openGroups.has(child.key) ? "expand_less" : "expand_more"}
+                                  className="text-[14px]"
+                                />
+                              )}
+                            </button>
+                            {child.key && openGroups.has(child.key) && nestedChildren && (
+                              <div className="ml-2 space-y-1 border-l border-slate-100 pl-2">
+                                {child.children!.map((grandChild) => {
+                                  const grandChildIsActive = nodeHasActiveDescendant(grandChild, activeLabel);
+                                  return grandChild.path ? (
+                                    <NavLink
+                                      key={`${item.label}-${nodeKey(child)}-${nodeKey(grandChild)}`}
+                                      className={[
+                                        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                        grandChildIsActive
+                                          ? "bg-brand-900/10 text-brand-900"
+                                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
+                                      ].join(" ")}
+                                      to={grandChild.path}
+                                      aria-current={grandChildIsActive ? "page" : undefined}
+                                    >
+                                      <Icon name={grandChild.icon || child.icon || item.icon} className="text-[14px]" />
+                                      <span className="flex-1">{grandChild.label}</span>
+                                    </NavLink>
+                                  ) : null;
+                                })}
+                              </div>
+                            )}
+                          </>
                         ) : null}
                       </div>
                     );

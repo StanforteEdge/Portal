@@ -10,6 +10,7 @@ export type MobileNavItem = {
 /**
  * Build the main application navigation sidebar.
  * All modules (Staff, Finance, HR) are registered here.
+ * Permission-based filtering happens in AppShell using hasAnyPermission / hasModuleAccess.
  */
 export function buildAppNavigation(options?: {
   includeRequestDetails?: boolean;
@@ -62,70 +63,82 @@ export function buildAppNavigation(options?: {
       icon: "person",
       section: "Staff",
       children: [
-        { label: "Profile", icon: "person", path: "/profile" },
+        { label: "My Profile", icon: "person", path: "/profile" },
         { label: "Settings", icon: "settings", path: "/settings" },
         { label: "Payslips", icon: "receipt_long", path: "/profile/payslips" },
       ],
     },
 
-    // Admin section
+    // Finance section - filtered by AppShell using permissions/m-moduleKey
     {
       label: "Financial",
       icon: "account_balance_wallet",
       section: "Admin",
       moduleKey: "finance",
       children: [
+        { key: "finance-dashboard", label: "Dashboard", icon: "grid_view", path: "/finance" },
         {
-          label: "Transactions",
-          icon: "receipt_long",
+          key: "finance-group-operations",
+          label: "Operations",
+          icon: "build",
           children: [
             { key: "finance-requests", label: "Requests", icon: "receipt_long", path: "/finance/requests" },
-            { key: "finance-vouchers", label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers" },
-            { key: "finance-manual-entry", label: "Manual Entry", icon: "edit_note", path: "/finance/manual-entry" },
             { key: "finance-ledger", label: "Ledger", icon: "book", path: "/finance/ledger" },
-            { key: "finance-income", label: "Income", icon: "payments", path: "/finance/income" },
-            { key: "finance-expenses", label: "Expenses", icon: "receipt", path: "/finance/expenses" },
-            { key: "finance-sales-invoices", label: "Sales Invoices", icon: "request_quote", path: "/finance/sales-invoices" },
-            { key: "finance-bills", label: "Bills", icon: "receipt_long", path: "/finance/bills" },
-            { key: "finance-receivables", label: "Receivables", icon: "request_quote", path: "/finance/receivables" },
-            { key: "finance-payables", label: "Payables", icon: "payments", path: "/finance/payables" },
+            { key: "finance-reports", label: "Reports", icon: "insights", path: "/finance/reports" },
+            { key: "finance-manual-entry", label: "Journal Entry", icon: "edit_note", path: "/finance/manual-entry" },
             ...(includeDetails && detailsParent === "finance"
               ? [financeRequestDetailsItem]
               : []),
           ],
         },
         {
-          label: "Planning",
-          icon: "insights",
+          key: "finance-group-money-in",
+          label: "Money In",
+          icon: "trending_up",
           children: [
-            { key: "finance-dashboard", label: "Dashboard", icon: "grid_view", path: "/finance" },
-            { key: "finance-budgets", label: "Budgets", icon: "savings", path: "/finance/budgets" },
-            { key: "finance-reports", label: "Reports", icon: "insights", path: "/finance/reports" },
+            { key: "finance-sales-invoices", label: "Sales Invoices", icon: "request_quote", path: "/finance/sales-invoices" },
+            { key: "finance-income", label: "Income", icon: "payments", path: "/finance/income" },
+            { key: "finance-receivables", label: "Receivables", icon: "request_quote", path: "/finance/receivables" },
+            { key: "finance-customers", label: "Customers", icon: "person", path: "/finance/customers" },
           ],
         },
         {
-          label: "Masters (Accounts & Banking)",
-          icon: "account_balance",
+          key: "finance-group-money-out",
+          label: "Money Out",
+          icon: "trending_down",
+          children: [
+            { key: "finance-bills", label: "Bills", icon: "receipt_long", path: "/finance/bills" },
+            { key: "finance-expenses", label: "Expenses", icon: "receipt", path: "/finance/expenses" },
+            { key: "finance-payables", label: "Payables", icon: "payments", path: "/finance/payables" },
+            { key: "finance-vendors", label: "Vendors", icon: "local_shipping", path: "/finance/vendors" },
+            { key: "finance-vouchers", label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers" },
+          ],
+        },
+        {
+          key: "finance-group-fixed-assets",
+          label: "Fixed Assets",
+          icon: "inventory_2",
+          children: [
+            { key: "finance-assets", label: "Asset Register", icon: "inventory_2", path: "/finance/assets" },
+            { key: "finance-assets-disposals", label: "Disposals", icon: "delete_sweep", path: "/finance/assets/disposals" },
+          ],
+        },
+        {
+          key: "finance-group-setup",
+          label: "Setup",
+          icon: "settings",
           children: [
             { key: "finance-chart-accounts", label: "Chart of Accounts", icon: "account_balance", path: "/finance/chart-accounts" },
             { key: "finance-accounts", label: "Bank & Cash", icon: "account_balance_wallet", path: "/finance/accounts" },
-            { key: "finance-customers", label: "Customers", icon: "person", path: "/finance/customers" },
-            { key: "finance-vendors", label: "Vendors", icon: "local_shipping", path: "/finance/vendors" },
-            { key: "finance-items", label: "Items", icon: "inventory", path: "/finance/items" },
+            { key: "finance-items", label: "Products & Services", icon: "inventory", path: "/finance/items" },
+            { key: "finance-budgets", label: "Budgets", icon: "savings", path: "/finance/budgets" },
             { key: "finance-settings", label: "Settings", icon: "settings", path: "/finance/settings" },
-            {
-              label: "Assets",
-              icon: "inventory_2",
-              children: [
-                { key: "finance-assets", label: "Asset Register", icon: "inventory_2", path: "/finance/assets" },
-                { key: "finance-assets-new", label: "New Asset", icon: "add_circle", path: "/finance/assets/new" },
-                { key: "finance-assets-disposals", label: "Disposals", icon: "delete_sweep", path: "/finance/assets/disposals" },
-              ],
-            },
           ],
         },
       ],
     },
+
+    // HR section - filtered by AppShell using moduleKey
     {
       label: "HR",
       icon: "people",
@@ -139,6 +152,8 @@ export function buildAppNavigation(options?: {
         { key: "hr-settings", label: "Settings", icon: "settings", path: "/hr/settings" },
       ],
     },
+
+    // Administration section - filtered by AppShell using moduleKey/permissions
     {
       label: "Administration",
       icon: "manage_accounts",
@@ -150,7 +165,7 @@ export function buildAppNavigation(options?: {
         { key: "admin-groups", label: "Groups", icon: "groups", path: "/admin/groups" },
         { key: "admin-projects", label: "Projects", icon: "assignment", path: "/admin/projects" },
         { key: "admin-files", label: "Files", icon: "folder", path: "/admin/files" },
-        { key: "admin-settings", label: "System Settings", icon: "settings", path: "/admin/settings" },
+{ key: "admin-settings", label: "System Settings", icon: "settings", path: "/admin/settings" },
       ],
     },
   ];

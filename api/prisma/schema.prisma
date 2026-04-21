@@ -28,7 +28,7 @@ enum GroupUserRole {
 
 enum RequestStatus {
   draft
-  returned_for_edit
+  returned
   sent
   approval
   cleared

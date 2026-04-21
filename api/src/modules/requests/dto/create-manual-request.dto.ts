@@ -155,7 +155,7 @@ export class CreateManualRequestDto {
 
   @ApiPropertyOptional({ example: 'completed' })
   @IsOptional()
-  @IsIn(['draft', 'returned_for_edit', 'sent', 'approval', 'cleared', 'disbursed', 'confirmed', 'retired', 'completed', 'rejected', 'cancelled'])
+  @IsIn(['draft', 'returned', 'sent', 'approval', 'cleared', 'disbursed', 'confirmed', 'retired', 'completed', 'rejected', 'cancelled'])
   status?: string;
 
   @ApiPropertyOptional({ example: '2025-11-12T10:00:00.000Z' })

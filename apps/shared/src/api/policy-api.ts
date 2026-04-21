@@ -29,6 +29,10 @@ export function createPolicyApi(httpRequest: HttpRequest) {
         method,
         body: dto,
       });
+    },
+
+    async deletePolicy(id: string) {
+      return httpRequest<void>(`/policies/${id}`, { method: "DELETE" });
     }
   };
 }
