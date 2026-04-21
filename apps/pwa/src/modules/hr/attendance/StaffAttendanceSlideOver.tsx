@@ -46,8 +46,8 @@ export default function StaffAttendanceSlideOver({
   const daily: AttendanceDaily[] = (data || []) as any;
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
-      <div className="flex h-screen w-full max-w-2xl flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
+    <div className="fixed top-16 bottom-0 inset-x-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
+      <div className="flex w-full max-w-2xl flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -63,7 +63,7 @@ export default function StaffAttendanceSlideOver({
           </Button>
         </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6">
           {loading ? (
             <div className="text-sm text-slate-500">Loading...</div>
           ) : error ? (
