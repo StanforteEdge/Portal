@@ -33,11 +33,45 @@ export const formatTime = (date: string | Date | null | undefined): string => {
   const d = typeof date === "string" ? new Date(date) : date;
   if (isNaN(d.getTime())) return "-";
 
-  return new Intl.DateTimeFormat(locale, {
-    hour: "2-digit",
+  return new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
     minute: "2-digit",
     hour12: true,
   }).format(d);
+};
+
+export const formatTimeNextDay = (
+  date: string | Date | null | undefined,
+  referenceDate?: string | Date | null | undefined
+): string => {
+  if (!date) return "-";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(d.getTime())) return "-";
+  
+  const refD = referenceDate
+    ? (typeof referenceDate === "string" ? new Date(referenceDate) : referenceDate)
+    : d;
+  const isSameDay = refD && !isNaN(refD.getTime())
+    ? d.toDateString() === refD.toDateString()
+    : true;
+  
+  const timeStr = new Intl.DateTimeFormat("en-US", {
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  }).format(d);
+  
+  if (isSameDay || !refD || isNaN(refD.getTime())) {
+    return timeStr;
+  }
+  
+  const currDay = d.toDateString();
+  const refDay = new Date(refD).toDateString();
+  if (currDay !== refDay && d > refD) {
+    return `${timeStr} +1 Day`;
+  }
+  
+  return timeStr;
 };
 
 export const formatDuration = (minutes: number): string => {

@@ -30,7 +30,7 @@ import {
 } from "@stanforte/shared";
 import StaffAttendanceSlideOver from "./StaffAttendanceSlideOver";
 import CorrectionReviewSlideOver from "./CorrectionReviewSlideOver";
-import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@/shared/lib/format-utils";
+import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@stanforte/shared";
 
 const rowStatusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   present: "success",

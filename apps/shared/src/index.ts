@@ -46,7 +46,7 @@ export { useCachedQuery } from "./data/useCachedQuery";
 export type { CacheStore } from "./data/cache";
 
 export { formatRelativeTime, humanize, roleLabel, sortRoles, userDisplayName } from "./utils/display";
-export { formatDate, formatFullDate, formatTime, formatDuration, formatDisplayDate } from "./utils/formatting";
+export { formatDate, formatFullDate, formatTime, formatTimeNextDay, formatDuration, formatDisplayDate } from "./utils/formatting";
 
 
 export { DEFAULT_CURRENCY, formatCurrency, normalizeCurrency } from "./utils/currency";

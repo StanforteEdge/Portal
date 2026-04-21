@@ -12,7 +12,7 @@ import {
   TextField,
 } from "@/shared";
 import { attendanceApi, useCachedQuery } from "@/shared/lib/core";
-import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@/shared/lib/format-utils";
+import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@stanforte/shared";
 
 type Props = {
   employeeId: string;

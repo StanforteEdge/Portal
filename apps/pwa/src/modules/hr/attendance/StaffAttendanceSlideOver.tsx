@@ -14,7 +14,7 @@ import {
 import { attendanceApi, useCachedQuery } from "@/shared/lib/core";
 import { type AttendanceDaily } from "@stanforte/shared";
 
-import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@/shared/lib/format-utils";
+import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@stanforte/shared";
 
 const statusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   present: "success",
