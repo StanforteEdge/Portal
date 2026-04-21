@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
@@ -37,5 +37,11 @@ export class PoliciesController {
   @Permissions('settings.manage')
   resolve(@Body() dto: ResolvePolicyDto) {
     return this.policiesService.resolve(dto);
+  }
+
+  @Delete(':id')
+  @Permissions('settings.manage')
+  delete(@Param('id') id: string) {
+    return this.policiesService.delete(id);
   }
 }

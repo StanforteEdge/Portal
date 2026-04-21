@@ -10,9 +10,9 @@ export function SlideOver({ open, onClose, children }: SlideOverProps) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="fixed top-16 bottom-0 right-0 w-full max-w-md flex flex-col bg-white shadow-xl">
+    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-end">
+      <div className="absolute inset-0 top-16 bg-black/50" onClick={onClose} />
+      <div className="relative w-full max-w-md flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)]">
         <div className="flex-1 min-h-0 overflow-y-auto">
           {children}
         </div>
