@@ -209,6 +209,11 @@ model Profile {
   updatedFinanceItems            FinanceItem[]              @relation("FinanceItemUpdatedBy")
   createdFinanceExpenses         FinanceExpense[]           @relation("FinanceExpenseCreatedBy")
   updatedFinanceExpenses         FinanceExpense[]           @relation("FinanceExpenseUpdatedBy")
+  createdDeductionTypes          FinanceDeductionType[]     @relation("DeductionTypeCreatedBy")
+  updatedDeductionTypes          FinanceDeductionType[]     @relation("DeductionTypeUpdatedBy")
+  createdPVDeductions            FinancePVDeduction[]       @relation("PVDeductionCreatedBy")
+  createdWHTRemittances          FinanceWHTRemittance[]     @relation("WHTRemittanceCreatedBy")
+  updatedWHTRemittances          FinanceWHTRemittance[]     @relation("WHTRemittanceUpdatedBy")
 
   @@map("sta_profiles")
 }
@@ -821,6 +826,7 @@ model RequestInstance {
   auditLogId          String?       @map("audit_log_id") @db.Uuid
   totalAmount         Decimal?      @map("total_amount") @db.Decimal(15, 2)
   currency            String        @default("NGN") @db.VarChar(3)
+  vendorId            String?       @map("vendor_id") @db.Uuid
   createdAt           DateTime      @default(now()) @map("created_at")
   updatedAt           DateTime      @updatedAt @map("updated_at")
 
@@ -828,6 +834,7 @@ model RequestInstance {
   group              RequestGroup            @relation(fields: [groupId], references: [id])
   organization       Organization?           @relation(fields: [organizationId], references: [id])
   creator            Profile                 @relation("RequestCreatedBy", fields: [createdBy], references: [id])
+  vendor             FinanceVendor?          @relation("RequestVendor", fields: [vendorId], references: [id], onDelete: SetNull)
   items              RequestItem[]
   paymentVouchers    FinancePaymentVoucher[]
   paymentVoucherCorrections FinancePaymentVoucherCorrection[]
@@ -921,6 +928,7 @@ model FinanceAccount {
   vendorPayments  FinanceVendorPayment[]
   payrollRuns     PayrollRun[]
   expenses        FinanceExpense[]
+  whtRemittances  FinanceWHTRemittance[] @relation("WHTRemittanceAccount")
 
   @@unique([organizationId, name], name: "unique_finance_account_name_per_org")
   @@index([organizationId])
@@ -1072,6 +1080,7 @@ model FinanceChartAccount {
   payrollSettingsCash    PayrollSetting[] @relation("PayrollDefaultCashAccount")
   items                  FinanceItem[]
   expenses               FinanceExpense[]
+  deductionTypes         FinanceDeductionType[] @relation("DeductionTypeGL")
 
   @@unique([organizationId, code], name: "unique_finance_chart_account_code_per_org")
   @@index([type])
@@ -1367,6 +1376,9 @@ model FinanceVendor {
   bills         FinanceBillHeader[]
   payments      FinanceVendorPayment[]
   expenses      FinanceExpense[]
+  paymentVouchers FinancePaymentVoucher[] @relation("PVVendor")
+  requests      RequestInstance[]        @relation("RequestVendor")
+  whtAccruals   FinanceVendorWHTAccrual[]
 
   @@unique([organizationId, name], name: "unique_finance_vendor_name_per_org")
   @@index([isActive])
@@ -2646,6 +2658,9 @@ model FinancePaymentVoucher {
   retiredAt         DateTime? @map("retired_at")
   verifiedAt        DateTime? @map("verified_at")
   metadata          Json?
+  vendorId          String?   @map("vendor_id") @db.Uuid
+  grossAmount       Decimal?  @map("gross_amount") @db.Decimal(15, 2)
+  netAmount         Decimal?  @map("net_amount") @db.Decimal(15, 2)
   createdAt         DateTime  @default(now()) @map("created_at")
   updatedAt         DateTime  @updatedAt @map("updated_at")
 
@@ -2655,8 +2670,11 @@ model FinancePaymentVoucher {
   expenseAccount  FinanceChartAccount? @relation(fields: [expenseAccountId], references: [id], onDelete: SetNull)
   fund            FinanceFund?         @relation(fields: [fundId], references: [id], onDelete: SetNull)
   grant           FinanceGrant?        @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  vendor          FinanceVendor?       @relation("PVVendor", fields: [vendorId], references: [id], onDelete: SetNull)
   attachments     FinancePaymentVoucherFile[]
   corrections     FinancePaymentVoucherCorrection[]
+  deductions      FinancePVDeduction[]
+  whtAccruals     FinanceVendorWHTAccrual[]
 
   @@index([requestId])
   @@index([paidFromAccountId])
@@ -2665,6 +2683,7 @@ model FinancePaymentVoucher {
   @@index([grantId])
   @@index([voucherNumber])
   @@index([retirementStatus])
+  @@index([vendorId])
   @@map("sta_finance_payment_vouchers")
 }
 
@@ -3105,4 +3124,107 @@ model FinanceExpense {
   @@index([accountId])
   @@index([organizationId])
   @@map("sta_finance_expenses")
+}
+
+model FinanceDeductionType {
+  id             String   @id @default(uuid()) @db.Uuid
+  name           String   @db.VarChar(100)
+  code           String   @db.VarChar(30)
+  rate           Decimal  @db.Decimal(6, 4)
+  appliesTo      String   @default("vendor") @db.VarChar(50) @map("applies_to")
+  glAccountId    String?  @db.Uuid @map("gl_account_id")
+  isActive       Boolean  @default(true) @map("is_active")
+  organizationId BigInt?  @map("organization_id")
+  createdBy      BigInt   @map("created_by")
+  updatedBy      BigInt?  @map("updated_by")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  glAccount     FinanceChartAccount?    @relation("DeductionTypeGL", fields: [glAccountId], references: [id], onDelete: SetNull)
+  createdByUser Profile                 @relation("DeductionTypeCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser Profile?                @relation("DeductionTypeUpdatedBy", fields: [updatedBy], references: [id])
+  pvDeductions  FinancePVDeduction[]
+  accruals      FinanceVendorWHTAccrual[]
+  remittances   FinanceWHTRemittance[]
+
+  @@index([isActive])
+  @@map("sta_finance_deduction_types")
+}
+
+model FinancePVDeduction {
+  id               String   @id @default(uuid()) @db.Uuid
+  paymentVoucherId String   @db.Uuid @map("payment_voucher_id")
+  deductionTypeId  String   @db.Uuid @map("deduction_type_id")
+  rate             Decimal  @db.Decimal(6, 4)
+  grossAmount      Decimal  @db.Decimal(15, 2) @map("gross_amount")
+  deductionAmount  Decimal  @db.Decimal(15, 2) @map("deduction_amount")
+  createdBy        BigInt   @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  paymentVoucher FinancePaymentVoucher  @relation(fields: [paymentVoucherId], references: [id], onDelete: Cascade)
+  deductionType  FinanceDeductionType   @relation(fields: [deductionTypeId], references: [id])
+  createdByUser  Profile                @relation("PVDeductionCreatedBy", fields: [createdBy], references: [id])
+  accrual        FinanceVendorWHTAccrual?
+
+  @@index([paymentVoucherId])
+  @@map("sta_finance_pv_deductions")
+}
+
+model FinanceVendorWHTAccrual {
+  id               String    @id @default(uuid()) @db.Uuid
+  vendorId         String    @db.Uuid @map("vendor_id")
+  paymentVoucherId String    @db.Uuid @map("payment_voucher_id")
+  pvDeductionId    String    @unique @db.Uuid @map("pv_deduction_id")
+  deductionTypeId  String    @db.Uuid @map("deduction_type_id")
+  periodYear       Int       @map("period_year")
+  periodMonth      Int       @map("period_month")
+  grossAmount      Decimal   @db.Decimal(15, 2) @map("gross_amount")
+  withheldAmount   Decimal   @db.Decimal(15, 2) @map("withheld_amount")
+  remittanceId     String?   @db.Uuid @map("remittance_id")
+  remittedAt       DateTime? @map("remitted_at")
+  organizationId   BigInt?   @map("organization_id")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  vendor         FinanceVendor          @relation(fields: [vendorId], references: [id])
+  paymentVoucher FinancePaymentVoucher  @relation(fields: [paymentVoucherId], references: [id])
+  pvDeduction    FinancePVDeduction     @relation(fields: [pvDeductionId], references: [id])
+  deductionType  FinanceDeductionType   @relation(fields: [deductionTypeId], references: [id])
+  remittance     FinanceWHTRemittance?  @relation(fields: [remittanceId], references: [id])
+
+  @@index([vendorId])
+  @@index([periodYear, periodMonth])
+  @@index([remittanceId])
+  @@map("sta_finance_vendor_wht_accruals")
+}
+
+model FinanceWHTRemittance {
+  id                String   @id @default(uuid()) @db.Uuid
+  remittanceNumber  String   @unique @db.VarChar(60) @map("remittance_number")
+  deductionTypeId   String   @db.Uuid @map("deduction_type_id")
+  periodYear        Int      @map("period_year")
+  periodMonth       Int      @map("period_month")
+  totalAmount       Decimal  @db.Decimal(15, 2) @map("total_amount")
+  paidFromAccountId String   @db.Uuid @map("paid_from_account_id")
+  remittanceDate    DateTime @db.Date @map("remittance_date")
+  reference         String?  @db.VarChar(120)
+  receiptFileId     String?  @db.Uuid @map("receipt_file_id")
+  status            String   @default("pending") @db.VarChar(20)
+  notes             String?  @db.Text
+  organizationId    BigInt?  @map("organization_id")
+  createdBy         BigInt   @map("created_by")
+  updatedBy         BigInt?  @map("updated_by")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  deductionType   FinanceDeductionType   @relation(fields: [deductionTypeId], references: [id])
+  paidFromAccount FinanceAccount         @relation("WHTRemittanceAccount", fields: [paidFromAccountId], references: [id])
+  createdByUser   Profile                @relation("WHTRemittanceCreatedBy", fields: [createdBy], references: [id])
+  updatedByUser   Profile?               @relation("WHTRemittanceUpdatedBy", fields: [updatedBy], references: [id])
+  accruals        FinanceVendorWHTAccrual[]
+
+  @@index([periodYear, periodMonth])
+  @@index([deductionTypeId])
+  @@map("sta_finance_wht_remittances")
 }
