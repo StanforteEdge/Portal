@@ -209,6 +209,17 @@ export type RequestRecord = {
   [key: string]: unknown;
 };
 
+type PaginatedResponse<T> = {
+  data: T[];
+  meta?: Record<string, unknown>;
+};
+
+type DownloadedFile = {
+  file_name: string;
+  mime_type: string;
+  content_base64: string;
+};
+
 export function createFinanceApi(httpRequest: HttpRequest) {
   return {
     async listRequests(params?: Record<string, unknown>) {
@@ -221,6 +232,29 @@ export function createFinanceApi(httpRequest: HttpRequest) {
         return response.data as RequestRecord[];
       }
       return [];
+    },
+
+    async listRequestsPaged(params?: Record<string, unknown>) {
+      const suffix = toQuery(params);
+      const response = await httpRequest<any>(`/finance/requests${suffix}`);
+      if (Array.isArray(response)) {
+        return {
+          data: response as RequestRecord[],
+          meta: {
+            page: Number(params?.page ?? 1),
+            per_page: Number(params?.per_page ?? response.length ?? 20),
+            total: response.length,
+            last_page: 1,
+          },
+        } as PaginatedResponse<RequestRecord>;
+      }
+      if (Array.isArray(response?.data)) {
+        return {
+          data: response.data as RequestRecord[],
+          meta: (response.meta ?? undefined) as Record<string, unknown> | undefined,
+        } as PaginatedResponse<RequestRecord>;
+      }
+      return { data: [], meta: { page: 1, per_page: Number(params?.per_page ?? 20), total: 0, last_page: 1 } };
     },
 
     listPaymentVouchers(params?: Record<string, unknown>) {
@@ -249,7 +283,41 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     listLedger(params?: Record<string, unknown>) {
-      return httpRequest<FinanceLedgerEntry[]>(`/finance/ledger${toQuery(params)}`);
+      return httpRequest<FinanceLedgerEntry[] | PaginatedResponse<FinanceLedgerEntry>>(
+        `/finance/ledger${toQuery(params)}`,
+      ).then((response) => {
+        if (Array.isArray(response)) return response;
+        if (Array.isArray(response?.data)) return response.data;
+        return [];
+      });
+    },
+
+    async listLedgerPaged(params?: Record<string, unknown>) {
+      const response = await httpRequest<
+        FinanceLedgerEntry[] | PaginatedResponse<FinanceLedgerEntry>
+      >(`/finance/ledger${toQuery(params)}`);
+      if (Array.isArray(response)) {
+        return {
+          data: response,
+          meta: {
+            page: Number(params?.page ?? 1),
+            per_page: Number(params?.per_page ?? response.length ?? 20),
+            total: response.length,
+            last_page: 1,
+          },
+        } as PaginatedResponse<FinanceLedgerEntry>;
+      }
+      if (Array.isArray(response?.data)) {
+        return {
+          data: response.data,
+          meta: response.meta,
+        } as PaginatedResponse<FinanceLedgerEntry>;
+      }
+      return { data: [], meta: { page: 1, per_page: Number(params?.per_page ?? 20), total: 0, last_page: 1 } };
+    },
+
+    exportLedger(params?: Record<string, unknown>) {
+      return httpRequest<DownloadedFile>(`/finance/ledger/export${toQuery(params)}`);
     },
 
     listManualEntries(params?: Record<string, unknown>) {

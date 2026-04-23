@@ -110,7 +110,8 @@ export default function FinanceRequestsPage() {
     | "completed"
   >("all");
   const [staffFilter, setStaffFilter] = useState("");
-  const [dueDateFilter, setDueDateFilter] = useState("");
+  const [dueDateFromFilter, setDueDateFromFilter] = useState("");
+  const [dueDateToFilter, setDueDateToFilter] = useState("");
   const [selectedProject, setSelectedProject] = useState("all");
   const [selectedGroup, setSelectedGroup] = useState("all");
   const [selectedOrganization, setSelectedOrganization] = useState("all");
@@ -126,7 +127,8 @@ export default function FinanceRequestsPage() {
   }, [
     statusFilter,
     staffFilter,
-    dueDateFilter,
+    dueDateFromFilter,
+    dueDateToFilter,
     selectedProject,
     selectedGroup,
     selectedOrganization,
@@ -143,7 +145,8 @@ export default function FinanceRequestsPage() {
       order_dir: sortDir,
       status: statusFilter !== "all" ? statusFilter : undefined,
       q: staffFilter.trim() || undefined,
-      due_date: dueDateFilter || undefined,
+      due_date_from: dueDateFromFilter || undefined,
+      due_date_to: dueDateToFilter || undefined,
       project: selectedProject !== "all" ? selectedProject : undefined,
       group: selectedGroup !== "all" ? selectedGroup : undefined,
       organization:
@@ -156,7 +159,8 @@ export default function FinanceRequestsPage() {
       sortDir,
       statusFilter,
       staffFilter,
-      dueDateFilter,
+      dueDateFromFilter,
+      dueDateToFilter,
       selectedProject,
       selectedGroup,
       selectedOrganization,
@@ -164,23 +168,28 @@ export default function FinanceRequestsPage() {
   );
 
   const {
-    data: financeRequests,
+    data: financeRequestsPayload,
     loading,
     error,
   } = useCachedQuery(
     `finance-admin:requests:${JSON.stringify(financeRequestQuery)}`,
-    () => financeApi.listRequests(financeRequestQuery),
+    () => financeApi.listRequestsPaged(financeRequestQuery),
     {
       ttlMs: 1000 * 30,
       storage: "memory",
     },
   );
 
-  const queue: RequestRecord[] = (
-    Array.isArray(financeRequests) ? financeRequests : []
-  ).filter((entry) => !isLeaveRequest(entry));
-  const total = queue.length;
-  const lastPage = 1;
+  const queueData = Array.isArray(financeRequestsPayload?.data)
+    ? (financeRequestsPayload.data as RequestRecord[])
+    : [];
+  const queue: RequestRecord[] = queueData.filter((entry) => !isLeaveRequest(entry));
+  const meta =
+    financeRequestsPayload?.meta && typeof financeRequestsPayload.meta === "object"
+      ? (financeRequestsPayload.meta as Record<string, unknown>)
+      : {};
+  const total = Number(meta.total ?? queue.length);
+  const lastPage = Math.max(1, Number(meta.last_page ?? 1));
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
@@ -330,7 +339,7 @@ export default function FinanceRequestsPage() {
             ) : undefined
           }
         >
-          <div className="mb-4 flex flex-wrap items-start gap-3">
+          <div className="mb-4 flex flex-wrap items-start gap-3 justify-start">
             <SelectField
               label="Sort By"
               value={sortBy}
@@ -347,7 +356,7 @@ export default function FinanceRequestsPage() {
               label="Order"
               value={sortDir}
               onChange={(event) => setSortDir(event.target.value as SortDir)}
-              className="min-w-[120px] flex-1 lg:flex-none"
+              className="min-w-[110px] flex-1 lg:flex-none"
             >
               <option value="desc">Newest</option>
               <option value="asc">Oldest</option>
@@ -358,7 +367,7 @@ export default function FinanceRequestsPage() {
               onChange={(event) =>
                 setStatusFilter(event.target.value as typeof statusFilter)
               }
-              className="min-w-[180px] flex-1 lg:flex-none"
+              className="min-w-[130px] flex-1 lg:flex-none"
             >
               <option value="all">All statuses</option>
               <option value="approval">Approval</option>
@@ -369,10 +378,16 @@ export default function FinanceRequestsPage() {
               <option value="completed">Completed</option>
             </SelectField>
             <TextField
-              label="Due Date"
+              label="Due Date From"
               type="date"
-              value={dueDateFilter}
-              onChange={(event) => setDueDateFilter(event.target.value)}
+              value={dueDateFromFilter}
+              onChange={(event) => setDueDateFromFilter(event.target.value)}
+            />
+            <TextField
+              label="Due Date To"
+              type="date"
+              value={dueDateToFilter}
+              onChange={(event) => setDueDateToFilter(event.target.value)}
             />
             <TextField
               label="Staff"
@@ -380,14 +395,17 @@ export default function FinanceRequestsPage() {
               onChange={(event) => setStaffFilter(event.target.value)}
               placeholder="Search by staff or request no"
             />
-            <div className="flex items-end">
+            <div className="flex justify-end  h-stretch flex-col self-stretch">
+              <label className="block">
+      <span className="field-label">More</span>
+    </label>
               <Button
                 type="button"
                 variant="secondary"
-                className="w-full lg:w-auto"
+                className="w-auto lg:w-auto"
                 onClick={() => setMoreFiltersOpen((current) => !current)}
               >
-                {moreFiltersOpen ? "Hide More Filters" : "More Filters"}
+                {moreFiltersOpen ? " - " : " + "}
               </Button>
             </div>
           </div>

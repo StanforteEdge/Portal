@@ -345,6 +345,13 @@ export class FinanceController {
     return this.financeService.listLedger(query);
   }
 
+  @Get('ledger/export')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'Export ledger entries' })
+  exportLedger(@Query() query: Record<string, any>, @Query('format') format?: string) {
+    return this.financeService.exportLedger(query, format);
+  }
+
   @Post('income')
   @Permissions('requests.manage')
   @ApiOperation({ summary: 'Create income entry and post to ledger' })
