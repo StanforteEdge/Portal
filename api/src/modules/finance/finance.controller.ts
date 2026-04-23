@@ -29,13 +29,20 @@ import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
 import { UpsertFinanceItemDto } from './dto/upsert-finance-item.dto';
 import { CreateFinanceExpenseDto } from './dto/create-finance-expense.dto';
 import { CreateManualJournalEntryDto } from './dto/create-manual-journal-entry.dto';
+import { DeductionService } from './deduction.service';
+import { UpsertDeductionTypeDto } from './dto/upsert-deduction-type.dto';
+import { ApplyPVDeductionsDto } from './dto/apply-pv-deductions.dto';
+import { CreateWHTRemittanceDto } from './dto/create-wht-remittance.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiTags('Finance')
 @ApiBearerAuth('bearer')
 export class FinanceController {
-  constructor(private readonly financeService: FinanceService) {}
+  constructor(
+    private readonly financeService: FinanceService,
+    private readonly deductionService: DeductionService,
+  ) {}
 
   @Get('summary')
   @Permissions('requests.view')
@@ -726,5 +733,76 @@ export class FinanceController {
   @ApiOperation({ summary: 'Backfill accounting journals from historical finance records' })
   backfillAccounting(@Req() req: any) {
     return this.financeService.backfillAccounting(req.user?.id);
+  }
+
+  // ── Deduction Types ──────────────────────────────────────────────────────
+
+  @Get('deduction-types')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List statutory deduction types' })
+  listDeductionTypes(@Query() query: Record<string, any>) {
+    return this.deductionService.listDeductionTypes(query);
+  }
+
+  @Post('deduction-types')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Create a deduction type' })
+  createDeductionType(@Req() req: any, @Body() dto: UpsertDeductionTypeDto) {
+    return this.deductionService.upsertDeductionType(undefined, dto, req.user?.id, req.user?.organizationId);
+  }
+
+  @Post('deduction-types/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update a deduction type' })
+  updateDeductionType(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertDeductionTypeDto) {
+    return this.deductionService.upsertDeductionType(id, dto, req.user?.id, req.user?.organizationId);
+  }
+
+  // ── PV Deductions ────────────────────────────────────────────────────────
+
+  @Get('payment-vouchers/:pvId/deductions')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List deductions on a payment voucher' })
+  listPVDeductions(@Param('pvId') pvId: string) {
+    return this.deductionService.listPVDeductions(pvId);
+  }
+
+  @Post('payment-vouchers/:pvId/deductions')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Apply statutory deductions to a payment voucher' })
+  applyPVDeductions(@Req() req: any, @Param('pvId') pvId: string, @Body() dto: ApplyPVDeductionsDto) {
+    return this.deductionService.applyPVDeductions(pvId, dto, req.user?.id);
+  }
+
+  // ── Vendor WHT Accruals ──────────────────────────────────────────────────
+
+  @Get('vendors/:vendorId/wht-accruals')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List WHT accruals for a vendor' })
+  listVendorAccruals(@Param('vendorId') vendorId: string, @Query() query: Record<string, any>) {
+    return this.deductionService.listVendorAccruals(vendorId, query);
+  }
+
+  // ── WHT Remittances ──────────────────────────────────────────────────────
+
+  @Get('wht-remittances')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List WHT remittances' })
+  listWHTRemittances(@Query() query: Record<string, any>) {
+    return this.deductionService.listWHTRemittances(query);
+  }
+
+  @Get('wht-remittances/:id')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get a WHT remittance with accruals' })
+  getWHTRemittance(@Param('id') id: string) {
+    return this.deductionService.getWHTRemittance(id);
+  }
+
+  @Post('wht-remittances')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Create a WHT remittance batch' })
+  createWHTRemittance(@Req() req: any, @Body() dto: CreateWHTRemittanceDto) {
+    return this.deductionService.createWHTRemittance(dto, req.user?.id, req.user?.organizationId);
   }
 }
