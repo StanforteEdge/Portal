@@ -157,7 +157,7 @@ export type CustomerRecord = FinancePartyRecord & {
 export type VendorRecord = FinancePartyRecord & {
   outstanding_amount?: number;
   opening_balance?: number;
-  tax_id?: string | null;
+  tax_number?: string | null;
 };
 
 export type PartyTransaction = {
@@ -210,8 +210,12 @@ export type RequestRecord = {
 };
 
 type PaginatedResponse<T> = {
-  data: T[];
-  meta?: Record<string, unknown>;
+  result: T[];
+  total: number;
+  total_result: number;
+  per_page: number;
+  page: number;
+  pages: number;
 };
 
 type DownloadedFile = {
@@ -220,46 +224,75 @@ type DownloadedFile = {
   content_base64: string;
 };
 
+function asPaginatedResponse<T>(
+  response: unknown,
+  endpoint: string,
+) {
+  if (!response || typeof response !== "object" || Array.isArray(response)) {
+    throw new Error(`${endpoint} must return a paginated response object.`);
+  }
+
+  const payload = response as {
+    result?: unknown;
+    total?: unknown;
+    total_result?: unknown;
+    per_page?: unknown;
+    page?: unknown;
+    pages?: unknown;
+  };
+  if (!Array.isArray(payload.result)) {
+    throw new Error(`${endpoint} response is missing result[].`);
+  }
+  const page = Number(payload.page);
+  const perPage = Number(payload.per_page);
+  const total = Number(payload.total);
+  const totalResult = Number(payload.total_result);
+  const pages = Number(payload.pages);
+
+  if (
+    !Number.isFinite(page) ||
+    !Number.isFinite(perPage) ||
+    !Number.isFinite(total) ||
+    !Number.isFinite(totalResult) ||
+    !Number.isFinite(pages)
+  ) {
+    throw new Error(
+      `${endpoint} response must include numeric total, total_result, per_page, page, and pages.`,
+    );
+  }
+
+  return {
+    result: payload.result as T[],
+    total: Math.max(0, Math.trunc(total)),
+    total_result: Math.max(0, Math.trunc(totalResult)),
+    per_page: Math.max(1, Math.trunc(perPage)),
+    page: Math.max(1, Math.trunc(page)),
+    pages: Math.max(1, Math.trunc(pages)),
+  };
+}
+
 export function createFinanceApi(httpRequest: HttpRequest) {
   return {
     async listRequests(params?: Record<string, unknown>) {
       const suffix = toQuery(params);
       const response = await httpRequest<any>(`/finance/requests${suffix}`);
-      if (Array.isArray(response)) {
-        return response as RequestRecord[];
-      }
-      if (Array.isArray(response?.data)) {
-        return response.data as RequestRecord[];
-      }
-      return [];
+      const paged = asPaginatedResponse<RequestRecord>(response, "/finance/requests");
+      return paged.result;
     },
 
     async listRequestsPaged(params?: Record<string, unknown>) {
       const suffix = toQuery(params);
       const response = await httpRequest<any>(`/finance/requests${suffix}`);
-      if (Array.isArray(response)) {
-        return {
-          data: response as RequestRecord[],
-          meta: {
-            page: Number(params?.page ?? 1),
-            per_page: Number(params?.per_page ?? response.length ?? 20),
-            total: response.length,
-            last_page: 1,
-          },
-        } as PaginatedResponse<RequestRecord>;
-      }
-      if (Array.isArray(response?.data)) {
-        return {
-          data: response.data as RequestRecord[],
-          meta: (response.meta ?? undefined) as Record<string, unknown> | undefined,
-        } as PaginatedResponse<RequestRecord>;
-      }
-      return { data: [], meta: { page: 1, per_page: Number(params?.per_page ?? 20), total: 0, last_page: 1 } };
+      return asPaginatedResponse<RequestRecord>(response, "/finance/requests");
     },
 
     listPaymentVouchers(params?: Record<string, unknown>) {
       const suffix = toQuery(params);
-      return httpRequest<FinancePaymentVoucherRecord[]>(`/finance/payment-vouchers${suffix}`);
+      return httpRequest<PaginatedResponse<FinancePaymentVoucherRecord>>(
+        `/finance/payment-vouchers${suffix}`,
+      ).then((response) =>
+        asPaginatedResponse<FinancePaymentVoucherRecord>(response, "/finance/payment-vouchers").result,
+      );
     },
 
     listRequestPaymentVouchers(requestId: string) {
@@ -283,37 +316,16 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     listLedger(params?: Record<string, unknown>) {
-      return httpRequest<FinanceLedgerEntry[] | PaginatedResponse<FinanceLedgerEntry>>(
-        `/finance/ledger${toQuery(params)}`,
-      ).then((response) => {
-        if (Array.isArray(response)) return response;
-        if (Array.isArray(response?.data)) return response.data;
-        return [];
-      });
+      return httpRequest<PaginatedResponse<FinanceLedgerEntry>>(`/finance/ledger${toQuery(params)}`).then(
+        (response) => asPaginatedResponse<FinanceLedgerEntry>(response, "/finance/ledger").result,
+      );
     },
 
     async listLedgerPaged(params?: Record<string, unknown>) {
-      const response = await httpRequest<
-        FinanceLedgerEntry[] | PaginatedResponse<FinanceLedgerEntry>
-      >(`/finance/ledger${toQuery(params)}`);
-      if (Array.isArray(response)) {
-        return {
-          data: response,
-          meta: {
-            page: Number(params?.page ?? 1),
-            per_page: Number(params?.per_page ?? response.length ?? 20),
-            total: response.length,
-            last_page: 1,
-          },
-        } as PaginatedResponse<FinanceLedgerEntry>;
-      }
-      if (Array.isArray(response?.data)) {
-        return {
-          data: response.data,
-          meta: response.meta,
-        } as PaginatedResponse<FinanceLedgerEntry>;
-      }
-      return { data: [], meta: { page: 1, per_page: Number(params?.per_page ?? 20), total: 0, last_page: 1 } };
+      const response = await httpRequest<PaginatedResponse<FinanceLedgerEntry>>(
+        `/finance/ledger${toQuery(params)}`,
+      );
+      return asPaginatedResponse<FinanceLedgerEntry>(response, "/finance/ledger");
     },
 
     exportLedger(params?: Record<string, unknown>) {
@@ -321,7 +333,14 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     listManualEntries(params?: Record<string, unknown>) {
-      return httpRequest<{ data: Record<string, unknown>[]; meta?: Record<string, unknown> }>(`/finance/manual-entry${toQuery(params)}`);
+      return httpRequest<{
+        result: Record<string, unknown>[];
+        total: number;
+        total_result: number;
+        per_page: number;
+        page: number;
+        pages: number;
+      }>(`/finance/manual-entry${toQuery(params)}`);
     },
 
     createManualEntry(payload: Record<string, unknown>) {
@@ -340,7 +359,11 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     listSalesInvoices(params?: Record<string, unknown>) {
-      return httpRequest<FinanceInvoiceRecord[]>(`/finance/sales-invoices${toQuery(params)}`);
+      return httpRequest<PaginatedResponse<FinanceInvoiceRecord>>(
+        `/finance/sales-invoices${toQuery(params)}`,
+      ).then((response) =>
+        asPaginatedResponse<FinanceInvoiceRecord>(response, "/finance/sales-invoices").result,
+      );
     },
 
     getSalesInvoice(id: string) {
@@ -348,7 +371,9 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     listBills(params?: Record<string, unknown>) {
-      return httpRequest<FinanceBillRecord[]>(`/finance/bills${toQuery(params)}`);
+      return httpRequest<PaginatedResponse<FinanceBillRecord>>(`/finance/bills${toQuery(params)}`).then(
+        (response) => asPaginatedResponse<FinanceBillRecord>(response, "/finance/bills").result,
+      );
     },
 
     getBill(id: string) {
@@ -396,7 +421,17 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     listChartAccounts(params?: Record<string, unknown>) {
-      return httpRequest<FinanceChartAccountRecord[]>(`/finance/chart-accounts${toQuery(params)}`);
+      return httpRequest<any>(`/finance/chart-accounts${toQuery(params)}`).then((response) => {
+        const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
+        return {
+          result: rows,
+          total: Number(response?.total ?? response?.total_result ?? rows.length),
+          total_result: Number(response?.total_result ?? response?.total ?? rows.length),
+          per_page: Number(response?.per_page ?? 20),
+          page: Number(response?.page ?? 1),
+          pages: Number(response?.pages ?? 1)
+        };
+      });
     },
 
     listReportingPeriods(params?: Record<string, unknown>) {
@@ -404,11 +439,29 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     listCustomers(params?: Record<string, unknown>) {
-      return httpRequest<CustomerRecord[]>(`/finance/customers${toQuery(params)}`);
+      return httpRequest<any>(`/finance/customers${toQuery(params)}`).then((response) => {
+        const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
+        return {
+          result: rows,
+          total: Number(response?.total ?? response?.total_result ?? rows.length),
+          total_result: Number(response?.total_result ?? response?.total ?? rows.length),
+          per_page: Number(response?.per_page ?? 20),
+          page: Number(response?.page ?? 1),
+          pages: Number(response?.pages ?? 1)
+        };
+      });
     },
 
     getCustomer(id: string) {
       return httpRequest<CustomerRecord>(`/finance/customers/${id}`);
+    },
+
+    createCustomer(payload: Record<string, unknown>) {
+      return httpRequest<CustomerRecord>("/finance/customers", { method: "POST", body: payload });
+    },
+
+    updateCustomer(id: string, payload: Record<string, unknown>) {
+      return httpRequest<CustomerRecord>(`/finance/customers/${id}`, { method: "POST", body: payload });
     },
 
     getCustomerTransactions(id: string) {
@@ -416,11 +469,29 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     listVendors(params?: Record<string, unknown>) {
-      return httpRequest<VendorRecord[]>(`/finance/vendors${toQuery(params)}`);
+      return httpRequest<any>(`/finance/vendors${toQuery(params)}`).then((response) => {
+        const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
+        return {
+          result: rows,
+          total: Number(response?.total ?? response?.total_result ?? rows.length),
+          total_result: Number(response?.total_result ?? response?.total ?? rows.length),
+          per_page: Number(response?.per_page ?? 20),
+          page: Number(response?.page ?? 1),
+          pages: Number(response?.pages ?? 1)
+        };
+      });
     },
 
     getVendor(id: string) {
       return httpRequest<VendorRecord>(`/finance/vendors/${id}`);
+    },
+
+    createVendor(payload: Record<string, unknown>) {
+      return httpRequest<VendorRecord>("/finance/vendors", { method: "POST", body: payload });
+    },
+
+    updateVendor(id: string, payload: Record<string, unknown>) {
+      return httpRequest<VendorRecord>(`/finance/vendors/${id}`, { method: "POST", body: payload });
     },
 
     getVendorTransactions(id: string) {
@@ -477,6 +548,50 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     getGrantUtilizationReport(params?: Record<string, unknown>) {
       return httpRequest<Record<string, unknown>>(`/finance/reports/grant-utilization${toQuery(params)}`);
+    },
+
+    // ── Deduction Types ────────────────────────────────────────────────────
+
+    listDeductionTypes(params?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>[]>(`/finance/deduction-types${toQuery(params)}`);
+    },
+
+    createDeductionType(body: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>('/finance/deduction-types', { method: 'POST', body: JSON.stringify(body) });
+    },
+
+    updateDeductionType(id: string, body: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/deduction-types/${id}`, { method: 'POST', body: JSON.stringify(body) });
+    },
+
+    // ── PV Deductions ──────────────────────────────────────────────────────
+
+    listPVDeductions(pvId: string) {
+      return httpRequest<Record<string, unknown>[]>(`/finance/payment-vouchers/${pvId}/deductions`);
+    },
+
+    applyPVDeductions(pvId: string, body: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/payment-vouchers/${pvId}/deductions`, { method: 'POST', body: JSON.stringify(body) });
+    },
+
+    // ── Vendor WHT Accruals ────────────────────────────────────────────────
+
+    listVendorWHTAccruals(vendorId: string, params?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>[]>(`/finance/vendors/${vendorId}/wht-accruals${toQuery(params)}`);
+    },
+
+    // ── WHT Remittances ────────────────────────────────────────────────────
+
+    listWHTRemittances(params?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>[]>(`/finance/wht-remittances${toQuery(params)}`);
+    },
+
+    getWHTRemittance(id: string) {
+      return httpRequest<Record<string, unknown>>(`/finance/wht-remittances/${id}`);
+    },
+
+    createWHTRemittance(body: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>('/finance/wht-remittances', { method: 'POST', body: JSON.stringify(body) });
     },
   };
 }
