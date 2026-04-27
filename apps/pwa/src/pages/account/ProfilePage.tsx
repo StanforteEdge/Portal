@@ -3,6 +3,7 @@ import {
   Button,
   Chip,
   SectionCard,
+  SelectField,
   StatCard,
   TextAreaField,
   TextField,
@@ -30,6 +31,14 @@ export default function ProfilePage() {
     last_name: "",
     phone: "",
     address: "",
+    date_of_birth: "",
+    gender: "",
+    nationality: "",
+    state: "",
+    lga: "",
+    marital_status: "",
+    occupation: "",
+    bio: "",
   });
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -41,6 +50,14 @@ export default function ProfilePage() {
       last_name: profile.last_name || "",
       phone: profile.phone || "",
       address: profile.address || "",
+      date_of_birth: profile.date_of_birth || "",
+      gender: profile.gender || "",
+      nationality: profile.nationality || "",
+      state: profile.state || "",
+      lga: profile.lga || "",
+      marital_status: profile.marital_status || "",
+      occupation: profile.occupation || "",
+      bio: profile.bio || "",
     });
   }, [profile]);
 
@@ -53,6 +70,14 @@ export default function ProfilePage() {
         last_name: form.last_name.trim() || undefined,
         phone: form.phone.trim() || undefined,
         address: form.address.trim() || undefined,
+        date_of_birth: form.date_of_birth || undefined,
+        gender: form.gender.trim() || undefined,
+        nationality: form.nationality.trim() || undefined,
+        state: form.state.trim() || undefined,
+        lga: form.lga.trim() || undefined,
+        marital_status: form.marital_status.trim() || undefined,
+        occupation: form.occupation.trim() || undefined,
+        bio: form.bio.trim() || undefined,
       });
       await refetch();
       setNotice("Profile updated successfully.");
@@ -202,6 +227,77 @@ export default function ProfilePage() {
                 value={form.address}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, address: event.target.value }))
+                }
+              />
+            </div>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <TextField
+                label="Date of Birth"
+                type="date"
+                value={form.date_of_birth}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, date_of_birth: event.target.value }))
+                }
+              />
+              <SelectField
+                label="Gender"
+                value={form.gender}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, gender: event.target.value }))
+                }
+              >
+                <option value="">Prefer not to say</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+              </SelectField>
+              <TextField
+                label="Nationality"
+                value={form.nationality}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, nationality: event.target.value }))
+                }
+              />
+              <TextField
+                label="State"
+                value={form.state}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, state: event.target.value }))
+                }
+              />
+              <TextField
+                label="LGA"
+                value={form.lga}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, lga: event.target.value }))
+                }
+              />
+              <SelectField
+                label="Marital Status"
+                value={form.marital_status}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, marital_status: event.target.value }))
+                }
+              >
+                <option value="">Prefer not to say</option>
+                <option value="single">Single</option>
+                <option value="married">Married</option>
+                <option value="divorced">Divorced</option>
+                <option value="widowed">Widowed</option>
+              </SelectField>
+              <TextField
+                label="Occupation"
+                value={form.occupation}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, occupation: event.target.value }))
+                }
+              />
+            </div>
+            <div className="mt-4">
+              <TextAreaField
+                label="Bio"
+                value={form.bio}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, bio: event.target.value }))
                 }
               />
             </div>
