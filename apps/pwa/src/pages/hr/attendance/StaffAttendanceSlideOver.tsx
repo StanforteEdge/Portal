@@ -15,14 +15,9 @@ import { SlideOver, SlideOverHeader, SlideOverContent } from "@/shared/component
 import { attendanceApi, useCachedQuery } from "@/shared/lib/core";
 import { type AttendanceDaily } from "@stanforte/shared";
 
-import { formatDate, formatTime, formatDuration } from "@stanforte/shared";
+import { formatDate, formatTime, formatDuration, humanize } from "@stanforte/shared";
+import { deriveAttendanceStatus, toneFromStatus } from "./attendance-data";
 import { TimeWithNextDay } from "@/shared/components/ui/TimeWithNextDay";
-
-const statusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-  present: "success",
-  late: "warning",
-  absent: "danger",
-};
 
 type Props = {
   userId: string;
@@ -83,8 +78,8 @@ export default function StaffAttendanceSlideOver({
                       {row.late_minutes > 0 ? formatDuration(row.late_minutes) : "-"}
                     </TableCell>
                     <TableCell>
-                      <Chip variant={statusVariant[row.status] ?? "neutral"}>
-                        {row.status}
+                      <Chip variant={toneFromStatus(deriveAttendanceStatus(row))}>
+                        {humanize(deriveAttendanceStatus(row))}
                       </Chip>
                     </TableCell>
                   </TableRow>

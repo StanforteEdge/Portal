@@ -30,16 +30,9 @@ import {
 } from "@stanforte/shared";
 import StaffAttendanceSlideOver from "./StaffAttendanceSlideOver";
 import CorrectionReviewSlideOver from "./CorrectionReviewSlideOver";
-import { formatDate, formatTime, formatDuration } from "@stanforte/shared";
+import { formatDate, formatTime, formatDuration, humanize } from "@stanforte/shared";
+import { deriveAttendanceStatus, toneFromStatus } from "./attendance-data";
 import { TimeWithNextDay } from "@/shared/components/ui/TimeWithNextDay";
-
-const rowStatusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
-  present: "success",
-  late: "warning",
-  absent: "danger",
-  remote: "neutral",
-  field: "warning",
-};
 
 const corrStatusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   pending: "warning",
@@ -217,9 +210,9 @@ export default function HrAttendancePage() {
                     </TableCell>
                     <TableCell>
                       <Chip
-                        variant={rowStatusVariant[row.status] ?? "neutral"}
+                        variant={toneFromStatus(deriveAttendanceStatus(row))}
                       >
-                        {row.status}
+                        {humanize(deriveAttendanceStatus(row))}
                       </Chip>
                     </TableCell>
                     <TableCell>

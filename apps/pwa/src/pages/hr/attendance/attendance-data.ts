@@ -1,3 +1,27 @@
+export function toneFromStatus(
+  status?: string | null,
+): "success" | "warning" | "danger" | "pending" | "neutral" {
+  const key = String(status || "")
+    .trim()
+    .toLowerCase();
+  if (["present", "approved", "resolved", "corrected"].includes(key))
+    return "success";
+  if (["late", "pending", "submitted", "review"].includes(key))
+    return "warning";
+  if (["absent", "rejected", "outside"].includes(key)) return "danger";
+  if (["remote", "field"].includes(key)) return "success";
+  if (["holiday", "off_day", "leave"].includes(key)) return "neutral";
+  return "neutral";
+}
+
+export function deriveAttendanceStatus(row: { status?: string | null; first_in_at?: string | null }): string {
+  const status = String(row.status || "").trim().toLowerCase();
+  if (["remote", "field", "onsite"].includes(status)) {
+    return row.first_in_at ? "present" : "absent";
+  }
+  return status || (row.first_in_at ? "present" : "not_started");
+}
+
 export type AttendanceMode = {
   label: string;
   icon: string;

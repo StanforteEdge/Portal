@@ -48,7 +48,12 @@ export default function ProfilePage() {
     try {
       setSaving(true);
       setNotice(null);
-      await updateWorkspaceProfile(form);
+      await updateWorkspaceProfile({
+        first_name: form.first_name.trim() || undefined,
+        last_name: form.last_name.trim() || undefined,
+        phone: form.phone.trim() || undefined,
+        address: form.address.trim() || undefined,
+      });
       await refetch();
       setNotice("Profile updated successfully.");
     } catch (updateError) {

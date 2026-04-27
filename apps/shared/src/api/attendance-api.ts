@@ -91,7 +91,7 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
   return {
     async getStats(date: string): Promise<AttendanceTodayStats> {
       const res = await httpRequest<any>(`/hr/attendance/summary?from=${date}&to=${date}`);
-      const stats = res?.data?.by_status || {};
+      const stats = res?.by_status || {};
       return {
         total_staff: (stats.present || 0) + (stats.late || 0) + (stats.absent || 0) + (stats.excused || 0),
         clocked_in: (stats.present || 0) + (stats.late || 0),
@@ -104,14 +104,14 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
       const query = new URLSearchParams();
       Object.entries(params).forEach(([k, v]) => { if (v) query.set(k, String(v)); });
       const res = await httpRequest<any>(`/hr/attendance/records?${query.toString()}`);
-      const data = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      const data = Array.isArray(res) ? res : [];
       return data.map(normalizeAttendanceRecord);
     },
 
     async listCorrections(params?: { status?: string }) {
       const query = params?.status ? `?status=${params.status}` : "";
       const res = await httpRequest<any>(`/hr/attendance/corrections${query}`);
-      const data = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      const data = Array.isArray(res) ? res : [];
       return data.map((c: any) => ({
         ...c,
         user_name: c.profile ? `${c.profile.first_name} ${c.profile.last_name}` : "Unknown",
