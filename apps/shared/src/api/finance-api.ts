@@ -158,6 +158,42 @@ export type VendorRecord = FinancePartyRecord & {
   outstanding_amount?: number;
   opening_balance?: number;
   tax_number?: string | null;
+  contact_type?: "customer" | "vendor" | "both";
+  sub_type?: "individual" | "business";
+  company_name?: string | null;
+  contact_persons?: ContactPersonRecord[];
+};
+
+export type ContactPersonRecord = {
+  id: string;
+  salutation?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  designation?: string | null;
+  department?: string | null;
+  is_primary: boolean;
+};
+
+export type ContactRecord = FinancePartyRecord & {
+  contact_type: "customer" | "vendor" | "both";
+  sub_type: "individual" | "business";
+  company_name?: string | null;
+  legal_name?: string | null;
+  billing_address?: Record<string, unknown> | null;
+  shipping_address?: Record<string, unknown> | null;
+  tax_number?: string | null;
+  is_taxable?: boolean;
+  payment_terms?: number | null;
+  credit_limit?: number | null;
+  opening_balance?: number | null;
+  website?: string | null;
+  notes?: string | null;
+  primary_contact_id?: string | null;
+  contact_persons: ContactPersonRecord[];
+  outstanding_amount?: number;
 };
 
 export type PartyTransaction = {
@@ -498,6 +534,36 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<PartyTransaction[]>(`/finance/vendors/${id}/transactions`);
     },
 
+    listContacts(params?: Record<string, unknown>) {
+      return httpRequest<any>(`/finance/contacts${toQuery(params)}`).then((response) => {
+        const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
+        return {
+          result: rows,
+          total: Number(response?.total ?? response?.total_result ?? rows.length),
+          total_result: Number(response?.total_result ?? response?.total ?? rows.length),
+          per_page: Number(response?.per_page ?? 20),
+          page: Number(response?.page ?? 1),
+          pages: Number(response?.pages ?? 1)
+        };
+      });
+    },
+
+    getContact(id: string) {
+      return httpRequest<ContactRecord>(`/finance/contacts/${id}`);
+    },
+
+    createContact(payload: Record<string, unknown>) {
+      return httpRequest<ContactRecord>("/finance/contacts", { method: "POST", body: payload });
+    },
+
+    updateContact(id: string, payload: Record<string, unknown>) {
+      return httpRequest<ContactRecord>(`/finance/contacts/${id}`, { method: "POST", body: payload });
+    },
+
+    getContactTransactions(id: string) {
+      return httpRequest<PartyTransaction[]>(`/finance/contacts/${id}/transactions`);
+    },
+
     listDonors(params?: Record<string, unknown>) {
       return httpRequest<FinancePartyRecord[]>(`/finance/donors${toQuery(params)}`);
     },
@@ -557,11 +623,11 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     createDeductionType(body: Record<string, unknown>) {
-      return httpRequest<Record<string, unknown>>('/finance/deduction-types', { method: 'POST', body: JSON.stringify(body) });
+      return httpRequest<Record<string, unknown>>('/finance/deduction-types', { method: 'POST', body });
     },
 
     updateDeductionType(id: string, body: Record<string, unknown>) {
-      return httpRequest<Record<string, unknown>>(`/finance/deduction-types/${id}`, { method: 'POST', body: JSON.stringify(body) });
+      return httpRequest<Record<string, unknown>>(`/finance/deduction-types/${id}`, { method: 'POST', body });
     },
 
     // ── PV Deductions ──────────────────────────────────────────────────────
@@ -571,7 +637,7 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     applyPVDeductions(pvId: string, body: Record<string, unknown>) {
-      return httpRequest<Record<string, unknown>>(`/finance/payment-vouchers/${pvId}/deductions`, { method: 'POST', body: JSON.stringify(body) });
+      return httpRequest<Record<string, unknown>>(`/finance/payment-vouchers/${pvId}/deductions`, { method: 'POST', body });
     },
 
     // ── Vendor WHT Accruals ────────────────────────────────────────────────
@@ -591,7 +657,7 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     createWHTRemittance(body: Record<string, unknown>) {
-      return httpRequest<Record<string, unknown>>('/finance/wht-remittances', { method: 'POST', body: JSON.stringify(body) });
+      return httpRequest<Record<string, unknown>>('/finance/wht-remittances', { method: 'POST', body });
     },
   };
 }
