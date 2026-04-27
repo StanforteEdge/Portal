@@ -3184,14 +3184,18 @@ export class RequestsService {
     );
 
     const findStep = (matcher: RegExp) => approvals.done.find((row) => matcher.test(row.step));
+    const teamLeadStepMatcher = /team[\s_-]*lead/i;
+    const accountantStepMatcher = /\b(accountant|finance)\b/i;
+    const cooStepMatcher = /\bcoo\b/i;
+    const edStepMatcher = /\bed\b|executive director/i;
     const manualApprovals = Array.isArray(data.manual_approvals)
       ? (data.manual_approvals as Array<Record<string, unknown>>)
       : [];
     const manualFor = (matcher: RegExp) =>
       manualApprovals.find((row) => matcher.test(String(row.role ?? '')));
     const roleRows: string[] = [];
-    const teamLead = findStep(/team[\s_-]*lead/i);
-    const manualTeamLead = manualFor(/team[\s_-]*lead/i);
+    const teamLead = findStep(teamLeadStepMatcher);
+    const manualTeamLead = manualFor(teamLeadStepMatcher);
     roleRows.push(
       this.renderApprovalRoleRow({
         roleLabel: 'Team Lead',
@@ -3202,8 +3206,8 @@ export class RequestsService {
         done: Boolean(teamLead) || Boolean(manualTeamLead?.done)
       })
     );
-    const accountant = findStep(/accountant|account/i);
-    const manualAccountant = manualFor(/accountant|account/i);
+    const accountant = findStep(accountantStepMatcher);
+    const manualAccountant = manualFor(accountantStepMatcher);
     roleRows.push(
       this.renderApprovalRoleRow({
         roleLabel: 'Accountant',
@@ -3214,8 +3218,8 @@ export class RequestsService {
         done: Boolean(accountant) || Boolean(manualAccountant?.done)
       })
     );
-    const coo = findStep(/\bcoo\b/i);
-    const manualCoo = manualFor(/\bcoo\b/i);
+    const coo = findStep(cooStepMatcher);
+    const manualCoo = manualFor(cooStepMatcher);
     roleRows.push(
       this.renderApprovalRoleRow({
         roleLabel: 'COO',
@@ -3226,13 +3230,13 @@ export class RequestsService {
         done: Boolean(coo) || Boolean(manualCoo?.done)
       })
     );
+    const ed = findStep(edStepMatcher);
     const edRequired =
-      approvals.done.some((row) => /\bed\b|executive director/i.test(row.step)) ||
-      approvals.pending.some((row) => /\bed\b|executive director/i.test(row.step)) ||
-      manualApprovals.some((row) => /\bed\b|executive director/i.test(String(row.role ?? '')));
+      approvals.done.some((row) => edStepMatcher.test(row.step)) ||
+      approvals.pending.some((row) => edStepMatcher.test(row.step)) ||
+      manualApprovals.some((row) => edStepMatcher.test(String(row.role ?? '')));
     if (edRequired) {
-      const ed = findStep(/\bed\b|executive director/i);
-      const manualEd = manualFor(/\bed\b|executive director/i);
+      const manualEd = manualFor(edStepMatcher);
       roleRows.push(
         this.renderApprovalRoleRow({
           roleLabel: 'ED',
@@ -3276,8 +3280,8 @@ export class RequestsService {
           cooDate: coo ? this.formatDate(coo.at) : 'Pending',
           cooDone: Boolean(coo),
           edBy: signatories.approved_by.name || '________________',
-          edDate: edRequired ? (findStep(/\bed\b|executive director/i) ? this.formatDate(findStep(/\bed\b|executive director/i)!.at) : 'Pending') : 'N/A',
-          edDone: Boolean(findStep(/\bed\b|executive director/i))
+          edDate: edRequired ? (ed ? this.formatDate(ed.at) : 'Pending') : 'N/A',
+          edDone: Boolean(ed)
         });
       })
       .join('');
@@ -3760,7 +3764,7 @@ export class RequestsService {
     );
 
     const done = instance.history
-      .filter((entry) => entry.action === 'approve' || entry.action === 'reject')
+      .filter((entry) => entry.action === 'approve' || entry.action === 'reject' || entry.action === 'auto_approve')
       .map((entry) => ({
         action: entry.action,
         step: entry.fromStepId ? stepMap.get(entry.fromStepId) ?? 'Unknown step' : 'Unknown step',

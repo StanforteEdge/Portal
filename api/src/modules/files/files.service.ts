@@ -102,21 +102,17 @@ export class FilesService {
         ? withUsage.filter((row: any) => Boolean(row.usage?.attached) === (attachedFilter === 'true'))
         : withUsage;
 
+    const totalFiltered = filteredByAttached.length;
+    const pages = Math.max(1, Math.ceil(totalFiltered / perPage));
+    const lastPage = Math.max(1, pages);
+
     return {
-      data: filteredByAttached,
-      meta: {
-        page,
-        per_page: perPage,
-        total: query.include_usage === 'true' && (attachedFilter === 'true' || attachedFilter === 'false') ? filteredByAttached.length : total,
-        last_page: Math.max(
-          1,
-          Math.ceil(
-            (query.include_usage === 'true' && (attachedFilter === 'true' || attachedFilter === 'false')
-              ? filteredByAttached.length
-              : total) / perPage
-          )
-        )
-      }
+      result: filteredByAttached,
+      total: totalFiltered,
+      total_result: totalFiltered,
+      per_page: perPage,
+      page,
+      pages: lastPage
     };
   }
 

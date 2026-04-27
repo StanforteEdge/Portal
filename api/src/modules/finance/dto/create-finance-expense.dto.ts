@@ -1,9 +1,9 @@
-import { IsString, IsOptional, IsNumber, IsEnum, MaxLength, IsDateString } from 'class-validator';
+import { IsString, IsOptional, IsNumber, IsEnum, MaxLength, IsDateString, IsUUID } from 'class-validator';
 
 export class CreateFinanceExpenseDto {
   @IsOptional()
-  @IsString()
-  vendorId?: string;
+  @IsUUID()
+  contactId?: string;
 
   @IsString()
   accountId!: string;

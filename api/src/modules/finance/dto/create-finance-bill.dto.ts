@@ -33,7 +33,7 @@ export class CreateFinanceBillDto {
 
   @ApiProperty({ example: '3fef7e86-cf6a-4df7-b0b3-e350adf55e33' })
   @IsUUID()
-  vendor_id!: string;
+  contact_id!: string;
 
   @ApiPropertyOptional({ example: '1' })
   @IsOptional()

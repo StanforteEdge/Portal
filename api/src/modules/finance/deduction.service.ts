@@ -37,40 +37,45 @@ export class DeductionService {
     userId: number,
     organizationId?: number,
   ) {
-    const data: any = {
-      updatedBy: toBigInt(userId),
-      updatedAt: new Date(),
-    };
+    try {
+      const data: any = {
+        updatedBy: toBigInt(userId),
+        updatedAt: new Date(),
+      };
 
-    if (dto.name !== undefined) data.name = dto.name;
-    if (dto.code !== undefined) data.code = dto.code;
-    if (dto.rate !== undefined) data.rate = dto.rate;
-    if (dto.applies_to !== undefined) data.appliesTo = dto.applies_to;
-    if (dto.is_active !== undefined) data.isActive = dto.is_active;
-    if (dto.gl_account_id !== undefined) data.glAccountId = dto.gl_account_id ?? null;
+      if (dto.name !== undefined) data.name = dto.name;
+      if (dto.code !== undefined) data.code = dto.code;
+      if (dto.rate !== undefined) data.rate = dto.rate;
+      if (dto.applies_to !== undefined) data.appliesTo = dto.applies_to;
+      if (dto.is_active !== undefined) data.isActive = dto.is_active;
+      if (dto.gl_account_id !== undefined) data.glAccountId = dto.gl_account_id ?? null;
 
-    if (id) {
-      const existing = await this.prisma.financeDeductionType.findUnique({ where: { id } });
-      if (!existing) throw new NotFoundException('Deduction type not found');
-      return this.prisma.financeDeductionType.update({ where: { id }, data });
+      if (id) {
+        const existing = await this.prisma.financeDeductionType.findUnique({ where: { id } });
+        if (!existing) throw new NotFoundException('Deduction type not found');
+        return await this.prisma.financeDeductionType.update({ where: { id }, data });
+      }
+
+      if (!dto.name || !dto.code || dto.rate === undefined) {
+        throw new BadRequestException('name, code, and rate are required when creating a deduction type');
+      }
+
+      return await this.prisma.financeDeductionType.create({
+        data: {
+          ...data,
+          name: dto.name,
+          code: dto.code,
+          rate: dto.rate,
+          appliesTo: dto.applies_to ?? 'vendor',
+          isActive: dto.is_active ?? true,
+          createdBy: toBigInt(userId),
+          organizationId: organizationId ? toBigInt(organizationId) : null,
+        },
+      });
+    } catch (e) {
+      this.logger.error(`upsertDeductionType error: ${e instanceof Error ? e.stack : String(e)}`);
+      throw e;
     }
-
-    if (!dto.name || !dto.code || dto.rate === undefined) {
-      throw new BadRequestException('name, code, and rate are required when creating a deduction type');
-    }
-
-    return this.prisma.financeDeductionType.create({
-      data: {
-        ...data,
-        name: dto.name,
-        code: dto.code,
-        rate: dto.rate,
-        appliesTo: dto.applies_to ?? 'vendor',
-        isActive: dto.is_active ?? true,
-        createdBy: toBigInt(userId),
-        organizationId: organizationId ? toBigInt(organizationId) : null,
-      },
-    });
   }
 
   // ── PV Deductions ────────────────────────────────────────────────────────
@@ -78,7 +83,7 @@ export class DeductionService {
   async applyPVDeductions(pvId: string, dto: ApplyPVDeductionsDto, userId: number) {
     const pv = await this.prisma.financePaymentVoucher.findUnique({
       where: { id: pvId },
-      include: { vendor: true },
+      include: { contact: true },
     });
     if (!pv) throw new NotFoundException('Payment voucher not found');
 
@@ -105,13 +110,13 @@ export class DeductionService {
         ),
       );
 
-      // Create accruals for vendor-linked PVs
-      if (pv.vendorId) {
+      // Create accruals for contact-linked PVs
+      if (pv.contactId) {
         await Promise.all(
           createdDeductions.map((deduction) =>
             tx.financeVendorWHTAccrual.create({
               data: {
-                vendorId: pv.vendorId!,
+                contactId: pv.contactId!,
                 paymentVoucherId: pvId,
                 pvDeductionId: deduction.id,
                 deductionTypeId: deduction.deductionTypeId,
@@ -119,7 +124,7 @@ export class DeductionService {
                 periodMonth: now.getMonth() + 1,
                 grossAmount: deduction.grossAmount,
                 withheldAmount: deduction.deductionAmount,
-                organizationId: pv.organizationId ?? null,
+                organizationId: null,
                 updatedAt: now,
               },
             }),
@@ -237,7 +242,7 @@ export class DeductionService {
       include: {
         deductionType: true,
         paidFromAccount: { select: { id: true, name: true } },
-        accruals: { include: { vendor: { select: { id: true, name: true } } } },
+        accruals: { include: { contact: { select: { id: true, name: true } } } },
       },
       orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
     });
@@ -251,7 +256,7 @@ export class DeductionService {
         paidFromAccount: { select: { id: true, name: true } },
         accruals: {
           include: {
-            vendor: { select: { id: true, name: true, taxNumber: true } },
+            contact: { select: { id: true, name: true, taxNumber: true } },
             paymentVoucher: { select: { id: true, voucherNumber: true } },
           },
         },

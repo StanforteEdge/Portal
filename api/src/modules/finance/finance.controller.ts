@@ -16,6 +16,7 @@ import { UpsertFinanceChartAccountDto } from './dto/upsert-finance-chart-account
 import { UpsertFinanceReportingPeriodDto } from './dto/upsert-finance-reporting-period.dto';
 import { UpsertFinanceCustomerDto } from './dto/upsert-finance-customer.dto';
 import { UpsertFinanceVendorDto } from './dto/upsert-finance-vendor.dto';
+import { UpsertContactDto } from './dto/upsert-contact.dto';
 import { CreateFinanceSalesInvoiceDto } from './dto/create-finance-sales-invoice.dto';
 import { CreateFinanceBillDto } from './dto/create-finance-bill.dto';
 import { CreateFinanceReceiptDto } from './dto/create-finance-receipt.dto';
@@ -152,6 +153,48 @@ export class FinanceController {
   @ApiOperation({ summary: 'Reopen finance reporting period' })
   reopenReportingPeriod(@Param('id') id: string) {
     return this.financeService.reopenReportingPeriod(id);
+  }
+
+  @Get('contacts')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance contacts' })
+  listContacts(@Query() query: Record<string, any>) {
+    return this.financeService.listContacts(query);
+  }
+
+  @Get('contacts/:id')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance contact' })
+  getContact(@Param('id') id: string) {
+    return this.financeService.getContact(id);
+  }
+
+  @Post('contacts')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Create finance contact' })
+  createContact(@Req() req: any, @Body() dto: UpsertContactDto) {
+    return this.financeService.createContact(dto, req.user?.id);
+  }
+
+  @Post('contacts/:id')
+  @Permissions('requests.manage')
+  @ApiOperation({ summary: 'Update finance contact' })
+  updateContact(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertContactDto) {
+    return this.financeService.updateContact(id, dto, req.user?.id);
+  }
+
+  @Get('contacts/:id/transactions')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get contact transactions' })
+  contactTransactions(@Param('id') id: string, @Query() query: Record<string, any>) {
+    return this.financeService.contactStatement(id, query);
+  }
+
+  @Get('contacts/:id/statement')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get contact statement' })
+  contactStatement(@Param('id') id: string, @Query() query: Record<string, any>) {
+    return this.financeService.contactStatement(id, query);
   }
 
   @Get('customers')
