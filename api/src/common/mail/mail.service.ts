@@ -8,6 +8,8 @@ type SendMailInput = {
   subject: string;
   text: string;
   html?: string;
+  portalUrl?: string;
+  ctaLabel?: string;
   threadKey?: string;
   userId?: string | bigint;
   notifiableType?: string;
@@ -59,7 +61,10 @@ export class MailService {
 
   private renderEmailHtml(input: SendMailInput): string {
     const appUrl = process.env.APP_BASE_URL || 'http://localhost:3000';
-    const portalUrl = appUrl.replace(/\/$/, '');
+    const defaultPortalUrl = appUrl.replace(/\/$/, '');
+    const portalUrl = String(input.portalUrl ?? defaultPortalUrl).trim() || defaultPortalUrl;
+    const safePortalUrl = escapeHtml(portalUrl);
+    const safeCtaLabel = escapeHtml(String(input.ctaLabel ?? 'Open Portal').trim() || 'Open Portal');
     const supportEmail = process.env.MAIL_SUPPORT_EMAIL || 'support@stanforteedge.com';
     const year = new Date().getFullYear();
     const logoUrl = process.env.MAIL_LOGO_URL || '';
@@ -109,7 +114,7 @@ export class MailService {
           </tr>
           <tr>
             <td style="padding:0 24px 24px;">
-              <a href="${portalUrl}" style="display:inline-block; background:#FC2621; color:#ffffff; text-decoration:none; font-weight:600; font-size:14px; padding:10px 14px; border-radius:8px;">Open Portal</a>
+              <a href="${safePortalUrl}" style="display:inline-block; background:#FC2621; color:#ffffff; text-decoration:none; font-weight:600; font-size:14px; padding:10px 14px; border-radius:8px;">${safeCtaLabel}</a>
             </td>
           </tr>
           <tr>

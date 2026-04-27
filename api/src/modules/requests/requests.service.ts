@@ -31,6 +31,16 @@ const MANUAL_REQUEST_ID_MAX = BigInt(3000);
 const STAFF_REQUEST_ID_MIN = BigInt(3001);
 const STAFF_REQUEST_SEQUENCE_START = BigInt(3050);
 
+type RequestNotificationAudience = 'requester' | 'approver';
+
+type RequestNotificationSummary = {
+  requestNumber: string;
+  requestTypeName: string;
+  requesterName: string;
+  requesterEmail: string | null;
+  amountLabel: string;
+};
+
 @Injectable()
 export class RequestsService {
   constructor(
@@ -866,14 +876,22 @@ export class RequestsService {
 
     try {
       const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+      const submissionMessage =
+        request.status === 'returned'
+          ? `Request #${request.id.toString()} resubmitted for approval.`
+          : `Request #${request.id.toString()} submitted for approval.`;
+      const requesterNotificationChannels = await this.buildRequestNotificationChannels({
+        requestId: request.id,
+        audience: 'requester',
+        message: submissionMessage,
+        comment: dto.comment
+      });
       await this.notificationsService.create({
         userId,
         type: 'action',
         title: request.status === 'returned' ? 'Request resubmitted' : 'Request submitted',
-        message:
-          request.status === 'returned'
-            ? `Request #${request.id.toString()} resubmitted for approval.`
-            : `Request #${request.id.toString()} submitted for approval.`,
+        message: submissionMessage,
+        ...requesterNotificationChannels,
         data: { requestId: request.id.toString(), comment: dto.comment },
         notifiableType: 'request',
         notifiableId: request.id,
@@ -889,7 +907,8 @@ export class RequestsService {
           request.id,
           `Request ${formattedRequestNumber} has been sent to you for approval.`,
           `Request pending approval (${formattedRequestNumber})`,
-          userId
+          userId,
+          dto.comment
         );
       }
     } catch (error) {
@@ -961,16 +980,25 @@ export class RequestsService {
     await this.applyLeaveDebitIfNeeded(request.id, userId);
 
     try {
+      const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+      const approvalMessage = `Request #${request.id.toString()} has been approved.`;
+      const requesterNotificationChannels = await this.buildRequestNotificationChannels({
+        requestId: request.id,
+        audience: 'requester',
+        message: approvalMessage,
+        comment: dto.comment
+      });
       await this.notificationsService.create({
         userId: request.createdBy,
         type: 'success',
         title: 'Request approved',
-        message: `Request #${request.id.toString()} has been approved.`,
+        message: approvalMessage,
+        ...requesterNotificationChannels,
         data: { requestId: request.id.toString(), comment: dto.comment },
         notifiableType: 'request',
         notifiableId: request.id,
-        emailSubject: `Request approved (${await this.getFormattedRequestNumber(request.id)})`,
-        emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+        emailSubject: `Request approved (${formattedRequestNumber})`,
+        emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
       });
     } catch (error) {
       console.error('approveRequest notification failed', error);
@@ -1020,16 +1048,25 @@ export class RequestsService {
     await this.revertLeaveDebitIfNeeded(request.id, userId, 'rejected');
 
     try {
+      const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+      const rejectionMessage = `Request #${request.id.toString()} has been rejected.`;
+      const requesterNotificationChannels = await this.buildRequestNotificationChannels({
+        requestId: request.id,
+        audience: 'requester',
+        message: rejectionMessage,
+        comment: dto.comment
+      });
       await this.notificationsService.create({
         userId: request.createdBy,
         type: 'warning',
         title: 'Request rejected',
-        message: `Request #${request.id.toString()} has been rejected.`,
+        message: rejectionMessage,
+        ...requesterNotificationChannels,
         data: { requestId: request.id.toString(), comment: dto.comment },
         notifiableType: 'request',
         notifiableId: request.id,
-        emailSubject: `Request rejected (${await this.getFormattedRequestNumber(request.id)})`,
-        emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+        emailSubject: `Request rejected (${formattedRequestNumber})`,
+        emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
       });
     } catch (error) {
       console.error('rejectRequest notification failed', error);
@@ -1093,16 +1130,25 @@ export class RequestsService {
       });
 
       try {
+        const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+        const returnedMessage = `Request #${request.id.toString()} was returned for correction and resubmission.`;
+        const requesterNotificationChannels = await this.buildRequestNotificationChannels({
+          requestId: request.id,
+          audience: 'requester',
+          message: returnedMessage,
+          comment: reason
+        });
         await this.notificationsService.create({
           userId: request.createdBy,
           type: 'warning',
           title: 'Request returned for edit',
-          message: `Request #${request.id.toString()} was returned for correction and resubmission.`,
+          message: returnedMessage,
+          ...requesterNotificationChannels,
           data: { requestId: request.id.toString(), comment: reason },
           notifiableType: 'request',
           notifiableId: request.id,
-          emailSubject: `Request returned for edit (${await this.getFormattedRequestNumber(request.id)})`,
-          emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+          emailSubject: `Request returned for edit (${formattedRequestNumber})`,
+          emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
         });
       } catch (error) {
         console.error('returnRequest notification failed', error);
@@ -2043,16 +2089,24 @@ export class RequestsService {
       action: 'confirm_disbursement'
     });
 
+    const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+    const confirmationMessage = `Request #${request.id.toString()} was confirmed by requester.`;
+    const requesterNotificationChannels = await this.buildRequestNotificationChannels({
+      requestId: request.id,
+      audience: 'requester',
+      message: confirmationMessage
+    });
     await this.notificationsService.create({
       userId,
       type: 'success',
       title: 'Disbursement confirmed',
-      message: `Request #${request.id.toString()} was confirmed by requester.`,
+      message: confirmationMessage,
+      ...requesterNotificationChannels,
       data: { requestId: request.id.toString() },
       notifiableType: 'request',
       notifiableId: request.id,
-      emailSubject: `Disbursement confirmed (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+      emailSubject: `Disbursement confirmed (${formattedRequestNumber})`,
+      emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
     });
 
     return this.getRequest(updated.id.toString(), userId);
@@ -2102,16 +2156,24 @@ export class RequestsService {
       });
     }
 
+    const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+    const voucherConfirmationMessage = `Voucher ${voucher.voucherNumber} confirmed.`;
+    const requesterNotificationChannels = await this.buildRequestNotificationChannels({
+      requestId: request.id,
+      audience: 'requester',
+      message: voucherConfirmationMessage
+    });
     await this.notificationsService.create({
       userId,
       type: 'success',
       title: 'Disbursement confirmed',
-      message: `Voucher ${voucher.voucherNumber} confirmed.`,
+      message: voucherConfirmationMessage,
+      ...requesterNotificationChannels,
       data: { requestId: request.id.toString(), voucher_id: voucher.id },
       notifiableType: 'request',
       notifiableId: request.id,
-      emailSubject: `Disbursement confirmed (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+      emailSubject: `Disbursement confirmed (${formattedRequestNumber})`,
+      emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
     });
 
     return this.getRequest(request.id.toString(), userId);
@@ -2159,11 +2221,20 @@ export class RequestsService {
         retired_amount: touched.allocated
       });
     }
+    const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+    const retirementMessage = `Retirement submitted for request #${request.id.toString()}.`;
+    const requesterNotificationChannels = await this.buildRequestNotificationChannels({
+      requestId: request.id,
+      audience: 'requester',
+      message: retirementMessage,
+      comment: dto.notes
+    });
     await this.notificationsService.create({
       userId,
       type: 'info',
       title: 'Retirement submitted',
-      message: `Retirement submitted for request #${request.id.toString()}.`,
+      message: retirementMessage,
+      ...requesterNotificationChannels,
       data: {
         requestId: request.id.toString(),
         voucher_id: dto.voucher_id ?? null,
@@ -2172,8 +2243,8 @@ export class RequestsService {
       },
       notifiableType: 'request',
       notifiableId: request.id,
-      emailSubject: `Retirement submitted (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+      emailSubject: `Retirement submitted (${formattedRequestNumber})`,
+      emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
     });
 
     return this.getRequest(updated.id.toString(), userId);
@@ -2231,16 +2302,24 @@ export class RequestsService {
         voucher_id: voucher.id,
         voucher_number: voucher.voucherNumber
       });
+      const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
+      const verificationMessage = `Voucher ${voucher.voucherNumber} retirement has been verified.`;
+      const requesterNotificationChannels = await this.buildRequestNotificationChannels({
+        requestId: request.id,
+        audience: 'requester',
+        message: verificationMessage
+      });
       await this.notificationsService.create({
         userId: request.createdBy,
         type: 'success',
         title: 'Retirement verified',
-        message: `Voucher ${voucher.voucherNumber} retirement has been verified.`,
+        message: verificationMessage,
+        ...requesterNotificationChannels,
         data: { requestId: request.id.toString(), voucher_id: voucher.id, voucher_number: voucher.voucherNumber },
         notifiableType: 'request',
         notifiableId: request.id,
-        emailSubject: `Retirement verified (${await this.getFormattedRequestNumber(request.id)})`,
-        emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+        emailSubject: `Retirement verified (${formattedRequestNumber})`,
+        emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
       });
     }
 
@@ -3705,6 +3784,121 @@ export class RequestsService {
     return `request-${requestNumber.replace(/[^a-zA-Z0-9_.-]/g, '-').toLowerCase()}`;
   }
 
+  private getPortalBaseUrl(): string {
+    return (process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+  }
+
+  private getRequestNotificationPath(requestId: bigint, audience: RequestNotificationAudience): string {
+    const view = audience === 'approver' ? 'approvals' : 'mine';
+    return `/requests/details?id=${requestId.toString()}&view=${view}`;
+  }
+
+  private async buildRequestNotificationChannels(input: {
+    requestId: bigint;
+    audience: RequestNotificationAudience;
+    message: string;
+    comment?: string | null;
+  }) {
+    const summary = await this.getRequestNotificationSummary(input.requestId);
+    const link = this.getRequestNotificationPath(input.requestId, input.audience);
+    const comment = String(input.comment ?? '').trim();
+    return {
+      link,
+      emailPortalUrl: `${this.getPortalBaseUrl()}${link}`,
+      emailCtaLabel: input.audience === 'approver' ? 'Review Request' : 'View Request',
+      emailHtml: this.buildRequestNotificationEmailHtml({
+        summary,
+        message: input.message,
+        audience: input.audience,
+        comment: comment.length > 0 ? comment : undefined
+      })
+    };
+  }
+
+  private async getRequestNotificationSummary(requestId: bigint): Promise<RequestNotificationSummary> {
+    const request = await this.prisma.requestInstance.findUnique({
+      where: { id: requestId },
+      select: {
+        id: true,
+        createdAt: true,
+        currency: true,
+        totalAmount: true,
+        items: { select: { amount: true, quantity: true } },
+        requestType: { select: { name: true, codePrefix: true } },
+        creator: {
+          select: { firstName: true, lastName: true, username: true, email: true }
+        }
+      }
+    });
+
+    if (!request) {
+      return {
+        requestNumber: `REQ/${new Date().getFullYear()}/${requestId.toString()}`,
+        requestTypeName: 'Request',
+        requesterName: 'Unknown sender',
+        requesterEmail: null,
+        amountLabel: '-'
+      };
+    }
+
+    const requestNumber = this.getRequestNumber(
+      request.requestType?.codePrefix,
+      request.createdAt.getFullYear(),
+      request.id
+    );
+    const requesterName =
+      `${String(request.creator?.firstName ?? '').trim()} ${String(request.creator?.lastName ?? '').trim()}`.trim() ||
+      request.creator?.username ||
+      request.creator?.email ||
+      'Unknown sender';
+    const totalAmount =
+      request.totalAmount !== null
+        ? Number(request.totalAmount)
+        : request.items.reduce((sum, item) => sum + Number(item.amount) * Number(item.quantity ?? 1), 0);
+    const amountLabel = Number.isFinite(totalAmount) ? this.formatMoney(totalAmount, request.currency || 'NGN') : '-';
+
+    return {
+      requestNumber,
+      requestTypeName: request.requestType?.name || 'Request',
+      requesterName,
+      requesterEmail: request.creator?.email ?? null,
+      amountLabel
+    };
+  }
+
+  private buildRequestNotificationEmailHtml(input: {
+    summary: RequestNotificationSummary;
+    message: string;
+    audience: RequestNotificationAudience;
+    comment?: string;
+  }): string {
+    const actionHint =
+      input.audience === 'approver'
+        ? 'Please review this request and take action.'
+        : 'Open this request in the portal to view full details.';
+    const detailRows: Array<[string, string]> = [
+      ['Request Number', input.summary.requestNumber],
+      ['Request Type', input.summary.requestTypeName],
+      ['Sender', input.summary.requesterName],
+      ['Sender Email', input.summary.requesterEmail ?? '-'],
+      ['Amount', input.summary.amountLabel]
+    ];
+
+    return `
+      <p style="margin:0 0 12px; color:#111827; line-height:1.7;">${this.escapeHtml(input.message)}</p>
+      <p style="margin:0 0 14px; color:#374151; line-height:1.6;">${this.escapeHtml(actionHint)}</p>
+      <table role="presentation" cellpadding="0" cellspacing="0" width="100%" style="border-collapse:collapse; border:1px solid #e5e7eb; border-radius:8px; overflow:hidden;">
+        ${detailRows
+          .map(
+            ([label, value]) =>
+              `<tr><td style="width:34%; padding:10px 12px; border-bottom:1px solid #f1f5f9; background:#f8fafc; color:#334155; font-weight:600;">${this.escapeHtml(label)}</td><td style="padding:10px 12px; border-bottom:1px solid #f1f5f9; color:#0f172a;">${this.escapeHtml(value)}</td></tr>`
+          )
+          .join('')}
+      </table>
+      ${input.comment ? `<p style="margin:14px 0 0; color:#111827; line-height:1.7;"><strong>Comment:</strong> ${this.escapeHtml(input.comment)}</p>` : ''}
+    `;
+  }
+
   private assertManualRequestIdRange(requestId: bigint) {
     if (requestId < MANUAL_REQUEST_ID_MIN || requestId > MANUAL_REQUEST_ID_MAX) {
       throw new BadRequestException(
@@ -4195,11 +4389,18 @@ export class RequestsService {
     requestId: bigint,
     message: string,
     emailSubject: string,
-    excludedUserId?: string
+    excludedUserId?: string,
+    comment?: string
   ) {
     const recipients = await this.listCurrentApproverUserIds(requestId);
     if (!recipients.length) return;
     const formattedRequestNumber = await this.getFormattedRequestNumber(requestId);
+    const approverNotificationChannels = await this.buildRequestNotificationChannels({
+      requestId,
+      audience: 'approver',
+      message,
+      comment
+    });
     for (const targetUserId of recipients) {
       if (excludedUserId && targetUserId === excludedUserId) continue;
       await this.notificationsService.create({
@@ -4207,6 +4408,7 @@ export class RequestsService {
         type: 'action',
         title: 'Request awaiting approval',
         message,
+        ...approverNotificationChannels,
         data: { requestId: requestId.toString() },
         notifiableType: 'request',
         notifiableId: requestId,
