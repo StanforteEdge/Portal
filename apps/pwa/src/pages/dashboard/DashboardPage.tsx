@@ -166,13 +166,13 @@ export default function DashboardPage() {
   const ATTENTION_STATUSES = ["draft", "returned", "disbursed"];
   const attentionRequests = myRequests.filter((r) =>
     ATTENTION_STATUSES.includes(String(r.status || "").toLowerCase()),
-  );
+  ).slice(0, 5);
   const pendingApprovalItems = myApprovals
     .filter((item) =>
       pendingStatuses.includes(String(item.status || "").toLowerCase()),
     )
     .slice(0, 3);
-  const attentionCount = attentionRequests.length + pendingApprovalItems.length;
+  const attentionVisible = attentionRequests.length + pendingApprovalItems.length;
 
   const unreadNotifications = notifications ?? [];
   const latestNotice = unreadNotifications[0];
@@ -415,7 +415,7 @@ export default function DashboardPage() {
                   );
                 })}
 
-                {!loadingRequests && attentionCount === 0 ? (
+                {!loadingRequests && attentionVisible === 0 ? (
                   <div className="flex items-center gap-3 px-1 py-8">
                     <span className="material-symbols-outlined text-emerald-500">
                       check_circle
@@ -677,7 +677,7 @@ export default function DashboardPage() {
                 </Link>
               );
             })}
-            {!loadingRequests && attentionCount === 0 ? (
+            {!loadingRequests && attentionVisible === 0 ? (
               <div className="flex items-center gap-2 py-4">
                 <span className="material-symbols-outlined text-emerald-500 text-[18px]">
                   check_circle
