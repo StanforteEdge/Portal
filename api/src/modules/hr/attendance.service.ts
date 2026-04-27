@@ -161,34 +161,12 @@ export class AttendanceService {
       throw new BadRequestException('No open clock-in found for this day');
     }
 
-    const requestedMode = this.resolveSubmittedMode(payload?.attendance_mode, profile, workDate, policy);
-    const openClockInMode =
+    const effectiveMode =
       openClockIn.attendanceMode === 'onsite' ||
       openClockIn.attendanceMode === 'remote' ||
       openClockIn.attendanceMode === 'field'
         ? (openClockIn.attendanceMode as AttendanceMode)
-        : null;
-    if (
-      policy.enforce_clock_out_match_clock_in_mode &&
-      openClockInMode &&
-      requestedMode !== openClockInMode
-    ) {
-      throw new BadRequestException(
-        `Clock out mode must match clock in mode (${openClockInMode})`
-      );
-    }
-    const effectiveMode = openClockInMode ?? requestedMode;
-    const officeLocation = await this.resolveOfficeLocationForAttendance({
-      profile,
-      requestedOfficeLocationId: payload?.office_location_id,
-      attendanceMode: effectiveMode
-    });
-    const geofenceStatus = this.evaluateGeofence({
-      attendanceMode: effectiveMode,
-      officeLocation,
-      latitude: payload?.latitude,
-      longitude: payload?.longitude
-    });
+        : this.resolveExpectedMode(profile, workDate, policy);
 
     await this.prisma.attendanceEntry.create({
       data: {
@@ -197,10 +175,10 @@ export class AttendanceService {
         entryAt: at,
         workDate: openClockIn.workDate ?? workDate,
         attendanceMode: effectiveMode,
-        officeLocationId: officeLocation?.id ?? null,
-        latitude: payload?.latitude ?? null,
-        longitude: payload?.longitude ?? null,
-        geofenceStatus,
+        officeLocationId: openClockIn.officeLocationId ?? null,
+        latitude: null,
+        longitude: null,
+        geofenceStatus: null,
         source: payload?.source ?? 'web',
         createdBy: actorId,
         metadata: {
@@ -797,6 +775,7 @@ export class AttendanceService {
     }
 
     const latestEntry = [...entries].reverse().find((entry) => entry.attendanceMode || entry.officeLocationId || entry.geofenceStatus) ?? null;
+    const firstClockIn = entries.find((entry) => entry.entryType === 'clock_in') ?? null;
     const activeException = exceptions[0] ?? null;
     const approvedCorrection = corrections[0] ?? null;
     const effectiveMode =
@@ -807,7 +786,7 @@ export class AttendanceService {
     const officeLocationId = activeException?.officeLocationId ?? latestEntry?.officeLocationId ?? null;
     const geofenceStatus = activeException
       ? 'not_applicable'
-      : (latestEntry?.geofenceStatus as GeofenceStatus | null) ?? null;
+      : (firstClockIn?.geofenceStatus as GeofenceStatus | null) ?? null;
 
     const holiday = await this.findHoliday(profile, workDate, officeLocationId);
     const onLeave = await this.isOnApprovedLeave(userId, workDate);
@@ -1401,9 +1380,9 @@ export class AttendanceService {
   }
 
   private getOpenClockIn(
-    entries: Array<{ entryType: string; entryAt: Date; workDate?: Date; attendanceMode?: string | null }>
+    entries: Array<{ entryType: string; entryAt: Date; workDate?: Date; attendanceMode?: string | null; officeLocationId?: bigint | null }>
   ) {
-    let open: { entryType: string; entryAt: Date; workDate?: Date; attendanceMode?: string | null } | null = null;
+    let open: { entryType: string; entryAt: Date; workDate?: Date; attendanceMode?: string | null; officeLocationId?: bigint | null } | null = null;
     for (const entry of entries.sort((a, b) => a.entryAt.getTime() - b.entryAt.getTime())) {
       if (entry.entryType === 'clock_in') open = entry;
       if (entry.entryType === 'clock_out') open = null;

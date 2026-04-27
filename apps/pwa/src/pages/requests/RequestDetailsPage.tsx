@@ -836,6 +836,13 @@ export function RequestDetailsPage() {
     availableActions.includes("approve") ||
     availableActions.includes("reject") ||
     availableActions.includes("return");
+  // Finance clearing uses "approve" action key — hide approve/reject/return buttons
+  // in the team lead approvals view when the pending step belongs to Finance.
+  // Finance users must act from /finance/requests/details instead.
+  const isFinancePendingStep = pendingApprovals.some(
+    (p: any) =>
+      p?.approver_id === "finance.approve" || p?.approver_id === "accountant",
+  );
   const financeActionsVisible = detailView === "finance";
   const ownerActionsVisible = detailView === "mine";
   const viewerStatus = useMemo(() => {
@@ -2178,7 +2185,7 @@ export function RequestDetailsPage() {
                     </div>
                   </div>
                 ) : null}
-                {approvalActionsVisible &&
+                {!isFinancePendingStep && approvalActionsVisible &&
                   availableActions.some((action) =>
                     ["approve", "reject", "return"].includes(action),
                   ) ? (
@@ -2232,6 +2239,17 @@ export function RequestDetailsPage() {
                       ) : null}
                     </div>
                   </div>
+                ) : null}
+                {isFinancePendingStep && approvalActionsVisible ? (
+                  <p className="mt-4 text-sm text-white/75">
+                    This step requires Finance clearance.{" "}
+                    <Link
+                      to={`/finance/requests/details?id=${id}`}
+                      className="font-medium text-white underline"
+                    >
+                      Open in Finance
+                    </Link>
+                  </p>
                 ) : null}
                 {ownerActionsVisible && canSubmit ? (
                   <Button
@@ -2555,7 +2573,7 @@ export function RequestDetailsPage() {
                   {actionBusy === "delete" ? "Deleting..." : "Delete Draft"}
                 </Button>
               ) : null}
-              {approvalActionsVisible &&
+              {!isFinancePendingStep && approvalActionsVisible &&
                 availableActions.some(
                   (action) =>
                     action === "approve" ||
@@ -2613,6 +2631,17 @@ export function RequestDetailsPage() {
                     ) : null}
                   </div>
                 </>
+              ) : null}
+              {isFinancePendingStep && approvalActionsVisible ? (
+                <p className="mt-4 text-sm text-slate-600">
+                  This step requires Finance clearance.{" "}
+                  <Link
+                    to={`/finance/requests/details?id=${id}`}
+                    className="font-medium text-brand-700 underline"
+                  >
+                    Open in Finance
+                  </Link>
+                </p>
               ) : null}
               {ownerActionsVisible && availableActions.includes("submit") ? (
                 <Button
