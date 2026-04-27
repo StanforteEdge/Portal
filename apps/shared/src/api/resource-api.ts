@@ -357,7 +357,6 @@ export function createResourceApi(httpRequest: HttpRequest) {
       const response = await httpRequest<any>("/files/upload", {
         method: "POST",
         body: form,
-        headers: { "Content-Type": "multipart/form-data" },
       });
       const row = response?.data ?? response;
       return {

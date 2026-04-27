@@ -15,8 +15,8 @@ import { useAuth } from "@/shared/context/AuthProvider";
 import { useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { resourceApi } from "@/shared/lib/core";
 import { formatFileSize } from "@/shared/lib/formatting";
+import { listFileAssets, uploadFileAsset, type FileAssetRecord } from "./files-api";
 
 type ViewMode = "grid" | "list";
 
@@ -44,19 +44,19 @@ export default function FilesPage() {
   const { data: filesData, loading, refetch } = useCachedQuery(
     `user:files:${listKey}:${search}:${fileType}:${page}:${perPage}`,
     async () => {
-      const result = await resourceApi.listFiles({
+      const result = await listFileAssets({
         search: search || undefined,
         file_type: (fileType as "images" | "videos" | "documents") || undefined,
+        include_usage: true,
         page,
         per_page: perPage,
       });
-      setTotalCount(Array.isArray(result) ? result.length : 0);
+      setTotalCount(result.length);
       return result;
     },
     { ttlMs: 0, storage: "memory" },
   );
-
-  const files = Array.isArray(filesData) ? filesData : [];
+  const files = (filesData ?? []) as FileAssetRecord[];
   const totalPages = Math.ceil(totalCount / perPage) || 1;
 
   const userName =
@@ -70,7 +70,7 @@ export default function FilesPage() {
 
     setUploading(true);
     try {
-      await resourceApi.uploadFile(file, { metadata: { source: "staff_files" } });
+      await uploadFileAsset(file, { metadata: { source: "staff_files" } });
       showToast({ tone: "success", title: "Upload complete", message: `${file.name} uploaded successfully.` });
       setListKey((k) => k + 1);
     } catch (err) {
