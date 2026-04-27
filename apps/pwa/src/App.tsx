@@ -59,11 +59,11 @@ import {
   ApprovalRoute,
   ModuleRoute,
 } from "@/shared/components/auth/AccessRoute";
-import AcceptInvitePage from "@/pages/auth/AcceptInvitePage";
-import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
-import LoginPage from "@/pages/auth/LoginPage";
-import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
-import SessionReauthPage from "@/pages/auth/SessionReauthPage";
+import AcceptInvitePage from "@/auth/AcceptInvitePage";
+import ForgotPasswordPage from "@/auth/ForgotPasswordPage";
+import LoginPage from "@/auth/LoginPage";
+import ResetPasswordPage from "@/auth/ResetPasswordPage";
+import SessionReauthPage from "@/auth/SessionReauthPage";
 import RequestDetailsPage from "@/features/requests/pages/RequestDetailsPage";
 import RequestFormPage from "@/features/requests/pages/new/RequestFormPage";
 import RequestTypePage from "@/features/requests/pages/new/RequestTypePage";
