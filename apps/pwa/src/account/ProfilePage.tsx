@@ -11,7 +11,7 @@ import { humanize, roleLabel, sortRoles, userDisplayName } from "@stanforte/shar
 import { useCachedQuery } from "@/shared/lib/core";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { getWorkspaceProfile, updateWorkspaceProfile } from "@/shared/api/workspace-api";
-import { SystemShellPage } from "./page-helpers";
+import { AccountShellPage } from "./page-helpers";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -88,7 +88,7 @@ export default function ProfilePage() {
     userDisplayName(user);
 
   return (
-    <SystemShellPage
+    <AccountShellPage
       activeLabel="Profile"
       eyebrow=""
       breadcrumbs={[
@@ -260,6 +260,6 @@ export default function ProfilePage() {
           </SectionCard>
         </div>
       </div>
-    </SystemShellPage>
+    </AccountShellPage>
   );
 }

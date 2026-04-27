@@ -22,7 +22,7 @@ import {
   type PayslipDetail,
   type PayslipRow,
 } from "@/shared/api/payroll-api";
-import { SystemShellPage } from "./page-helpers";
+import { AccountShellPage } from "./page-helpers";
 
 const statusVariant: Record<string, "success" | "pending" | "neutral"> = {
   ready: "success",
@@ -108,7 +108,7 @@ export default function PayslipsPage() {
   }
 
   return (
-    <SystemShellPage
+    <AccountShellPage
       activeLabel="Payslips"
       eyebrow="My Account"
       breadcrumbs={[
@@ -415,6 +415,6 @@ export default function PayslipsPage() {
           </div>
         </div>
       ) : null}
-    </SystemShellPage>
+    </AccountShellPage>
   );
 }

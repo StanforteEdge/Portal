@@ -1,5 +1,5 @@
 import { Icon, SectionCard } from "@/shared";
-import { SystemShellPage } from "./page-helpers";
+import { AccountShellPage } from "./page-helpers";
 import { checkForUpdates } from "@/lib/tauri-bridge";
 
 interface ChangelogSection {
@@ -60,7 +60,7 @@ export default function DownloadPage() {
   const entries = parseChangelog();
 
   return (
-    <SystemShellPage
+    <AccountShellPage
       activeLabel=""
       breadcrumbs={[
         { label: "Workspace", path: "/profile" },
@@ -199,6 +199,6 @@ export default function DownloadPage() {
           </SectionCard>
         </div>
       </div>
-    </SystemShellPage>
+    </AccountShellPage>
   );
 }

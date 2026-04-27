@@ -21,7 +21,7 @@ import {
   submitMyProjectTimesheet,
   type TimesheetRow,
 } from "@/shared/api/payroll-api";
-import { SystemShellPage } from "./page-helpers";
+import { AccountShellPage } from "./page-helpers";
 import TimesheetEditorSlideOver from "./TimesheetEditorSlideOver";
 
 const statusVariant: Record<string, "success" | "pending" | "neutral" | "warning" | "danger"> = {
@@ -63,7 +63,7 @@ export default function TimesheetsPage() {
   }
 
   return (
-    <SystemShellPage
+    <AccountShellPage
       activeLabel="Timesheets"
       eyebrow="My Account"
       breadcrumbs={[
@@ -168,6 +168,6 @@ export default function TimesheetsPage() {
           }}
         />
       )}
-    </SystemShellPage>
+    </AccountShellPage>
   );
 }

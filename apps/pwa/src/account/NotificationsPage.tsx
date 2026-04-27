@@ -8,7 +8,7 @@ import {
   markAllWorkspaceNotificationsRead,
   markWorkspaceNotificationRead,
 } from "@/shared/api/workspace-api";
-import { SystemShellPage } from "./page-helpers";
+import { AccountShellPage } from "./page-helpers";
 
 export default function NotificationsPage() {
   const {
@@ -47,7 +47,7 @@ export default function NotificationsPage() {
   }
 
   return (
-    <SystemShellPage
+    <AccountShellPage
       activeLabel=""
       breadcrumbs={[
         { label: "Workspace", path: "/profile" },
@@ -110,6 +110,6 @@ export default function NotificationsPage() {
           <StatCard label="Total" value={String((notifications ?? []).length)} tone="neutral" hint="All loaded notifications in the current inbox view." />
         </div>
       </div>
-    </SystemShellPage>
+    </AccountShellPage>
   );
 }

@@ -8,7 +8,7 @@ import {
   requestsMobileNav,
 } from "@/features/requests/requests-data";
 
-export function SystemShellPage({
+export function AccountShellPage({
   activeLabel,
   breadcrumbs,
   eyebrow,

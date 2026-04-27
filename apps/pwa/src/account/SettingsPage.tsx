@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Button, SectionCard, StatCard, TextField } from "@/shared";
 import { changeWorkspacePassword } from "@/shared/api/workspace-api";
-import { SystemShellPage } from "./page-helpers";
+import { AccountShellPage } from "./page-helpers";
 
 type CheckStatus = "idle" | "checking" | "up-to-date" | "update-available";
 
@@ -72,7 +72,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <SystemShellPage
+    <AccountShellPage
       activeLabel="Settings"
       breadcrumbs={[
         { label: "Profile", path: "/profile" },
@@ -191,6 +191,6 @@ export default function SettingsPage() {
           <StatCard label="Portal Build" value={buildVersion} tone="neutral" hint="Auto-increments on every server deploy." />
         </div>
       </div>
-    </SystemShellPage>
+    </AccountShellPage>
   );
 }

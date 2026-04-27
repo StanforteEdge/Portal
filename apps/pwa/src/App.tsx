@@ -77,7 +77,7 @@ import {
   TimesheetsPage,
   ProfilePage,
   SettingsPage,
-} from "@/pages/system";
+} from "@/account";
 
 export default function App() {
   const navigate = useNavigate();

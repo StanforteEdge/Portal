@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { Button, Icon, SectionCard } from "@/shared";
-import { SystemShellPage } from "./page-helpers";
+import { AccountShellPage } from "./page-helpers";
 
 export default function HelpPage() {
   const [activeTab, setActiveTab] = useState<"general" | "finance">("general");
@@ -58,7 +58,7 @@ export default function HelpPage() {
   }, [activeTab]);
 
   return (
-    <SystemShellPage
+    <AccountShellPage
       activeLabel=""
       breadcrumbs={[
         { label: "Workspace", path: "/profile" },
@@ -125,6 +125,6 @@ export default function HelpPage() {
           </SectionCard>
         </div>
       </div>
-    </SystemShellPage>
+    </AccountShellPage>
   );
 }
