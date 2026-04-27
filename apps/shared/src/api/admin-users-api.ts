@@ -49,6 +49,7 @@ export function createAdminUsersApi(httpRequest: HttpRequest) {
       search?: string;
       status?: string;
       type?: string;
+      organization_id?: string;
     }): Promise<AdminUsersResponse> {
       const query = new URLSearchParams();
       if (params?.page) query.set("page", String(params.page));
@@ -56,6 +57,7 @@ export function createAdminUsersApi(httpRequest: HttpRequest) {
       if (params?.search) query.set("search", params.search);
       if (params?.status) query.set("status", params.status);
       if (params?.type) query.set("type", params.type);
+      if (params?.organization_id) query.set("organization_id", params.organization_id);
       const suffix = query.toString() ? `?${query.toString()}` : "";
       return httpRequest<AdminUsersResponse>(`/admin/users${suffix}`);
     },

@@ -60,16 +60,18 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [orgFilter, setOrgFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
   const [listKey, setListKey] = useState(0);
 
   const { data, loading, error } = useCachedQuery(
-    `admin:users:${listKey}:${search}:${typeFilter}:${statusFilter}`,
+    `admin:users:${listKey}:${search}:${typeFilter}:${statusFilter}:${orgFilter}`,
     () =>
       adminUsersApi.listUsers({
         search: search || undefined,
         type: typeFilter || undefined,
         status: statusFilter || undefined,
+        organization_id: orgFilter || undefined,
         per_page: 100,
       }),
     { ttlMs: 1000 * 30, storage: "memory" },
@@ -164,6 +166,18 @@ export default function AdminUsersPage() {
               <option value="pending">Pending</option>
               <option value="suspended">Suspended</option>
               <option value="deleted">Deleted</option>
+            </SelectField>
+            <SelectField
+              label="Organization"
+              value={orgFilter}
+              onChange={(e) => setOrgFilter(e.target.value)}
+            >
+              <option value="">All organizations</option>
+              {(organizations ?? []).map((org) => (
+                <option key={org.id} value={String(org.id)}>
+                  {org.name}
+                </option>
+              ))}
             </SelectField>
           </div>
 
