@@ -54,7 +54,7 @@ import {
   submitRequest,
 } from "@/requests/requests-api";
 import { listEntityTags, listManagedTaxonomies } from "@/requests/taxonomy-api";
-import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
+import { listFileAssets, uploadFileAsset } from "@/files/files-api";
 import { financeApi } from "@/shared/lib/core";
 import type { FinancePaymentVoucherRecord } from "@/shared";
 import { downloadBase64File } from "@/shared/lib/download";

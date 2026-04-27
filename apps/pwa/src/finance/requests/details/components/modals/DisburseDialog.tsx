@@ -7,7 +7,7 @@ import {
   TextAreaField,
   TextField,
 } from "@/shared";
-import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
+import { listFileAssets, uploadFileAsset } from "@/files/files-api";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { useRequestDetails } from "../../context";

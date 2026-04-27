@@ -9,7 +9,7 @@ import {
 } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
 import { formatPersonName } from "@/requests/request-helpers";
-import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
+import { listFileAssets, uploadFileAsset } from "@/files/files-api";
 import { formatCertificateCurrency, buildCertificateOfHonorPdf } from "../../utils/certificate-pdf";
 import { useRequestDetails } from "../../context";
 import { useAuth } from "@/shared/context/AuthProvider";

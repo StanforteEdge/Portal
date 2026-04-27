@@ -21,7 +21,7 @@ import {
 import { formatCurrency } from "@stanforte/shared";
 import { formatDisplayDate } from "@stanforte/shared";
 import { formatPersonName, formatRequestStatus, requestFamilyFromRecord } from "@/requests/request-helpers";
-import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
+import { listFileAssets, uploadFileAsset } from "@/files/files-api";
 import { DownloadDropdown } from "./DownloadDropdown";
 import { useRequestDetails } from "../context";
 

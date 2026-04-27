@@ -50,7 +50,7 @@ import {
   replaceEntityTags,
   type TagTerm,
 } from "@/requests/taxonomy-api";
-import { uploadFileAsset } from "@/features/files/files-api";
+import { uploadFileAsset } from "@/files/files-api";
 
 type ItemState = {
   description: string;
