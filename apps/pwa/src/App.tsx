@@ -175,7 +175,7 @@ export default function App() {
           <Route element={<PermissionRoute requiredPermissions={["hr.view"]} any />}>
             <Route path="/hr" element={<HrDashboardPage />} />
 
-            <Route element={<PermissionRoute requiredPermissions={["users.manage", "hr.manage"]} any />}>
+            <Route element={<PermissionRoute requiredPermissions={["hr.manage", "hr.employees"]} any />}>
               <Route path="/hr/employees" element={<HrEmployeesPage />} />
               <Route path="/hr/employees/new" element={<HrEmployeeCreatePage />} />
               <Route path="/hr/employees/:id" element={<HrEmployeeDetailPage />} />

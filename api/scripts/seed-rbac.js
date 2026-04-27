@@ -63,7 +63,8 @@ const permissions = [
   { name: 'Manage Leave', slug: 'leave.manage', module: 'leave', description: 'Can manage leave types, balances, and policy' },
   { name: 'Approve Leave', slug: 'leave.approve', module: 'leave', description: 'Can approve and reject leave requests' },
   { name: 'View HR', slug: 'hr.view', module: 'hr', description: 'Can access the HR admin section' },
-  { name: 'Manage HR', slug: 'hr.manage', module: 'hr', description: 'Manage HR-wide settings' },
+  { name: 'Manage HR', slug: 'hr.manage', module: 'hr', description: 'Manage HR-wide settings, create and deactivate employees' },
+  { name: 'Manage Employees', slug: 'hr.employees', module: 'hr', description: 'View and update employee records (no create or deactivate)' },
   { name: 'Approve HR', slug: 'hr.approve', module: 'hr', description: 'Can approve HR workflow steps' },
   { name: 'View Projects', slug: 'projects.view', module: 'projects', description: 'Can view projects and project governance' },
   { name: 'Manage Projects', slug: 'projects.manage', module: 'projects', description: 'Can create projects and administer project governance' },
@@ -82,7 +83,7 @@ const permissions = [
 
 const rolePermissionMap = {
   administrator: ['*'],
-  admin: ['*'],
+  admin: ['admin.view', 'users.view', 'users.manage', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'roles.manage', 'settings.manage', 'audit.view', 'audit.manage', 'workflow.view', 'workflow.manage', 'send_notifications'],
   finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.correct_completed', 'finance.view', 'finance.approve', 'finance.vouchers', 'payroll.approve', 'groups.view', 'projects.view', 'workflow.view', 'work.view', 'work.manage', 'work.approve'],
   accountant: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'groups.view', 'projects.view', 'workflow.view'],
   finance_officer: ['requests.view', 'finance.view', 'finance.vouchers', 'groups.view', 'projects.view', 'workflow.view'],

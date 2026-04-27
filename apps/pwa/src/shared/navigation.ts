@@ -149,7 +149,7 @@ export function buildAppNavigation(options?: {
       moduleKey: "hr",
       children: [
         { key: "hr-dashboard", label: "Overview", icon: "dashboard", path: "/hr", permissions: ["hr.view"] },
-        { key: "hr-employees", label: "Employees", icon: "group", path: "/hr/employees", permissions: ["users.manage", "hr.manage"] },
+        { key: "hr-employees", label: "Employees", icon: "group", path: "/hr/employees", permissions: ["hr.manage", "hr.employees"] },
         { key: "hr-attendance", label: "Attendance", icon: "pending_actions", path: "/hr/attendance", permissions: ["attendance.view", "attendance.manage", "attendance.approve"] },
         { key: "hr-leave", label: "Leave", icon: "event_available", path: "/hr/leave", permissions: ["leave.view", "leave.manage", "leave.approve"] },
         { key: "hr-settings", label: "Settings", icon: "settings", path: "/hr/settings", permissions: ["hr.manage", "settings.manage"] },
