@@ -1,8 +1,10 @@
 import { fileURLToPath, URL } from "node:url";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
+import { execSync } from "node:child_process";
 
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
+import type { Plugin } from "vite";
 
 // Read package.json version
 const pkg = JSON.parse(
@@ -46,7 +48,42 @@ function parseChangelog(md: string) {
 
 const changelogMd = readFileSync(new URL("./CHANGELOG.md", import.meta.url), "utf-8");
 const changelog = parseChangelog(changelogMd);
-const buildDate = new Date().toISOString().slice(0, 10); // "YYYY-MM-DD"
+const buildDate = new Date().toISOString().slice(0, 10);
+const builtAt = new Date().toISOString();
+
+// Build version: auto-increments on every deploy from base commit count
+const BASE_COMMIT = 332; // set on 2026-04-27 — do not change
+let commitCount = BASE_COMMIT;
+try {
+  commitCount = Number(execSync("git rev-list --count HEAD").toString().trim());
+} catch {
+  // not in a git repo (e.g. CI sandbox) — fall back to base
+}
+const buildPatch = Math.max(0, commitCount - BASE_COMMIT);
+const buildVersion = `1.0.${buildPatch}`;
+
+// Vite plugin: writes public/version.json after each build
+function versionManifestPlugin(): Plugin {
+  return {
+    name: "version-manifest",
+    closeBundle() {
+      const manifest = JSON.stringify(
+        {
+          app_version: pkg.version,
+          build_version: buildVersion,
+          built_at: builtAt,
+        },
+        null,
+        2,
+      );
+      writeFileSync(
+        new URL("./public/version.json", import.meta.url),
+        manifest,
+        "utf-8",
+      );
+    },
+  };
+}
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
@@ -54,7 +91,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     base,
-    plugins: [react()],
+    plugins: [react(), versionManifestPlugin()],
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
@@ -63,6 +100,8 @@ export default defineConfig(({ mode }) => {
     define: {
       "import.meta.env.VITE_APP_VERSION": JSON.stringify(pkg.version),
       "import.meta.env.VITE_APP_BUILD_DATE": JSON.stringify(buildDate),
+      "import.meta.env.VITE_BUILD_VERSION": JSON.stringify(buildVersion),
+      "import.meta.env.VITE_APP_BUILT_AT": JSON.stringify(builtAt),
       "import.meta.env.VITE_CHANGELOG": JSON.stringify(JSON.stringify(changelog)),
       "import.meta.env.VITE_DOWNLOAD_BASE_URL": JSON.stringify(
         env.VITE_DOWNLOAD_BASE_URL || "/downloads"

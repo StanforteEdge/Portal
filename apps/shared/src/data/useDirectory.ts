@@ -12,7 +12,7 @@ export function useDirectory(
   cache: any,
   apis: {
     resource: { listOrganizations: () => Promise<any[]>; listGroups: () => Promise<any[]> };
-    hr: { listEmployees: (params?: any) => Promise<{ data: any[] }> };
+    hr: { listEmployees: (params?: any) => Promise<{ result?: any[]; data?: any[] }> };
   }
 ) {
   const { data: orgs, loading: orgsLoading, refetch: refetchOrgs } = useCachedQuery(
@@ -48,7 +48,7 @@ export function useDirectory(
     subtitle: t.type
   }));
 
-  const employeeOptions: DirectoryItem[] = (employees?.data || []).map((e: any) => ({
+  const employeeOptions: DirectoryItem[] = (employees?.result ?? employees?.data ?? []).map((e: any) => ({
     id: e.user_id || e.id,
     name: `${e.first_name} ${e.last_name}`,
     subtitle: e.job_title || e.email

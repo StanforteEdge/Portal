@@ -115,10 +115,14 @@ export function createHrApi(httpRequest: HttpRequest) {
       const suffix = query.toString() ? `?${query.toString()}` : '';
       const response = await httpRequest<any>(`/hr/employees${suffix}`);
       
-      const rawList = Array.isArray(response) ? response : (response?.data || []);
+      const rawList = Array.isArray(response?.result) ? response.result : Array.isArray(response?.data) ? response.data : [];
       return {
-        data: rawList.map(normalizeEmployee),
-        meta: response?.meta || { total: rawList.length, page: 1, last_page: 1 }
+        result: rawList.map(normalizeEmployee),
+        total: Number(response?.total ?? response?.total_result ?? rawList.length),
+        total_result: Number(response?.total_result ?? response?.total ?? rawList.length),
+        per_page: Number(response?.per_page ?? 20),
+        page: Number(response?.page ?? 1),
+        pages: Number(response?.pages ?? 1)
       };
     },
 

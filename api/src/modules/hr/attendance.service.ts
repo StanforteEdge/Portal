@@ -24,6 +24,8 @@ type AttendancePolicy = {
   onsite_weekdays: number[];
   remote_weekdays: number[];
   required_extra_onsite_day_count: number;
+  enforce_expected_mode_clock_in: boolean;
+  enforce_clock_out_match_clock_in_mode: boolean;
 };
 
 type ProfileContext = {
@@ -78,7 +80,13 @@ export class AttendanceService {
       throw new BadRequestException('Clock in is too early for this schedule');
     }
 
+    const expectedMode = this.resolveExpectedMode(profile, workDate, policy);
     const effectiveMode = this.resolveSubmittedMode(payload?.attendance_mode, profile, workDate, policy);
+    if (policy.enforce_expected_mode_clock_in && effectiveMode !== expectedMode) {
+      throw new BadRequestException(
+        `Clock in mode must match expected mode (${expectedMode})`
+      );
+    }
     const officeLocation = await this.resolveOfficeLocationForAttendance({
       profile,
       requestedOfficeLocationId: payload?.office_location_id,
@@ -153,7 +161,23 @@ export class AttendanceService {
       throw new BadRequestException('No open clock-in found for this day');
     }
 
-    const effectiveMode = this.resolveSubmittedMode(payload?.attendance_mode, profile, workDate, policy);
+    const requestedMode = this.resolveSubmittedMode(payload?.attendance_mode, profile, workDate, policy);
+    const openClockInMode =
+      openClockIn.attendanceMode === 'onsite' ||
+      openClockIn.attendanceMode === 'remote' ||
+      openClockIn.attendanceMode === 'field'
+        ? (openClockIn.attendanceMode as AttendanceMode)
+        : null;
+    if (
+      policy.enforce_clock_out_match_clock_in_mode &&
+      openClockInMode &&
+      requestedMode !== openClockInMode
+    ) {
+      throw new BadRequestException(
+        `Clock out mode must match clock in mode (${openClockInMode})`
+      );
+    }
+    const effectiveMode = openClockInMode ?? requestedMode;
     const officeLocation = await this.resolveOfficeLocationForAttendance({
       profile,
       requestedOfficeLocationId: payload?.office_location_id,
@@ -804,11 +828,11 @@ export class AttendanceService {
       status = 'corrected';
       reconciliationStatus = 'corrected';
     } else if (activeException?.exceptionType === 'field_assignment') {
-      status = 'field';
       reconciliationStatus = 'exception';
+      status = !firstInAt ? 'absent' : lateMinutes > 0 ? 'late' : 'present';
     } else if (activeException?.exceptionType === 'remote_exception') {
-      status = 'remote';
       reconciliationStatus = 'exception';
+      status = !firstInAt ? 'absent' : lateMinutes > 0 ? 'late' : 'present';
     } else if (activeException?.exceptionType === 'excused_absence') {
       status = 'off_day';
       reconciliationStatus = 'exception';
@@ -817,10 +841,6 @@ export class AttendanceService {
       reconciliationStatus = 'exception';
     } else if (!firstInAt) {
       status = 'absent';
-    } else if (effectiveMode === 'field') {
-      status = 'field';
-    } else if (effectiveMode === 'remote') {
-      status = 'remote';
     } else {
       status = lateMinutes > 0 ? 'late' : 'present';
     }
@@ -890,7 +910,9 @@ export class AttendanceService {
       latest_clock_out_minutes_after_end: 720,
       onsite_weekdays: [1, 5],
       remote_weekdays: [2, 3, 4],
-      required_extra_onsite_day_count: 1
+      required_extra_onsite_day_count: 1,
+      enforce_expected_mode_clock_in: false,
+      enforce_clock_out_match_clock_in_mode: true
     };
 
     const profile = profileArg ?? (await this.getProfileContext(userId));
@@ -963,7 +985,17 @@ export class AttendanceService {
       remote_weekdays: this.normalizeWeekdayList(merged.remote_weekdays, defaultPolicy.remote_weekdays),
       required_extra_onsite_day_count: Number(
         merged.required_extra_onsite_day_count ?? defaultPolicy.required_extra_onsite_day_count
-      )
+      ),
+      enforce_expected_mode_clock_in:
+        typeof merged.enforce_expected_mode_clock_in === 'boolean'
+          ? merged.enforce_expected_mode_clock_in
+          : String(merged.enforce_expected_mode_clock_in ?? defaultPolicy.enforce_expected_mode_clock_in) === 'true',
+      enforce_clock_out_match_clock_in_mode:
+        typeof merged.enforce_clock_out_match_clock_in_mode === 'boolean'
+          ? merged.enforce_clock_out_match_clock_in_mode
+          : String(
+              merged.enforce_clock_out_match_clock_in_mode ?? defaultPolicy.enforce_clock_out_match_clock_in_mode
+            ) === 'true'
     };
   }
 
@@ -1368,8 +1400,10 @@ export class AttendanceService {
     };
   }
 
-  private getOpenClockIn(entries: Array<{ entryType: string; entryAt: Date; workDate?: Date }>) {
-    let open: { entryType: string; entryAt: Date; workDate?: Date } | null = null;
+  private getOpenClockIn(
+    entries: Array<{ entryType: string; entryAt: Date; workDate?: Date; attendanceMode?: string | null }>
+  ) {
+    let open: { entryType: string; entryAt: Date; workDate?: Date; attendanceMode?: string | null } | null = null;
     for (const entry of entries.sort((a, b) => a.entryAt.getTime() - b.entryAt.getTime())) {
       if (entry.entryType === 'clock_in') open = entry;
       if (entry.entryType === 'clock_out') open = null;

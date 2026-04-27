@@ -11,7 +11,7 @@ export class CreateFinanceVendorPaymentDto {
   @ApiPropertyOptional({ example: '3fef7e86-cf6a-4df7-b0b3-e350adf55e33' })
   @IsOptional()
   @IsUUID()
-  vendor_id?: string;
+  contact_id?: string;
 
   @ApiPropertyOptional({ example: '3fef7e86-cf6a-4df7-b0b3-e350adf55e33' })
   @IsOptional()

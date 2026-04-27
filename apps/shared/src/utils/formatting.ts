@@ -48,30 +48,28 @@ export const formatTimeNextDay = (
   const d = typeof date === "string" ? new Date(date) : date;
   if (isNaN(d.getTime())) return "-";
   
-  const refD = referenceDate
-    ? (typeof referenceDate === "string" ? new Date(referenceDate) : referenceDate)
-    : d;
-  const isSameDay = refD && !isNaN(refD.getTime())
-    ? d.toDateString() === refD.toDateString()
-    : true;
-  
-  const timeStr = new Intl.DateTimeFormat("en-US", {
+  const formatted = new Intl.DateTimeFormat("en-US", {
     hour: "numeric",
     minute: "2-digit",
     hour12: true,
   }).format(d);
+
+  return formatted;
+};
+
+export const hasNextDay = (
+  date: string | Date | null | undefined,
+  referenceDate?: string | Date | null | undefined
+): boolean => {
+  if (!date) return false;
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(d.getTime())) return false;
   
-  if (isSameDay || !refD || isNaN(refD.getTime())) {
-    return timeStr;
-  }
+  if (!referenceDate) return false;
+  const refD = typeof referenceDate === "string" ? new Date(referenceDate) : referenceDate;
+  if (isNaN(refD.getTime())) return false;
   
-  const currDay = d.toDateString();
-  const refDay = new Date(refD).toDateString();
-  if (currDay !== refDay && d > refD) {
-    return `${timeStr} +1 Day`;
-  }
-  
-  return timeStr;
+  return d.toDateString() !== refD.toDateString() && d > refD;
 };
 
 export const formatDuration = (minutes: number): string => {

@@ -325,21 +325,28 @@ export function createResourceApi(httpRequest: HttpRequest) {
       const qs = query.toString();
       const path = qs ? `/files?${qs}` : "/files";
       const response = await httpRequest<any>(path);
-      const rows = Array.isArray(response) ? response : (response?.data ?? []);
-      return rows.map((row: any) => ({
-        id: String(row.id),
-        file_name: String(row.file_name ?? row.fileName ?? ""),
-        mime_type: row.mime_type ?? row.mimeType ?? null,
-        file_size: row.file_size ?? row.fileSize ?? null,
-        storage_path: String(row.storage_path ?? row.storagePath ?? ""),
-        public_url: row.public_url ?? row.publicUrl ?? null,
-        usage: row.usage ? {
-          attached: Boolean(row.usage.attached),
-          request_items: Number(row.usage.request_items ?? 0),
-          pv_evidence: Number(row.usage.pv_evidence ?? 0),
-          retirement_refs: Number(row.usage.retirement_refs ?? 0),
-        } : undefined,
-      }));
+      const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response?.data) ? response.data : [];
+      return {
+        result: rows.map((row: any) => ({
+          id: String(row.id),
+          file_name: String(row.file_name ?? row.fileName ?? ""),
+          mime_type: row.mime_type ?? row.mimeType ?? null,
+          file_size: row.file_size ?? row.fileSize ?? null,
+          storage_path: String(row.storage_path ?? row.storagePath ?? ""),
+          public_url: row.public_url ?? row.publicUrl ?? null,
+          usage: row.usage ? {
+            attached: Boolean(row.usage.attached),
+            request_items: Number(row.usage.request_items ?? 0),
+            pv_evidence: Number(row.usage.pv_evidence ?? 0),
+            retirement_refs: Number(row.usage.retirement_refs ?? 0),
+          } : undefined,
+        })),
+        total: Number(response?.total ?? response?.total_result ?? rows.length),
+        total_result: Number(response?.total_result ?? response?.total ?? rows.length),
+        per_page: Number(response?.per_page ?? params?.per_page ?? 20),
+        page: Number(response?.page ?? params?.page ?? 1),
+        pages: Number(response?.pages ?? 1),
+      };
     },
 
     async uploadFile(file: File, options?: { organization_id?: string; metadata?: Record<string, unknown> }) {
@@ -446,21 +453,28 @@ export function createResourceApi(httpRequest: HttpRequest) {
       const qs = query.toString();
       const path = qs ? `/finance/accounts?${qs}` : "/finance/accounts";
       const response = await httpRequest<any>(path);
-      const rows = Array.isArray(response) ? response : (response?.data ?? []);
-      return rows.map((row: any) => ({
-        id: String(row.id),
-        name: String(row.name ?? ""),
-        code: row.code ?? null,
-        account_type: String(row.account_type ?? "bank"),
-        bank_name: row.bank_name ?? null,
-        account_name: row.account_name ?? null,
-        account_number: row.account_number ?? null,
-        branch_name: row.branch_name ?? null,
-        currency: String(row.currency ?? "NGN"),
-        opening_balance: Number(row.opening_balance ?? 0),
-        current_balance: Number(row.current_balance ?? 0),
-        is_active: Boolean(row.is_active ?? row.isActive ?? true),
-      }));
+      const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
+      return {
+        result: rows.map((row: any) => ({
+          id: String(row.id),
+          name: String(row.name ?? ""),
+          code: row.code ?? null,
+          account_type: String(row.account_type ?? "bank"),
+          bank_name: row.bank_name ?? null,
+          account_name: row.account_name ?? null,
+          account_number: row.account_number ?? null,
+          branch_name: row.branch_name ?? null,
+          currency: String(row.currency ?? "NGN"),
+          opening_balance: Number(row.opening_balance ?? 0),
+          current_balance: Number(row.current_balance ?? 0),
+          is_active: Boolean(row.is_active ?? row.isActive ?? true),
+        })),
+        total: Number(response?.total ?? response?.total_result ?? rows.length),
+        total_result: Number(response?.total_result ?? response?.total ?? rows.length),
+        per_page: Number(response?.per_page ?? 20),
+        page: Number(response?.page ?? 1),
+        pages: Number(response?.pages ?? 1),
+      };
     },
 
     async createFinanceAccount(payload: {
@@ -506,8 +520,10 @@ export function createResourceApi(httpRequest: HttpRequest) {
       if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
       const qs = query.toString();
       const response = await httpRequest<any>(qs ? `/finance/income?${qs}` : "/finance/income");
-      const rows = Array.isArray(response) ? response : (response?.data ?? []);
-      return rows.map((row: any) => ({
+      if (!response || typeof response !== "object" || Array.isArray(response) || !Array.isArray(response.result)) {
+        throw new Error("/finance/income must return paginated result.");
+      }
+      const rows = response.result.map((row: any) => ({
         id: String(row.id),
         account_id: String(row.account_id ?? ""),
         account_name: row.account_name ?? "",
@@ -521,6 +537,14 @@ export function createResourceApi(httpRequest: HttpRequest) {
         grant_id: row.grant_id ?? null,
         file: row.file ?? null,
       }));
+      return {
+        result: rows,
+        total: Number(response.total ?? 0),
+        total_result: Number(response.total_result ?? 0),
+        per_page: Number(response.per_page ?? 20),
+        page: Number(response.page ?? 1),
+        pages: Number(response.pages ?? 1),
+      };
     },
 
     async createFinanceIncome(payload: {
@@ -547,8 +571,17 @@ export function createResourceApi(httpRequest: HttpRequest) {
       if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
       const qs = query.toString();
       const response = await httpRequest<any>(qs ? `/finance/bills?${qs}` : "/finance/bills");
-      const rows = Array.isArray(response) ? response : (response?.data ?? []);
-      return rows;
+      if (!response || typeof response !== "object" || Array.isArray(response) || !Array.isArray(response.result)) {
+        throw new Error("/finance/bills must return paginated result.");
+      }
+      return {
+        result: response.result,
+        total: Number(response.total ?? 0),
+        total_result: Number(response.total_result ?? 0),
+        per_page: Number(response.per_page ?? 20),
+        page: Number(response.page ?? 1),
+        pages: Number(response.pages ?? 1),
+      };
     },
 
     async createFinanceBill(payload: Record<string, unknown>) {
@@ -564,8 +597,17 @@ export function createResourceApi(httpRequest: HttpRequest) {
       if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
       const qs = query.toString();
       const response = await httpRequest<any>(qs ? `/finance/sales-invoices?${qs}` : "/finance/sales-invoices");
-      const rows = Array.isArray(response) ? response : (response?.data ?? []);
-      return rows;
+      if (!response || typeof response !== "object" || Array.isArray(response) || !Array.isArray(response.result)) {
+        throw new Error("/finance/sales-invoices must return paginated result.");
+      }
+      return {
+        result: response.result,
+        total: Number(response.total ?? 0),
+        total_result: Number(response.total_result ?? 0),
+        per_page: Number(response.per_page ?? 20),
+        page: Number(response.page ?? 1),
+        pages: Number(response.pages ?? 1),
+      };
     },
 
     async createSalesInvoice(payload: Record<string, unknown>) {
@@ -590,11 +632,16 @@ export function createResourceApi(httpRequest: HttpRequest) {
       if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
       const qs = query.toString();
       const response = await httpRequest<any>(qs ? `/finance/items?${qs}` : "/finance/items");
-      const payload = Array.isArray(response) ? { data: response, meta: {} } : (response?.data ? { data: response.data, meta: response.meta ?? {} } : { data: [], meta: {} });
-      const rows = Array.isArray(payload.data) ? payload.data : [];
+      if (!response || typeof response !== "object" || Array.isArray(response) || !Array.isArray(response.result)) {
+        throw new Error("/finance/items must return paginated result.");
+      }
       return {
-        data: rows,
-        meta: payload.meta,
+        result: response.result,
+        total: Number(response.total ?? 0),
+        total_result: Number(response.total_result ?? 0),
+        per_page: Number(response.per_page ?? 50),
+        page: Number(response.page ?? 1),
+        pages: Number(response.pages ?? 1),
       };
     },
 
@@ -619,11 +666,16 @@ export function createResourceApi(httpRequest: HttpRequest) {
       if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
       const qs = query.toString();
       const response = await httpRequest<any>(qs ? `/finance/expenses?${qs}` : "/finance/expenses");
-      const payload = Array.isArray(response) ? { data: response, meta: {} } : (response?.data ? { data: response.data, meta: response.meta ?? {} } : { data: [], meta: {} });
-      const rows = Array.isArray(payload.data) ? payload.data : [];
+      if (!response || typeof response !== "object" || Array.isArray(response) || !Array.isArray(response.result)) {
+        throw new Error("/finance/expenses must return paginated result.");
+      }
       return {
-        data: rows,
-        meta: payload.meta,
+        result: response.result,
+        total: Number(response.total ?? 0),
+        total_result: Number(response.total_result ?? 0),
+        per_page: Number(response.per_page ?? 50),
+        page: Number(response.page ?? 1),
+        pages: Number(response.pages ?? 1),
       };
     },
 

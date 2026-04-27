@@ -75,13 +75,12 @@ export class HrService {
     ]);
 
     return {
-      data: data.map((item) => this.serializeEmployee(item)),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
+      result: data.map((item) => this.serializeEmployee(item)),
+      total,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage))
     };
   }
 

@@ -21,6 +21,7 @@ export type AttendanceDaily = {
   work_date: string;
   status: string;
   attendance_mode: string | null;
+  expected_mode: string | null;
   first_in_at: string | null;
   last_out_at: string | null;
   worked_minutes: number;
@@ -78,6 +79,7 @@ export function normalizeAttendanceRecord(row: any): StaffDailyRow {
     work_date: row.work_date,
     status: row.status,
     attendance_mode: row.attendance_mode,
+    expected_mode: row.expected_mode,
     first_in_at: row.first_in_at,
     last_out_at: row.last_out_at,
     worked_minutes: Number(row.worked_minutes || 0),

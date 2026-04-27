@@ -8,18 +8,18 @@ import { hasModuleAccess, humanize, userDisplayName } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { getMyAttendance } from "@/modules/hr/attendance/attendance-api";
+import { getMyAttendance } from "@/pages/hr/attendance/attendance-api";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/features/requests/requests-data";
-import { listApprovals, listRequests } from "@/features/requests/requests-api";
+} from "@/pages/requests/requests-data";
+import { listApprovals, listRequests } from "@/pages/requests/requests-api";
 import {
   formatDisplayDate,
   formatRequestStatus,
   requestFamilyFromType,
   requestStatusTone,
-} from "@/features/requests/request-helpers";
+} from "@/pages/requests/request-helpers";
 import {
   getWorkspaceProfile,
   listWorkspaceNotifications,
@@ -183,6 +183,8 @@ export default function DashboardPage() {
       : "No shift scheduled";
   const dashboardUserName = userDisplayName(user);
   const financeViewer = hasModuleAccess(user, "finance");
+
+  console.log(dashboardUserName);
 
   return (
     <AppShell

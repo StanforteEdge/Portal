@@ -15,6 +15,7 @@ import { UpsertFinanceChartAccountDto } from './dto/upsert-finance-chart-account
 import { UpsertFinanceReportingPeriodDto } from './dto/upsert-finance-reporting-period.dto';
 import { UpsertFinanceCustomerDto } from './dto/upsert-finance-customer.dto';
 import { UpsertFinanceVendorDto } from './dto/upsert-finance-vendor.dto';
+import { UpsertContactDto } from './dto/upsert-contact.dto';
 import { CreateFinanceSalesInvoiceDto } from './dto/create-finance-sales-invoice.dto';
 import { CreateFinanceBillDto } from './dto/create-finance-bill.dto';
 import { CreateFinanceReceiptDto } from './dto/create-finance-receipt.dto';
@@ -325,11 +326,12 @@ export class FinanceService {
       return sortDir === 'asc' ? comparison : -comparison;
     });
 
-    const total = sorted.length;
+    const totalResult = sorted.length;
     const pageData = sorted.slice((page - 1) * perPage, (page - 1) * perPage + perPage);
+    const pages = Math.max(1, Math.ceil(totalResult / perPage));
 
     return {
-      data: pageData.map((entry) => ({
+      result: pageData.map((entry) => ({
         id: entry.row.id.toString(),
         request_number: entry.requestNumber,
         request_status: entry.row.status,
@@ -370,12 +372,11 @@ export class FinanceService {
         updated_at: entry.row.updatedAt.toISOString(),
         items: []
       })),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
+      total: pageData.length,
+      total_result: totalResult,
+      per_page: perPage,
+      page,
+      pages,
     };
   }
 
@@ -530,7 +531,8 @@ export class FinanceService {
           transactionRef: dto.transaction_ref ?? null,
           note: dto.note ?? null,
           evidenceFileId: evidenceFileIds[0] ?? null,
-          disbursedAt: now
+          disbursedAt: now,
+          contactId: dto.contact_id ?? null,
         }
       });
       traceLog(
@@ -659,7 +661,8 @@ export class FinanceService {
         currency: updated.currency,
         created_at: updated.createdAt.toISOString(),
         updated_at: updated.updatedAt.toISOString(),
-        data: updated.data
+        data: updated.data,
+        voucher: { id: voucher.id },
       };
     } catch (error) {
       traceError(
@@ -1460,45 +1463,62 @@ export class FinanceService {
     });
 
     return {
-      data,
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
+      result: data,
+      total: data.length,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage)),
     };
   }
 
   async listAccounts(query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
+
     const where: Prisma.FinanceAccountWhereInput = {
       ...(query.is_active !== undefined ? { isActive: String(query.is_active) !== 'false' } : {}),
       ...(query.organization_id ? { organizationId: toBigInt(String(query.organization_id)) } : {})
     };
 
-    const rows = await this.prisma.financeAccount.findMany({
-      where,
-      orderBy: [{ isActive: 'desc' }, { name: 'asc' }]
-    });
-    const movementByAccount = await this.getLedgerMovementByAccount(rows.map((row) => row.id));
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.financeAccount.findMany({
+        where,
+        orderBy: [{ isActive: 'desc' }, { name: 'asc' }],
+        skip: (page - 1) * perPage,
+        take: perPage
+      }),
+      this.prisma.financeAccount.count({ where })
+    ]);
 
-    return rows.map((row) => ({
-      id: row.id,
-      organization_id: row.organizationId?.toString() ?? null,
-      name: row.name,
-      code: row.code,
-      account_type: row.accountType,
-      bank_name: row.bankName,
-      account_name: row.accountName,
-      account_number: row.accountNumber,
-      branch_name: row.branchName,
-      currency: row.currency,
-      opening_balance: Number(row.openingBalance),
-      current_balance: Number(row.openingBalance) + (movementByAccount.get(row.id) ?? 0),
-      is_active: row.isActive,
-      created_at: row.createdAt,
-      updated_at: row.updatedAt
-    }));
+    const movementByAccount = await this.getLedgerMovementByAccount(data.map((row) => row.id));
+
+    const pages = Math.max(1, Math.ceil(total / perPage));
+
+    return {
+      result: data.map((row) => ({
+        id: row.id,
+        organization_id: row.organizationId?.toString() ?? null,
+        name: row.name,
+        code: row.code,
+        account_type: row.accountType,
+        bank_name: row.bankName,
+        account_name: row.accountName,
+        account_number: row.accountNumber,
+        branch_name: row.branchName,
+        currency: row.currency,
+        opening_balance: Number(row.openingBalance),
+        current_balance: Number(row.openingBalance) + (movementByAccount.get(row.id) ?? 0),
+        is_active: row.isActive,
+        created_at: row.createdAt,
+        updated_at: row.updatedAt
+      })),
+      total,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages
+    };
   }
 
   async getAccount(id: string) {
@@ -1747,6 +1767,8 @@ export class FinanceService {
   }
 
   async listIncome(query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(200, Math.max(1, Number(query.per_page ?? query.limit ?? 20)));
     const where: Prisma.FinanceIncomeEntryWhereInput = {
       ...(query.account_id ? { accountId: String(query.account_id) } : {}),
       ...(query.from || query.to
@@ -1758,16 +1780,20 @@ export class FinanceService {
           }
         : {})
     };
-    const rows = await this.prisma.financeIncomeEntry.findMany({
-      where,
-      include: {
-        account: { select: { id: true, name: true, code: true } },
-        file: { select: { id: true, fileName: true, publicUrl: true } }
-      },
-      orderBy: { receivedAt: 'desc' },
-      take: Math.min(500, Math.max(1, Number(query.limit ?? 100)))
-    });
-    return rows.map((row) => ({
+    const [rows, totalResult] = await this.prisma.$transaction([
+      this.prisma.financeIncomeEntry.findMany({
+        where,
+        include: {
+          account: { select: { id: true, name: true, code: true } },
+          file: { select: { id: true, fileName: true, publicUrl: true } }
+        },
+        orderBy: { receivedAt: 'desc' },
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      this.prisma.financeIncomeEntry.count({ where }),
+    ]);
+    const result = rows.map((row) => ({
       id: row.id,
       account_id: row.accountId,
       account_name: row.account.name,
@@ -1783,6 +1809,14 @@ export class FinanceService {
         : null,
       created_at: row.createdAt
     }));
+    return {
+      result,
+      total: result.length,
+      total_result: totalResult,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(totalResult / perPage)),
+    };
   }
 
   async createTransfer(dto: CreateTransferDto, actorId?: string) {
@@ -1914,14 +1948,14 @@ export class FinanceService {
       this.prisma.financeLedgerEntry.count({ where }),
     ]);
 
+    const result = rows.map((row) => this.serializeLedgerRow(row));
     return {
-      data: rows.map((row) => this.serializeLedgerRow(row)),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage)),
-      },
+      result,
+      total: result.length,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage)),
     };
   }
 
@@ -2069,14 +2103,14 @@ export class FinanceService {
       this.prisma.financeAsset.count({ where })
     ]);
 
+    const result = rows.map((row) => this.serializeAsset(row));
     return {
-      data: rows.map((row) => this.serializeAsset(row)),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
+      result,
+      total: result.length,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage)),
     };
   }
 
@@ -2312,6 +2346,9 @@ export class FinanceService {
 
   async listChartAccounts(query: Record<string, any>) {
     await this.ensureDefaultChartAccounts();
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
+
     const where: Prisma.FinanceChartAccountWhereInput = {};
     if (query.organization_id) where.organizationId = this.parseId(String(query.organization_id), 'organization_id');
     if (query.type) where.type = String(query.type).toLowerCase();
@@ -2326,16 +2363,32 @@ export class FinanceService {
       ];
     }
 
-    const rows = await this.prisma.financeChartAccount.findMany({
-      where,
-      include: {
-        organization: { select: { id: true, name: true, code: true } },
-        financeAccount: { select: { id: true, name: true, code: true, accountType: true } }
-      },
-      orderBy: [{ type: 'asc' }, { code: 'asc' }]
-    });
+    const whereCount: Prisma.FinanceChartAccountWhereInput = { ...where };
 
-    return rows.map((row) => this.serializeChartAccount(row));
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.financeChartAccount.findMany({
+        where,
+        include: {
+          organization: { select: { id: true, name: true, code: true } },
+          financeAccount: { select: { id: true, name: true, code: true, accountType: true } }
+        },
+        orderBy: [{ type: 'asc' }, { code: 'asc' }],
+        skip: (page - 1) * perPage,
+        take: perPage
+      }),
+      this.prisma.financeChartAccount.count({ where: whereCount })
+    ]);
+
+    const pages = Math.max(1, Math.ceil(total / perPage));
+
+    return {
+      result: data.map((row) => this.serializeChartAccount(row)),
+      total,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages
+    };
   }
 
   async getChartAccount(id: string) {
@@ -2488,125 +2541,269 @@ export class FinanceService {
     return this.serializeReportingPeriod(row);
   }
 
-  async listCustomers(query: Record<string, any>) {
-    const where: Prisma.FinanceCustomerWhereInput = {};
+  async listContacts(query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
+    const where: Prisma.FinanceContactWhereInput = {};
     if (query.organization_id) where.organizationId = this.parseId(String(query.organization_id), 'organization_id');
     if (query.is_active !== undefined) where.isActive = String(query.is_active) !== 'false';
+    if (query.contact_type) where.contactType = { in: [query.contact_type, 'both'] };
+    if (query.sub_type) where.subType = query.sub_type;
     if (query.q) {
       const term = String(query.q);
       where.OR = [
         { name: { contains: term, mode: 'insensitive' } },
         { email: { contains: term, mode: 'insensitive' } },
-        { phone: { contains: term, mode: 'insensitive' } }
+        { phone: { contains: term, mode: 'insensitive' } },
+        { companyName: { contains: term, mode: 'insensitive' } }
       ];
     }
-    const rows = await this.prisma.financeCustomer.findMany({
-      where,
-      include: { organization: { select: { id: true, name: true, code: true } } },
-      orderBy: { name: 'asc' }
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.financeContact.findMany({
+        where,
+        orderBy: { name: 'asc' },
+        skip: (page - 1) * perPage,
+        take: perPage
+      }),
+      this.prisma.financeContact.count({ where })
+    ]);
+    return {
+      result: data.map((row) => this.serializeContact(row)),
+      total,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage))
+    };
+  }
+
+  async getContact(id: string) {
+    const row = await this.prisma.financeContact.findUnique({
+      where: { id },
+      include: { organization: true, contactPersons: { orderBy: { isPrimary: 'desc' } } }
     });
-    return rows.map((row) => this.serializeCustomer(row));
+    if (!row) throw new NotFoundException('Contact not found');
+    return this.serializeContact(row);
+  }
+
+  async createContact(dto: UpsertContactDto, actorId?: string) {
+    const data: Prisma.FinanceContactCreateInput = {
+      contactType: dto.contact_type,
+      subType: dto.sub_type || 'business',
+      name: dto.name.trim(),
+      companyName: dto.company_name?.trim() || undefined,
+      legalName: dto.legal_name?.trim() || undefined,
+      email: dto.email?.trim().toLowerCase() || undefined,
+      phone: dto.phone?.trim() || undefined,
+      address: dto.address?.trim() || undefined,
+      billingAddress: (dto.billing_address as Prisma.InputJsonValue) || undefined,
+      shippingAddress: (dto.shipping_address as Prisma.InputJsonValue) || undefined,
+      taxNumber: dto.tax_number?.trim() || undefined,
+      isTaxable: dto.is_taxable ?? true,
+      isActive: dto.is_active ?? true,
+      paymentTerms: dto.payment_terms || undefined,
+      creditLimit: dto.credit_limit ? new Prisma.Decimal(dto.credit_limit) : undefined,
+      openingBalance: dto.opening_balance ? new Prisma.Decimal(dto.opening_balance) : undefined,
+      website: dto.website?.trim() || undefined,
+      notes: dto.notes?.trim() || undefined,
+      metadata: (dto.metadata as Prisma.InputJsonValue) || undefined,
+      createdByUser: actorId ? { connect: { id: toBigInt(actorId) } } : undefined,
+      updatedByUser: actorId ? { connect: { id: toBigInt(actorId) } } : undefined
+    };
+    if (dto.organization_id) data.organization = { connect: { id: this.parseId(dto.organization_id, 'organization_id') } };
+
+    const contact = await this.prisma.financeContact.create({
+      data,
+      include: { organization: { select: { id: true, name: true, code: true } }, contactPersons: true }
+    });
+
+    if (Array.isArray(dto.contact_persons)) {
+      for (const p of dto.contact_persons) {
+        await this.prisma.financeContactPerson.create({
+          data: {
+            contact: { connect: { id: contact.id } },
+            salutation: p.salutation || undefined,
+            firstName: p.first_name?.trim() || undefined,
+            lastName: p.last_name?.trim() || undefined,
+            email: p.email?.trim() || undefined,
+            phone: p.phone?.trim() || undefined,
+            mobile: p.mobile?.trim() || undefined,
+            designation: p.designation?.trim() || undefined,
+            department: p.department?.trim() || undefined,
+            isPrimary: p.is_primary ?? false
+          }
+        });
+      }
+    }
+
+    return this.getContact(contact.id);
+  }
+
+  async updateContact(id: string, dto: UpsertContactDto, actorId?: string) {
+    const existing = await this.prisma.financeContact.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Contact not found');
+
+    const data: Prisma.FinanceContactUpdateInput = {
+      contactType: dto.contact_type ?? existing.contactType,
+      subType: dto.sub_type ?? existing.subType,
+      name: dto.name !== undefined ? dto.name.trim() : existing.name,
+      companyName: dto.company_name !== undefined ? (dto.company_name?.trim() || undefined) : existing.companyName,
+      legalName: dto.legal_name !== undefined ? (dto.legal_name?.trim() || undefined) : existing.legalName,
+      email: dto.email !== undefined ? (dto.email?.trim().toLowerCase() || undefined) : existing.email,
+      phone: dto.phone !== undefined ? (dto.phone?.trim() || undefined) : existing.phone,
+      address: dto.address !== undefined ? (dto.address?.trim() || undefined) : existing.address,
+      billingAddress: dto.billing_address !== undefined ? (dto.billing_address as any) : (existing?.billingAddress as any),
+      shippingAddress: dto.shipping_address !== undefined ? (dto.shipping_address as any) : (existing?.shippingAddress as any),
+      taxNumber: dto.tax_number !== undefined ? (dto.tax_number?.trim() || undefined) : existing.taxNumber,
+      isTaxable: dto.is_taxable ?? existing.isTaxable,
+      isActive: dto.is_active ?? existing.isActive,
+      paymentTerms: dto.payment_terms !== undefined ? dto.payment_terms : existing.paymentTerms,
+      creditLimit: dto.credit_limit !== undefined ? (dto.credit_limit ? new Prisma.Decimal(dto.credit_limit) : undefined) : existing.creditLimit,
+      openingBalance: dto.opening_balance !== undefined ? (dto.opening_balance ? new Prisma.Decimal(dto.opening_balance) : undefined) : existing.openingBalance,
+      website: dto.website !== undefined ? (dto.website?.trim() || undefined) : existing.website,
+      notes: dto.notes !== undefined ? (dto.notes?.trim() || undefined) : existing.notes,
+      metadata: (dto.metadata !== undefined ? dto.metadata : existing?.metadata) as any,
+      updatedByUser: actorId ? { connect: { id: toBigInt(actorId) } } : undefined
+    };
+
+    await this.prisma.financeContact.update({ where: { id }, data });
+
+    if (Array.isArray(dto.contact_persons)) {
+      await this.prisma.financeContactPerson.deleteMany({ where: { contactId: id } });
+      for (const p of dto.contact_persons) {
+        await this.prisma.financeContactPerson.create({
+          data: {
+            contact: { connect: { id } },
+            salutation: p.salutation || undefined,
+            firstName: p.first_name?.trim() || undefined,
+            lastName: p.last_name?.trim() || undefined,
+            email: p.email?.trim() || undefined,
+            phone: p.phone?.trim() || undefined,
+            mobile: p.mobile?.trim() || undefined,
+            designation: p.designation?.trim() || undefined,
+            department: p.department?.trim() || undefined,
+            isPrimary: p.is_primary ?? false
+          }
+        });
+      }
+    }
+
+    return this.getContact(id);
+  }
+
+  serializeContact(row: any) {
+    const obj = row.toObject ? row.toObject() : row;
+    return {
+      id: obj.id,
+      organization: obj.organization ? { id: String(obj.organization.id), name: obj.organization.name, code: obj.organization.code } : null,
+      contact_type: obj.contactType,
+      sub_type: obj.subType,
+      name: obj.name,
+      company_name: obj.companyName || null,
+      legal_name: obj.legalName || null,
+      email: obj.email || null,
+      phone: obj.phone || null,
+      address: obj.address || null,
+      billing_address: obj.billingAddress,
+      shipping_address: obj.shippingAddress,
+      tax_number: obj.taxNumber || null,
+      is_taxable: obj.isTaxable,
+      is_active: obj.isActive,
+      payment_terms: obj.paymentTerms || null,
+      credit_limit: obj.creditLimit ? Number(obj.creditLimit) : null,
+      opening_balance: obj.openingBalance ? Number(obj.openingBalance) : null,
+      website: obj.website || null,
+      notes: obj.notes || null,
+      metadata: obj.metadata || null,
+      primary_contactId: obj.primaryContactId || null,
+      contact_persons: Array.isArray(obj.contactPersons) ? obj.contactPersons.map((p: any) => ({
+        id: p.id,
+        salutation: p.salutation || null,
+        first_name: p.firstName || null,
+        last_name: p.lastName || null,
+        email: p.email || null,
+        phone: p.phone || null,
+        mobile: p.mobile || null,
+        designation: p.designation || null,
+        department: p.department || null,
+        is_primary: p.isPrimary
+      })) : [],
+      created_at: obj.createdAt?.toISOString?.() ?? obj.createdAt,
+      updated_at: obj.updatedAt?.toISOString?.() ?? obj.updatedAt
+    };
+  }
+
+  // Delegate existing contact methods to unified contact methods
+  async listCustomers(query: Record<string, any>) {
+    return this.listContacts({ ...query, contact_type: 'customer' });
   }
 
   async createCustomer(dto: UpsertFinanceCustomerDto, actorId?: string) {
-    const row = await this.prisma.financeCustomer.create({
-      data: {
-        organizationId: dto.organization_id ? this.parseId(dto.organization_id, 'organization_id') : null,
-        name: dto.name.trim(),
-        email: dto.email?.trim().toLowerCase() || null,
-        phone: dto.phone?.trim() || null,
-        address: dto.address?.trim() || null,
-        taxNumber: dto.tax_number?.trim() || null,
-        isActive: dto.is_active ?? true,
-        metadata: (dto.metadata ?? null) as Prisma.InputJsonValue,
-        createdBy: actorId ? toBigInt(actorId) : null,
-        updatedBy: actorId ? toBigInt(actorId) : null
-      },
-      include: { organization: { select: { id: true, name: true, code: true } } }
-    });
-    return this.serializeCustomer(row);
+    const contactDto: UpsertContactDto = {
+      contact_type: 'customer',
+      sub_type: 'business',
+      name: dto.name,
+      email: dto.email,
+      phone: dto.phone,
+      address: dto.address,
+      tax_number: dto.tax_number,
+      is_active: dto.is_active,
+      metadata: dto.metadata,
+      organization_id: dto.organization_id
+    };
+    return this.createContact(contactDto, actorId);
   }
 
   async updateCustomer(id: string, dto: UpsertFinanceCustomerDto, actorId?: string) {
-    const existing = await this.prisma.financeCustomer.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Customer not found');
-    const row = await this.prisma.financeCustomer.update({
-      where: { id },
-      data: {
-        organizationId: dto.organization_id ? this.parseId(dto.organization_id, 'organization_id') : null,
-        name: dto.name.trim(),
-        email: dto.email?.trim().toLowerCase() || null,
-        phone: dto.phone?.trim() || null,
-        address: dto.address?.trim() || null,
-        taxNumber: dto.tax_number?.trim() || null,
-        isActive: dto.is_active ?? existing.isActive,
-        metadata: (dto.metadata ?? existing.metadata ?? null) as Prisma.InputJsonValue,
-        updatedBy: actorId ? toBigInt(actorId) : null
-      },
-      include: { organization: { select: { id: true, name: true, code: true } } }
-    });
-    return this.serializeCustomer(row);
+    const contactDto: UpsertContactDto = {
+      contact_type: 'customer',
+      name: dto.name,
+      email: dto.email,
+      phone: dto.phone,
+      address: dto.address,
+      tax_number: dto.tax_number,
+      is_active: dto.is_active,
+      metadata: dto.metadata,
+      organization_id: dto.organization_id
+    };
+    return this.updateContact(id, contactDto, actorId);
   }
 
+  // Delegate existing contact methods to unified contact methods
   async listVendors(query: Record<string, any>) {
-    const where: Prisma.FinanceVendorWhereInput = {};
-    if (query.organization_id) where.organizationId = this.parseId(String(query.organization_id), 'organization_id');
-    if (query.is_active !== undefined) where.isActive = String(query.is_active) !== 'false';
-    if (query.q) {
-      const term = String(query.q);
-      where.OR = [
-        { name: { contains: term, mode: 'insensitive' } },
-        { email: { contains: term, mode: 'insensitive' } },
-        { phone: { contains: term, mode: 'insensitive' } }
-      ];
-    }
-    const rows = await this.prisma.financeVendor.findMany({
-      where,
-      include: { organization: { select: { id: true, name: true, code: true } } },
-      orderBy: { name: 'asc' }
-    });
-    return rows.map((row) => this.serializeVendor(row));
+    return this.listContacts({ ...query, contact_type: 'vendor' });
   }
 
   async createVendor(dto: UpsertFinanceVendorDto, actorId?: string) {
-    const row = await this.prisma.financeVendor.create({
-      data: {
-        organizationId: dto.organization_id ? this.parseId(dto.organization_id, 'organization_id') : null,
-        name: dto.name.trim(),
-        email: dto.email?.trim().toLowerCase() || null,
-        phone: dto.phone?.trim() || null,
-        address: dto.address?.trim() || null,
-        taxNumber: dto.tax_number?.trim() || null,
-        isActive: dto.is_active ?? true,
-        metadata: (dto.metadata ?? null) as Prisma.InputJsonValue,
-        createdBy: actorId ? toBigInt(actorId) : null,
-        updatedBy: actorId ? toBigInt(actorId) : null
-      },
-      include: { organization: { select: { id: true, name: true, code: true } } }
-    });
-    return this.serializeVendor(row);
+    const contactDto: UpsertContactDto = {
+      contact_type: 'vendor',
+      sub_type: 'business',
+      name: dto.name,
+      email: dto.email,
+      phone: dto.phone,
+      address: dto.address,
+      tax_number: dto.tax_number,
+      is_active: dto.is_active,
+      metadata: dto.metadata,
+      organization_id: dto.organization_id
+    };
+    return this.createContact(contactDto, actorId);
   }
 
   async updateVendor(id: string, dto: UpsertFinanceVendorDto, actorId?: string) {
-    const existing = await this.prisma.financeVendor.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Vendor not found');
-    const row = await this.prisma.financeVendor.update({
-      where: { id },
-      data: {
-        organizationId: dto.organization_id ? this.parseId(dto.organization_id, 'organization_id') : null,
-        name: dto.name.trim(),
-        email: dto.email?.trim().toLowerCase() || null,
-        phone: dto.phone?.trim() || null,
-        address: dto.address?.trim() || null,
-        taxNumber: dto.tax_number?.trim() || null,
-        isActive: dto.is_active ?? existing.isActive,
-        metadata: (dto.metadata ?? existing.metadata ?? null) as Prisma.InputJsonValue,
-        updatedBy: actorId ? toBigInt(actorId) : null
-      },
-      include: { organization: { select: { id: true, name: true, code: true } } }
-    });
-    return this.serializeVendor(row);
-  }
+    const contactDto: UpsertContactDto = {
+      contact_type: 'vendor',
+      name: dto.name,
+      email: dto.email,
+      phone: dto.phone,
+      address: dto.address,
+      tax_number: dto.tax_number,
+      is_active: dto.is_active,
+      metadata: dto.metadata,
+      organization_id: dto.organization_id
+    };
+    return this.updateContact(id, contactDto, actorId);
+}
 
   async listDonors(query: Record<string, any>) {
     const rows = await this.prisma.financeDonor.findMany({
@@ -3109,8 +3306,10 @@ export class FinanceService {
   }
 
   async listSalesInvoices(query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(200, Math.max(1, Number(query.per_page ?? 20)));
     const where: Prisma.FinanceSalesInvoiceWhereInput = {};
-    if (query.customer_id) where.customerId = String(query.customer_id);
+    if (query.contactId) where.contactId = String(query.contactId);
     if (query.organization_id) where.organizationId = this.parseId(String(query.organization_id), 'organization_id');
     if (query.team_id) where.teamId = this.parseId(String(query.team_id), 'team_id');
     if (query.from || query.to) {
@@ -3122,7 +3321,7 @@ export class FinanceService {
     const rows = await this.prisma.financeSalesInvoice.findMany({
       where,
       include: {
-        customer: true,
+        contact: true,
         organization: { select: { id: true, name: true, code: true } },
         team: { select: { id: true, name: true, type: true } },
         fund: true,
@@ -3142,18 +3341,28 @@ export class FinanceService {
       orderBy: [{ invoiceDate: 'desc' }, { createdAt: 'desc' }]
     });
     const items = rows.map((row) => this.serializeSalesInvoice(row));
+    let filtered = items;
     if (query.status) {
       const wanted = String(query.status).toLowerCase();
-      return items.filter((row) => String(row.status).toLowerCase() === wanted);
+      filtered = items.filter((row) => String(row.status).toLowerCase() === wanted);
     }
-    return items;
+    const totalResult = filtered.length;
+    const result = filtered.slice((page - 1) * perPage, (page - 1) * perPage + perPage);
+    return {
+      result,
+      total: result.length,
+      total_result: totalResult,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(totalResult / perPage)),
+    };
   }
 
   async getSalesInvoice(id: string) {
     const row = await this.prisma.financeSalesInvoice.findUnique({
       where: { id },
       include: {
-        customer: true,
+        contact: true,
         organization: { select: { id: true, name: true, code: true } },
         team: { select: { id: true, name: true, type: true } },
         fund: true,
@@ -3181,8 +3390,8 @@ export class FinanceService {
     const invoiceDate = new Date(dto.invoice_date);
     if (Number.isNaN(invoiceDate.getTime())) throw new BadRequestException('Invalid invoice_date');
     const dueDate = dto.due_date ? new Date(dto.due_date) : null;
-    const customer = await this.prisma.financeCustomer.findUnique({ where: { id: dto.customer_id } });
-    if (!customer) throw new BadRequestException('Invalid customer_id');
+    const contact = await this.prisma.financeContact.findUnique({ where: { id: dto.contact_id } });
+    if (!contact) throw new BadRequestException('Invalid contactId');
     const lineInputs = await Promise.all(
       dto.lines.map(async (line) => {
         const chartAccount = await this.prisma.financeChartAccount.findUnique({ where: { id: line.chart_account_id } });
@@ -3216,7 +3425,7 @@ export class FinanceService {
       const invoice = await tx.financeSalesInvoice.create({
         data: {
           invoiceNumber,
-          customerId: customer.id,
+          contactId: contact.id,
           organizationId: dto.organization_id ? this.parseId(dto.organization_id, 'organization_id') : null,
           teamId: dto.team_id ? this.parseId(dto.team_id, 'team_id') : null,
           fundId: fund?.id ?? null,
@@ -3243,7 +3452,7 @@ export class FinanceService {
           }
         },
         include: {
-          customer: true,
+          contact: true,
           organization: { select: { id: true, name: true, code: true } },
           team: { select: { id: true, name: true, type: true } },
           fund: true,
@@ -3306,8 +3515,10 @@ export class FinanceService {
   }
 
   async listBills(query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(200, Math.max(1, Number(query.per_page ?? 20)));
     const where: Prisma.FinanceBillHeaderWhereInput = {};
-    if (query.vendor_id) where.vendorId = String(query.vendor_id);
+    if (query.contactId) where.contactId = String(query.contactId);
     if (query.organization_id) where.organizationId = this.parseId(String(query.organization_id), 'organization_id');
     if (query.team_id) where.teamId = this.parseId(String(query.team_id), 'team_id');
     if (query.status) where.status = String(query.status).toLowerCase();
@@ -3317,27 +3528,40 @@ export class FinanceService {
         ...(query.to ? { lte: new Date(String(query.to)) } : {})
       };
     }
-    const rows = await this.prisma.financeBillHeader.findMany({
-      where,
-      include: {
-        vendor: true,
-        organization: { select: { id: true, name: true, code: true } },
-        team: { select: { id: true, name: true, type: true } },
-        fund: true,
-        grant: true,
-        lines: { include: { chartAccount: true } },
-        payments: true
-      },
-      orderBy: [{ billDate: 'desc' }, { createdAt: 'desc' }]
-    });
-    return rows.map((row) => this.serializeBill(row));
+    const [rows, totalResult] = await this.prisma.$transaction([
+      this.prisma.financeBillHeader.findMany({
+        where,
+        include: {
+          contact: true,
+          organization: { select: { id: true, name: true, code: true } },
+          team: { select: { id: true, name: true, type: true } },
+          fund: true,
+          grant: true,
+          lines: { include: { chartAccount: true } },
+          payments: true
+        },
+        orderBy: [{ billDate: 'desc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      this.prisma.financeBillHeader.count({ where }),
+    ]);
+    const result = rows.map((row) => this.serializeBill(row));
+    return {
+      result,
+      total: result.length,
+      total_result: totalResult,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(totalResult / perPage)),
+    };
   }
 
   async getBill(id: string) {
     const row = await this.prisma.financeBillHeader.findUnique({
       where: { id },
       include: {
-        vendor: true,
+        contact: true,
         organization: { select: { id: true, name: true, code: true } },
         team: { select: { id: true, name: true, type: true } },
         fund: true,
@@ -3356,8 +3580,8 @@ export class FinanceService {
     const billDate = new Date(dto.bill_date);
     if (Number.isNaN(billDate.getTime())) throw new BadRequestException('Invalid bill_date');
     const dueDate = dto.due_date ? new Date(dto.due_date) : null;
-    const vendor = await this.prisma.financeVendor.findUnique({ where: { id: dto.vendor_id } });
-    if (!vendor) throw new BadRequestException('Invalid vendor_id');
+    const contact = await this.prisma.financeContact.findUnique({ where: { id: dto.contact_id } });
+    if (!contact) throw new BadRequestException('Invalid contactId');
     const lineInputs = await Promise.all(
       dto.lines.map(async (line) => {
         const chartAccount = await this.prisma.financeChartAccount.findUnique({ where: { id: line.chart_account_id } });
@@ -3390,7 +3614,7 @@ export class FinanceService {
       const bill = await tx.financeBillHeader.create({
         data: {
           billNumber,
-          vendorId: vendor.id,
+          contactId: contact.id,
           organizationId: dto.organization_id ? this.parseId(dto.organization_id, 'organization_id') : null,
           teamId: dto.team_id ? this.parseId(dto.team_id, 'team_id') : null,
           fundId: fund?.id ?? null,
@@ -3416,7 +3640,7 @@ export class FinanceService {
           }
         },
         include: {
-          vendor: true,
+          contact: true,
           organization: { select: { id: true, name: true, code: true } },
           team: { select: { id: true, name: true, type: true } },
           fund: true,
@@ -3501,7 +3725,7 @@ export class FinanceService {
     if (Math.abs(allocationsTotal - amount) > 0.001) {
       throw new BadRequestException('Receipt amount must equal the total allocated amount');
     }
-    const customerId = dto.customer_id ?? firstInvoice?.customerId ?? null;
+    const contactId = dto.contact_id ?? firstInvoice?.contactId ?? null;
     for (const allocation of allocationsInput) {
       if (allocation.amount <= 0) throw new BadRequestException('Allocated amounts must be greater than zero');
       const invoice = invoiceMap.get(allocation.salesInvoiceId);
@@ -3524,7 +3748,7 @@ export class FinanceService {
       const created = await tx.financeReceipt.create({
         data: {
           receiptNumber,
-          customerId,
+          contactId,
           salesInvoiceId: firstInvoice?.id ?? null,
           accountId: account.id,
           amount,
@@ -3586,7 +3810,7 @@ export class FinanceService {
           sourceId: created.id,
           createdBy: actorId ? toBigInt(actorId) : null,
           metadata: {
-            customer_id: customerId,
+            contactId: contactId,
             sales_invoice_id: firstInvoice?.id ?? null,
             allocation_invoice_ids: allocationsInput.map((row) => row.salesInvoiceId),
             reference: dto.reference ?? null
@@ -3612,7 +3836,7 @@ export class FinanceService {
       ? await this.prisma.financeBillHeader.findUnique({ where: { id: dto.bill_id }, include: { payments: true, fund: true, grant: true } })
       : null;
     if (dto.bill_id && !bill) throw new BadRequestException('Invalid bill_id');
-    const vendorId = dto.vendor_id ?? bill?.vendorId ?? null;
+    const contactId = dto.contact_id ?? bill?.contactId ?? null;
     const amount = Number(dto.amount ?? 0);
     if (amount <= 0) throw new BadRequestException('Payment amount must be greater than zero');
     const paidAt = dto.paid_at ? new Date(dto.paid_at) : new Date();
@@ -3623,7 +3847,7 @@ export class FinanceService {
       if (amount > outstanding) throw new BadRequestException('Payment amount cannot exceed bill outstanding balance');
     }
     const period = await this.ensureReportingPeriod(paidAt, actorId);
-    const paymentNumber = dto.payment_number?.trim() || (await this.nextDocumentSequenceValue('PAY', paidAt, 'vendor_payment'));
+    const paymentNumber = dto.payment_number?.trim() || (await this.nextDocumentSequenceValue('PAY', paidAt, 'contact_payment'));
     const apAccount = await this.getRequiredChartAccount('2100');
     const bankAccount = await this.ensureFinanceAccountChartAccount(account.id, actorId);
 
@@ -3631,7 +3855,7 @@ export class FinanceService {
       const created = await tx.financeVendorPayment.create({
         data: {
           paymentNumber,
-          vendorId,
+          contactId,
           billId: bill?.id ?? null,
           accountId: account.id,
           amount,
@@ -3646,7 +3870,7 @@ export class FinanceService {
       await this.createJournalEntryTx(tx, {
         entryDate: paidAt,
         periodId: period.id,
-        sourceType: 'finance_vendor_payment',
+        sourceType: 'finance_contact_payment',
         sourceId: created.id,
         memo: `Vendor payment ${paymentNumber}`,
         currency,
@@ -3679,11 +3903,11 @@ export class FinanceService {
           currency,
           entryDate: paidAt,
           description: `Vendor payment ${paymentNumber}`,
-          sourceType: 'finance_vendor_payment',
+          sourceType: 'finance_contact_payment',
           sourceId: created.id,
           createdBy: actorId ? toBigInt(actorId) : null,
           metadata: {
-            vendor_id: vendorId,
+            contactId: contactId,
             bill_id: bill?.id ?? null,
             reference: dto.reference ?? null
           } as Prisma.InputJsonValue
@@ -3700,7 +3924,7 @@ export class FinanceService {
     const existing = await this.prisma.financeSalesInvoice.findUnique({
       where: { id },
       include: {
-        customer: true,
+        contact: true,
         organization: { select: { id: true, name: true, code: true } },
         team: { select: { id: true, name: true, type: true } },
         fund: true,
@@ -3772,7 +3996,7 @@ export class FinanceService {
           updatedBy: actorId ? toBigInt(actorId) : existing.updatedBy
         },
         include: {
-          customer: true,
+          contact: true,
           organization: { select: { id: true, name: true, code: true } },
           team: { select: { id: true, name: true, type: true } },
           fund: true,
@@ -3793,7 +4017,7 @@ export class FinanceService {
     const existing = await this.prisma.financeSalesInvoice.findUnique({
       where: { id },
       include: {
-        customer: true,
+        contact: true,
         allocations: true,
         receipts: true
       }
@@ -3877,7 +4101,7 @@ export class FinanceService {
           updatedBy: actorId ? toBigInt(actorId) : existing.updatedBy
         },
         include: {
-          customer: true,
+          contact: true,
           organization: { select: { id: true, name: true, code: true } },
           team: { select: { id: true, name: true, type: true } },
           fund: true,
@@ -3891,14 +4115,14 @@ export class FinanceService {
     return this.serializeSalesInvoice(updated);
   }
 
-  async customerStatement(customerId: string, query: Record<string, any>) {
-    const customer = await this.prisma.financeCustomer.findUnique({ where: { id: customerId } });
-    if (!customer) throw new NotFoundException('Customer not found');
+  async contactStatement(contactId: string, query: Record<string, any>) {
+    const contact = await this.prisma.financeContact.findUnique({ where: { id: contactId } });
+    if (!contact) throw new NotFoundException('Customer not found');
     const from = query.from ? new Date(String(query.from)) : null;
     const to = query.to ? new Date(String(query.to)) : null;
     const invoices = await this.prisma.financeSalesInvoice.findMany({
       where: {
-        customerId,
+        contactId,
         ...(from || to
           ? {
               invoiceDate: {
@@ -3954,13 +4178,21 @@ export class FinanceService {
       };
     });
     return {
-      customer: { id: customer.id, name: customer.name, email: customer.email },
+      contact: { id: contact.id, name: contact.name, email: contact.email },
       from,
       to,
       opening_balance: 0,
       closing_balance: running,
       items
     };
+  }
+
+  async customerStatement(id: string, query: Record<string, any>) {
+    return this.contactStatement(id, query);
+  }
+
+  async vendorStatement(id: string, query: Record<string, any>) {
+    return this.contactStatement(id, query);
   }
 
   async listReportNotes(query: Record<string, any>) {
@@ -4296,7 +4528,7 @@ export class FinanceService {
         ...(query.team_id ? { teamId: this.parseId(String(query.team_id), 'team_id') } : {})
       },
       include: {
-        customer: true,
+        contact: true,
         receipts: true,
         allocations: true,
         organization: { select: { id: true, name: true, code: true } },
@@ -4321,7 +4553,7 @@ export class FinanceService {
         ...(query.team_id ? { teamId: this.parseId(String(query.team_id), 'team_id') } : {})
       },
       include: {
-        vendor: true,
+        contact: true,
         payments: true,
         organization: { select: { id: true, name: true, code: true } },
         team: { select: { id: true, name: true, type: true } },
@@ -4637,39 +4869,7 @@ export class FinanceService {
       created_at: row.createdAt,
       updated_at: row.updatedAt
     };
-  }
-
-  private serializeCustomer(row: Prisma.FinanceCustomerGetPayload<{ include: { organization: { select: { id: true; name: true; code: true } } } }>) {
-    return {
-      id: row.id,
-      organization: row.organization ? { id: row.organization.id.toString(), name: row.organization.name, code: row.organization.code } : null,
-      name: row.name,
-      email: row.email,
-      phone: row.phone,
-      address: row.address,
-      tax_number: row.taxNumber,
-      is_active: row.isActive,
-      metadata: row.metadata,
-      created_at: row.createdAt,
-      updated_at: row.updatedAt
-    };
-  }
-
-  private serializeVendor(row: Prisma.FinanceVendorGetPayload<{ include: { organization: { select: { id: true; name: true; code: true } } } }>) {
-    return {
-      id: row.id,
-      organization: row.organization ? { id: row.organization.id.toString(), name: row.organization.name, code: row.organization.code } : null,
-      name: row.name,
-      email: row.email,
-      phone: row.phone,
-      address: row.address,
-      tax_number: row.taxNumber,
-      is_active: row.isActive,
-      metadata: row.metadata,
-      created_at: row.createdAt,
-      updated_at: row.updatedAt
-    };
-  }
+}
 
   private serializeDonor(row: Prisma.FinanceDonorGetPayload<{}>) {
     return {
@@ -4892,7 +5092,7 @@ export class FinanceService {
   private serializeSalesInvoice(
     row: Prisma.FinanceSalesInvoiceGetPayload<{
       include: {
-        customer: true;
+        contact: true;
         organization: { select: { id: true; name: true; code: true } };
         team: { select: { id: true; name: true; type: true } };
         fund: true;
@@ -4912,7 +5112,7 @@ export class FinanceService {
     return {
       id: row.id,
       invoice_number: row.invoiceNumber,
-      customer: { id: row.customer.id, name: row.customer.name, email: row.customer.email },
+      contact: { id: row.contact.id, name: row.contact.name, email: row.contact.email },
       organization: row.organization ? { id: row.organization.id.toString(), name: row.organization.name, code: row.organization.code } : null,
       team: row.team ? { id: row.team.id.toString(), name: row.team.name, type: row.team.type } : null,
       fund: row.fund ? { id: row.fund.id, code: row.fund.code, name: row.fund.name, restriction_type: row.fund.restrictionType } : null,
@@ -5009,7 +5209,7 @@ export class FinanceService {
   private serializeBill(
     row: Prisma.FinanceBillHeaderGetPayload<{
       include: {
-        vendor: true;
+        contact: true;
         organization: { select: { id: true; name: true; code: true } };
         team: { select: { id: true; name: true; type: true } };
         fund: true;
@@ -5025,7 +5225,7 @@ export class FinanceService {
     return {
       id: row.id,
       bill_number: row.billNumber,
-      vendor: { id: row.vendor.id, name: row.vendor.name, email: row.vendor.email },
+      contact: { id: row.contact.id, name: row.contact.name, email: row.contact.email },
       organization: row.organization ? { id: row.organization.id.toString(), name: row.organization.name, code: row.organization.code } : null,
       team: row.team ? { id: row.team.id.toString(), name: row.team.name, type: row.team.type } : null,
       fund: row.fund ? { id: row.fund.id, code: row.fund.code, name: row.fund.name, restriction_type: row.fund.restrictionType } : null,
@@ -5079,7 +5279,7 @@ export class FinanceService {
   private serializeSalesInvoiceReceivable(
     row: Prisma.FinanceSalesInvoiceGetPayload<{
       include: {
-        customer: true;
+        contact: true;
         receipts: true;
         allocations: true;
         organization: { select: { id: true; name: true; code: true } };
@@ -5100,8 +5300,8 @@ export class FinanceService {
     return {
       id: row.id,
       document_number: row.invoiceNumber,
-      customer_id: row.customerId,
-      party_name: row.customer.name,
+      contactId: row.contactId,
+      party_name: row.contact.name,
       organization: row.organization ? row.organization.name : null,
       team: row.team ? row.team.name : null,
       fund: row.fund ? row.fund.name : null,
@@ -5122,7 +5322,7 @@ export class FinanceService {
   private serializeBillPayable(
     row: Prisma.FinanceBillHeaderGetPayload<{
       include: {
-        vendor: true;
+        contact: true;
         payments: true;
         organization: { select: { id: true; name: true; code: true } };
         team: { select: { id: true; name: true; type: true } };
@@ -5140,7 +5340,7 @@ export class FinanceService {
     return {
       id: row.id,
       document_number: row.billNumber,
-      party_name: row.vendor.name,
+      party_name: row.contact.name,
       organization: row.organization ? row.organization.name : null,
       team: row.team ? row.team.name : null,
       fund: row.fund ? row.fund.name : null,
@@ -5675,7 +5875,7 @@ export class FinanceService {
   private async nextDocumentSequenceValue(
     prefix: string,
     date: Date,
-    kind: 'sales_invoice' | 'bill' | 'receipt' | 'vendor_payment'
+    kind: 'sales_invoice' | 'bill' | 'receipt' | 'contact_payment'
   ) {
     const year = date.getFullYear();
     const startsWith = `${prefix}/${year}/`;
@@ -5714,8 +5914,8 @@ export class FinanceService {
     write(`Status: ${String(invoice.status).replaceAll('_', ' ')}`);
     write(`Issue Date: ${this.formatDate(invoice.invoice_date)}`);
     write(`Due Date: ${this.formatDate(invoice.due_date)}`);
-    write(`Customer: ${invoice.customer.name}`);
-    write(`Email: ${invoice.customer.email || '-'}`);
+    write(`Customer: ${invoice.contact.name}`);
+    write(`Email: ${invoice.contact.email || '-'}`);
     if (invoice.organization?.name) write(`Organization: ${invoice.organization.name}`);
     if (invoice.team?.name) write(`Team: ${invoice.team.name}`);
     if (invoice.notes) write(`Notes: ${invoice.notes}`);
@@ -5762,9 +5962,9 @@ export class FinanceService {
   ) {
     const invoice = await this.prisma.financeSalesInvoice.findUnique({
       where: { id: invoiceId },
-      include: { customer: true }
+      include: { contact: true }
     });
-    const to = invoice?.customer.email?.trim();
+    const to = invoice?.contact.email?.trim();
     if (!to) return;
     const pdf = await this.generateSalesInvoicePdf(invoiceId);
     await this.mailService.send({
@@ -5979,8 +6179,12 @@ export class FinanceService {
     ]);
 
     return {
-      data,
-      meta: { page, per_page: perPage, total, last_page: Math.ceil(total / perPage) },
+      result: data,
+      total: data.length,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage)),
     };
   }
 
@@ -6322,7 +6526,14 @@ export class FinanceService {
       this.prisma.financeItem.count({ where }),
     ]);
 
-    return { data, meta: { page, per_page: perPage, total, last_page: Math.ceil(total / perPage) } };
+    return {
+      result: data,
+      total: data.length,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage)),
+    };
   }
 
   async createItem(userId: string, dto: UpsertFinanceItemDto) {
@@ -6370,7 +6581,7 @@ export class FinanceService {
     const where: any = {};
     if (query.status) where.status = String(query.status);
     if (query.category) where.category = String(query.category);
-    if (query.vendor_id) where.vendorId = String(query.vendor_id);
+    if (query.contactId) where.contactId = String(query.contactId);
     if (query.account_id) where.accountId = String(query.account_id);
     if (query.from || query.to) {
       where.expenseDate = {};
@@ -6393,7 +6604,7 @@ export class FinanceService {
       this.prisma.financeExpense.findMany({
         where,
         include: {
-          vendor: { select: { id: true, name: true } },
+          contact: { select: { id: true, name: true } },
           account: { select: { id: true, name: true, code: true, accountType: true } },
           chartAccount: { select: { id: true, name: true, code: true } },
         },
@@ -6404,7 +6615,14 @@ export class FinanceService {
       this.prisma.financeExpense.count({ where }),
     ]);
 
-    return { data, meta: { page, per_page: perPage, total, last_page: Math.ceil(total / perPage) } };
+    return {
+      result: data,
+      total: data.length,
+      total_result: total,
+      per_page: perPage,
+      page,
+      pages: Math.max(1, Math.ceil(total / perPage)),
+    };
   }
 
   async createExpense(userId: string, dto: CreateFinanceExpenseDto) {
@@ -6421,7 +6639,7 @@ export class FinanceService {
 
     const data: any = {
       expenseNumber,
-      vendorId: dto.vendorId || null,
+      contactId: dto.contactId || null,
       accountId: dto.accountId,
       chartAccountId: dto.chartAccountId || null,
       organizationId: dto.organizationId ? BigInt(dto.organizationId) : null,
@@ -6446,7 +6664,7 @@ export class FinanceService {
     return this.prisma.financeExpense.findUnique({
       where: { id: expense.id },
       include: {
-        vendor: { select: { id: true, name: true } },
+        contact: { select: { id: true, name: true } },
         account: { select: { id: true, name: true, code: true, accountType: true } },
         chartAccount: { select: { id: true, name: true, code: true } },
       },
@@ -6458,7 +6676,7 @@ export class FinanceService {
     if (!existing) throw new NotFoundException('Expense not found');
 
     const data: any = { updatedBy: BigInt(userId) };
-    if (dto.vendorId !== undefined) data.vendorId = dto.vendorId;
+    if (dto.contactId !== undefined) data.contactId = dto.contactId;
     if (dto.accountId !== undefined) data.accountId = dto.accountId;
     if (dto.chartAccountId !== undefined) data.chartAccountId = dto.chartAccountId;
     if (dto.category !== undefined) data.category = dto.category;
@@ -6480,7 +6698,7 @@ export class FinanceService {
     return this.prisma.financeExpense.findUnique({
       where: { id },
       include: {
-        vendor: { select: { id: true, name: true } },
+        contact: { select: { id: true, name: true } },
         account: { select: { id: true, name: true, code: true, accountType: true } },
         chartAccount: { select: { id: true, name: true, code: true } },
       },

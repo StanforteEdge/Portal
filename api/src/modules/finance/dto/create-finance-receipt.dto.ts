@@ -23,7 +23,7 @@ export class CreateFinanceReceiptDto {
   @ApiPropertyOptional({ example: '3fef7e86-cf6a-4df7-b0b3-e350adf55e33' })
   @IsOptional()
   @IsUUID()
-  customer_id?: string;
+  contact_id?: string;
 
   @ApiPropertyOptional({ example: '3fef7e86-cf6a-4df7-b0b3-e350adf55e33' })
   @IsOptional()
