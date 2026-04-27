@@ -4,7 +4,7 @@ import {
   PageHeader,
   SectionCard,
 } from "@/shared";
-import { hasModuleAccess, humanize, userDisplayName } from "@stanforte/shared";
+import { hasAnyPermission, hasModuleAccess, humanize, userFirstName } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -172,29 +172,63 @@ export default function DashboardPage() {
       pendingStatuses.includes(String(item.status || "").toLowerCase()),
     )
     .slice(0, 3);
-  const attentionVisible = attentionRequests.length + pendingApprovalItems.length;
+  const canApprove = hasAnyPermission(user, ["requests.approve"]);
+  const attentionVisible = attentionRequests.length + (canApprove ? pendingApprovalItems.length : 0);
 
   const unreadNotifications = notifications ?? [];
   const latestNotice = unreadNotifications[0];
   const isClockedIn = attendance?.current_state?.is_clocked_in;
-  let nextShiftLabel: string;
-  let nextShiftDetail: string;
-  let nextShiftMode: string;
+  let nextShiftLabel = "";
+  let nextShiftDetail = "";
+  let nextShiftMode = "";
 
   if (isClockedIn && today?.first_in_at) {
     nextShiftLabel = "Clocked In";
     nextShiftDetail = formatTime(today.first_in_at);
     nextShiftMode = humanize(String(today.attendance_mode || today.expected_mode || "onsite"));
   } else if (attendance?.policy?.start_time) {
+    const policy = attendance.policy;
+    const now = new Date();
+    const workWeekdays = [...new Set([
+      ...(policy.onsite_weekdays ?? []),
+      ...(policy.remote_weekdays ?? []),
+    ])];
+    const effectiveWorkdays = workWeekdays.length > 0 ? workWeekdays : [1, 2, 3, 4, 5];
+    const [endHour, endMin] = policy.end_time.split(":").map(Number);
+    const shiftEndToday = new Date();
+    shiftEndToday.setHours(endHour, endMin, 0, 0);
+    const todayIsWorkday = effectiveWorkdays.includes(now.getDay());
+    const shiftOverToday = now >= shiftEndToday;
     nextShiftLabel = "Next Shift";
-    nextShiftDetail = `Today, ${attendance.policy.start_time}`;
-    nextShiftMode = humanize(String(today?.expected_mode || "onsite"));
+    if (todayIsWorkday && !shiftOverToday) {
+      nextShiftDetail = `Today, ${policy.start_time}`;
+      nextShiftMode = humanize(String(today?.expected_mode || "onsite"));
+    } else {
+      nextShiftDetail = "No upcoming shift";
+      for (let i = 1; i <= 7; i++) {
+        const d = new Date(now);
+        d.setDate(now.getDate() + i);
+        if (effectiveWorkdays.includes(d.getDay())) {
+          const dateLabel = i === 1
+            ? "Tomorrow"
+            : d.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "short" });
+          nextShiftDetail = `${dateLabel}, ${policy.start_time}`;
+          const nextDay = d.getDay();
+          const isRemote = (policy.remote_weekdays ?? []).includes(nextDay);
+          nextShiftMode = humanize(isRemote ? "remote" : (today?.expected_mode || "onsite"));
+          break;
+        }
+      }
+      if (!nextShiftDetail || nextShiftDetail === "No upcoming shift") {
+        nextShiftMode = "";
+      }
+    }
   } else {
     nextShiftLabel = "No Shift";
     nextShiftDetail = "No shift scheduled";
     nextShiftMode = "";
   }
-  const dashboardUserName = userDisplayName(user);
+  const dashboardUserName = userFirstName(user);
   const financeViewer = hasModuleAccess(user, "finance");
 
   return (
@@ -202,7 +236,7 @@ export default function DashboardPage() {
       navigation={buildRequestsNavigation()}
       activeLabel="Dashboard"
       user={{
-        name: userDisplayName(user),
+        name: userFirstName(user),
         role: profile?.employee_profile?.job_title || "Staff",
       }}
       mobileNav={buildAppMobileNav("Dashboard")}
@@ -210,7 +244,7 @@ export default function DashboardPage() {
       <div className="hidden lg:block">
         <PageHeader
           breadcrumbs={[{ label: "Dashboard" }]}
-          title={`${greeting()}, ${dashboardUserName}.`}
+          title={`${greeting()}, ${userFirstName(user)}.`}
           description={`${formatTodayLong()} • ${organization?.name || "No primary organization"}${primaryGroup ? ` • ${primaryGroup.name}` : ""}`}
           actions={
             <Link to="/requests/new" className="inline-flex">
@@ -248,6 +282,7 @@ export default function DashboardPage() {
                 </div>
               </article>
 
+              {canApprove ? (
               <article className="section-card flex items-center justify-between p-6">
                 <div>
                   <p className="text-[0.72rem] font-bold uppercase tracking-[0.16em] text-slate-500">
@@ -266,6 +301,7 @@ export default function DashboardPage() {
                   <span className="material-symbols-outlined">verified</span>
                 </div>
               </article>
+              ) : null}
 
 <article className="section-card flex items-center justify-between p-6">
                  <div>
@@ -360,8 +396,8 @@ export default function DashboardPage() {
               }
             >
               <div className="divide-y divide-slate-100">
-                {/* Pending approvals first */}
-                {pendingApprovalItems.map((row) => {
+                {/* Pending approvals first — only for users with requests.approve */}
+                {canApprove && pendingApprovalItems.map((row) => {
                   const family = requestFamilyFromType(row.request_type);
                   const hint = attentionHint(row.status, true);
                   return (
@@ -600,6 +636,7 @@ export default function DashboardPage() {
               {activeRequests}
             </p>
           </article>
+          {canApprove ? (
           <article className="section-card p-4">
             <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">
               Approvals
@@ -608,6 +645,7 @@ export default function DashboardPage() {
               {pendingApprovals}
             </p>
           </article>
+          ) : null}
         </div>
 
         <section className="rounded-[1.5rem] bg-brand-900 p-5 text-white shadow-card">

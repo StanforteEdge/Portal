@@ -148,11 +148,13 @@ function SummaryTile({
   value,
   accentClass = "text-slate-950",
   note,
+  hint,
 }: {
   label: string;
   value: string;
   accentClass?: string;
   note?: string;
+  hint?: string;
 }) {
   return (
     <div className="rounded-[18px] border border-slate-100 bg-white p-4 shadow-[0_1px_0_rgba(15,23,42,0.02)]">
@@ -160,14 +162,19 @@ function SummaryTile({
         {label}
       </p>
       <div className="mt-3 flex items-end justify-between gap-3">
-        <p
-          className={[
-            "text-2xl font-semibold tracking-tight",
-            accentClass,
-          ].join(" ")}
-        >
-          {value}
-        </p>
+        <div>
+          <p
+            className={[
+              "text-2xl font-semibold tracking-tight",
+              accentClass,
+            ].join(" ")}
+          >
+            {value}
+          </p>
+          {hint && (
+            <p className="mt-0.5 text-[0.68rem] text-slate-400">{hint}</p>
+          )}
+        </div>
         {note ? (
           <span className="text-[0.72rem] font-semibold text-success">
             {note}
@@ -244,15 +251,36 @@ export function AttendancePage() {
       if (status === "absent") absent++;
       if (String(row.attendance_mode || row.expected_mode || "").toLowerCase() === "remote" && row.first_in_at) remote++;
     }
+
+    const onsiteWeekdays = policy?.onsite_weekdays ?? [1, 2, 3, 4, 5];
+    const remoteWeekdays = policy?.remote_weekdays ?? [];
+    const allWorkDays = new Set([...onsiteWeekdays, ...remoteWeekdays]);
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = today.getMonth();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    let expectedWorkDays = 0;
+    let elapsedWorkDays = 0;
+    const todayDate = today.getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dow = new Date(year, month, d).getDay();
+      if (allWorkDays.has(dow)) {
+        expectedWorkDays++;
+        if (d <= todayDate) elapsedWorkDays++;
+      }
+    }
+
     return [
       {
         label: "Present",
         value: String(present),
+        hint: `of ${elapsedWorkDays} expected`,
         accentClass: "text-slate-950",
       },
       {
         label: "Remote",
         value: String(remote),
+        hint: policy?.remote_weekdays?.length ? `${remoteWeekdays.length} planned day${remoteWeekdays.length > 1 ? "s" : ""}/wk` : undefined,
         accentClass: "text-slate-950",
       },
       {
@@ -266,7 +294,7 @@ export function AttendancePage() {
         accentClass: "text-danger",
       },
     ];
-  }, [daily]);
+  }, [daily, policy]);
 
   const recentDaily = daily.slice(0, 10);
   const recentEntries = entries.slice(0, 8);
@@ -772,7 +800,7 @@ export function AttendancePage() {
           <RightRail className="lg:col-span-4">
             <SectionCard
               title="Activity Summary"
-              action={<Chip variant="neutral">Last 30 Days</Chip>}
+              action={<Chip variant="neutral">This Month</Chip>}
             >
               <div className="grid grid-cols-2 gap-3">
                 {stats.map((metric) => (
@@ -781,6 +809,7 @@ export function AttendancePage() {
                     label={metric.label}
                     value={metric.value}
                     accentClass={metric.accentClass}
+                    hint={(metric as any).hint}
                   />
                 ))}
               </div>
@@ -1137,7 +1166,8 @@ export function AttendancePage() {
           </div>
         </SectionCard>
 
-        <SectionCard title="Activity Summary">
+        <SectionCard title="Activity Summary"
+                action={<Chip variant="neutral">This Month</Chip>}>
           <div className="grid grid-cols-2 gap-3">
             {stats.map((metric) => (
               <SummaryTile
@@ -1145,6 +1175,7 @@ export function AttendancePage() {
                 label={metric.label}
                 value={metric.value}
                 accentClass={metric.accentClass}
+                hint={(metric as any).hint}
               />
             ))}
           </div>

@@ -258,6 +258,7 @@ export default function HrLeavePage() {
                           <Button
                             size="sm"
                             variant="ghost"
+                            requiredPermissions={["leave.approve"]}
                             onClick={() => setReviewingId(r.id)}
                           >
                             Review
@@ -282,6 +283,7 @@ export default function HrLeavePage() {
                           </div>
                           <Button
                             size="sm"
+                            requiredPermissions={["leave.approve"]}
                             onClick={() => void handleApprove(r.id)}
                             disabled={reviewLoading}
                           >
@@ -290,6 +292,7 @@ export default function HrLeavePage() {
                           <Button
                             size="sm"
                             variant="danger"
+                            requiredPermissions={["leave.approve"]}
                             onClick={() => void handleReject(r.id)}
                             disabled={reviewLoading}
                           >

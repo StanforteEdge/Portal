@@ -59,6 +59,7 @@ import {
 import {
   ApprovalRoute,
   ModuleRoute,
+  PermissionRoute,
 } from "@/shared/components/auth/AccessRoute";
 import AcceptInvitePage from "@/pages/auth/AcceptInvitePage";
 import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
@@ -129,51 +130,72 @@ export default function App() {
           <Route path="/profile/timesheets" element={<TimesheetsPage />} />
         </Route>
         <Route element={<ModuleRoute moduleKey="finance" />}>
-          <Route path="/finance" element={<FinanceDashboardPage />} />
-          <Route path="/finance/requests" element={<FinanceRequestsPage />} />
-          <Route
-            path="/finance/requests/details"
-            element={<FinanceRequestDetailsPage />}
-          />
-          <Route
-            path="/finance/payment-vouchers"
-            element={<FinancePaymentVouchersPage />}
-          />
-          <Route path="/finance/ledger" element={<FinanceLedgerPage />} />
-          <Route path="/finance/chart-accounts" element={<FinanceChartAccountsPage />} />
-          <Route path="/finance/accounts" element={<FinanceAccountsPage />} />
-          <Route path="/finance/accounts/:id" element={<FinanceAccountDetailPage />} />
-          <Route path="/finance/manual-entry" element={<FinanceManualEntryPage />} />
-          <Route path="/finance/items" element={<FinanceItemsPage />} />
-          <Route path="/finance/expenses" element={<FinanceExpensesPage />} />
-          <Route path="/finance/income" element={<FinanceIncomePage />} />
-          <Route path="/finance/bills" element={<FinanceBillsPage />} />
-          <Route path="/finance/sales-invoices" element={<FinanceSalesInvoicesPage />} />
-          <Route path="/finance/budgets" element={<FinanceBudgetsPage />} />
-          <Route path="/finance/receivables" element={<FinanceReceivablesPage />} />
-          <Route path="/finance/receivables/:id" element={<FinanceReceivablesPage />} />
-          <Route path="/finance/payables" element={<FinancePayablesPage />} />
-          <Route path="/finance/assets" element={<FinanceAssetsPage />} />
-          <Route path="/finance/assets/new" element={<FinanceAssetEditorPage />} />
-          <Route path="/finance/assets/:id" element={<FinanceAssetEditorPage />} />
-          <Route path="/finance/assets/disposals" element={<FinanceAssetDisposalsPage />} />
-          <Route path="/finance/reports" element={<FinanceReportsPage />} />
-          <Route path="/finance/reports/:reportKey" element={<FinanceReportDetailPage />} />
-          <Route path="/finance/settings" element={<FinanceSettingsPage />} />
-          <Route path="/finance/deduction-types" element={<FinanceDeductionTypesPage />} />
-          <Route path="/finance/customers" element={<FinanceCustomersPage />} />
-          <Route path="/finance/vendors" element={<FinanceVendorsPage />} />
-          <Route path="/finance/contacts" element={<FinanceContactsPage />} />
+          <Route element={<PermissionRoute requiredPermissions={["finance.view", "finance.manage", "finance.approve"]} any />}>
+            <Route path="/finance" element={<FinanceDashboardPage />} />
+            <Route path="/finance/requests" element={<FinanceRequestsPage />} />
+            <Route
+              path="/finance/requests/details"
+              element={<FinanceRequestDetailsPage />}
+            />
+            <Route
+              path="/finance/payment-vouchers"
+              element={<FinancePaymentVouchersPage />}
+            />
+            <Route path="/finance/ledger" element={<FinanceLedgerPage />} />
+            <Route path="/finance/chart-accounts" element={<FinanceChartAccountsPage />} />
+            <Route path="/finance/accounts" element={<FinanceAccountsPage />} />
+            <Route path="/finance/accounts/:id" element={<FinanceAccountDetailPage />} />
+            <Route path="/finance/manual-entry" element={<FinanceManualEntryPage />} />
+            <Route path="/finance/items" element={<FinanceItemsPage />} />
+            <Route path="/finance/expenses" element={<FinanceExpensesPage />} />
+            <Route path="/finance/income" element={<FinanceIncomePage />} />
+            <Route path="/finance/bills" element={<FinanceBillsPage />} />
+            <Route path="/finance/sales-invoices" element={<FinanceSalesInvoicesPage />} />
+            <Route path="/finance/budgets" element={<FinanceBudgetsPage />} />
+            <Route path="/finance/receivables" element={<FinanceReceivablesPage />} />
+            <Route path="/finance/receivables/:id" element={<FinanceReceivablesPage />} />
+            <Route path="/finance/payables" element={<FinancePayablesPage />} />
+            <Route path="/finance/assets" element={<FinanceAssetsPage />} />
+            <Route path="/finance/assets/new" element={<FinanceAssetEditorPage />} />
+            <Route path="/finance/assets/:id" element={<FinanceAssetEditorPage />} />
+            <Route path="/finance/assets/disposals" element={<FinanceAssetDisposalsPage />} />
+            <Route path="/finance/reports" element={<FinanceReportsPage />} />
+            <Route path="/finance/reports/:reportKey" element={<FinanceReportDetailPage />} />
+            <Route path="/finance/deduction-types" element={<FinanceDeductionTypesPage />} />
+            <Route path="/finance/customers" element={<FinanceCustomersPage />} />
+            <Route path="/finance/vendors" element={<FinanceVendorsPage />} />
+            <Route path="/finance/contacts" element={<FinanceContactsPage />} />
+
+            <Route element={<PermissionRoute requiredPermissions={["finance.manage"]} any />}>
+              <Route path="/finance/settings" element={<FinanceSettingsPage />} />
+            </Route>
+          </Route>
         </Route>
         <Route element={<ModuleRoute moduleKey="hr" />}>
-          <Route path="/hr" element={<HrDashboardPage />} />
-          <Route path="/hr/employees" element={<HrEmployeesPage />} />
-          <Route path="/hr/employees/new" element={<HrEmployeeCreatePage />} />
-          <Route path="/hr/employees/:id" element={<HrEmployeeDetailPage />} />
-          <Route path="/hr/employees/:id/edit" element={<HrEmployeeEditPage />} />
-          <Route path="/hr/attendance" element={<HrAttendancePage />} />
-          <Route path="/hr/leave" element={<HrLeavePage />} />
-          <Route path="/hr/settings" element={<HrSettingsPage />} />
+          <Route element={<PermissionRoute requiredPermissions={["hr.view"]} any />}>
+            <Route path="/hr" element={<HrDashboardPage />} />
+
+            <Route element={<PermissionRoute requiredPermissions={["hr.manage", "hr.employees"]} any />}>
+              <Route path="/hr/employees" element={<HrEmployeesPage />} />
+              <Route path="/hr/employees/:id" element={<HrEmployeeDetailPage />} />
+              <Route path="/hr/employees/:id/edit" element={<HrEmployeeEditPage />} />
+              <Route element={<PermissionRoute requiredPermissions={["hr.manage"]} />}>
+                <Route path="/hr/employees/new" element={<HrEmployeeCreatePage />} />
+              </Route>
+            </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["attendance.view", "attendance.manage", "attendance.approve"]} any />}>
+              <Route path="/hr/attendance" element={<HrAttendancePage />} />
+            </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["leave.view", "leave.manage", "leave.approve"]} any />}>
+              <Route path="/hr/leave" element={<HrLeavePage />} />
+            </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["hr.manage", "settings.manage"]} any />}>
+              <Route path="/hr/settings" element={<HrSettingsPage />} />
+            </Route>
+          </Route>
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/leave" element={<LeavePage />} />
           <Route path="/leave/new/form" element={<LeaveRequestFormPage />} />
@@ -184,13 +206,30 @@ export default function App() {
           <Route path="/files" element={<FilesPage />} />
         </Route>
         <Route element={<ModuleRoute moduleKey="admin" />}>
-          <Route path="/admin/users" element={<AdminUsersPage />} />
-          <Route path="/admin/users/:id" element={<AdminUserDetailPage />} />
-          <Route path="/admin/roles" element={<AdminRolesPage />} />
-          <Route path="/admin/groups" element={<AdminGroupsPage />} />
-          <Route path="/admin/projects" element={<AdminProjectsPage />} />
-          <Route path="/admin/files" element={<AdminFilesPage />} />
-          <Route path="/admin/settings" element={<AdminSettingsPage />} />
+          <Route element={<PermissionRoute requiredPermissions={["admin.view"]} any />}>
+            <Route element={<PermissionRoute requiredPermissions={["users.view", "users.manage"]} any />}>
+              <Route path="/admin/users" element={<AdminUsersPage />} />
+              <Route path="/admin/users/:id" element={<AdminUserDetailPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["roles.manage"]} any />}>
+              <Route path="/admin/roles" element={<AdminRolesPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["groups.view", "groups.manage"]} any />}>
+              <Route path="/admin/groups" element={<AdminGroupsPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["projects.view", "projects.manage"]} any />}>
+              <Route path="/admin/projects" element={<AdminProjectsPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["settings.manage"]} any />}>
+              <Route path="/admin/settings" element={<AdminSettingsPage />} />
+            </Route>
+
+            <Route path="/admin/files" element={<AdminFilesPage />} />
+          </Route>
         </Route>
       </Route>
 

@@ -1,4 +1,5 @@
 import {
+    Button,
     Chip,
     EmptyState,
     Icon,
@@ -83,6 +84,36 @@ export default function HrDashboardPage() {
                     <StatCard label="Draft" value={String(summary?.draft ?? 0)} tone="pending" icon="edit_note" />
                     <StatCard label="Suspended/Exited" value={String((summary?.suspended ?? 0) + (summary?.exited ?? 0))} tone="danger" icon="block" />
                 </div>
+
+                {/* Quick Actions */}
+                <SectionCard title="Quick Actions">
+                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <Link to="/hr/employees/new" className="block">
+                            <Button variant="secondary" className="w-full justify-start gap-2">
+                                <Icon name="person_add" />
+                                Add Employee
+                            </Button>
+                        </Link>
+                        <Link to="/hr/attendance" className="block">
+                            <Button variant="secondary" className="w-full justify-start gap-2">
+                                <Icon name="login" />
+                                View Attendance
+                            </Button>
+                        </Link>
+                        <Link to="/hr/corrections" className="block">
+                            <Button variant="secondary" className="w-full justify-start gap-2">
+                                <Icon name="rate_review" />
+                                Review Corrections
+                            </Button>
+                        </Link>
+                        <Link to="/hr/employees" className="block">
+                            <Button variant="secondary" className="w-full justify-start gap-2">
+                                <Icon name="group" />
+                                Manage Employees
+                            </Button>
+                        </Link>
+                    </div>
+                </SectionCard>
 
                 {/* Employment type breakdown */}
                 <div className="grid gap-4 md:grid-cols-4">

@@ -67,6 +67,11 @@ export function userDisplayName(user?: Pick<AuthUser, "first_name" | "last_name"
   return name || user?.username || user?.email || fallback;
 }
 
+export function userFirstName(user?: Pick<AuthUser, "first_name" | "username" | "email"> | null, fallback = "Staff User") {
+  const firstName = user?.first_name?.trim();
+  return firstName || user?.username || user?.email || fallback;
+}
+
 export function userFullname(user?: Pick<AuthUser, "first_name" | "last_name"> | null, fallback = "Staff User") {
   const name = `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim();
   return name || fallback;

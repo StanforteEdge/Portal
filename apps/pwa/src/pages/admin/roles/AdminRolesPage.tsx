@@ -23,10 +23,8 @@ import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
   listRoles,
-  listPermissions,
-  createRole,
   deleteRole,
-  updateRole,
+  listPermissions,
   type Role,
   type RolePermission,
 } from "./admin-roles-api";
@@ -51,9 +49,7 @@ export default function AdminRolesPage() {
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [editingRole, setEditingRole] = useState<Role | null | boolean>(false);
   const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
-  const [showCreatePermission, setShowCreatePermission] = useState(false);
-  const [editingPermission, setEditingPermission] = useState<RolePermission | null | boolean>(false);
-  const [deletingPermissionId, setDeletingPermissionId] = useState<string | null>(null);
+  const [viewingPermission, setViewingPermission] = useState<RolePermission | null>(null);
 
   const { data: rolesData, loading: rolesLoading } = useCachedQuery(
     `admin:roles:${listKey}:${search}`,
@@ -97,26 +93,6 @@ export default function AdminRolesPage() {
       });
     } finally {
       setDeletingRoleId(null);
-    }
-  }
-
-  async function handleDeletePermission(permission: RolePermission) {
-    if (!window.confirm(`Delete permission "${permission.name}"? This cannot be undone.`)) {
-      return;
-    }
-    try {
-      setDeletingPermissionId(permission.id);
-      // Assuming deletePermission exists - will need to add to API if not
-      showToast({ tone: "success", title: "Deleted", message: `Permission "${permission.name}" has been removed.` });
-      setListKey((k) => k + 1);
-    } catch (err) {
-      showToast({
-        tone: "danger",
-        title: "Delete failed",
-        message: err instanceof Error ? err.message : "Unable to delete permission.",
-      });
-    } finally {
-      setDeletingPermissionId(null);
     }
   }
 
@@ -276,12 +252,8 @@ export default function AdminRolesPage() {
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <h3 className="text-lg font-bold text-slate-900">All Permissions</h3>
-                    <p className="text-sm text-slate-500 mt-1">Fine-grained access controls grouped by module.</p>
+                    <p className="text-sm text-slate-500 mt-1">System-defined permissions grouped by module.</p>
                   </div>
-                  <Button className="gap-2" onClick={() => setShowCreatePermission(true)}>
-                    <Icon name="add" className="text-[18px]" />
-                    Add Permission
-                  </Button>
                 </div>
 
                 {permissionsLoading ? (
@@ -299,42 +271,19 @@ export default function AdminRolesPage() {
                               <TableHeaderCell>Name</TableHeaderCell>
                               <TableHeaderCell>Slug</TableHeaderCell>
                               <TableHeaderCell>Description</TableHeaderCell>
-                              <TableHeaderCell className="text-right">Actions</TableHeaderCell>
                             </TableHeaderRow>
                           </TableHead>
                           <TableBody>
                             {perms.map((perm) => (
-                              <TableRow key={perm.id}>
-                                <TableCell className="font-medium text-slate-900">{perm.name}</TableCell>
-                                <TableCell>
-                                  <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
-                                    {perm.slug}
-                                  </code>
-                                </TableCell>
-                                <TableCell className="text-slate-500">{perm.description || "-"}</TableCell>
-                                <TableCell className="text-right">
-                                  <div className="flex items-center justify-end gap-2">
-                                    <Button
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => setEditingPermission(perm)}
-                                    >
-                                      <Icon name="edit" />
-                                    </Button>
-                                    {perm.slug !== "admin" && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-danger hover:bg-danger/5"
-                                        disabled={deletingPermissionId === perm.id}
-                                        onClick={() => void handleDeletePermission(perm)}
-                                      >
-                                        <Icon name="delete" />
-                                      </Button>
-                                    )}
-                                  </div>
-                                </TableCell>
-                              </TableRow>
+<TableRow key={perm.id} className="cursor-pointer" onClick={() => setViewingPermission(perm)}>
+                                 <TableCell className="font-medium text-slate-900">{perm.name}</TableCell>
+                                 <TableCell>
+                                   <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+                                     {perm.slug}
+                                   </code>
+                                 </TableCell>
+                                 <TableCell className="text-slate-500">{perm.description || "-"}</TableCell>
+                               </TableRow>
                             ))}
                           </TableBody>
                         </Table>
@@ -378,23 +327,10 @@ export default function AdminRolesPage() {
       )}
 
       {/* Permission SlideOvers */}
-      {showCreatePermission && (
+      {viewingPermission && (
         <AdminPermissionSlideOver
-          onClose={() => setShowCreatePermission(false)}
-          onSaved={() => {
-            setShowCreatePermission(false);
-            setListKey((k) => k + 1);
-          }}
-        />
-      )}
-      {editingPermission !== false && (
-        <AdminPermissionSlideOver
-          permission={typeof editingPermission === "object" ? editingPermission : null}
-          onClose={() => setEditingPermission(false)}
-          onSaved={() => {
-            setEditingPermission(false);
-            setListKey((k) => k + 1);
-          }}
+          permission={viewingPermission}
+          onClose={() => setViewingPermission(null)}
         />
       )}
     </AppShell>

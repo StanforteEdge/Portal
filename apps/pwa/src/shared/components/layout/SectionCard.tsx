@@ -1,4 +1,6 @@
 import type { ReactNode } from "react";
+import { hasAnyPermission } from "@stanforte/shared";
+import { useAuth } from "@/shared/context/AuthProvider";
 
 type SectionCardProps = {
   title?: string;
@@ -6,6 +8,7 @@ type SectionCardProps = {
   action?: ReactNode;
   className?: string;
   children: ReactNode;
+  requiredPermissions?: string[];
 };
 
 export function SectionCard({
@@ -14,7 +17,12 @@ export function SectionCard({
   action,
   className,
   children,
+  requiredPermissions,
 }: SectionCardProps) {
+  const { user } = useAuth();
+  if (requiredPermissions?.length && !hasAnyPermission(user, requiredPermissions)) {
+    return null;
+  }
   return (
     <section className={["section-card p-5 sm:p-6 mt-6", className].filter(Boolean).join(" ")}>
       <div className="mb-5 flex items-start justify-between gap-3">

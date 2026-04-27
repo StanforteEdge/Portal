@@ -101,6 +101,7 @@ export function StatusForYouCard() {
         <Button
           variant="secondary"
           className="mt-4 w-full justify-center"
+          requiredPermissions={["finance.manage"]}
           onClick={() => setShowDisburseDialog(true)}
           disabled={actionBusy !== ""}
         >
@@ -133,6 +134,7 @@ export function StatusForYouCard() {
         <Button
           variant="secondary"
           className="mt-4 w-full justify-center"
+          requiredPermissions={["finance.manage"]}
           onClick={() => void handleWorkflowAction("complete")}
           disabled={actionBusy !== ""}
         >
