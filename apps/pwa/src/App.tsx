@@ -50,6 +50,7 @@ import AdminProjectsPage from "@/pages/admin/projects/AdminProjectsPage";
 import AdminFilesPage from "@/pages/admin/files/AdminFilesPage";
 import ProjectsPage from "@/pages/projects/ProjectsPage";
 import ProjectDetailPage from "@/pages/projects/ProjectDetailPage";
+import TasksPage from "@/pages/tasks/TasksPage";
 import FilesPage from "@/pages/files/FilesPage";
 import {
   ProtectedRoute,
@@ -177,6 +178,7 @@ export default function App() {
           <Route path="/leave" element={<LeavePage />} />
           <Route path="/leave/new/form" element={<LeaveRequestFormPage />} />
           <Route path="/leave/details" element={<LeaveRequestDetailsPage />} />
+          <Route path="/tasks" element={<TasksPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/files" element={<FilesPage />} />
