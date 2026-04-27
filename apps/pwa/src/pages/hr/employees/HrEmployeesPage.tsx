@@ -14,6 +14,7 @@ import {
   TableHeaderCell,
   TableHeaderRow,
   TableRow,
+  usePermission,
 } from "@/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -36,6 +37,7 @@ import { formatDate } from "@stanforte/shared";
 
 export default function HrEmployeesPage() {
   const { user } = useAuth();
+  const canManage = usePermission(["hr.manage"]);
   const { data: profile } = useCachedQuery(
     "hr:profile:directory",
     () => getWorkspaceProfile(),
@@ -116,12 +118,14 @@ export default function HrEmployeesPage() {
         title="Employee Directory"
         description="Browse, search, and manage all employees."
         actions={
-          <Link to="/hr/employees/new" className="inline-flex">
-            <button className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-800">
-              <Icon name="add" className="text-[18px]" />
-              Add Employee
-            </button>
-          </Link>
+          canManage ? (
+            <Link to="/hr/employees/new" className="inline-flex">
+              <button type="button" className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-800">
+                <Icon name="add" className="text-[18px]" />
+                Add Employee
+              </button>
+            </Link>
+          ) : null
         }
       />
 

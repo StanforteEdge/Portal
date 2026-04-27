@@ -1,4 +1,4 @@
-import { Button, Chip, EmptyState, Icon, PageHeader, SectionCard } from "@/shared";
+import { Button, Chip, EmptyState, Icon, PageHeader, SectionCard, usePermission } from "@/shared";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
@@ -18,7 +18,7 @@ function humanize(value: string) {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
-const tabs = [
+const allTabs = [
   { key: 'overview', label: 'Overview' },
   { key: 'work', label: 'Work & Employment' },
   { key: 'orgs', label: 'Organizations & Teams' },
@@ -177,6 +177,8 @@ export default function HrEmployeeDetailPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const canManage = usePermission(["hr.manage"]);
+  const tabs = canManage ? allTabs : allTabs.filter((t) => t.key !== "actions");
   const [refreshKey, setRefreshKey] = useState(0);
 
   const { data: profile } = useCachedQuery(
@@ -356,7 +358,7 @@ export default function HrEmployeeDetailPage() {
         {activeTab === 'work' && <EmployeeWorkEmploymentTab employee={employee} />}
         {activeTab === 'attendance' && <EmployeeAttendanceTab employeeId={employee.id} />}
         {activeTab === 'orgs' && <EmployeeOrgsTeamsOverviewTab employee={employee} />}
-        {activeTab === 'actions' && <EmployeeActionsTab employee={employee} onSaved={handleSaved} />}
+        {canManage && activeTab === 'actions' && <EmployeeActionsTab employee={employee} onSaved={handleSaved} />}
       </SectionCard>
     </AppShell>
   );

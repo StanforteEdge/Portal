@@ -177,9 +177,11 @@ export default function App() {
 
             <Route element={<PermissionRoute requiredPermissions={["hr.manage", "hr.employees"]} any />}>
               <Route path="/hr/employees" element={<HrEmployeesPage />} />
-              <Route path="/hr/employees/new" element={<HrEmployeeCreatePage />} />
               <Route path="/hr/employees/:id" element={<HrEmployeeDetailPage />} />
               <Route path="/hr/employees/:id/edit" element={<HrEmployeeEditPage />} />
+              <Route element={<PermissionRoute requiredPermissions={["hr.manage"]} />}>
+                <Route path="/hr/employees/new" element={<HrEmployeeCreatePage />} />
+              </Route>
             </Route>
 
             <Route element={<PermissionRoute requiredPermissions={["attendance.view", "attendance.manage", "attendance.approve"]} any />}>
