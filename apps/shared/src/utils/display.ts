@@ -64,12 +64,12 @@ export function userDisplayName(user?: Pick<AuthUser, "first_name" | "last_name"
   const firstName = user?.first_name?.trim();
   const lastName = user?.last_name?.trim();
   const name = `${firstName ?? ""} ${lastName ?? ""}`.trim();
-  return name;
+  return name || user?.username || user?.email || fallback;
 }
 
-export function userFirstName(user?: Pick<AuthUser, "first_name"> | null, fallback = "Staff User") {
+export function userFirstName(user?: Pick<AuthUser, "first_name" | "username" | "email"> | null, fallback = "Staff User") {
   const firstName = user?.first_name?.trim();
-  return firstName || fallback;
+  return firstName || user?.username || user?.email || fallback;
 }
 
 export function userFullname(user?: Pick<AuthUser, "first_name" | "last_name"> | null, fallback = "Staff User") {

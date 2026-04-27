@@ -63,7 +63,7 @@ export { createCacheStore } from "./data/cache";
 export { useCachedQuery } from "./data/useCachedQuery";
 export type { CacheStore } from "./data/cache";
 
-export { formatRelativeTime, humanize, roleLabel, sortRoles, userDisplayName } from "./utils/display";
+export { formatRelativeTime, humanize, roleLabel, sortRoles, userDisplayName, userFirstName } from "./utils/display";
 export { formatDate, formatFullDate, formatTime, formatTimeNextDay, hasNextDay, formatDuration, formatDisplayDate } from "./utils/formatting";
 
 

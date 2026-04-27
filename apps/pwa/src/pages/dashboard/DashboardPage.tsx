@@ -4,7 +4,7 @@ import {
   PageHeader,
   SectionCard,
 } from "@/shared";
-import { hasAnyPermission, hasModuleAccess, humanize, userDisplayName } from "@stanforte/shared";
+import { hasAnyPermission, hasModuleAccess, humanize, userFirstName } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -172,14 +172,15 @@ export default function DashboardPage() {
       pendingStatuses.includes(String(item.status || "").toLowerCase()),
     )
     .slice(0, 3);
+  const canApprove = hasAnyPermission(user, ["requests.approve"]);
   const attentionVisible = attentionRequests.length + (canApprove ? pendingApprovalItems.length : 0);
 
   const unreadNotifications = notifications ?? [];
   const latestNotice = unreadNotifications[0];
   const isClockedIn = attendance?.current_state?.is_clocked_in;
-  let nextShiftLabel: string;
-  let nextShiftDetail: string;
-  let nextShiftMode: string;
+  let nextShiftLabel = "";
+  let nextShiftDetail = "";
+  let nextShiftMode = "";
 
   if (isClockedIn && today?.first_in_at) {
     nextShiftLabel = "Clocked In";
@@ -199,9 +200,9 @@ export default function DashboardPage() {
     const todayIsWorkday = effectiveWorkdays.includes(now.getDay());
     const shiftOverToday = now >= shiftEndToday;
     nextShiftLabel = "Next Shift";
-    nextShiftMode = humanize(String(today?.expected_mode || "onsite"));
     if (todayIsWorkday && !shiftOverToday) {
       nextShiftDetail = `Today, ${policy.start_time}`;
+      nextShiftMode = humanize(String(today?.expected_mode || "onsite"));
     } else {
       nextShiftDetail = "No upcoming shift";
       for (let i = 1; i <= 7; i++) {
@@ -212,8 +213,14 @@ export default function DashboardPage() {
             ? "Tomorrow"
             : d.toLocaleDateString("en-NG", { weekday: "long", day: "numeric", month: "short" });
           nextShiftDetail = `${dateLabel}, ${policy.start_time}`;
+          const nextDay = d.getDay();
+          const isRemote = (policy.remote_weekdays ?? []).includes(nextDay);
+          nextShiftMode = humanize(isRemote ? "remote" : (today?.expected_mode || "onsite"));
           break;
         }
+      }
+      if (!nextShiftDetail || nextShiftDetail === "No upcoming shift") {
+        nextShiftMode = "";
       }
     }
   } else {
@@ -221,16 +228,15 @@ export default function DashboardPage() {
     nextShiftDetail = "No shift scheduled";
     nextShiftMode = "";
   }
-  const dashboardUserName = userDisplayName(user);
+  const dashboardUserName = userFirstName(user);
   const financeViewer = hasModuleAccess(user, "finance");
-  const canApprove = hasAnyPermission(user, ["requests.approve"]);
 
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
       activeLabel="Dashboard"
       user={{
-        name: userDisplayName(user),
+        name: userFirstName(user),
         role: profile?.employee_profile?.job_title || "Staff",
       }}
       mobileNav={buildAppMobileNav("Dashboard")}
@@ -238,7 +244,7 @@ export default function DashboardPage() {
       <div className="hidden lg:block">
         <PageHeader
           breadcrumbs={[{ label: "Dashboard" }]}
-          title={`${greeting()}, ${userDisplayName(user)}.`}
+          title={`${greeting()}, ${userFirstName(user)}.`}
           description={`${formatTodayLong()} • ${organization?.name || "No primary organization"}${primaryGroup ? ` • ${primaryGroup.name}` : ""}`}
           actions={
             <Link to="/requests/new" className="inline-flex">
