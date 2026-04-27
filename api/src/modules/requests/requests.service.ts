@@ -38,7 +38,8 @@ type RequestNotificationSummary = {
   requestTypeName: string;
   requesterName: string;
   requesterEmail: string | null;
-  amountLabel: string;
+  primaryMetricLabel: string;
+  primaryMetricValue: string;
 };
 
 @Injectable()
@@ -3821,10 +3822,11 @@ export class RequestsService {
       select: {
         id: true,
         createdAt: true,
+        data: true,
         currency: true,
         totalAmount: true,
         items: { select: { amount: true, quantity: true } },
-        requestType: { select: { name: true, codePrefix: true } },
+        requestType: { select: { name: true, codePrefix: true, categoryKey: true, formSchema: true } },
         creator: {
           select: { firstName: true, lastName: true, username: true, email: true }
         }
@@ -3837,7 +3839,8 @@ export class RequestsService {
         requestTypeName: 'Request',
         requesterName: 'Unknown sender',
         requesterEmail: null,
-        amountLabel: '-'
+        primaryMetricLabel: 'Amount',
+        primaryMetricValue: '-'
       };
     }
 
@@ -3851,18 +3854,45 @@ export class RequestsService {
       request.creator?.username ||
       request.creator?.email ||
       'Unknown sender';
-    const totalAmount =
-      request.totalAmount !== null
-        ? Number(request.totalAmount)
-        : request.items.reduce((sum, item) => sum + Number(item.amount) * Number(item.quantity ?? 1), 0);
-    const amountLabel = Number.isFinite(totalAmount) ? this.formatMoney(totalAmount, request.currency || 'NGN') : '-';
+    const payload =
+      request.data && typeof request.data === 'object' && !Array.isArray(request.data)
+        ? (request.data as Record<string, unknown>)
+        : {};
+    const isLeaveRequest = this.isLeaveRequestType(
+      request.requestType?.name ?? null,
+      request.requestType?.categoryKey ?? null,
+      request.requestType?.formSchema
+    );
+
+    let primaryMetricLabel = 'Amount';
+    let primaryMetricValue = '-';
+
+    if (isLeaveRequest) {
+      const daysRequestedRaw = Number(payload.days_requested ?? payload.days ?? 0);
+      const startDateValue = String(payload.start_date ?? '').trim();
+      const endDateValue = String(payload.end_date ?? '').trim();
+      const daysRequested =
+        Number.isFinite(daysRequestedRaw) && daysRequestedRaw > 0
+          ? daysRequestedRaw
+          : this.computeLeaveDays(startDateValue, endDateValue);
+
+      primaryMetricLabel = 'No. of Days';
+      primaryMetricValue = daysRequested > 0 ? `${daysRequested} day${daysRequested === 1 ? '' : 's'}` : '-';
+    } else {
+      const totalAmount =
+        request.totalAmount !== null
+          ? Number(request.totalAmount)
+          : request.items.reduce((sum, item) => sum + Number(item.amount) * Number(item.quantity ?? 1), 0);
+      primaryMetricValue = Number.isFinite(totalAmount) ? this.formatMoney(totalAmount, request.currency || 'NGN') : '-';
+    }
 
     return {
       requestNumber,
       requestTypeName: request.requestType?.name || 'Request',
       requesterName,
       requesterEmail: request.creator?.email ?? null,
-      amountLabel
+      primaryMetricLabel,
+      primaryMetricValue
     };
   }
 
@@ -3881,7 +3911,7 @@ export class RequestsService {
       ['Request Type', input.summary.requestTypeName],
       ['Sender', input.summary.requesterName],
       ['Sender Email', input.summary.requesterEmail ?? '-'],
-      ['Amount', input.summary.amountLabel]
+      [input.summary.primaryMetricLabel, input.summary.primaryMetricValue]
     ];
 
     return `
