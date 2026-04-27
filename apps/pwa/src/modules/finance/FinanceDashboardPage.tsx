@@ -20,11 +20,11 @@ import { useAuth } from "@/shared/context/AuthProvider";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 import {
   formatPersonName,
-} from "@/features/requests/request-helpers";
-import type { RequestRecord } from "@/features/requests/requests-api";
+} from "@/requests/request-helpers";
+import type { RequestRecord } from "@/requests/requests-api";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
 

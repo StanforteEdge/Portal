@@ -1,7 +1,7 @@
 import { Button, Chip, SectionCard, StatCard, Table, TableBody, TableCell, TableHead, TableHeaderCell, TableHeaderRow, TableRow } from "@/shared";
 import { SlideOver, SlideOverHeader, SlideOverContent } from "@/shared/components/ui/SlideOver";
 import { useCachedQuery } from "@/shared/lib/core";
-import { requestStatusTone } from "@/features/requests/request-helpers";
+import { requestStatusTone } from "@/requests/request-helpers";
 import { listHrLeaveRequests, getHrLeaveBalances, type RequestRecord } from "./hr-leave-api";
 
 function formatDate(value?: string) {

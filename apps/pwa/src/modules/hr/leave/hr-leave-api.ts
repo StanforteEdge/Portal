@@ -6,8 +6,8 @@ import {
   approveRequest,
   rejectRequest,
   type RequestRecord,
-} from "@/features/requests/requests-api";
-import { requestFamilyFromRecord } from "@/features/requests/request-helpers";
+} from "@/requests/requests-api";
+import { requestFamilyFromRecord } from "@/requests/request-helpers";
 
 export type { RequestRecord };
 

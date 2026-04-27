@@ -23,7 +23,7 @@ import { useAuth } from "@/shared/context/AuthProvider";
 import { useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { requestStatusTone } from "@/features/requests/request-helpers";
+import { requestStatusTone } from "@/requests/request-helpers";
 import {
   listHrLeaveRequests,
   listHrLeaveApprovals,

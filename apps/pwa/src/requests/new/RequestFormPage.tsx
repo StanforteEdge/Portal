@@ -15,13 +15,13 @@ import { formatCurrency, humanize } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
-import { TagPicker } from "@/features/taxonomy/TagPicker";
+import { TagPicker } from "@/requests/TagPicker";
 import { cacheStore, financeApi, useCachedQuery } from "@/shared/lib/core";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 import {
   createRequest,
   getMyLeaveBalance,
@@ -38,18 +38,18 @@ import {
   type RequestRecord,
   type RequestTypeOption,
   type TeamOption,
-} from "@/features/requests/requests-api";
+} from "@/requests/requests-api";
 import {
   requestFamilyFromType,
   requestFamilyLabel,
   type RequestFamily,
-} from "@/features/requests/request-helpers";
+} from "@/requests/request-helpers";
 import {
   listEntityTags,
   listManagedTaxonomies,
   replaceEntityTags,
   type TagTerm,
-} from "@/features/taxonomy/taxonomy-api";
+} from "@/requests/taxonomy-api";
 import { uploadFileAsset } from "@/features/files/files-api";
 
 type ItemState = {

@@ -12,14 +12,14 @@ import { getMyAttendance } from "@/modules/hr/attendance/attendance-api";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/features/requests/requests-data";
-import { listApprovals, listRequests } from "@/features/requests/requests-api";
+} from "@/requests/requests-data";
+import { listApprovals, listRequests } from "@/requests/requests-api";
 import {
   formatDisplayDate,
   formatRequestStatus,
   requestFamilyFromType,
   requestStatusTone,
-} from "@/features/requests/request-helpers";
+} from "@/requests/request-helpers";
 import {
   getWorkspaceProfile,
   listWorkspaceNotifications,

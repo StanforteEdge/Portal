@@ -1,7 +1,7 @@
 import { Button, Icon } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
 import { formatDisplayDate } from "@stanforte/shared";
-import { formatRequestStatus } from "@/features/requests/request-helpers";
+import { formatRequestStatus } from "@/requests/request-helpers";
 import { useRequestDetails } from "../../context";
 
 export function VoucherPreviewDialog() {

@@ -21,11 +21,11 @@ import PVDeductionsPanel from "./PVDeductionsPanel";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 import {
   formatRequestStatus,
   requestStatusTone,
-} from "@/features/requests/request-helpers";
+} from "@/requests/request-helpers";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
 

@@ -13,16 +13,16 @@ import { useCachedQuery } from "@/shared/lib/core";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 import {
   listRequestTypes,
   type RequestTypeOption,
-} from "@/features/requests/requests-api";
+} from "@/requests/requests-api";
 import {
   requestFamilyFromType,
   requestFamilyLabel,
   type RequestFamily,
-} from "@/features/requests/request-helpers";
+} from "@/requests/request-helpers";
 
 type FamilyCard = {
   family: RequestFamily;

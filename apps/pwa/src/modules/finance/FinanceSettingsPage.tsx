@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { AppShell, PageHeader, SectionCard, SidebarTabs, Button } from "@/shared";
-import { buildAppMobileNav, buildRequestsNavigation } from "@/features/requests/requests-data";
+import { buildAppMobileNav, buildRequestsNavigation } from "@/requests/requests-data";
 import { useAuth } from "@/shared/context/AuthProvider";
 import ChartOfAccountsTab from "./tabs/ChartOfAccountsTab";
 import ReportingPeriodsTab from "./tabs/ReportingPeriodsTab";

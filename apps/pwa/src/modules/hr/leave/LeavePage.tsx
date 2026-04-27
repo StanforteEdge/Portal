@@ -22,16 +22,16 @@ import {
   getMyLeaveBalance,
   listRequests,
   type RequestRecord,
-} from "@/features/requests/requests-api";
+} from "@/requests/requests-api";
 import { formatDisplayDate } from "@stanforte/shared";
 import {
   requestFamilyFromRecord,
   requestStatusTone,
-} from "@/features/requests/request-helpers";
+} from "@/requests/request-helpers";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 
 type LeaveRow = {
   id: string;

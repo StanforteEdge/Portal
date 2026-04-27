@@ -35,7 +35,7 @@ import {
   buildAppMobileNav,
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 import {
   approveRequest,
   deleteRequest,
@@ -52,8 +52,8 @@ import {
   listGroups,
   retireRequest,
   submitRequest,
-} from "@/features/requests/requests-api";
-import { listEntityTags, listManagedTaxonomies } from "@/features/taxonomy/taxonomy-api";
+} from "@/requests/requests-api";
+import { listEntityTags, listManagedTaxonomies } from "@/requests/taxonomy-api";
 import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
 import { financeApi } from "@/shared/lib/core";
 import type { FinancePaymentVoucherRecord } from "@/shared";
@@ -65,7 +65,7 @@ import {
   formatViewerRequestStatus,
   requestFamilyFromRecord,
   requestStatusTone,
-} from "@/features/requests/request-helpers";
+} from "@/requests/request-helpers";
 
 function normalizeWorkflowLabel(step: Record<string, any>, index: number) {
   const role = String(

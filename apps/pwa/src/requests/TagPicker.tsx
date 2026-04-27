@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, Icon } from "@/shared";
-import { suggestTagTerms, type TagTerm } from "@/features/taxonomy/taxonomy-api";
+import { suggestTagTerms, type TagTerm } from "@/requests/taxonomy-api";
 
 type TagPickerProps = {
   taxonomyKey: string;

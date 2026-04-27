@@ -1,5 +1,5 @@
 import { formatCurrency } from "@stanforte/shared";
-import { requestFamilyFromRecord } from "@/features/requests/request-helpers";
+import { requestFamilyFromRecord } from "@/requests/request-helpers";
 import { useRequestDetails } from "../../context";
 
 export function RequestTotalCard() {

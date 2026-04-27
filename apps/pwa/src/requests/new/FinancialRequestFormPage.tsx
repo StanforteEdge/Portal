@@ -23,7 +23,7 @@ import {
   financialRequestTags,
   financialSummary,
   requestsMobileNav,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 
 function RequestSetup() {
   return (

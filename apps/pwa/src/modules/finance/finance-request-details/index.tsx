@@ -13,7 +13,7 @@ import {
   buildAppMobileNav,
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 import {
   approveRequest,
   deleteRequest,
@@ -29,11 +29,11 @@ import {
   listGroups,
   retireRequest,
   submitRequest,
-} from "@/features/requests/requests-api";
+} from "@/requests/requests-api";
 import {
   listEntityTags,
   listManagedTaxonomies,
-} from "@/features/taxonomy/taxonomy-api";
+} from "@/requests/taxonomy-api";
 import { downloadBase64File } from "@/shared/lib/download";
 import { formatCurrency, formatDisplayDate } from "@stanforte/shared";
 import {
@@ -42,7 +42,7 @@ import {
   formatViewerRequestStatus,
   requestFamilyFromRecord,
   requestStatusTone,
-} from "@/features/requests/request-helpers";
+} from "@/requests/request-helpers";
 import type { FinancePaymentVoucherRecord } from "@/shared";
 import {
   buildWorkflow,

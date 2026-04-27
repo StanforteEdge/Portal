@@ -26,11 +26,11 @@ import {
   listRequests,
   listRequestTypes,
   type RequestRecord,
-} from "@/features/requests/requests-api";
+} from "@/requests/requests-api";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 
 type RequestFamily = "all" | "financial" | "leave";
 

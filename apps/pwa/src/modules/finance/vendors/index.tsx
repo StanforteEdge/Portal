@@ -21,7 +21,7 @@ import {
   TextField,
   useToast,
 } from "@/shared";
-import { buildAppMobileNav, buildRequestsNavigation } from "@/features/requests/requests-data";
+import { buildAppMobileNav, buildRequestsNavigation } from "@/requests/requests-data";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
 import type { ContactRecord } from "@stanforte/shared";

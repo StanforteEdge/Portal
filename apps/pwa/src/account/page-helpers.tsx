@@ -6,7 +6,7 @@ import { useAuth } from "@/shared/context/AuthProvider";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 
 export function AccountShellPage({
   activeLabel,

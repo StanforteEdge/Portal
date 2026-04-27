@@ -27,11 +27,11 @@ import {
   listApprovals,
   listRequestTypes,
   type RequestRecord,
-} from "@/features/requests/requests-api";
+} from "@/requests/requests-api";
 import {
   buildRequestsNavigation,
   requestsMobileNav,
-} from "@/features/requests/requests-data";
+} from "@/requests/requests-data";
 
 type SortBy = "created_at" | "request_number" | "total_amount" | "status";
 

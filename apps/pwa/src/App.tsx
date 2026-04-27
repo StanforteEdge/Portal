@@ -64,11 +64,11 @@ import ForgotPasswordPage from "@/auth/ForgotPasswordPage";
 import LoginPage from "@/auth/LoginPage";
 import ResetPasswordPage from "@/auth/ResetPasswordPage";
 import SessionReauthPage from "@/auth/SessionReauthPage";
-import RequestDetailsPage from "@/features/requests/pages/RequestDetailsPage";
-import RequestFormPage from "@/features/requests/pages/new/RequestFormPage";
-import RequestTypePage from "@/features/requests/pages/new/RequestTypePage";
-import ApprovalsPage from "@/features/requests/pages/ApprovalsPage";
-import RequestsListPage from "@/features/requests/pages/RequestsListPage";
+import RequestDetailsPage from "@/requests/RequestDetailsPage";
+import RequestFormPage from "@/requests/new/RequestFormPage";
+import RequestTypePage from "@/requests/new/RequestTypePage";
+import ApprovalsPage from "@/requests/ApprovalsPage";
+import RequestsListPage from "@/requests/RequestsListPage";
 import {
   DownloadPage,
   HelpPage,

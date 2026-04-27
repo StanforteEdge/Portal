@@ -20,7 +20,7 @@ import {
 } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
 import { formatDisplayDate } from "@stanforte/shared";
-import { formatPersonName, formatRequestStatus, requestFamilyFromRecord } from "@/features/requests/request-helpers";
+import { formatPersonName, formatRequestStatus, requestFamilyFromRecord } from "@/requests/request-helpers";
 import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
 import { DownloadDropdown } from "./DownloadDropdown";
 import { useRequestDetails } from "../context";

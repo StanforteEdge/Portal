@@ -8,7 +8,7 @@ import {
   useToast,
 } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
-import { formatPersonName } from "@/features/requests/request-helpers";
+import { formatPersonName } from "@/requests/request-helpers";
 import { listFileAssets, uploadFileAsset } from "@/features/files/files-api";
 import { formatCertificateCurrency, buildCertificateOfHonorPdf } from "../../utils/certificate-pdf";
 import { useRequestDetails } from "../../context";
