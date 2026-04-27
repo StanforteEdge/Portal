@@ -42,4 +42,9 @@ export class DisburseRequestDto {
   @IsOptional()
   @IsDateString()
   disbursed_at?: string;
+
+  @ApiPropertyOptional({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890', description: 'Vendor/payee contact ID' })
+  @IsOptional()
+  @IsUUID()
+  contact_id?: string;
 }
