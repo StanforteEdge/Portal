@@ -6,8 +6,8 @@ export type Role = {
   slug: string;
   description?: string;
   is_active: boolean;
-  permissions_count?: number;
-  users_count?: number;
+  permissions?: RolePermission[];
+  users?: Array<{ profile_id: string; email: string; username: string }>;
   created_at?: string;
 };
 
@@ -44,10 +44,6 @@ export async function listRoles(params?: {
   return Array.isArray(data) ? data : (data?.data ?? []);
 }
 
-export async function getRole(id: string): Promise<Role & { permissions: RolePermission[] }> {
-  return httpRequest<Role & { permissions: RolePermission[] }>(`/admin/rbac/roles/${id}`);
-}
-
 export async function createRole(payload: {
   name: string;
   slug: string;
@@ -70,7 +66,7 @@ export async function updateRole(
   },
 ): Promise<Role> {
   return httpRequest<Role>(`/admin/rbac/roles/${id}`, {
-    method: "PATCH",
+    method: "POST",
     body: payload,
   });
 }
@@ -82,7 +78,7 @@ export async function deleteRole(id: string): Promise<void> {
 }
 
 export async function listPermissions(): Promise<RolePermission[]> {
-  const data = await httpRequest<{ data: RolePermission[] } | RolePermission[]>(
+  const data = await httpRequest<RolePermission[] | { data: RolePermission[] }>(
     "/admin/rbac/permissions",
   );
   return Array.isArray(data) ? data : (data?.data ?? []);
