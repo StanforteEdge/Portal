@@ -17,7 +17,7 @@ import { formatCurrency, formatDisplayDate } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import PVDeductionsPanel from "./PVDeductionsPanel";
+import PVDeductionsPanel from "@/finance/deductions/PVDeductionsPanel";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
