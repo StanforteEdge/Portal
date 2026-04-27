@@ -25,7 +25,6 @@ import {
   listRoles,
   deleteRole,
   listPermissions,
-  deletePermission,
   type Role,
   type RolePermission,
 } from "./admin-roles-api";
@@ -52,7 +51,6 @@ export default function AdminRolesPage() {
   const [deletingRoleId, setDeletingRoleId] = useState<string | null>(null);
   const [showCreatePermission, setShowCreatePermission] = useState(false);
   const [editingPermission, setEditingPermission] = useState<RolePermission | null | boolean>(false);
-  const [deletingPermissionId, setDeletingPermissionId] = useState<string | null>(null);
 
   const { data: rolesData, loading: rolesLoading } = useCachedQuery(
     `admin:roles:${listKey}:${search}`,
@@ -96,30 +94,6 @@ export default function AdminRolesPage() {
       });
     } finally {
       setDeletingRoleId(null);
-    }
-  }
-
-  async function handleDeletePermission(permission: RolePermission) {
-    if (!window.confirm(`Delete permission "${permission.name}"? This cannot be undone.`)) {
-      return;
-    }
-    try {
-      setDeletingPermissionId(permission.id);
-      const result = await deletePermission(permission.id);
-      showToast({
-        tone: "success",
-        title: "Deleted",
-        message: `Permission "${permission.name}" removed. ${result.affected_roles} role(s) updated.`,
-      });
-      setListKey((k) => k + 1);
-    } catch (err) {
-      showToast({
-        tone: "danger",
-        title: "Delete failed",
-        message: err instanceof Error ? err.message : "Unable to delete permission.",
-      });
-    } finally {
-      setDeletingPermissionId(null);
     }
   }
 
@@ -324,17 +298,6 @@ export default function AdminRolesPage() {
                                     >
                                       <Icon name="edit" />
                                     </Button>
-                                    {perm.slug !== "admin" && (
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        className="text-danger hover:bg-danger/5"
-                                        disabled={deletingPermissionId === perm.id}
-                                        onClick={() => void handleDeletePermission(perm)}
-                                      >
-                                        <Icon name="delete" />
-                                      </Button>
-                                    )}
                                   </div>
                                 </TableCell>
                               </TableRow>

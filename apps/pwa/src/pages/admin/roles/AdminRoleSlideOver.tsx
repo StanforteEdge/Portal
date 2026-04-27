@@ -6,7 +6,7 @@ import {
   useToast,
 } from "@/shared";
 import { SlideOver, SlideOverHeader, SlideOverContent, SlideOverFooter } from "@/shared/components/ui/SlideOver";
-import { createRole, updateRole, listPermissions, type Role, type RolePermission } from "./admin-roles-api";
+import { createRole, updateRole, listPermissions, getRoleDeleteImpact, type Role, type RolePermission } from "./admin-roles-api";
 
 type Props = {
   role?: Role | null;
@@ -20,6 +20,10 @@ export default function AdminRoleSlideOver({ role, onClose, onSaved }: Props) {
   const [permissions, setPermissions] = useState<RolePermission[]>([]);
   const [selectedPermissions, setSelectedPermissions] = useState<string[]>([]);
   const [loadingPermissions, setLoadingPermissions] = useState(true);
+  const [deleteImpact, setDeleteImpact] = useState<{
+    affected_users: number;
+    users?: Array<{ profile_id: string; email: string; username: string }>;
+  } | null>(null);
 
   const [name, setName] = useState(role?.name || "");
   const [slug, setSlug] = useState(role?.slug || "");
@@ -43,6 +47,31 @@ export default function AdminRoleSlideOver({ role, onClose, onSaved }: Props) {
     }
     void load();
   }, [role?.id]);
+
+  useEffect(() => {
+    if (role?.id) {
+      getRoleDeleteImpact(role.id)
+        .then(setDeleteImpact)
+        .catch(() => setDeleteImpact(null));
+    }
+  }, [role?.id]);
+
+  async function handleDelete() {
+    if (!role?.id) return;
+    if (!window.confirm(`Delete role "${role.name}"? This action cannot be undone.`)) return;
+    try {
+      setSaving(true);
+      // Note: backend deleteRole doesn't need replacement since users would be orphaned
+      const { deleteRole } = await import("./admin-roles-api");
+      await deleteRole(role.id);
+      showToast({ tone: "success", title: "Deleted", message: `Role "${role.name}" has been deleted.` });
+      onSaved();
+    } catch (err) {
+      showToast({ tone: "danger", title: "Delete failed", message: err instanceof Error ? err.message : "Unable to delete role." });
+    } finally {
+      setSaving(false);
+    }
+  }
 
   function togglePermission(permSlug: string) {
     setSelectedPermissions((prev) =>
@@ -200,8 +229,35 @@ export default function AdminRoleSlideOver({ role, onClose, onSaved }: Props) {
             </div>
           )}
         </SectionCard>
+
+        {role && deleteImpact && deleteImpact.affected_users > 0 && (
+          <SectionCard title="Delete Impact">
+            <p className="text-sm text-slate-600">
+              Deleting this role will affect <strong>{deleteImpact.affected_users}</strong> user(s):
+            </p>
+            <ul className="mt-2 space-y-1">
+              {(deleteImpact.users ?? []).map((u) => (
+                <li key={u.profile_id} className="text-sm text-slate-500">• {u.username} ({u.email})</li>
+              ))}
+            </ul>
+          </SectionCard>
+        )}
       </SlideOverContent>
       <SlideOverFooter>
+        {role?.id && (!deleteImpact || deleteImpact.affected_users === 0) && (
+          <Button
+            variant="danger"
+            onClick={() => void handleDelete()}
+            disabled={saving}
+          >
+            {saving ? "Deleting..." : "Delete Role"}
+          </Button>
+        )}
+        {role?.id && deleteImpact && deleteImpact.affected_users > 0 && (
+          <div className="text-sm text-slate-500">
+            Cannot delete — assigned to {deleteImpact.affected_users} user(s)
+          </div>
+        )}
         <Button onClick={() => void handleSubmit()} disabled={saving}>
           {saving ? "Saving..." : role ? "Update Role" : "Create Role"}
         </Button>

@@ -77,6 +77,16 @@ export async function deleteRole(id: string): Promise<void> {
   });
 }
 
+export async function getRoleDeleteImpact(id: string): Promise<{
+  affected_users: number;
+  users: Array<{ profile_id: string; email: string; username: string }>;
+}> {
+  return httpRequest<{
+    affected_users: number;
+    users: Array<{ profile_id: string; email: string; username: string }>;
+  }>(`/admin/rbac/roles/${id}/delete-impact`);
+}
+
 export async function listPermissions(): Promise<RolePermission[]> {
   const data = await httpRequest<RolePermission[] | { data: RolePermission[] }>(
     "/admin/rbac/permissions",

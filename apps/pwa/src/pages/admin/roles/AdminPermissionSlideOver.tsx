@@ -182,7 +182,7 @@ async function handleSubmit() {
         </SectionCard>
       </SlideOverContent>
       <SlideOverFooter>
-        {permission?.id && (
+        {permission?.id && (!deleteImpact || deleteImpact.affected_roles === 0) && (
           <Button
             variant="danger"
             onClick={() => void handleDelete()}
@@ -190,6 +190,11 @@ async function handleSubmit() {
           >
             {saving ? "Deleting..." : "Delete Permission"}
           </Button>
+        )}
+        {permission?.id && deleteImpact && deleteImpact.affected_roles > 0 && (
+          <div className="text-sm text-slate-500">
+            Cannot delete — assigned to {deleteImpact.affected_roles} role(s)
+          </div>
         )}
         <Button onClick={() => void handleSubmit()} disabled={saving}>
           {saving ? "Saving..." : permission ? "Update Permission" : "Create Permission"}
