@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { NavLink } from "react-router-dom";
 import { Button, Chip, EmptyState, Icon, SectionCard, StatCard } from "@/shared";
 import { formatRelativeTime } from "@stanforte/shared";
 import { useCachedQuery } from "@/shared/lib/core";
@@ -74,33 +75,44 @@ export default function NotificationsPage() {
               <EmptyState title="No notifications yet" description="New updates from requests, attendance, and profile actions will show here." />
             ) : null}
             <div className="space-y-3">
-              {(notifications ?? []).map((item) => (
-                <article key={item.id} className="flex items-start gap-4 rounded-[22px] border border-slate-100 bg-white px-5 py-4 shadow-sm">
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-900/10 text-brand-900">
-                    <Icon name={item.status === "unread" ? "notifications_active" : "notifications"} className="text-[20px]" />
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="text-sm font-semibold text-slate-950">{item.title}</p>
-                      <Chip variant={item.status === "unread" ? "pending" : "neutral"}>{item.status}</Chip>
+              {(notifications ?? []).map((item) => {
+                const inner = (
+                  <article className="flex items-start gap-4 rounded-[22px] border border-slate-100 bg-white px-5 py-4 shadow-sm">
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-900/10 text-brand-900">
+                      <Icon name={item.status === "unread" ? "notifications_active" : "notifications"} className="text-[20px]" />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-slate-950">{item.title}</p>
+                        <Chip variant={item.status === "unread" ? "pending" : "neutral"}>{item.status}</Chip>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">{item.message}</p>
+                      <div className="mt-3 flex items-center gap-3">
+                        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{formatRelativeTime(item.createdAt)}</span>
+                        {item.status === "unread" ? (
+                          <button
+                            type="button"
+                            className="text-sm font-semibold text-brand-900"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              void markRead(item.id);
+                            }}
+                            disabled={busyId === item.id}
+                          >
+                            {busyId === item.id ? "Marking..." : "Mark as read"}
+                          </button>
+                        ) : null}
+                      </div>
                     </div>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">{item.message}</p>
-                    <div className="mt-3 flex items-center gap-3">
-                      <span className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">{formatRelativeTime(item.createdAt)}</span>
-                      {item.status === "unread" ? (
-                        <button
-                          type="button"
-                          className="text-sm font-semibold text-brand-900"
-                          onClick={() => void markRead(item.id)}
-                          disabled={busyId === item.id}
-                        >
-                          {busyId === item.id ? "Marking..." : "Mark as read"}
-                        </button>
-                      ) : null}
-                    </div>
-                  </div>
-                </article>
-              ))}
+                  </article>
+                );
+                return item.link ? (
+                  <NavLink key={item.id} to={item.link}>{inner}</NavLink>
+                ) : (
+                  <div key={item.id}>{inner}</div>
+                );
+              })}
             </div>
           </SectionCard>
         </div>

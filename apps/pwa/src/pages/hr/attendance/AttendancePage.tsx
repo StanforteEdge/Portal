@@ -103,9 +103,17 @@ function toneFromStatus(
   if (["late", "pending", "submitted", "review"].includes(key))
     return "warning";
   if (["absent", "rejected", "outside"].includes(key)) return "danger";
-  if (["remote", "field", "holiday", "off_day", "leave"].includes(key))
-    return "pending";
+  if (["remote", "field"].includes(key)) return "success";
+  if (["holiday", "off_day", "leave"].includes(key)) return "neutral";
   return "neutral";
+}
+
+function deriveAttendanceStatus(row: AttendanceDaily): string {
+  const status = String(row.status || "").trim().toLowerCase();
+  if (["remote", "field", "onsite"].includes(status)) {
+    return row.first_in_at ? "present" : "absent";
+  }
+  return status || (row.first_in_at ? "present" : "not_started");
 }
 
 function mapAttendanceActionError(message: string, type: "in" | "out") {
@@ -528,71 +536,76 @@ export function AttendancePage() {
                   </div>
                 </div>
 
-                <div className="space-y-3">
-                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Select Attendance Mode
-                  </p>
-                  <div
-                    className="grid grid-cols-3 gap-3"
-                    role="group"
-                    aria-label="Attendance mode"
-                  >
-                    {(["onsite", "remote", "field"] as AttendanceMode[]).map(
-                      (mode) => {
-                        const active = selectedMode === mode;
-                        return (
-                          <button
-                            key={mode}
-                            type="button"
-                            onClick={() => setSelectedMode(mode)}
-                            aria-pressed={active}
-                            className={[
-                              "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition",
-                              active
-                                ? "border-brand-900 bg-brand-900/5 text-brand-900 shadow-[0_0_0_1px_rgba(3,71,133,0.12)]"
-                                : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
-                            ].join(" ")}
-                          >
-                            <Icon
-                              name={
-                                mode === "onsite"
-                                  ? "location_on"
-                                  : mode === "remote"
-                                    ? "home_work"
-                                    : "travel_explore"
-                              }
-                              className="text-[18px]"
-                              fill={active}
-                            />
-                            {humanize(mode)}
-                          </button>
-                        );
-                      },
-                    )}
-                  </div>
-                </div>
+                {!currentState?.is_clocked_in && (
+                  <>
+                    <div className="space-y-3">
+                      <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+                        Select Attendance Mode
+                      </p>
+                      <div
+                        className="grid grid-cols-3 gap-3"
+                        role="group"
+                        aria-label="Attendance mode"
+                      >
+                        {(["onsite", "remote", "field"] as AttendanceMode[]).map(
+                          (mode) => {
+                            const active = selectedMode === mode;
+                            return (
+                              <button
+                                key={mode}
+                                type="button"
+                                onClick={() => setSelectedMode(mode)}
+                                aria-pressed={active}
+                                className={[
+                                  "flex items-center justify-center gap-2 rounded-xl border px-4 py-3 text-sm font-semibold transition",
+                                  active
+                                    ? "border-brand-900 bg-brand-900/5 text-brand-900 shadow-[0_0_0_1px_rgba(3,71,133,0.12)]"
+                                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50",
+                                ].join(" ")}
+                              >
+                                <Icon
+                                  name={
+                                    mode === "onsite"
+                                      ? "location_on"
+                                      : mode === "remote"
+                                        ? "home_work"
+                                        : "travel_explore"
+                                  }
+                                  className="text-[18px]"
+                                  fill={active}
+                                />
+                                {humanize(mode)}
+                              </button>
+                            );
+                          },
+                        )}
+                      </div>
+                    </div>
 
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
-                  Onsite requires an office location and a verified device
-                  location. Remote can proceed without an office location. Field
-                  work should be pre-approved with location/details recorded.
-                </div>
+                    <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
+                      Onsite requires an office location and a verified device
+                      location. Remote can proceed without an office location.
+                      Field work should be pre-approved with location/details
+                      recorded.
+                    </div>
 
-                <SelectField
-                  label="Office/Location"
-                  value={selectedOfficeLocationId}
-                  onChange={(event) =>
-                    setSelectedOfficeLocationId(event.target.value)
-                  }
-                  disabled={selectedMode !== "onsite"}
-                >
-                  <option value="">Select office location</option>
-                  {officeLocations.map((location) => (
-                    <option key={location.id} value={location.id}>
-                      {location.name}
-                    </option>
-                  ))}
-                </SelectField>
+                    <SelectField
+                      label="Office/Location"
+                      value={selectedOfficeLocationId}
+                      onChange={(event) =>
+                        setSelectedOfficeLocationId(event.target.value)
+                      }
+                      disabled={selectedMode !== "onsite"}
+                    >
+                      <option value="">Select office location</option>
+                      {officeLocations.map((location) => (
+                        <option key={location.id} value={location.id}>
+                          {location.name}
+                        </option>
+                      ))}
+                    </SelectField>
+                  </>
+                )}
 
                 <div className="grid gap-3 sm:grid-cols-2">
                   <Button
@@ -747,12 +760,12 @@ export function AttendancePage() {
                         <TableCell className="rounded-r-2xl">
                           <Chip
                             variant={
-                              toneFromStatus(row.status) === "neutral"
+                              toneFromStatus(deriveAttendanceStatus(row)) === "neutral"
                                 ? "neutral"
-                                : toneFromStatus(row.status)
+                                : toneFromStatus(deriveAttendanceStatus(row))
                             }
                           >
-                            {humanize(row.status)}
+                            {humanize(deriveAttendanceStatus(row))}
                           </Chip>
                         </TableCell>
                       </TableRow>
@@ -1005,65 +1018,69 @@ export function AttendancePage() {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                Attendance Mode
-              </p>
-              <div
-                className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-2"
-                role="group"
-                aria-label="Attendance mode"
-              >
-                {(["onsite", "remote", "field"] as AttendanceMode[]).map(
-                  (mode) => {
-                    const active = selectedMode === mode;
-                    return (
-                      <button
-                        key={mode}
-                        type="button"
-                        onClick={() => setSelectedMode(mode)}
-                        aria-pressed={active}
-                        className={[
-                          "flex items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-xs font-semibold transition",
-                          active
-                            ? "bg-brand-900 text-white shadow-soft"
-                            : "text-slate-600",
-                        ].join(" ")}
-                      >
-                        <Icon
-                          name={
-                            mode === "onsite"
-                              ? "location_on"
-                              : mode === "remote"
-                                ? "home_work"
-                                : "travel_explore"
-                          }
-                          className="text-[16px]"
-                          fill={active}
-                        />
-                        {humanize(mode)}
-                      </button>
-                    );
-                  },
-                )}
-              </div>
-            </div>
+            {!currentState?.is_clocked_in && (
+              <>
+                <div className="space-y-2">
+                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+                    Attendance Mode
+                  </p>
+                  <div
+                    className="grid grid-cols-3 gap-2 rounded-2xl bg-slate-100 p-2"
+                    role="group"
+                    aria-label="Attendance mode"
+                  >
+                    {(["onsite", "remote", "field"] as AttendanceMode[]).map(
+                      (mode) => {
+                        const active = selectedMode === mode;
+                        return (
+                          <button
+                            key={mode}
+                            type="button"
+                            onClick={() => setSelectedMode(mode)}
+                            aria-pressed={active}
+                            className={[
+                              "flex items-center justify-center gap-2 rounded-[14px] px-3 py-2 text-xs font-semibold transition",
+                              active
+                                ? "bg-brand-900 text-white shadow-soft"
+                                : "text-slate-600",
+                            ].join(" ")}
+                          >
+                            <Icon
+                              name={
+                                mode === "onsite"
+                                  ? "location_on"
+                                  : mode === "remote"
+                                    ? "home_work"
+                                    : "travel_explore"
+                              }
+                              className="text-[16px]"
+                              fill={active}
+                            />
+                            {humanize(mode)}
+                          </button>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
 
-            <SelectField
-              label="Office/Location"
-              value={selectedOfficeLocationId}
-              onChange={(event) =>
-                setSelectedOfficeLocationId(event.target.value)
-              }
-              disabled={selectedMode !== "onsite"}
-            >
-              <option value="">Select office location</option>
-              {officeLocations.map((location) => (
-                <option key={location.id} value={location.id}>
-                  {location.name}
-                </option>
-              ))}
-            </SelectField>
+                <SelectField
+                  label="Office/Location"
+                  value={selectedOfficeLocationId}
+                  onChange={(event) =>
+                    setSelectedOfficeLocationId(event.target.value)
+                  }
+                  disabled={selectedMode !== "onsite"}
+                >
+                  <option value="">Select office location</option>
+                  {officeLocations.map((location) => (
+                    <option key={location.id} value={location.id}>
+                      {location.name}
+                    </option>
+                  ))}
+                </SelectField>
+              </>
+            )}
 
             <div className="grid gap-3">
               <Button
@@ -1274,17 +1291,14 @@ export function AttendancePage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-950">
-                        {humanize(row.status)}
-                      </p>
                       <Chip
                         variant={
-                          toneFromStatus(row.status) === "neutral"
+                          toneFromStatus(deriveAttendanceStatus(row)) === "neutral"
                             ? "neutral"
-                            : toneFromStatus(row.status)
+                            : toneFromStatus(deriveAttendanceStatus(row))
                         }
                       >
-                        {humanize(row.status)}
+                        {humanize(deriveAttendanceStatus(row))}
                       </Chip>
                     </div>
                     <p className="mt-1 text-xs font-medium text-slate-500">

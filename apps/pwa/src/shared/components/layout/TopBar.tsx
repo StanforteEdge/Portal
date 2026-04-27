@@ -260,35 +260,45 @@ export function DesktopTopBar({
                 </div>
                 <div className="mt-4 space-y-3">
                   {notifications.length ? (
-                    notifications.slice(0, 5).map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-sm font-semibold text-slate-900">
-                            {item.title}
+                    notifications.slice(0, 5).map((item) => {
+                      const inner = (
+                        <div className="rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <p className="text-sm font-semibold text-slate-900">
+                              {item.title}
+                            </p>
+                            <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
+                              {formatRelativeTime(item.createdAt)}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm leading-6 text-slate-500">
+                            {item.message}
                           </p>
-                          <span className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400">
-                            {formatRelativeTime(item.createdAt)}
-                          </span>
+                          {item.status === "unread" ? (
+                            <button
+                              type="button"
+                              className="mt-2 text-sm font-semibold text-brand-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                void handleMarkRead(item.id);
+                              }}
+                              disabled={busyId === item.id}
+                              role="menuitem"
+                            >
+                              {busyId === item.id ? "Marking..." : "Mark as read"}
+                            </button>
+                          ) : null}
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-500">
-                          {item.message}
-                        </p>
-                        {item.status === "unread" ? (
-                          <button
-                            type="button"
-                            className="mt-2 text-sm font-semibold text-brand-900 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                            onClick={() => void handleMarkRead(item.id)}
-                            disabled={busyId === item.id}
-                            role="menuitem"
-                          >
-                            {busyId === item.id ? "Marking..." : "Mark as read"}
-                          </button>
-                        ) : null}
-                      </div>
-                    ))
+                      );
+                      return item.link ? (
+                        <NavLink key={item.id} to={item.link} onClick={() => setNotificationsOpen(false)}>
+                          {inner}
+                        </NavLink>
+                      ) : (
+                        <div key={item.id}>{inner}</div>
+                      );
+                    })
                   ) : (
                     <div className="rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-6 text-sm text-slate-500">
                       No notifications yet.

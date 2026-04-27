@@ -146,27 +146,27 @@ export default function AdminRolesPage() {
         description="Manage user roles and their access permissions."
       />
 
-      <div className="flex flex-col md:flex-row gap-8 mt-6">
-        {/* Sidebar Nav */}
-        <aside className="w-full md:w-64 flex flex-col gap-1">
+      <div className="mt-6 space-y-6">
+        {/* Top Tabs */}
+        <div className="flex items-center gap-1 border-b border-slate-200">
           {tabItems.map((item) => (
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+              className={`flex items-center gap-2 px-4 py-2.5 text-sm font-semibold transition-colors border-b-2 -mb-px ${
                 activeTab === item.id
-                  ? "bg-primary text-white shadow-lg shadow-primary/20"
-                  : "text-slate-600 hover:bg-slate-100"
+                  ? "border-brand-900 text-brand-900"
+                  : "border-transparent text-slate-500 hover:text-slate-700"
               }`}
             >
-              <span className="material-symbols-outlined text-[20px]">{item.icon}</span>
-              <span className="font-medium">{item.label}</span>
+              <span className="material-symbols-outlined text-[18px]">{item.icon}</span>
+              {item.label}
             </button>
           ))}
-        </aside>
+        </div>
 
         {/* Content Area */}
-        <main className="flex-1 min-w-0">
+        <div className="min-w-0">
           {activeTab === "roles" && (
             <div className="space-y-6">
               <SectionCard>
@@ -345,7 +345,7 @@ export default function AdminRolesPage() {
               </SectionCard>
             </div>
           )}
-        </main>
+        </div>
       </div>
 
       {/* Role SlideOvers */}

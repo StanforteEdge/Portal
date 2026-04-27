@@ -38,7 +38,6 @@ type UiRequestRow = {
   id: string;
   requestId: string;
   family: RequestFamily;
-  familyLabel: string;
   type: string;
   requestTypeId: string;
   categoryKey: string;
@@ -120,12 +119,6 @@ function classifyFamily(
   return "financial";
 }
 
-function familyLabel(family: RequestFamily) {
-  if (family === "leave") return "Leave";
-  if (family === "financial") return "Financial";
-  return "All";
-}
-
 function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
   const stateEvents = Array.isArray((request.data as any)?.state_events)
     ? (((request.data as any)?.state_events as Array<
@@ -195,7 +188,6 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
     id: request.request_number || `REQ-${request.id}`,
     requestId: String(request.id),
     family,
-    familyLabel: familyLabel(family),
     type: requestType,
     requestTypeId: String(request.request_type?.id ?? ""),
     categoryKey: category,
@@ -562,7 +554,6 @@ function RequestsListTable({
           <TableHead>
             <TableHeaderRow>
               <TableHeaderCell>Request ID</TableHeaderCell>
-              <TableHeaderCell>Category</TableHeaderCell>
               <TableHeaderCell>Total</TableHeaderCell>
               {isMultiTeam ? <TableHeaderCell>Team</TableHeaderCell> : null}
               {activeFamily === "financial" ? (
@@ -590,9 +581,6 @@ function RequestsListTable({
                     <Icon name={row.icon} className="text-[16px]" />
                     <span>{row.type}</span>
                   </div>
-                </TableCell>
-                <TableCell className="text-sm text-slate-600">
-                  {row.familyLabel}
                 </TableCell>
                 <TableCell className="text-sm text-slate-700 font-medium">
                   {row.family === "leave"
@@ -731,7 +719,6 @@ function RequestsMobileList({
                 </p>
                 <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
               </div>
-              <p className="mt-1 text-xs text-slate-500">{row.familyLabel}</p>
               <p className="mt-2 text-sm font-semibold text-slate-700">
                 {row.family === "leave"
                   ? formatLeaveDuration(row)

@@ -8,6 +8,7 @@ type VersionManifest = {
 };
 
 const POLL_INTERVAL_MS = 3 * 60 * 1000;
+const RELOAD_FLAG = "se_version_reload";
 
 export function AppVersion() {
   const builtAt = import.meta.env.VITE_APP_BUILT_AT as string | undefined;
@@ -33,6 +34,17 @@ export function AppVersion() {
   useEffect(() => {
     if (import.meta.env.DEV) return;
 
+    const justReloaded = sessionStorage.getItem(RELOAD_FLAG);
+    if (justReloaded) {
+      sessionStorage.removeItem(RELOAD_FLAG);
+      const timer = window.setTimeout(() => void checkVersion(), 10_000);
+      const interval = window.setInterval(() => void checkVersion(), POLL_INTERVAL_MS);
+      return () => {
+        window.clearTimeout(timer);
+        window.clearInterval(interval);
+      };
+    }
+
     void checkVersion();
     const timer = window.setInterval(() => void checkVersion(), POLL_INTERVAL_MS);
     return () => window.clearInterval(timer);
@@ -51,7 +63,10 @@ export function AppVersion() {
       <Button
         size="sm"
         className="mt-3 w-full"
-        onClick={() => window.location.reload()}
+        onClick={() => {
+          sessionStorage.setItem(RELOAD_FLAG, newBuildVersion ?? "pending");
+          window.location.reload();
+        }}
       >
         Reload now
       </Button>

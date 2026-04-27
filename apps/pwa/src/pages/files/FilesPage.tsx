@@ -13,10 +13,11 @@ import {
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { useCachedQuery } from "@/shared/lib/core";
+import { resourceApi } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { resourceApi } from "@/shared/lib/core";
 import { formatFileSize } from "@/shared/lib/formatting";
+import { uploadFileAsset } from "./files-api";
 
 type ViewMode = "grid" | "list";
 
@@ -50,13 +51,12 @@ export default function FilesPage() {
         page,
         per_page: perPage,
       });
-      setTotalCount(Array.isArray(result) ? result.length : 0);
+      setTotalCount(result.total ?? result.total_result ?? 0);
       return result;
     },
     { ttlMs: 0, storage: "memory" },
   );
-
-  const files = Array.isArray(filesData) ? filesData : [];
+  const files = filesData?.result ?? [];
   const totalPages = Math.ceil(totalCount / perPage) || 1;
 
   const userName =
@@ -70,7 +70,7 @@ export default function FilesPage() {
 
     setUploading(true);
     try {
-      await resourceApi.uploadFile(file, { metadata: { source: "staff_files" } });
+      await uploadFileAsset(file, { metadata: { source: "staff_files" } });
       showToast({ tone: "success", title: "Upload complete", message: `${file.name} uploaded successfully.` });
       setListKey((k) => k + 1);
     } catch (err) {
@@ -81,8 +81,8 @@ export default function FilesPage() {
     }
   };
 
-  const imageCount = files.filter((f) => f.mime_type?.startsWith("image/")).length;
-  const docCount = files.filter((f) => f.mime_type?.startsWith("application/") || f.mime_type?.startsWith("text/")).length;
+  const imageCount = files.filter((f: any) => f.mime_type?.startsWith("image/")).length;
+  const docCount = files.filter((f: any) => f.mime_type?.startsWith("application/") || f.mime_type?.startsWith("text/")).length;
 
   return (
     <AppShell
@@ -199,7 +199,7 @@ export default function FilesPage() {
             </div>
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 p-2">
-              {files.map((file) => (
+              {files.map((file: any) => (
                 <div
                   key={file.id}
                   className="group relative bg-white border border-slate-200 rounded-xl p-3 hover:shadow-md transition-shadow"
@@ -241,7 +241,7 @@ export default function FilesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {files.map((file) => (
+                  {files.map((file: any) => (
                     <tr key={file.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="p-3">
                         <p className="font-medium text-slate-900 truncate max-w-[200px]">{file.file_name}</p>
