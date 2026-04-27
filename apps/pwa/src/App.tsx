@@ -5,7 +5,7 @@ import AttendancePage from "@/hr/attendance/AttendancePage";
 import LeavePage from "@/hr/leave/LeavePage";
 import LeaveRequestFormPage from "@/hr/leave/LeaveRequestFormPage";
 import LeaveRequestDetailsPage from "@/hr/leave/LeaveRequestDetailsPage";
-import DashboardPage from "@/pages/dashboard/DashboardPage";
+import DashboardPage from "@/dashboard/DashboardPage";
 import FinanceDashboardPage from "@/finance/dashboard/FinanceDashboardPage";
 import FinanceRequestDetailsPage from "@/finance/requests/FinanceRequestDetailsPage";
 import FinancePaymentVouchersPage from "@/finance/payment-vouchers/FinancePaymentVouchersPage";
@@ -48,9 +48,9 @@ import AdminSettingsPage from "@/admin/settings/AdminSettingsPage";
 import AdminGroupsPage from "@/admin/groups/AdminGroupsPage";
 import AdminProjectsPage from "@/admin/projects/AdminProjectsPage";
 import AdminFilesPage from "@/admin/files/AdminFilesPage";
-import ProjectsPage from "@/pages/projects/ProjectsPage";
-import ProjectDetailPage from "@/pages/projects/ProjectDetailPage";
-import FilesPage from "@/pages/files/FilesPage";
+import ProjectsPage from "@/projects/ProjectsPage";
+import ProjectDetailPage from "@/projects/ProjectDetailPage";
+import FilesPage from "@/files/FilesPage";
 import {
   ProtectedRoute,
   PublicOnlyRoute,
