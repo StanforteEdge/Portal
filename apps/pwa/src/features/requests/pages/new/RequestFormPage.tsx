@@ -16,7 +16,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { TagPicker } from "@/features/taxonomy/TagPicker";
-import { cacheStore, useCachedQuery } from "@/shared/lib/core";
+import { cacheStore, financeApi, useCachedQuery } from "@/shared/lib/core";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
   buildRequestsNavigation,
@@ -71,6 +71,7 @@ type FormState = {
   project_id: string;
   team_id: string;
   organization_id: string;
+  vendor_id: string;
   leave_start_date: string;
   leave_end_date: string;
   leave_days_requested: string;
@@ -88,6 +89,7 @@ const defaultForm: FormState = {
   project_id: "",
   team_id: "",
   organization_id: "",
+  vendor_id: "",
   leave_start_date: "",
   leave_end_date: "",
   leave_days_requested: "",
@@ -153,6 +155,7 @@ function mapRequestToForm(request: RequestRecord): FormState {
     project_id: String(data.project_id || ""),
     team_id: String(data.team_id || ""),
     organization_id: String(data.organization_id || ""),
+    vendor_id: String(data.vendor_id || ""),
     leave_start_date: String(data.start_date || ""),
     leave_end_date: String(data.end_date || ""),
     leave_days_requested:
@@ -192,6 +195,7 @@ function buildPayload(
       project_id: family === "leave" ? undefined : form.project_id || undefined,
       team_id: form.team_id || undefined,
       organization_id: form.organization_id || undefined,
+      vendor_id: form.vendor_id || undefined,
       due_date: form.due_date || undefined,
       start_date:
         family === "leave" ? form.leave_start_date || undefined : undefined,
@@ -352,6 +356,13 @@ export function RequestFormPage() {
     () => listManagedTaxonomies({ include_inactive: false }),
     { ttlMs: 1000 * 60 * 10, storage: "memory" },
   );
+  const { data: vendors } = useCachedQuery(
+    "finance:vendors:options",
+    () => financeApi.listVendors({ is_active: true, per_page: 200 }),
+    { ttlMs: 1000 * 60 * 10, storage: "memory" },
+  );
+  const vendorOptions: Array<{ id: string; name: string }> =
+    (vendors as any)?.result ?? (vendors as any) ?? [];
 
   useEffect(() => {
     if (!editId) return;
@@ -945,6 +956,27 @@ export function RequestFormPage() {
                       ))}
                     </SelectField>
                   </div>
+
+                  <div className="mt-4">
+                    <SelectField
+                      label="Vendor"
+                      helpText="Optional — select if this is a vendor payment or procurement."
+                      value={form.vendor_id}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          vendor_id: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">No vendor</option>
+                      {vendorOptions.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
+                        </option>
+                      ))}
+                    </SelectField>
+                  </div>
                 </SectionCard>
 
                 <SectionCard
@@ -1047,6 +1079,27 @@ export function RequestFormPage() {
                       {organizationOptions.map((organization) => (
                         <option key={organization.id} value={organization.id}>
                           {organization.name}
+                        </option>
+                      ))}
+                    </SelectField>
+                  </div>
+
+                  <div className="mt-4">
+                    <SelectField
+                      label="Vendor"
+                      helpText="Optional — select if this is a vendor payment or procurement."
+                      value={form.vendor_id}
+                      onChange={(event) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          vendor_id: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="">No vendor</option>
+                      {vendorOptions.map((v) => (
+                        <option key={v.id} value={v.id}>
+                          {v.name}
                         </option>
                       ))}
                     </SelectField>

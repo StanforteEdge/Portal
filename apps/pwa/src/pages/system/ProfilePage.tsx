@@ -90,9 +90,9 @@ export default function ProfilePage() {
   return (
     <SystemShellPage
       activeLabel="Profile"
-      eyebrow="My Account"
+      eyebrow=""
       breadcrumbs={[
-        { label: "Workspace", path: "/profile" },
+        { label: "Home", path: "/" },
         { label: "Profile" },
       ]}
       title="Profile"

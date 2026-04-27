@@ -1,6 +1,7 @@
 import { useState, useRef } from "react";
 import {
   Button,
+  Chip,
   Icon,
   PageHeader,
   SectionCard,
@@ -176,24 +177,33 @@ export default function AdminFilesPage() {
         {/* Files Display */}
         <SectionCard
           title="All Files"
-          description={`${totalCount} file${totalCount !== 1 ? "s" : ""}`}
+          description="Manage uploaded files and documents."
           action={
-            <div className="flex items-center gap-2">
-              <Button
-                variant={viewMode === "grid" ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => setViewMode("grid")}
-              >
-                <Icon name="grid_view" className="text-[16px]" />
-              </Button>
-              <Button
-                variant={viewMode === "list" ? "primary" : "secondary"}
-                size="sm"
-                onClick={() => setViewMode("list")}
-              >
-                <Icon name="view_list" className="text-[16px]" />
-              </Button>
-            </div>
+            totalCount > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(totalCount, (page - 1) * perPage + 1)}-
+                {Math.min(totalCount, page * perPage)} of {totalCount} file
+                {totalCount !== 1 ? "s" : ""}
+              </Chip>
+            ) : (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant={viewMode === "grid" ? "primary" : "secondary"}
+                  size="sm"
+                  onClick={() => setViewMode("grid")}
+                >
+                  <Icon name="grid_view" className="text-[16px]" />
+                </Button>
+                <Button
+                  variant={viewMode === "list" ? "primary" : "secondary"}
+                  size="sm"
+                  onClick={() => setViewMode("list")}
+                >
+                  <Icon name="view_list" className="text-[16px]" />
+                </Button>
+              </div>
+            )
           }
         >
           {loading ? (
@@ -302,6 +312,7 @@ export default function AdminFilesPage() {
             page={page}
             totalPages={totalPages}
             totalCount={totalCount}
+            showStatus={false}
             perPage={perPage}
             onPerPageChange={setPerPage}
             onPageChange={setPage}

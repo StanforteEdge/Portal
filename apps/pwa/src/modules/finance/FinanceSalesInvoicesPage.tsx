@@ -12,7 +12,7 @@ import {
   useToast,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { resourceApi, useCachedQuery } from "@/shared/lib/core";
+import { financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppMobileNav, buildAppNavigation } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { formatCurrency } from "@stanforte/shared";
@@ -31,7 +31,7 @@ export default function FinanceSalesInvoicesPage() {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    customer_id: "",
+    contact_id: "",
     invoice_date: new Date().toISOString().slice(0, 10),
     due_date: "",
     status: "draft",
@@ -58,17 +58,17 @@ export default function FinanceSalesInvoicesPage() {
     { ttlMs: 0, storage: "memory" },
   );
 
-  const { data: customers } = useCachedQuery(
-    "finance:customers:all",
-    () => resourceApi.listChartAccounts({}),
+  const { data: contacts } = useCachedQuery(
+    "finance:contacts:customers:all",
+    () => financeApi.listContacts({ contact_type: "customer", is_active: true }),
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const invoices = Array.isArray(invoicesData)
-    ? invoicesData
-    : Array.isArray((invoicesData as any)?.data)
-      ? (invoicesData as any).data
-      : [];
+  const customerOptions = Array.isArray((contacts as any)?.result) ? (contacts as any).result : [];
+
+  const invoices = Array.isArray((invoicesData as any)?.result) ? (invoicesData as any).result : [];
+  const pagination = (invoicesData as any) || {};
+  const totalInvoices = Number(pagination.total_result ?? invoices.length);
 
   const totalAmount = invoices.reduce(
     (sum: number, inv: any) => sum + Number(inv.totalAmount ?? inv.total_amount ?? 0),
@@ -81,7 +81,7 @@ export default function FinanceSalesInvoicesPage() {
 
   const openCreate = () => {
     setForm({
-      customer_id: "",
+      contact_id: "",
       invoice_date: new Date().toISOString().slice(0, 10),
       due_date: "",
       status: "draft",
@@ -116,7 +116,7 @@ export default function FinanceSalesInvoicesPage() {
   };
 
   const saveInvoice = async () => {
-    if (!form.customer_id) {
+    if (!form.contact_id) {
       showToast({
         tone: "warning",
         title: "Missing customer",
@@ -131,7 +131,7 @@ export default function FinanceSalesInvoicesPage() {
         0,
       );
       await resourceApi.createSalesInvoice({
-        customer_id: form.customer_id,
+        customer_id: form.contact_id,
         invoice_date: form.invoice_date,
         due_date: form.due_date || undefined,
         status: form.status,
@@ -248,12 +248,21 @@ export default function FinanceSalesInvoicesPage() {
 
         <SectionCard
           title="All Invoices"
-          description={`${invoices.length} invoice${invoices.length === 1 ? "" : "s"}`}
+          description="Manage sales invoices and track payments."
           action={
-            <Button onClick={openCreate}>
-              <Icon name="add" className="text-[18px]" />
-              New Invoice
-            </Button>
+            totalInvoices > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(totalInvoices, (page - 1) * perPage + 1)}-
+                {Math.min(totalInvoices, page * perPage)} of {totalInvoices} invoice
+                {totalInvoices === 1 ? "" : "s"}
+              </Chip>
+            ) : (
+              <Button onClick={openCreate}>
+                <Icon name="add" className="text-[18px]" />
+                New Invoice
+              </Button>
+            )
           }
         >
           {loading ? (
@@ -322,9 +331,10 @@ export default function FinanceSalesInvoicesPage() {
           )}
 
           <PaginationControls
-            page={page}
-            totalPages={1}
-            totalCount={invoices.length}
+            page={Number(pagination.page || page)}
+            totalPages={Number(pagination.pages || 1)}
+            totalCount={Number(pagination.total_result || 0)}
+            showStatus={false}
             perPage={perPage}
             onPerPageChange={(value) => {
               setPerPage(value);
@@ -353,13 +363,13 @@ export default function FinanceSalesInvoicesPage() {
             <div className="grid gap-4 p-6 md:grid-cols-2">
               <SelectField
                 label="Customer"
-                value={form.customer_id}
+                value={form.contact_id}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, customer_id: e.target.value }))
+                  setForm((f) => ({ ...f, contact_id: e.target.value }))
                 }
               >
                 <option value="">Select customer</option>
-                {(Array.isArray(customers) ? customers : []).map(
+                {customerOptions.map(
                   (customer: any) => (
                     <option key={customer.id} value={customer.id}>
                       {customer.name}

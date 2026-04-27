@@ -17,7 +17,8 @@ import {
   TableRow,
   useToast,
 } from "@/shared";
-import { formatRelativeTime, humanize } from "@stanforte/shared";
+import { formatRelativeTime, humanize, hasNextDay } from "@stanforte/shared";
+import { TimeWithNextDay } from "@/shared/components/ui/TimeWithNextDay";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useCachedQuery } from "@/shared/lib/core";
@@ -105,6 +106,23 @@ function toneFromStatus(
   if (["remote", "field", "holiday", "off_day", "leave"].includes(key))
     return "pending";
   return "neutral";
+}
+
+function mapAttendanceActionError(message: string, type: "in" | "out") {
+  const raw = String(message || "").trim();
+  const expectedModeMatch = raw.match(/Clock in mode must match expected mode \(([^)]+)\)/i);
+  if (expectedModeMatch) {
+    const mode = humanize(expectedModeMatch[1], "expected mode");
+    return `Clock in mode must match ${mode}. Select ${mode} and try again.`;
+  }
+
+  const clockOutModeMatch = raw.match(/Clock out mode must match clock in mode \(([^)]+)\)/i);
+  if (clockOutModeMatch) {
+    const mode = humanize(clockOutModeMatch[1], "clock-in mode");
+    return `Clock out mode must match your clock-in mode (${mode}).`;
+  }
+
+  return raw || (type === "in" ? "Unable to clock in. Please try again." : "Unable to clock out. Please try again.");
 }
 
 function StatusDot({
@@ -363,13 +381,11 @@ export function AttendancePage() {
             : "Your workday has been closed out.",
       });
     } catch (actionError) {
+      const rawMessage = actionError instanceof Error ? actionError.message : "";
       showToast({
         tone: "danger",
         title: type === "in" ? "Clock in failed" : "Clock out failed",
-        message:
-          actionError instanceof Error
-            ? actionError.message
-            : "Please try again.",
+        message: mapAttendanceActionError(rawMessage, type),
       });
     } finally {
       setActing(null);
@@ -717,7 +733,7 @@ export function AttendancePage() {
                           {formatClockTime(row.first_in_at)}
                         </TableCell>
                         <TableCell className="text-sm font-semibold text-slate-700">
-                          {formatClockTime(row.last_out_at)}
+                          <TimeWithNextDay time={row.last_out_at} referenceDate={row.first_in_at} />
                         </TableCell>
                         <TableCell>
                           <Chip variant="neutral">
@@ -1273,7 +1289,7 @@ export function AttendancePage() {
                     </div>
                     <p className="mt-1 text-xs font-medium text-slate-500">
                       In {formatClockTime(row.first_in_at)} • Out{" "}
-                      {formatClockTime(row.last_out_at)}
+                      <TimeWithNextDay time={row.last_out_at} referenceDate={row.first_in_at} />
                     </p>
                   </div>
                 </div>

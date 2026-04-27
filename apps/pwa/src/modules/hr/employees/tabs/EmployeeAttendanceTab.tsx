@@ -12,7 +12,8 @@ import {
   TextField,
 } from "@/shared";
 import { attendanceApi, useCachedQuery } from "@/shared/lib/core";
-import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@stanforte/shared";
+import { formatDate, formatTime, formatDuration } from "@stanforte/shared";
+import { TimeWithNextDay } from "@/shared/components/ui/TimeWithNextDay";
 
 type Props = {
   employeeId: string;
@@ -80,7 +81,7 @@ export default function EmployeeAttendanceTab({ employeeId }: Props) {
                 <TableRow key={row.work_date}>
                   <TableCell className="font-medium text-slate-900">{formatDate(row.work_date)}</TableCell>
                   <TableCell>{formatTime(row.first_in_at)}</TableCell>
-                  <TableCell>{formatTimeNextDay(row.last_out_at, row.first_in_at)}</TableCell>
+                  <TableCell><TimeWithNextDay time={row.last_out_at} referenceDate={row.first_in_at} /></TableCell>
                   <TableCell>{formatDuration(row.worked_minutes)}</TableCell>
                   <TableCell>{row.late_minutes > 0 ? formatDuration(row.late_minutes) : "-"}</TableCell>
                   <TableCell>

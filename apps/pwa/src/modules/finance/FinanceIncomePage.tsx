@@ -70,7 +70,10 @@ export default function FinanceIncomePage() {
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const income = Array.isArray(incomeData) ? incomeData : [];
+  const income = Array.isArray((incomeData as any)?.result) ? (incomeData as any).result : [];
+  const pagination = (incomeData as any) || {};
+  const totalIncome = Number(pagination.total_result ?? income.length);
+
   const totalAmount = income.reduce(
     (sum: number, entry: any) => sum + Number(entry.amount ?? 0),
     0,
@@ -199,12 +202,21 @@ export default function FinanceIncomePage() {
 
         <SectionCard
           title="All Income"
-          description={`${income.length} entr${income.length === 1 ? "y" : "ies"}`}
+          description="Track and record income entries."
           action={
-            <Button onClick={openCreate}>
-              <Icon name="add" className="text-[18px]" />
-              Record Income
-            </Button>
+            totalIncome > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(totalIncome, (page - 1) * perPage + 1)}-
+                {Math.min(totalIncome, page * perPage)} of {totalIncome} entr
+                {totalIncome === 1 ? "y" : "ies"}
+              </Chip>
+            ) : (
+              <Button onClick={openCreate}>
+                <Icon name="add" className="text-[18px]" />
+                Record Income
+              </Button>
+            )
           }
         >
           {loading ? (
@@ -275,9 +287,10 @@ export default function FinanceIncomePage() {
           )}
 
           <PaginationControls
-            page={page}
-            totalPages={1}
-            totalCount={income.length}
+            page={Number(pagination.page || page)}
+            totalPages={Number(pagination.pages || 1)}
+            totalCount={Number(pagination.total_result || 0)}
+            showStatus={false}
             perPage={perPage}
             onPerPageChange={(value) => {
               setPerPage(value);

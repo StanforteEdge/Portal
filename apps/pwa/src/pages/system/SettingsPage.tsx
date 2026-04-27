@@ -3,6 +3,23 @@ import { Button, SectionCard, StatCard, TextField } from "@/shared";
 import { changeWorkspacePassword } from "@/shared/api/workspace-api";
 import { SystemShellPage } from "./page-helpers";
 
+type CheckStatus = "idle" | "checking" | "up-to-date" | "update-available";
+
+const appVersion = import.meta.env.VITE_APP_VERSION as string;
+const buildVersion = import.meta.env.VITE_BUILD_VERSION as string;
+const builtAt = import.meta.env.VITE_APP_BUILT_AT as string | undefined;
+
+function formatBuiltAt(iso: string | undefined): string {
+  if (!iso) return "—";
+  return new Date(iso).toLocaleString("en-GB", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
 export default function SettingsPage() {
   const [passwordForm, setPasswordForm] = useState({
     current_password: "",
@@ -11,6 +28,9 @@ export default function SettingsPage() {
   });
   const [notice, setNotice] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [checkStatus, setCheckStatus] = useState<CheckStatus>("idle");
+  const [latestBuild, setLatestBuild] = useState<string | null>(null);
 
   async function handleChangePassword() {
     if (!passwordForm.current_password || !passwordForm.new_password || !passwordForm.confirm_password) {
@@ -34,6 +54,23 @@ export default function SettingsPage() {
     }
   }
 
+  async function handleCheckForUpdates() {
+    setCheckStatus("checking");
+    try {
+      const res = await fetch(`/version.json?t=${Date.now()}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("fetch failed");
+      const payload = (await res.json()) as { built_at: string; build_version: string };
+      if (payload.built_at && payload.built_at !== builtAt) {
+        setLatestBuild(payload.build_version ?? null);
+        setCheckStatus("update-available");
+      } else {
+        setCheckStatus("up-to-date");
+      }
+    } catch {
+      setCheckStatus("idle");
+    }
+  }
+
   return (
     <SystemShellPage
       activeLabel="Settings"
@@ -47,7 +84,7 @@ export default function SettingsPage() {
     >
       <div className="grid gap-6 lg:grid-cols-12">
         <div className="space-y-6 lg:col-span-8">
-          <SectionCard title="Notification Preferences" description="This reflects the same preference categories we’ll later bind to persistent settings.">
+          <SectionCard title="Notification Preferences" description="This reflects the same preference categories we'll later bind to persistent settings.">
             <div className="grid gap-3">
               {[
                 ["In-app notifications", "Receive live alerts inside the workspace."],
@@ -97,11 +134,61 @@ export default function SettingsPage() {
               {saving ? "Updating..." : "Update Password"}
             </Button>
           </SectionCard>
+
+          <SectionCard title="System" description="Portal version information.">
+            <div className="grid gap-3">
+              {[
+                ["App Version", appVersion],
+                ["Build Version", buildVersion],
+                ["Built", formatBuiltAt(builtAt)],
+              ].map(([label, value]) => (
+                <div
+                  key={label}
+                  className="flex items-center justify-between rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-3"
+                >
+                  <span className="text-sm text-slate-500">{label}</span>
+                  <span className="text-sm font-semibold text-slate-800">{value}</span>
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3">
+              <div>
+                {checkStatus === "up-to-date" && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 px-3 py-1 text-xs font-semibold text-green-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-green-500" />
+                    Up to date
+                  </span>
+                )}
+                {checkStatus === "update-available" && (
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                    {latestBuild ? `Build ${latestBuild} available` : "Update available"}
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {checkStatus === "update-available" && (
+                  <Button size="sm" onClick={() => window.location.reload()}>
+                    Reload
+                  </Button>
+                )}
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => void handleCheckForUpdates()}
+                  disabled={checkStatus === "checking"}
+                >
+                  {checkStatus === "checking" ? "Checking..." : "Check for updates"}
+                </Button>
+              </div>
+            </div>
+          </SectionCard>
         </div>
 
         <div className="space-y-6 lg:col-span-4">
           <StatCard label="Security" value="Active" tone="success" hint="Password change is now wired to the API." />
-          <StatCard label="Notifications" value="Configured" tone="neutral" hint="Preference groups mirror the existing workspace behavior." />
+          <StatCard label="Portal Build" value={buildVersion} tone="neutral" hint="Auto-increments on every server deploy." />
         </div>
       </div>
     </SystemShellPage>

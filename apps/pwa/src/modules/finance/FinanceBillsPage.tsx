@@ -12,7 +12,7 @@ import {
   useToast,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { resourceApi, useCachedQuery } from "@/shared/lib/core";
+import { financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppMobileNav, buildAppNavigation } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { formatCurrency } from "@stanforte/shared";
@@ -31,7 +31,7 @@ export default function FinanceBillsPage() {
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    vendor_id: "",
+    contact_id: "",
     bill_date: new Date().toISOString().slice(0, 10),
     due_date: "",
     status: "draft",
@@ -58,17 +58,17 @@ export default function FinanceBillsPage() {
     { ttlMs: 0, storage: "memory" },
   );
 
-  const { data: vendors } = useCachedQuery(
-    "finance:vendors:all",
-    () => resourceApi.listFinanceVendors({ is_active: true }),
+  const { data: contacts } = useCachedQuery(
+    "finance:contacts:vendors:all",
+    () => financeApi.listContacts({ contact_type: "vendor", is_active: true }),
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const bills = Array.isArray(billsData)
-    ? billsData
-    : Array.isArray((billsData as any)?.data)
-      ? (billsData as any).data
-      : [];
+  const vendorOptions = Array.isArray((contacts as any)?.result) ? (contacts as any).result : [];
+
+  const bills = Array.isArray((billsData as any)?.result) ? (billsData as any).result : [];
+  const pagination = (billsData as any) || {};
+  const totalBills = Number(pagination.total_result ?? bills.length);
 
   const totalAmount = bills.reduce(
     (sum: number, bill: any) => sum + Number(bill.totalAmount ?? bill.total_amount ?? 0),
@@ -77,7 +77,7 @@ export default function FinanceBillsPage() {
 
   const openCreate = () => {
     setForm({
-      vendor_id: "",
+      contact_id: "",
       bill_date: new Date().toISOString().slice(0, 10),
       due_date: "",
       status: "draft",
@@ -112,7 +112,7 @@ export default function FinanceBillsPage() {
   };
 
   const saveBill = async () => {
-    if (!form.vendor_id) {
+    if (!form.contact_id) {
       showToast({
         tone: "warning",
         title: "Missing vendor",
@@ -127,7 +127,7 @@ export default function FinanceBillsPage() {
         0,
       );
       await resourceApi.createFinanceBill({
-        vendor_id: form.vendor_id,
+        vendor_id: form.contact_id,
         bill_date: form.bill_date,
         due_date: form.due_date || undefined,
         status: form.status,
@@ -241,12 +241,21 @@ export default function FinanceBillsPage() {
 
         <SectionCard
           title="All Bills"
-          description={`${bills.length} bill${bills.length === 1 ? "" : "s"}`}
+          description="Track and manage vendor bills and payments."
           action={
-            <Button onClick={openCreate}>
-              <Icon name="add" className="text-[18px]" />
-              New Bill
-            </Button>
+            totalBills > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(totalBills, (page - 1) * perPage + 1)}-
+                {Math.min(totalBills, page * perPage)} of {totalBills} bill
+                {totalBills === 1 ? "" : "s"}
+              </Chip>
+            ) : (
+              <Button onClick={openCreate}>
+                <Icon name="add" className="text-[18px]" />
+                New Bill
+              </Button>
+            )
           }
         >
           {loading ? (
@@ -315,9 +324,10 @@ export default function FinanceBillsPage() {
           )}
 
           <PaginationControls
-            page={page}
-            totalPages={1}
-            totalCount={bills.length}
+            page={Number(pagination.page || page)}
+            totalPages={Number(pagination.pages || 1)}
+            totalCount={Number(pagination.total_result || 0)}
+            showStatus={false}
             perPage={perPage}
             onPerPageChange={(value) => {
               setPerPage(value);
@@ -346,13 +356,13 @@ export default function FinanceBillsPage() {
             <div className="grid gap-4 p-6 md:grid-cols-2">
               <SelectField
                 label="Vendor"
-                value={form.vendor_id}
+                value={form.contact_id}
                 onChange={(e) =>
-                  setForm((f) => ({ ...f, vendor_id: e.target.value }))
+                  setForm((f) => ({ ...f, contact_id: e.target.value }))
                 }
               >
                 <option value="">Select vendor</option>
-                {(Array.isArray(vendors) ? vendors : []).map((vendor: any) => (
+                {vendorOptions.map((vendor: any) => (
                   <option key={vendor.id} value={vendor.id}>
                     {vendor.name}
                   </option>

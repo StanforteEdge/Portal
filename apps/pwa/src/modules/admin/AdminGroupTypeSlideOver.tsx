@@ -6,6 +6,7 @@ import {
   TextAreaField,
   useToast,
 } from "@/shared";
+import { SlideOver, SlideOverHeader, SlideOverContent, SlideOverFooter } from "@/shared/components/ui/SlideOver";
 
 type Props = {
   type: { id: string; name: string; slug: string; description: string };
@@ -47,66 +48,51 @@ export default function AdminGroupTypeSlideOver({ type, onClose, onSaved }: Prop
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-end">
-      <div className="absolute inset-0 top-16 bg-slate-950/40" onClick={onClose} />
-      <div className="relative w-full max-w-lg flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)]">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              {type.id ? "Edit Type" : "New Type"}
-            </p>
-            <h2 className="text-xl font-semibold text-slate-950">
-              {type.id ? "Edit Type" : "Add Type"}
-            </h2>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
-
-        <div className="flex-1 space-y-6 overflow-y-auto p-6">
-          <SectionCard title="Type Info">
-            <div className="grid gap-4">
+    <SlideOver open={true} onClose={onClose} size="md">
+      <SlideOverHeader
+        title={type.id ? "Edit Type" : "Add Type"}
+        subtitle={type.id ? "Edit Type" : "New Type"}
+        onClose={onClose}
+      />
+      <SlideOverContent>
+        <SectionCard title="Type Info">
+          <div className="grid gap-4">
+            <TextField
+              label="Name"
+              value={name}
+              onChange={(e) => handleNameChange(e.target.value)}
+              placeholder="e.g., Team"
+            />
+            <div>
               <TextField
-                label="Name"
-                value={name}
-                onChange={(e) => handleNameChange(e.target.value)}
-                placeholder="e.g., Team"
+                label="Slug"
+                value={slug}
+                onChange={(e) => setSlug(e.target.value)}
+                placeholder="e.g., team"
+                disabled={!!type.id}
               />
-              <div>
-                <TextField
-                  label="Slug"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value)}
-                  placeholder="e.g., team"
-                  disabled={!!type.id}
-                />
-                {!type.id && (
-                  <p className="text-xs text-slate-400 mt-1">Auto-generated from name if left empty</p>
-                )}
-              </div>
-              <TextAreaField
-                label="Description"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                placeholder="Brief description of this type"
-                rows={3}
-              />
+              {!type.id && (
+                <p className="text-xs text-slate-400 mt-1">Auto-generated from name if left empty</p>
+              )}
             </div>
-          </SectionCard>
-        </div>
-
-        <div className="border-t border-slate-200 px-6 py-4">
-          <div className="flex gap-3">
-            <Button onClick={handleSubmit}>
-              {type.id ? "Update Type" : "Create Type"}
-            </Button>
-            <Button variant="ghost" onClick={onClose}>
-              Cancel
-            </Button>
+            <TextAreaField
+              label="Description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="Brief description of this type"
+              rows={3}
+            />
           </div>
-        </div>
-      </div>
-    </div>
+        </SectionCard>
+      </SlideOverContent>
+      <SlideOverFooter>
+        <Button onClick={handleSubmit}>
+          {type.id ? "Update Type" : "Create Type"}
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+      </SlideOverFooter>
+    </SlideOver>
   );
 }

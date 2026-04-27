@@ -12,7 +12,7 @@ import {
   useToast,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { resourceApi, useCachedQuery } from "@/shared/lib/core";
+import { financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppMobileNav, buildAppNavigation } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { formatCurrency } from "@stanforte/shared";
@@ -32,7 +32,7 @@ export default function FinanceExpensesPage() {
   const [showModal, setShowModal] = useState(false);
   const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState({
-    vendor_id: "",
+    contact_id: "",
     account_id: "",
     chart_account_id: "",
     expense_date: "",
@@ -65,11 +65,12 @@ export default function FinanceExpensesPage() {
     { ttlMs: 0, storage: "memory" },
   );
 
-  const { data: vendors } = useCachedQuery(
-    "finance:vendors:all",
-    () => resourceApi.listFinanceVendors({ is_active: true }),
+  const { data: contacts } = useCachedQuery(
+    "finance:contacts:vendors:all",
+    () => financeApi.listContacts({ contact_type: "vendor", is_active: true }),
     { ttlMs: 60_000, storage: "memory" },
   );
+  const vendorOptions = Array.isArray((contacts as any)?.result) ? (contacts as any).result : [];
   const { data: accounts } = useCachedQuery(
     "finance:accounts:all",
     () => resourceApi.listFinanceAccounts({ is_active: true }),
@@ -81,15 +82,16 @@ export default function FinanceExpensesPage() {
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const expenses = Array.isArray(expensesPayload?.data) ? expensesPayload.data : [];
-  const meta = (expensesPayload?.meta as any) || { page: 1, per_page: perPage, total: expenses.length, last_page: 1 };
+  const expenses = Array.isArray((expensesPayload as any)?.result) ? (expensesPayload as any).result : [];
+  const pagination = (expensesPayload as any) || {};
+  const totalExpenses = Number(pagination.total_result ?? expenses.length);
 
   const totalAmount = expenses.reduce((sum: number, entry: any) => sum + Number(entry.totalAmount ?? entry.total_amount ?? entry.amount ?? 0), 0);
 
   const openCreate = () => {
     setEditing(null);
     setForm({
-      vendor_id: "",
+      contact_id: "",
       account_id: "",
       chart_account_id: "",
       expense_date: new Date().toISOString().slice(0, 10),
@@ -108,7 +110,7 @@ export default function FinanceExpensesPage() {
   const openEdit = (expense: any) => {
     setEditing(expense);
     setForm({
-      vendor_id: expense.vendorId ?? expense.vendor_id ?? "",
+      contact_id: expense.vendorId ?? expense.vendor_id ?? expense.contactId ?? expense.contact_id ?? "",
       account_id: expense.accountId ?? expense.account_id ?? "",
       chart_account_id: expense.chartAccountId ?? expense.chart_account_id ?? "",
       expense_date: String(expense.expenseDate ?? expense.expense_date ?? "").slice(0, 10),
@@ -136,7 +138,7 @@ export default function FinanceExpensesPage() {
 
     try {
       const payload = {
-        vendor_id: form.vendor_id || undefined,
+        vendor_id: form.contact_id || undefined,
         account_id: form.account_id,
         chart_account_id: form.chart_account_id || undefined,
         expense_date: form.expense_date,
@@ -180,7 +182,7 @@ export default function FinanceExpensesPage() {
 
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-3">
-          <StatCard label="Total Expenses" value={String(meta.total || 0)} tone="neutral" />
+          <StatCard label="Total Expenses" value={String(pagination.total_result || 0)} tone="neutral" />
           <StatCard label="Total Amount" value={formatCurrency(totalAmount)} tone="neutral" />
           <StatCard label="Approved" value={String(expenses.filter((entry: any) => entry.status === "approved").length)} tone="success" />
         </div>
@@ -221,12 +223,21 @@ export default function FinanceExpensesPage() {
 
         <SectionCard
           title="All Expenses"
-          description={`${meta.total || 0} expense${meta.total === 1 ? "" : "s"}`}
+          description="Track and manage expenses."
           action={
-            <Button onClick={openCreate}>
-              <Icon name="add" className="text-[18px]" />
-              New Expense
-            </Button>
+            totalExpenses > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(totalExpenses, (page - 1) * perPage + 1)}-
+                {Math.min(totalExpenses, page * perPage)} of {totalExpenses} expense
+                {totalExpenses === 1 ? "" : "s"}
+              </Chip>
+            ) : (
+              <Button onClick={openCreate}>
+                <Icon name="add" className="text-[18px]" />
+                New Expense
+              </Button>
+            )
           }
         >
           {loading ? (
@@ -272,10 +283,11 @@ export default function FinanceExpensesPage() {
           )}
 
           <PaginationControls
-            page={Number(meta.page || page)}
-            totalPages={Number(meta.last_page || 1)}
-            totalCount={Number(meta.total || 0)}
-            perPage={Number(meta.per_page || perPage)}
+            page={Number(pagination.page || page)}
+            totalPages={Number(pagination.pages || 1)}
+            totalCount={Number(pagination.total_result || 0)}
+            showStatus={false}
+            perPage={Number(pagination.per_page || perPage)}
             onPerPageChange={(value) => {
               setPerPage(value);
               setPage(1);
@@ -306,9 +318,9 @@ export default function FinanceExpensesPage() {
                 <option value="paid">Paid</option>
                 <option value="void">Void</option>
               </SelectField>
-              <SelectField label="Vendor" value={form.vendor_id} onChange={(event) => setForm((prev) => ({ ...prev, vendor_id: event.target.value }))}>
+              <SelectField label="Vendor" value={form.contact_id} onChange={(event) => setForm((prev) => ({ ...prev, contact_id: event.target.value }))}>
                 <option value="">Select vendor</option>
-                {(Array.isArray(vendors) ? vendors : []).map((vendor: any) => (
+                {vendorOptions.map((vendor: any) => (
                   <option key={vendor.id} value={vendor.id}>{vendor.name}</option>
                 ))}
               </SelectField>

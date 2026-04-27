@@ -20,9 +20,11 @@ import FinanceAssetDisposalsPage from "@/modules/finance/FinanceAssetDisposalsPa
 import FinanceReportsPage from "@/modules/finance/FinanceReportsPage";
 import FinanceReportDetailPage from "@/modules/finance/FinanceReportDetailPage";
 import FinanceSettingsPage from "@/modules/finance/FinanceSettingsPage";
+import FinanceDeductionTypesPage from "@/modules/finance/FinanceDeductionTypesPage";
 import FinanceChartAccountsPage from "@/modules/finance/FinanceChartAccountsPage";
-import FinanceCustomersPage from "@/modules/finance/FinanceCustomersPage";
-import FinanceVendorsPage from "@/modules/finance/FinanceVendorsPage";
+import FinanceCustomersPage from "@/modules/finance/customers";
+import FinanceVendorsPage from "@/modules/finance/vendors";
+import FinanceContactsPage from "@/modules/finance/contacts";
 import FinanceAccountsPage from "@/modules/finance/FinanceAccountsPage";
 import FinanceAccountDetailPage from "@/modules/finance/FinanceAccountDetailPage";
 import FinanceItemsPage from "@/modules/finance/FinanceItemsPage";
@@ -157,8 +159,10 @@ export default function App() {
           <Route path="/finance/reports" element={<FinanceReportsPage />} />
           <Route path="/finance/reports/:reportKey" element={<FinanceReportDetailPage />} />
           <Route path="/finance/settings" element={<FinanceSettingsPage />} />
+          <Route path="/finance/deduction-types" element={<FinanceDeductionTypesPage />} />
           <Route path="/finance/customers" element={<FinanceCustomersPage />} />
           <Route path="/finance/vendors" element={<FinanceVendorsPage />} />
+          <Route path="/finance/contacts" element={<FinanceContactsPage />} />
         </Route>
         <Route element={<ModuleRoute moduleKey="hr" />}>
           <Route path="/hr" element={<HrDashboardPage />} />

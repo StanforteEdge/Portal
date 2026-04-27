@@ -7,10 +7,22 @@ import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import AttendanceSettingsTab from "./AttendanceSettingsTab";
 import LeaveSettingsTab from "./LeaveSettingsTab";
 import OfficeLocationsTab from "./OfficeLocationsTab";
+import AttendanceOverrideSlideOver from "./AttendanceOverrideSlideOver";
+import LeaveOverrideSlideOver from "./LeaveOverrideSlideOver";
+import LeaveTypeSlideOver from "./LeaveTypeSlideOver";
+import OfficeLocationSlideOver from "./OfficeLocationSlideOver";
+import { type PolicyRecord } from "@stanforte/shared";
+import { type RequestType } from "@stanforte/shared";
+import { type OfficeLocation } from "@/shared";
 
 export default function HrSettingsPage() {
   const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"attendance" | "leave" | "locations">("attendance");
+  
+  const [attendancePolicy, setAttendancePolicy] = useState<PolicyRecord | null | boolean>(false);
+  const [leavePolicy, setLeavePolicy] = useState<PolicyRecord | null | boolean>(false);
+  const [leaveType, setLeaveType] = useState<RequestType | null | boolean>(false);
+  const [officeLocation, setOfficeLocation] = useState<OfficeLocation | null | boolean>(false);
 
   const { data: profile } = useCachedQuery(
     "hr:profile",
@@ -44,11 +56,56 @@ export default function HrSettingsPage() {
 
       <SidebarTabs items={navItems} activeTab={activeTab} onTabChange={(id) => setActiveTab(id as typeof activeTab)}>
         <SectionCard title={navItems.find((i) => i.id === activeTab)?.label || "Settings"}>
-          {activeTab === "attendance" && <AttendanceSettingsTab />}
-          {activeTab === "leave" && <LeaveSettingsTab />}
-          {activeTab === "locations" && <OfficeLocationsTab />}
+          {activeTab === "attendance" && (
+            <AttendanceSettingsTab
+              onEditPolicy={(policy) => setAttendancePolicy(policy)}
+            />
+          )}
+          {activeTab === "leave" && (
+            <LeaveSettingsTab
+              onEditPolicy={(policy) => setLeavePolicy(policy)}
+              onEditType={(type) => setLeaveType(type)}
+            />
+          )}
+          {activeTab === "locations" && (
+            <OfficeLocationsTab
+              onEditLocation={(location) => setOfficeLocation(location)}
+            />
+          )}
         </SectionCard>
       </SidebarTabs>
+
+      {attendancePolicy !== false && (
+        <AttendanceOverrideSlideOver
+          policy={typeof attendancePolicy === 'object' ? attendancePolicy : null}
+          onClose={() => setAttendancePolicy(false)}
+          onSaved={() => setAttendancePolicy(false)}
+        />
+      )}
+
+      {leavePolicy !== false && (
+        <LeaveOverrideSlideOver
+          policy={typeof leavePolicy === 'object' ? leavePolicy : null}
+          onClose={() => setLeavePolicy(false)}
+          onSaved={() => setLeavePolicy(false)}
+        />
+      )}
+
+      {leaveType !== false && (
+        <LeaveTypeSlideOver
+          requestType={typeof leaveType === 'object' ? leaveType : null}
+          onClose={() => setLeaveType(false)}
+          onSaved={() => setLeaveType(false)}
+        />
+      )}
+
+      {officeLocation !== false && (
+        <OfficeLocationSlideOver
+          location={typeof officeLocation === 'object' ? officeLocation : null}
+          onClose={() => setOfficeLocation(false)}
+          onSaved={() => setOfficeLocation(false)}
+        />
+      )}
     </AppShell>
   );
 }

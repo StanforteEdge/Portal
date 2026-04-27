@@ -70,13 +70,13 @@ export default function FinanceLedgerPage() {
     () => financeApi.listLedgerPaged(query),
     { ttlMs: 30_000, storage: "memory" },
   );
-  const rows = Array.isArray(ledgerPayload?.data) ? ledgerPayload.data : [];
-  const meta = (ledgerPayload?.meta as any) || {
-    page,
-    per_page: perPage,
-    total: rows.length,
-    last_page: 1,
-  };
+  const rows = Array.isArray(ledgerPayload?.result) ? ledgerPayload.result : [];
+  const ledgerPage = Number(ledgerPayload?.page || page);
+  const ledgerPerPage = Number(ledgerPayload?.per_page || perPage);
+  const ledgerTotal = Number(ledgerPayload?.total_result || 0);
+  const ledgerPages = Number(ledgerPayload?.pages || 1);
+  const ledgerRangeStart = ledgerTotal > 0 ? (ledgerPage - 1) * ledgerPerPage + 1 : 0;
+  const ledgerRangeEnd = ledgerTotal > 0 ? ledgerRangeStart + rows.length - 1 : 0;
 
   const { data: accountsData } = useCachedQuery(
     "finance:ledger:accounts",
@@ -164,7 +164,20 @@ export default function FinanceLedgerPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Ledger Entries" description="Chronological transaction view for finance operations.">
+      <SectionCard
+          title="Ledger Entries"
+          description="Chronological transaction view for finance operations."
+          action={
+            ledgerTotal > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(ledgerTotal, (ledgerPage - 1) * ledgerPerPage + 1)}-
+                {Math.min(ledgerTotal, ledgerPage * ledgerPerPage)} of {ledgerTotal} entr
+                {ledgerTotal === 1 ? "y" : "ies"}
+              </Chip>
+            ) : undefined
+          }
+        >
         {loading ? <p className="text-sm text-slate-500">Loading ledger...</p> : null}
         {error ? <p className="text-sm text-danger">{error}</p> : null}
 
@@ -202,11 +215,12 @@ export default function FinanceLedgerPage() {
               </TableBody>
             </Table>
             <PaginationControls
-              page={Number(meta.page || page)}
-              totalPages={Number(meta.last_page || 1)}
-              totalCount={Number(meta.total || 0)}
+              page={ledgerPage}
+              totalPages={ledgerPages}
+              totalCount={ledgerTotal}
               itemLabel="entry"
-              perPage={Number(meta.per_page || perPage)}
+              perPage={ledgerPerPage}
+              showStatus={false}
               onPerPageChange={(value) => {
                 setPerPage(value);
                 setPage(1);

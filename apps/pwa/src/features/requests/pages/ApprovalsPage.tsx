@@ -352,9 +352,15 @@ export function ApprovalsPage() {
             title="Pending Approvals"
             description="Requests in your approval queue."
             action={
-              <Chip variant="neutral">
-                {filteredRows.length} request{filteredRows.length === 1 ? "" : "s"}
-              </Chip>
+              filteredRows.length > 0 ? (
+                <Chip variant="neutral">
+                  Showing{" "}
+                  {Math.min(filteredRows.length, (safePage - 1) * perPage + 1)}-
+                  {Math.min(filteredRows.length, safePage * perPage)} of{" "}
+                  {filteredRows.length} request
+                  {filteredRows.length === 1 ? "" : "s"}
+                </Chip>
+              ) : undefined
             }
           >
             {loading ? (
@@ -452,6 +458,7 @@ export function ApprovalsPage() {
                 totalPages={totalPages}
                 totalCount={filteredRows.length}
                 itemLabel="request"
+                showStatus={false}
                 onPageChange={setCurrentPage}
               />
             </div>

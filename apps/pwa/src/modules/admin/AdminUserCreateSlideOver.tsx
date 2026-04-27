@@ -6,6 +6,7 @@ import {
   TextField,
   useToast,
 } from "@/shared";
+import { SlideOver, SlideOverHeader, SlideOverContent, SlideOverFooter } from "@/shared/components/ui/SlideOver";
 import { adminUsersApi, resourceApi } from "@/shared/lib/core";
 import type { RoleOption } from "@stanforte/shared";
 import type { OrganizationItem } from "@/shared";
@@ -91,131 +92,118 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-end">
-      <div className="absolute inset-0 top-16 bg-slate-950/40" onClick={onClose} />
-      <div className="relative w-full max-w-lg flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)]">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
-              New User
-            </p>
-            <h2 className="text-xl font-semibold text-slate-950">Add User</h2>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            Cancel
-          </Button>
-        </div>
-
-        <div className="flex-1 space-y-6 overflow-y-auto p-6">
-          <SectionCard title="Identity">
-            <div className="grid gap-4">
+    <SlideOver open={true} onClose={onClose} size="lg">
+      <SlideOverHeader
+        title="Add User"
+        subtitle="New User"
+        onClose={onClose}
+      />
+      <SlideOverContent>
+        <SectionCard title="Identity">
+          <div className="grid gap-4">
+            <TextField
+              label="Email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="user@organization.com"
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
               <TextField
-                label="Email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="user@organization.com"
+                label="First Name"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
               />
-              <div className="grid gap-4 sm:grid-cols-2">
-                <TextField
-                  label="First Name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                />
-                <TextField
-                  label="Last Name"
-                  value={lastName}
-                  onChange={(e) => setLastName(e.target.value)}
-                />
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Organization">
-            <SelectField
-              label="Primary Organization"
-              value={organizationId}
-              onChange={(e) => setOrganizationId(e.target.value)}
-            >
-              <option value="">Select organization...</option>
-              {organizations.map((org) => (
-                <option key={org.id} value={org.id}>
-                  {org.name} {org.code ? `(${org.code})` : ""}
-                </option>
-              ))}
-            </SelectField>
-            <p className="mt-2 text-xs text-slate-500">
-              Every user must belong to at least one organization. You can add more organizations later.
-            </p>
-          </SectionCard>
-
-          <SectionCard title="Access">
-            <div className="grid gap-4">
-              <SelectField
-                label="User Type"
-                value={type}
-                onChange={(e) => setType(e.target.value)}
-              >
-                <option value="staff">Staff / Employee</option>
-                <option value="vendor">Vendor</option>
-                <option value="client">Client</option>
-                <option value="board_member">Board Member</option>
-              </SelectField>
-
-              <div className="space-y-3">
-                <p className="field-label">Roles</p>
-                <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
-                  {roles.map((r) => (
-                    <label key={r.slug} className="flex cursor-pointer items-center gap-3">
-                      <input
-                        type="checkbox"
-                        checked={selectedRoles.includes(r.slug)}
-                        onChange={() => toggleRole(r.slug)}
-                        className="h-4 w-4 rounded border-slate-300 text-brand-900 focus:ring-brand-900/10"
-                      />
-                      <span className="text-sm text-slate-700">{r.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Invite">
-            <label className="flex cursor-pointer items-center gap-3">
-              <input
-                type="checkbox"
-                checked={sendInvite}
-                onChange={(e) => setSendInvite(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300"
+              <TextField
+                label="Last Name"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
               />
-              <span className="text-sm text-slate-700">
-                Send invitation email immediately
-              </span>
-            </label>
-            <p className="mt-2 text-xs text-slate-500">
-              The user will receive a link to set their password. If unchecked, you
-              can send the invite later from their profile.
-            </p>
-            {type === "staff" ? (
-              <p className="mt-3 rounded-2xl bg-brand-50 px-4 py-3 text-xs text-brand-900">
-                A draft employee profile will be created in HR for HR to complete.
-              </p>
-            ) : null}
-          </SectionCard>
-        </div>
-
-        <div className="border-t border-slate-200 px-6 py-4">
-          <div className="flex gap-3">
-            <Button onClick={() => void handleSubmit()} disabled={saving}>
-              {saving ? "Creating…" : "Create User"}
-            </Button>
-            <Button variant="ghost" onClick={onClose}>
-              Cancel
-            </Button>
+            </div>
           </div>
-        </div>
-      </div>
-    </div>
+        </SectionCard>
+
+        <SectionCard title="Organization">
+          <SelectField
+            label="Primary Organization"
+            value={organizationId}
+            onChange={(e) => setOrganizationId(e.target.value)}
+          >
+            <option value="">Select organization...</option>
+            {organizations.map((org) => (
+              <option key={org.id} value={org.id}>
+                {org.name} {org.code ? `(${org.code})` : ""}
+              </option>
+            ))}
+          </SelectField>
+          <p className="mt-2 text-xs text-slate-500">
+            Every user must belong to at least one organization. You can add more organizations later.
+          </p>
+        </SectionCard>
+
+        <SectionCard title="Access">
+          <div className="grid gap-4">
+            <SelectField
+              label="User Type"
+              value={type}
+              onChange={(e) => setType(e.target.value)}
+            >
+              <option value="staff">Staff / Employee</option>
+              <option value="vendor">Vendor</option>
+              <option value="client">Client</option>
+              <option value="board_member">Board Member</option>
+            </SelectField>
+
+            <div className="space-y-3">
+              <p className="field-label">Roles</p>
+              <div className="grid gap-x-6 gap-y-2 sm:grid-cols-2">
+                {roles.map((r) => (
+                  <label key={r.slug} className="flex cursor-pointer items-center gap-3">
+                    <input
+                      type="checkbox"
+                      checked={selectedRoles.includes(r.slug)}
+                      onChange={() => toggleRole(r.slug)}
+                      className="h-4 w-4 rounded border-slate-300 text-brand-900 focus:ring-brand-900/10"
+                    />
+                    <span className="text-sm text-slate-700">{r.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Invite">
+          <label className="flex cursor-pointer items-center gap-3">
+            <input
+              type="checkbox"
+              checked={sendInvite}
+              onChange={(e) => setSendInvite(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300"
+            />
+            <span className="text-sm text-slate-700">
+              Send invitation email immediately
+            </span>
+          </label>
+          <p className="mt-2 text-xs text-slate-500">
+            The user will receive a link to set their password. If unchecked, you
+            can send the invite later from their profile.
+          </p>
+          {type === "staff" ? (
+            <p className="mt-3 rounded-2xl bg-brand-50 px-4 py-3 text-xs text-brand-900">
+              A draft employee profile will be created in HR for HR to complete.
+            </p>
+          ) : null}
+        </SectionCard>
+      </SlideOverContent>
+      <SlideOverFooter>
+        <Button onClick={() => void handleSubmit()} disabled={saving}>
+          {saving ? "Creating…" : "Create User"}
+        </Button>
+        <Button variant="ghost" onClick={onClose}>
+          Cancel
+        </Button>
+      </SlideOverFooter>
+    </SlideOver>
   );
 }

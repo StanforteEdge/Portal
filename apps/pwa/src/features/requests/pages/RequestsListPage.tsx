@@ -669,6 +669,8 @@ function RequestsListTable({
           totalPages={totalPages}
           totalCount={totalCount}
           itemLabel="request"
+          showStatus={false}
+          onPerPageChange={onPerPageChange}
           onPageChange={onPageChange}
         />
       </div>

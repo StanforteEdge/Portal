@@ -45,7 +45,6 @@ export default function FinanceAccountsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
-  const [totalCount, setTotalCount] = useState(0);
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -68,15 +67,17 @@ export default function FinanceAccountsPage() {
       const result = await resourceApi.listFinanceAccounts({
         account_type: typeFilter || undefined,
         is_active: statusFilter === "active" ? true : statusFilter === "inactive" ? false : undefined,
-        search: search || undefined,
+        q: search || undefined,
+        page,
+        per_page: perPage,
       });
-      setTotalCount(Array.isArray(result) ? result.length : 0);
       return result;
     },
     { ttlMs: 0, storage: "memory" },
   );
 
-  const accounts = Array.isArray(accountsData) ? accountsData : [];
+  const accounts = Array.isArray((accountsData as any)?.result) ? (accountsData as any).result : [];
+  const totalCount = Number((accountsData as any)?.total_result ?? accounts.length);
   const totalPages = Math.ceil(totalCount / perPage) || 1;
 
   const totalOpening = accounts.reduce((sum: number, a: any) => sum + (a.opening_balance || 0), 0);
@@ -207,8 +208,22 @@ export default function FinanceAccountsPage() {
 
         <SectionCard
           title="Accounts"
-          description={`${totalCount} account${totalCount !== 1 ? "s" : ""}`}
-          action={<Button onClick={openCreate}><Icon name="add" className="text-[18px]" />Add Account</Button>}
+          description="Track and manage finance accounts."
+          action={
+            totalCount > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(totalCount, (page - 1) * perPage + 1)}-
+                {Math.min(totalCount, page * perPage)} of {totalCount} account
+                {totalCount !== 1 ? "s" : ""}
+              </Chip>
+            ) : (
+              <Button onClick={openCreate}>
+                <Icon name="add" className="text-[18px]" />
+                Add Account
+              </Button>
+            )
+          }
         >
           {loading ? (
             <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">Loading accounts...</div>
@@ -270,7 +285,7 @@ export default function FinanceAccountsPage() {
               </table>
             </div>
           )}
-          <PaginationControls page={page} totalPages={totalPages} totalCount={totalCount} perPage={perPage} onPerPageChange={setPerPage} onPageChange={setPage} />
+          <PaginationControls page={page} totalPages={totalPages} totalCount={totalCount} showStatus={false} perPage={perPage} onPerPageChange={setPerPage} onPageChange={setPage} />
         </SectionCard>
       </div>
 

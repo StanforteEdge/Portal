@@ -180,16 +180,12 @@ export default function FinanceRequestsPage() {
     },
   );
 
-  const queueData = Array.isArray(financeRequestsPayload?.data)
-    ? (financeRequestsPayload.data as RequestRecord[])
+  const queueData = Array.isArray(financeRequestsPayload?.result)
+    ? (financeRequestsPayload.result as RequestRecord[])
     : [];
   const queue: RequestRecord[] = queueData.filter((entry) => !isLeaveRequest(entry));
-  const meta =
-    financeRequestsPayload?.meta && typeof financeRequestsPayload.meta === "object"
-      ? (financeRequestsPayload.meta as Record<string, unknown>)
-      : {};
-  const total = Number(meta.total ?? queue.length);
-  const lastPage = Math.max(1, Number(meta.last_page ?? 1));
+  const total = Number(financeRequestsPayload?.total_result ?? queue.length);
+  const lastPage = Math.max(1, Number(financeRequestsPayload?.pages ?? 1));
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
@@ -266,6 +262,8 @@ export default function FinanceRequestsPage() {
     [statsQueue],
   );
   const queueRows = isRequestsView ? queue : queue.slice(0, 8);
+  const requestRangeStart = total > 0 ? (page - 1) * perPage + 1 : 0;
+  const requestRangeEnd = total > 0 ? requestRangeStart + queueRows.length - 1 : 0;
 
   return (
     <AppShell
@@ -336,6 +334,13 @@ export default function FinanceRequestsPage() {
               >
                 View full queue
               </Link>
+            ) : total > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(total, (page - 1) * perPage + 1)}-
+                {Math.min(total, page * perPage)} of {total} request
+                {total === 1 ? "" : "s"}
+              </Chip>
             ) : undefined
           }
         >
@@ -466,6 +471,7 @@ export default function FinanceRequestsPage() {
             </div>
           ) : queueRows.length ? (
             <>
+             
               <div className="rounded-[22px] border border-slate-200 bg-white">
                 <Table caption="Finance requests">
                   <TableHead>
@@ -575,6 +581,7 @@ export default function FinanceRequestsPage() {
                   totalCount={total}
                   itemLabel="request"
                   perPage={perPage}
+                  showStatus={false}
                   onPerPageChange={setPerPage}
                   onPageChange={setPage}
                 />

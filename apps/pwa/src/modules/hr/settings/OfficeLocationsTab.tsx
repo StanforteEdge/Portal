@@ -16,13 +16,15 @@ import {
 } from "@/shared";
 import { attendanceApi } from "@/shared/lib/core";
 import { type OfficeLocation } from "@stanforte/shared";
-import OfficeLocationSlideOver from "./OfficeLocationSlideOver";
 
-export default function OfficeLocationsTab() {
+type Props = {
+  onEditLocation: (location: OfficeLocation | null | boolean) => void;
+};
+
+export default function OfficeLocationsTab({ onEditLocation }: Props) {
   const { showToast } = useToast();
   const [locations, setLocations] = useState<OfficeLocation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editingLocation, setEditingLocation] = useState<OfficeLocation | null | boolean>(false);
 
   const load = async () => {
     try {
@@ -49,7 +51,7 @@ export default function OfficeLocationsTab() {
           <h3 className="text-lg font-bold text-slate-900">Attendance Geofences</h3>
           <p className="text-sm text-slate-500 mt-1">Authorized locations where staff can clock in and out.</p>
         </div>
-        <Button onClick={() => setEditingLocation(true)}>
+        <Button onClick={() => onEditLocation(true)}>
           <Icon name="add" className="mr-1" />
           Add Location
         </Button>
@@ -92,7 +94,7 @@ export default function OfficeLocationsTab() {
                 </Chip>
               </TableCell>
               <TableCell className="text-right">
-                <Button variant="ghost" size="sm" onClick={() => setEditingLocation(loc)}>
+                <Button variant="ghost" size="sm" onClick={() => onEditLocation(loc)}>
                   <Icon name="edit" />
                 </Button>
               </TableCell>
@@ -107,18 +109,8 @@ export default function OfficeLocationsTab() {
               </TableCell>
             </TableRow>
           )}
-        </TableBody>
+</TableBody>
       </Table>
-      {editingLocation !== false && (
-        <OfficeLocationSlideOver
-          location={typeof editingLocation === 'object' ? editingLocation : null}
-          onClose={() => setEditingLocation(false)}
-          onSaved={() => {
-            setEditingLocation(false);
-            void load();
-          }}
-        />
-      )}
     </div>
   );
 }

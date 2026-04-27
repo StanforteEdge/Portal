@@ -5,8 +5,8 @@ import {
   SelectField,
   useToast,
   SectionCard,
-  Icon,
 } from "@/shared";
+import { SlideOver, SlideOverHeader, SlideOverContent, SlideOverFooter } from "@/shared/components/ui/SlideOver";
 import { policyApi } from "@/shared/lib/core";
 import { type PolicyRecord, type ScopeType } from "@stanforte/shared";
 import { useDirectory } from "@/shared/lib/use-directory";
@@ -32,17 +32,21 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
   const [saving, setSaving] = useState(false);
   const { organizations, teams, employees } = useDirectory();
 
-  // Form State
   const [scopeType, setScopeType] = useState<ScopeType>(policy?.scope_type || "organization");
   const [scopeId, setScopeId] = useState(policy?.scope_id || "");
   const [priority, setPriority] = useState(policy?.priority || 200);
-  
   const [scopeTypeChanged, setScopeTypeChanged] = useState(false);
 
   const [startTime, setStartTime] = useState(policy?.config_json?.start_time || "09:00");
   const [endTime, setEndTime] = useState(policy?.config_json?.end_time || "17:00");
   const [grace, setGrace] = useState(policy?.config_json?.grace_minutes || 15);
   const [onsiteDays, setOnsiteDays] = useState<number[]>(policy?.config_json?.onsite_weekdays || [1, 2, 3, 4, 5]);
+  const [enforceClockInMode, setEnforceClockInMode] = useState<boolean>(
+    Boolean(policy?.config_json?.enforce_expected_mode_clock_in ?? false)
+  );
+  const [enforceClockOutModeMatch, setEnforceClockOutModeMatch] = useState<boolean>(
+    Boolean(policy?.config_json?.enforce_clock_out_match_clock_in_mode ?? true)
+  );
   const [isActive, setIsActive] = useState(policy?.is_active ?? true);
 
   const toggleDay = (day: number) => {
@@ -79,6 +83,8 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
           end_time: endTime,
           grace_minutes: Number(grace),
           onsite_weekdays: onsiteDays,
+          enforce_expected_mode_clock_in: enforceClockInMode,
+          enforce_clock_out_match_clock_in_mode: enforceClockOutModeMatch,
         },
       }, policy?.id);
 
@@ -92,114 +98,127 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
   }
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[100] flex justify-end">
-      <div className="absolute inset-0 top-16 bg-slate-950/40" onClick={onClose} />
-      <div className="relative w-full max-w-lg flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)] animate-in slide-in-from-right duration-300">
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Attendance Policies</p>
-            <h2 className="text-xl font-semibold text-slate-950">{policy ? "Edit Override" : "Add Policy Override"}</h2>
-          </div>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <Icon name="close" />
-          </Button>
-        </div>
+    <SlideOver open={true} onClose={onClose} size="lg">
+      <SlideOverHeader
+        title={policy ? "Edit Override" : "Add Policy Override"}
+        subtitle="Attendance Policies"
+        onClose={onClose}
+      />
+      <SlideOverContent>
+        <SectionCard title="Target Scope">
+          <div className="grid gap-4">
+            <SelectField
+              label="Scope Type"
+              value={scopeType}
+              onChange={(e) => {
+                setScopeType(e.target.value as ScopeType);
+                setScopeTypeChanged(true);
+                setScopeId("");
+              }}
+            >
+              <option value="organization">Organization</option>
+              <option value="team">Team</option>
+              <option value="user">Specific User</option>
+            </SelectField>
 
-        <div className="flex-1 min-h-0 space-y-6 overflow-y-auto p-6">
-          <SectionCard title="Target Scope">
-            <div className="grid gap-4">
-              <SelectField
-                label="Scope Type"
-                value={scopeType}
-                onChange={(e) => {
-                  setScopeType(e.target.value as ScopeType);
-                  setScopeTypeChanged(true);
-                  setScopeId("");
-                }}
-              >
-                <option value="organization">Organization</option>
-                <option value="team">Team</option>
-                <option value="user">Specific User</option>
+            {scopeType === "organization" && (
+              <SelectField label="Target Organization" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
+                <option value="">Select organization…</option>
+                {organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
               </SelectField>
+            )}
 
-              {scopeType === "organization" && (
-                <SelectField label="Target Organization" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
-                  <option value="">Select organization…</option>
-                  {organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
-                </SelectField>
-              )}
+            {scopeType === "team" && (
+              <SelectField label="Target Team" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
+                <option value="">Select team…</option>
+                {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </SelectField>
+            )}
 
-              {scopeType === "team" && (
-                <SelectField label="Target Team" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
-                  <option value="">Select team…</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-                </SelectField>
-              )}
+            {scopeType === "user" && (
+              <SelectField label="Target Employee" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
+                <option value="">Select staff member…</option>
+                {employees.map(s => <option key={s.id} value={s.id}>{s.name} ({s.subtitle})</option>)}
+              </SelectField>
+            )}
 
-              {scopeType === "user" && (
-                <SelectField label="Target Employee" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
-                  <option value="">Select staff member…</option>
-                  {employees.map(s => <option key={s.id} value={s.id}>{s.name} ({s.subtitle})</option>)}
-                </SelectField>
-              )}
-
-              <TextField 
-                label="Priority (Higher wins)" 
-                type="number"
-                value={priority} 
-                onChange={(e) => setPriority(Number(e.target.value))} 
-              />
-            </div>
-          </SectionCard>
-
-          <SectionCard title="Schedule Details">
-            <div className="grid gap-4 sm:grid-cols-2">
-              <TextField label="Start Time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
-              <TextField label="End Time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
-              <TextField label="Grace Period (mins)" type="number" value={grace} onChange={(e) => setGrace(Number(e.target.value))} />
-            </div>
-            
-            <div className="mt-6">
-              <p className="field-label mb-2">Required Onsite Days</p>
-              <div className="flex flex-wrap gap-2">
-                {WEEKDAYS.map(day => (
-                  <button
-                    key={day.value}
-                    onClick={() => toggleDay(day.value)}
-                    className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${
-                      onsiteDays.includes(day.value) 
-                        ? "bg-brand-900 text-white border-brand-900" 
-                        : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    {day.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-6 flex items-center gap-3">
-              <input 
-                type="checkbox" 
-                id="policy-active"
-                checked={isActive} 
-                onChange={(e) => setIsActive(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300 text-brand-900"
-              />
-              <label htmlFor="policy-active" className="text-sm font-medium text-slate-700">Policy is Active</label>
-            </div>
-          </SectionCard>
-        </div>
-
-        <div className="border-t border-slate-200 px-6 py-4">
-          <div className="flex gap-3">
-            <Button onClick={() => void handleSubmit()} disabled={saving}>
-              {saving ? "Saving..." : "Save Override"}
-            </Button>
-            <Button variant="ghost" onClick={onClose}>Cancel</Button>
+            <TextField 
+              label="Priority (Higher wins)" 
+              type="number"
+              value={priority} 
+              onChange={(e) => setPriority(Number(e.target.value))} 
+            />
           </div>
-        </div>
-      </div>
-    </div>
+        </SectionCard>
+
+        <SectionCard title="Schedule Details">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <TextField label="Start Time" type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} />
+            <TextField label="End Time" type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} />
+            <TextField label="Grace Period (mins)" type="number" value={grace} onChange={(e) => setGrace(Number(e.target.value))} />
+          </div>
+          
+          <div className="mt-6">
+            <p className="field-label mb-2">Required Onsite Days</p>
+            <div className="flex flex-wrap gap-2">
+              {WEEKDAYS.map(day => (
+                <button
+                  key={day.value}
+                  onClick={() => toggleDay(day.value)}
+                  className={`px-3 py-2 rounded-xl border text-xs font-semibold transition-all ${
+                    onsiteDays.includes(day.value) 
+                      ? "bg-brand-900 text-white border-brand-900" 
+                      : "bg-white text-slate-500 border-slate-200 hover:border-slate-300"
+                  }`}
+                >
+                  {day.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-6 flex items-center gap-3">
+            <input 
+              type="checkbox" 
+              id="policy-active"
+              checked={isActive} 
+              onChange={(e) => setIsActive(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-brand-900"
+            />
+            <label htmlFor="policy-active" className="text-sm font-medium text-slate-700">Policy is Active</label>
+          </div>
+
+          <div className="mt-6 rounded-2xl border border-slate-200 p-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">Mode Enforcement</p>
+            <div className="mt-3 space-y-3">
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={enforceClockInMode}
+                  onChange={(e) => setEnforceClockInMode(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-900"
+                />
+                <span className="text-sm text-slate-700">Require clock-in mode to match expected mode</span>
+              </label>
+              <label className="flex items-start gap-3">
+                <input
+                  type="checkbox"
+                  checked={enforceClockOutModeMatch}
+                  onChange={(e) => setEnforceClockOutModeMatch(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-900"
+                />
+                <span className="text-sm text-slate-700">Require clock-out mode to match clock-in mode</span>
+              </label>
+            </div>
+          </div>
+        </SectionCard>
+      </SlideOverContent>
+      <SlideOverFooter>
+        <Button onClick={() => void handleSubmit()} disabled={saving}>
+          {saving ? "Saving..." : "Save Override"}
+        </Button>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+      </SlideOverFooter>
+    </SlideOver>
   );
 }

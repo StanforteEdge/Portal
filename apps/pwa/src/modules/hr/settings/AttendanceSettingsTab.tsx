@@ -16,7 +16,6 @@ import {
 } from "@/shared";
 import { policyApi } from "@/shared/lib/core";
 import { type PolicyRecord } from "@stanforte/shared";
-import AttendanceOverrideSlideOver from "./AttendanceOverrideSlideOver";
 
 const WEEKDAYS = [
   { label: "M", value: 1 },
@@ -28,19 +27,24 @@ const WEEKDAYS = [
   { label: "S", value: 0 },
 ];
 
-export default function AttendanceSettingsTab() {
+type Props = {
+  onEditPolicy: (policy: PolicyRecord | null | boolean) => void;
+};
+
+export default function AttendanceSettingsTab({ onEditPolicy }: Props) {
   const { showToast } = useToast();
   const [globalPolicy, setGlobalPolicy] = useState<PolicyRecord | null>(null);
   const [overrides, setOverrides] = useState<PolicyRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [editingPolicy, setEditingPolicy] = useState<PolicyRecord | null | boolean>(false);
 
   // Form State
   const [startTime, setStartTime] = useState("09:00");
   const [endTime, setEndTime] = useState("17:00");
   const [grace, setGrace] = useState(15);
   const [onsiteDays, setOnsiteDays] = useState<number[]>([]);
+  const [enforceClockInMode, setEnforceClockInMode] = useState(false);
+  const [enforceClockOutModeMatch, setEnforceClockOutModeMatch] = useState(true);
 
   const load = async () => {
     try {
@@ -57,6 +61,8 @@ export default function AttendanceSettingsTab() {
         setEndTime(global.config_json.end_time || "17:00");
         setGrace(global.config_json.grace_minutes || 15);
         setOnsiteDays(global.config_json.onsite_weekdays || [1, 5]);
+        setEnforceClockInMode(Boolean(global.config_json.enforce_expected_mode_clock_in ?? false));
+        setEnforceClockOutModeMatch(Boolean(global.config_json.enforce_clock_out_match_clock_in_mode ?? true));
       }
     } catch (err) {
       showToast({ tone: "danger", title: "Error", message: "Failed to load attendance settings." });
@@ -88,6 +94,8 @@ export default function AttendanceSettingsTab() {
         end_time: endTime,
         grace_minutes: Number(grace),
         onsite_weekdays: onsiteDays,
+        enforce_expected_mode_clock_in: enforceClockInMode,
+        enforce_clock_out_match_clock_in_mode: enforceClockOutModeMatch,
       };
       await policyApi.savePolicy({
         module: "attendance",
@@ -152,6 +160,30 @@ export default function AttendanceSettingsTab() {
             {saving ? "Saving..." : "Save Policy"}
           </Button>
         </div>
+
+        <div className="mt-6 rounded-2xl border border-slate-200 p-4">
+          <p className="text-xs font-bold uppercase tracking-wider text-slate-700">Mode Enforcement</p>
+          <div className="mt-3 space-y-3">
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={enforceClockInMode}
+                onChange={(e) => setEnforceClockInMode(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-sm text-slate-700">Require clock-in mode to match expected mode</span>
+            </label>
+            <label className="flex items-start gap-3">
+              <input
+                type="checkbox"
+                checked={enforceClockOutModeMatch}
+                onChange={(e) => setEnforceClockOutModeMatch(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-sm text-slate-700">Require clock-out mode to match clock-in mode</span>
+            </label>
+          </div>
+        </div>
       </div>
 
       <div className="pt-8 border-t border-slate-100">
@@ -160,7 +192,7 @@ export default function AttendanceSettingsTab() {
             <h3 className="text-lg font-bold text-slate-900">Policy Overrides</h3>
             <p className="text-sm text-slate-500 mt-1">Exceptions for specific organizations, teams, or staff.</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setEditingPolicy(true)}>
+          <Button variant="ghost" size="sm" onClick={() => onEditPolicy(true)}>
             <Icon name="add" className="mr-1" />
             Add Override
           </Button>
@@ -188,7 +220,7 @@ export default function AttendanceSettingsTab() {
                   </Chip>
                 </TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="sm" onClick={() => setEditingPolicy(row)}>
+                  <Button variant="ghost" size="sm" onClick={() => onEditPolicy(row)}>
                     Edit
                   </Button>
                   <Button 
@@ -211,16 +243,6 @@ export default function AttendanceSettingsTab() {
           </TableBody>
         </Table>
       </div>
-      {editingPolicy !== false && (
-        <AttendanceOverrideSlideOver
-          policy={typeof editingPolicy === 'object' ? editingPolicy : null}
-          onClose={() => setEditingPolicy(false)}
-          onSaved={() => {
-            setEditingPolicy(false);
-            void load();
-          }}
-        />
-      )}
-    </div>
+      </div>
   );
 }

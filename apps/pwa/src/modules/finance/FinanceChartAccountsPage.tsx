@@ -43,7 +43,6 @@ export default function FinanceChartAccountsPage() {
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
-  const [totalCount, setTotalCount] = useState(0);
 
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -63,15 +62,17 @@ export default function FinanceChartAccountsPage() {
       const result = await resourceApi.listChartAccounts({
         type: typeFilter || undefined,
         is_active: statusFilter === "active" ? true : statusFilter === "inactive" ? false : undefined,
-        search: search || undefined,
+        q: search || undefined,
+        page,
+        per_page: perPage,
       });
-      setTotalCount(Array.isArray(result) ? result.length : 0);
       return result;
     },
     { ttlMs: 0, storage: "memory" },
   );
 
-  const accounts = Array.isArray(accountsData) ? accountsData : [];
+  const accounts = Array.isArray((accountsData as any)?.result) ? (accountsData as any).result : [];
+  const totalCount = Number((accountsData as any)?.total_result ?? accounts.length);
   const totalPages = Math.ceil(totalCount / perPage) || 1;
 
   const stats = {
@@ -221,14 +222,23 @@ export default function FinanceChartAccountsPage() {
         </section>
 
         {/* Table */}
-        <SectionCard
+<SectionCard
           title="Accounts"
-          description={`${totalCount} account${totalCount !== 1 ? "s" : ""}`}
+          description="Chart of accounts for finance tracking."
           action={
-            <Button onClick={openCreate}>
-              <Icon name="add" className="text-[18px]" />
-              Add Account
-            </Button>
+            totalCount > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(totalCount, (page - 1) * perPage + 1)}-
+                {Math.min(totalCount, page * perPage)} of {totalCount} account
+                {totalCount !== 1 ? "s" : ""}
+              </Chip>
+            ) : (
+              <Button onClick={openCreate}>
+                <Icon name="add" className="text-[18px]" />
+                Add Account
+              </Button>
+            )
           }
         >
           {loading ? (
@@ -300,6 +310,7 @@ export default function FinanceChartAccountsPage() {
             page={page}
             totalPages={totalPages}
             totalCount={totalCount}
+            showStatus={false}
             perPage={perPage}
             onPerPageChange={setPerPage}
             onPageChange={setPage}

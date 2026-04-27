@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   Chip,
   EmptyState,
@@ -16,6 +17,7 @@ import { formatCurrency, formatDisplayDate } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
+import PVDeductionsPanel from "./PVDeductionsPanel";
 import {
   buildAppMobileNav,
   buildRequestsNavigation,
@@ -51,6 +53,7 @@ function retirementTone(
 
 export default function FinancePaymentVouchersPage() {
   const { user } = useAuth();
+  const [deductionsPV, setDeductionsPV] = useState<Record<string, any> | null>(null);
   const { data: profile } = useCachedQuery(
     "finance-vouchers:profile",
     () => getWorkspaceProfile(),
@@ -208,12 +211,21 @@ export default function FinancePaymentVouchersPage() {
                         </Chip>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Link
-                          to={`/finance/requests/details?id=${row.request_id}`}
-                          className="text-sm font-semibold text-brand-900 transition hover:underline"
-                        >
-                          Open request
-                        </Link>
+                        <div className="flex items-center justify-end gap-3">
+                          <button
+                            type="button"
+                            onClick={() => setDeductionsPV(row)}
+                            className="text-sm font-semibold text-slate-500 transition hover:text-slate-900 hover:underline"
+                          >
+                            Deductions
+                          </button>
+                          <Link
+                            to={`/finance/requests/details?id=${row.request_id}`}
+                            className="text-sm font-semibold text-brand-900 transition hover:underline"
+                          >
+                            Open request
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -228,6 +240,14 @@ export default function FinancePaymentVouchersPage() {
           )}
         </SectionCard>
       </div>
+
+      {deductionsPV && (
+        <PVDeductionsPanel
+          pv={deductionsPV}
+          onClose={() => setDeductionsPV(null)}
+          onSaved={() => setDeductionsPV(null)}
+        />
+      )}
     </AppShell>
   );
 }

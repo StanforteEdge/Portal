@@ -17,10 +17,13 @@ import {
 } from "@/shared";
 import { policyApi, requestApi, useCachedQuery } from "@/shared/lib/core";
 import { type PolicyRecord, type RequestType } from "@stanforte/shared";
-import LeaveOverrideSlideOver from "./LeaveOverrideSlideOver";
-import LeaveTypeSlideOver from "./LeaveTypeSlideOver";
 
-export default function LeaveSettingsTab() {
+type Props = {
+  onEditPolicy: (policy: PolicyRecord | null | boolean) => void;
+  onEditType: (type: RequestType | null | boolean) => void;
+};
+
+export default function LeaveSettingsTab({ onEditPolicy, onEditType }: Props) {
   const { showToast } = useToast();
   const [overrides, setOverrides] = useState<PolicyRecord[]>([]);
 
@@ -40,8 +43,7 @@ export default function LeaveSettingsTab() {
   const [loading, setLoading] = useState(true);
 
   // Form State
-  const [editingPolicy, setEditingPolicy] = useState<PolicyRecord | null | boolean>(false);
-  const [editingType, setEditingType] = useState<RequestType | null | boolean>(false);
+  
 
   const load = async () => {
     try {
@@ -85,7 +87,7 @@ export default function LeaveSettingsTab() {
             <h3 className="text-lg font-bold text-slate-900">Leave Request Types</h3>
             <p className="text-sm text-slate-500 mt-1">Add or remove the types of leave staff can request.</p>
           </div>
-          <Button variant="secondary" size="sm" onClick={() => setEditingType(true)}>
+          <Button variant="secondary" size="sm" onClick={() => onEditType(true)}>
             <Icon name="add" className="mr-1" />
             Add Type
           </Button>
@@ -111,7 +113,7 @@ export default function LeaveSettingsTab() {
                   </Chip>
                 </TableCell>
                 <TableCell className="text-right space-x-2">
-                  <Button variant="ghost" size="sm" onClick={() => setEditingType(type)}>
+                  <Button variant="ghost" size="sm" onClick={() => onEditType(type)}>
                     <Icon name="edit" />
                   </Button>
                   <Button variant="ghost" size="sm" onClick={() => void handleDeleteType(type.id)} className="text-danger hover:bg-danger/5">
@@ -130,7 +132,7 @@ export default function LeaveSettingsTab() {
             <h3 className="text-lg font-bold text-slate-900">Leave Entitlement Overrides</h3>
             <p className="text-sm text-slate-500 mt-1">Specific day counts for different groups or individuals.</p>
           </div>
-          <Button variant="ghost" size="sm" onClick={() => setEditingPolicy(true)}>
+          <Button variant="ghost" size="sm" onClick={() => onEditPolicy(true)}>
             <Icon name="add" className="mr-1" />
             Add Override
           </Button>
@@ -160,7 +162,7 @@ export default function LeaveSettingsTab() {
                 </TableCell>
                 <TableCell>{row.priority}</TableCell>
                 <TableCell className="text-right">
-                  <Button variant="ghost" size="sm" onClick={() => setEditingPolicy(row)}>
+                  <Button variant="ghost" size="sm" onClick={() => onEditPolicy(row)}>
                     <Icon name="edit" />
                   </Button>
                 </TableCell>
@@ -178,26 +180,6 @@ export default function LeaveSettingsTab() {
           </TableBody>
         </Table>
       </div>
-      {editingPolicy !== false && (
-        <LeaveOverrideSlideOver
-          policy={typeof editingPolicy === 'object' ? editingPolicy : null}
-          onClose={() => setEditingPolicy(false)}
-          onSaved={() => {
-            setEditingPolicy(false);
-            void load();
-          }}
-        />
-      )}
-      {editingType !== false && (
-        <LeaveTypeSlideOver
-          requestType={typeof editingType === 'object' ? editingType : null}
-          onClose={() => setEditingType(false)}
-          onSaved={() => {
-            setEditingType(false);
-            void refetchTypes();
-          }}
-        />
-      )}
     </div>
   );
 }

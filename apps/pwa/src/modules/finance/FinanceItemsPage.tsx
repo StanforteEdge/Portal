@@ -71,8 +71,9 @@ export default function FinanceItemsPage() {
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const items = Array.isArray(itemsPayload?.data) ? itemsPayload.data : [];
-  const meta = (itemsPayload?.meta as any) || { page: 1, per_page: perPage, total: items.length, last_page: 1 };
+  const items = Array.isArray((itemsPayload as any)?.result) ? (itemsPayload as any).result : [];
+  const pagination = (itemsPayload as any) || {};
+  const totalItems = Number(pagination.total_result ?? items.length);
 
   const activeCount = useMemo(
     () => items.filter((item: any) => item.isActive ?? item.is_active).length,
@@ -169,7 +170,7 @@ export default function FinanceItemsPage() {
 
       <div className="space-y-6">
         <div className="grid gap-4 md:grid-cols-4">
-          <StatCard label="Total Items" value={String(meta.total || 0)} tone="neutral" />
+          <StatCard label="Total Items" value={String(pagination.total_result || 0)} tone="neutral" />
           <StatCard label="Active" value={String(activeCount)} tone="success" />
           <StatCard label="Products" value={String(productCount)} tone="neutral" />
           <StatCard label="Services" value={String(serviceCount)} tone="neutral" />
@@ -210,12 +211,21 @@ export default function FinanceItemsPage() {
 
         <SectionCard
           title="All Items"
-          description={`${meta.total || 0} item${meta.total === 1 ? "" : "s"}`}
+          description="Track and manage inventory items."
           action={
-            <Button onClick={openCreate}>
-              <Icon name="add" className="text-[18px]" />
-              New Item
-            </Button>
+            totalItems > 0 ? (
+              <Chip variant="neutral">
+                Showing{" "}
+                {Math.min(totalItems, (page - 1) * perPage + 1)}-
+                {Math.min(totalItems, page * perPage)} of {totalItems} item
+                {totalItems === 1 ? "" : "s"}
+              </Chip>
+            ) : (
+              <Button onClick={openCreate}>
+                <Icon name="add" className="text-[18px]" />
+                New Item
+              </Button>
+            )
           }
         >
           {loading ? (
@@ -268,10 +278,11 @@ export default function FinanceItemsPage() {
           )}
 
           <PaginationControls
-            page={Number(meta.page || page)}
-            totalPages={Number(meta.last_page || 1)}
-            totalCount={Number(meta.total || 0)}
-            perPage={Number(meta.per_page || perPage)}
+            page={Number(pagination.page || page)}
+            totalPages={Number(pagination.pages || 1)}
+            totalCount={Number(pagination.total_result || 0)}
+            showStatus={false}
+            perPage={Number(pagination.per_page || perPage)}
             onPerPageChange={(value) => {
               setPerPage(value);
               setPage(1);

@@ -30,12 +30,15 @@ import {
 } from "@stanforte/shared";
 import StaffAttendanceSlideOver from "./StaffAttendanceSlideOver";
 import CorrectionReviewSlideOver from "./CorrectionReviewSlideOver";
-import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@stanforte/shared";
+import { formatDate, formatTime, formatDuration } from "@stanforte/shared";
+import { TimeWithNextDay } from "@/shared/components/ui/TimeWithNextDay";
 
 const rowStatusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   present: "success",
   late: "warning",
   absent: "danger",
+  remote: "neutral",
+  field: "warning",
 };
 
 const corrStatusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
@@ -200,15 +203,17 @@ export default function HrAttendancePage() {
                     </TableCell>
                     <TableCell>{formatDate(row.work_date)}</TableCell>
                     <TableCell>{formatTime(row.first_in_at)}</TableCell>
-                    <TableCell>{formatTimeNextDay(row.last_out_at, row.first_in_at)}</TableCell>
+                    <TableCell><TimeWithNextDay time={row.last_out_at} referenceDate={row.first_in_at} /></TableCell>
                     <TableCell>{formatDuration(row.worked_minutes)}</TableCell>
                     <TableCell>
                       {row.late_minutes > 0
                         ? formatDuration(row.late_minutes)
                         : "-"}
                     </TableCell>
-                    <TableCell className="capitalize">
-                      {row.attendance_mode ?? "-"}
+                    <TableCell>
+                      <Chip variant="neutral">
+                        {row.attendance_mode ?? "-"}
+                      </Chip>
                     </TableCell>
                     <TableCell>
                       <Chip

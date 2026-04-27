@@ -74,8 +74,9 @@ export default function HrEmployeesPage() {
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const employees = (data as any)?.data ?? [];
-  const meta = (data as any)?.meta ?? { page: 1, per_page: 10, total: 0, last_page: 1 };
+  const employees = Array.isArray((data as any)?.result) ? (data as any).result : [];
+  const totalEmployees = Number((data as any)?.total_result ?? employees.length);
+  const totalPages = Number((data as any)?.pages ?? 1);
 
   useEffect(() => {
     setCurrentPage(1);
@@ -86,10 +87,9 @@ export default function HrEmployeesPage() {
     user?.email ||
     "HR Staff";
 
-  const totalPages = Math.max(1, meta.last_page || 1);
   const safePage = Math.min(currentPage, totalPages);
-  const pageStart = meta.total === 0 ? 0 : (safePage - 1) * perPage + 1;
-  const pageEnd = meta.total === 0 ? 0 : Math.min(meta.total, safePage * perPage);
+  const pageStart = totalEmployees === 0 ? 0 : (safePage - 1) * perPage + 1;
+  const pageEnd = totalEmployees === 0 ? 0 : Math.min(totalEmployees, safePage * perPage);
 
   return (
     <AppShell
@@ -174,16 +174,13 @@ export default function HrEmployeesPage() {
       {/* Table */}
       <SectionCard
         title="Employees"
-        description={`${meta.total} employee${meta.total === 1 ? "" : "s"} total`}
+        description="Manage staff and employee records."
         action={
-          <div className="flex items-center gap-2">
+          totalEmployees > 0 ? (
             <Chip variant="neutral">
-              Showing {pageStart}-{pageEnd} of {meta.total}
+              Showing {pageStart}-{pageEnd} of {totalEmployees}
             </Chip>
-            <Button variant="ghost" size="sm" onClick={() => setRefreshKey(k => k + 1)}>
-              <Icon name="refresh" className="text-[18px]" />
-            </Button>
-          </div>
+          ) : undefined
         }
       >
         {loading ? (
@@ -286,8 +283,9 @@ export default function HrEmployeesPage() {
               <PaginationControls
                 page={safePage}
                 totalPages={totalPages}
-                totalCount={meta.total}
+                totalCount={totalEmployees}
                 itemLabel="employee"
+                showStatus={false}
                 onPageChange={setCurrentPage}
               />
             </div>
