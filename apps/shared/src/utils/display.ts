@@ -61,7 +61,9 @@ export function formatRelativeTime(value?: string | null) {
 }
 
 export function userDisplayName(user?: Pick<AuthUser, "first_name" | "last_name" | "username" | "email"> | null, fallback = "Staff User") {
-  const name = `${user?.first_name ?? ""} ${user?.last_name ?? ""}`.trim();
+  const firstName = user?.first_name?.trim();
+  const lastName = user?.last_name?.trim();
+  const name = `${firstName ?? ""} ${lastName ?? ""}`.trim();
   return name || user?.username || user?.email || fallback;
 }
 

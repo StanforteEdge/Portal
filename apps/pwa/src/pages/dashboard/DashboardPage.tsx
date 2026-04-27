@@ -184,8 +184,6 @@ export default function DashboardPage() {
   const dashboardUserName = userDisplayName(user);
   const financeViewer = hasModuleAccess(user, "finance");
 
-  console.log(dashboardUserName);
-
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
@@ -618,7 +616,10 @@ export default function DashboardPage() {
               : "No attendance record yet today."}
           </p>
           <Link to="/attendance" className="mt-4 inline-flex">
-            <Button className="bg-white text-brand-900 hover:bg-slate-100">
+            <Button
+              variant="secondary"
+              className="!border-white/10 !bg-white !text-brand-900 hover:!bg-slate-100"
+            >
               Open Attendance
             </Button>
           </Link>
