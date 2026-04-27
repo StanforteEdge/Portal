@@ -1,56 +1,56 @@
 import { useEffect } from "react";
 import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
 import { onDeepLink } from "@/lib/tauri-bridge";
-import AttendancePage from "@/hr/attendance/AttendancePage";
-import LeavePage from "@/hr/leave/LeavePage";
-import LeaveRequestFormPage from "@/hr/leave/LeaveRequestFormPage";
-import LeaveRequestDetailsPage from "@/hr/leave/LeaveRequestDetailsPage";
-import DashboardPage from "@/dashboard/DashboardPage";
-import FinanceDashboardPage from "@/finance/dashboard/FinanceDashboardPage";
-import FinanceRequestDetailsPage from "@/finance/requests/FinanceRequestDetailsPage";
-import FinancePaymentVouchersPage from "@/finance/payment-vouchers/FinancePaymentVouchersPage";
-import FinanceRequestsPage from "@/finance/requests/FinanceRequestsPage";
-import FinanceLedgerPage from "@/finance/ledger/FinanceLedgerPage";
-import FinanceBudgetsPage from "@/finance/budgets/FinanceBudgetsPage";
-import FinanceReceivablesPage from "@/finance/receivables/FinanceReceivablesPage";
-import FinancePayablesPage from "@/finance/payables/FinancePayablesPage";
-import FinanceAssetsPage from "@/finance/assets/FinanceAssetsPage";
-import FinanceAssetEditorPage from "@/finance/assets/FinanceAssetEditorPage";
-import FinanceAssetDisposalsPage from "@/finance/assets/FinanceAssetDisposalsPage";
-import FinanceReportsPage from "@/finance/reports/FinanceReportsPage";
-import FinanceReportDetailPage from "@/finance/reports/FinanceReportDetailPage";
-import FinanceSettingsPage from "@/finance/settings/FinanceSettingsPage";
-import FinanceDeductionTypesPage from "@/finance/deductions/FinanceDeductionTypesPage";
-import FinanceChartAccountsPage from "@/finance/accounts/FinanceChartAccountsPage";
-import FinanceCustomersPage from "@/finance/customers";
-import FinanceVendorsPage from "@/finance/vendors";
-import FinanceContactsPage from "@/finance/contacts";
-import FinanceAccountsPage from "@/finance/accounts/FinanceAccountsPage";
-import FinanceAccountDetailPage from "@/finance/accounts/FinanceAccountDetailPage";
-import FinanceItemsPage from "@/finance/items/FinanceItemsPage";
-import FinanceExpensesPage from "@/finance/expenses/FinanceExpensesPage";
-import FinanceIncomePage from "@/finance/income/FinanceIncomePage";
-import FinanceBillsPage from "@/finance/bills/FinanceBillsPage";
-import FinanceSalesInvoicesPage from "@/finance/invoices/FinanceSalesInvoicesPage";
-import FinanceManualEntryPage from "@/finance/ledger/FinanceManualEntryPage";
-import AdminRolesPage from "@/admin/roles/AdminRolesPage";
-import HrDashboardPage from "@/hr/dashboard/HrDashboardPage";
-import HrLeavePage from "@/hr/leave/HrLeavePage";
-import HrEmployeesPage from "@/hr/employees/HrEmployeesPage";
-import HrEmployeeCreatePage from "@/hr/employees/HrEmployeeCreatePage";
-import HrEmployeeDetailPage from "@/hr/employees/HrEmployeeDetailPage";
-import HrEmployeeEditPage from "@/hr/employees/HrEmployeeEditPage";
-import HrAttendancePage from "@/hr/attendance/HrAttendancePage";
-import HrSettingsPage from "@/hr/settings/HrSettingsPage";
-import AdminUsersPage from "@/admin/users/AdminUsersPage";
-import AdminUserDetailPage from "@/admin/users/AdminUserDetailPage";
-import AdminSettingsPage from "@/admin/settings/AdminSettingsPage";
-import AdminGroupsPage from "@/admin/groups/AdminGroupsPage";
-import AdminProjectsPage from "@/admin/projects/AdminProjectsPage";
-import AdminFilesPage from "@/admin/files/AdminFilesPage";
-import ProjectsPage from "@/projects/ProjectsPage";
-import ProjectDetailPage from "@/projects/ProjectDetailPage";
-import FilesPage from "@/files/FilesPage";
+import AttendancePage from "@/pages/hr/attendance/AttendancePage";
+import LeavePage from "@/pages/hr/leave/LeavePage";
+import LeaveRequestFormPage from "@/pages/hr/leave/LeaveRequestFormPage";
+import LeaveRequestDetailsPage from "@/pages/hr/leave/LeaveRequestDetailsPage";
+import DashboardPage from "@/pages/dashboard/DashboardPage";
+import FinanceDashboardPage from "@/pages/finance/dashboard/FinanceDashboardPage";
+import FinanceRequestDetailsPage from "@/pages/finance/requests/FinanceRequestDetailsPage";
+import FinancePaymentVouchersPage from "@/pages/finance/payment-vouchers/FinancePaymentVouchersPage";
+import FinanceRequestsPage from "@/pages/finance/requests/FinanceRequestsPage";
+import FinanceLedgerPage from "@/pages/finance/ledger/FinanceLedgerPage";
+import FinanceBudgetsPage from "@/pages/finance/budgets/FinanceBudgetsPage";
+import FinanceReceivablesPage from "@/pages/finance/receivables/FinanceReceivablesPage";
+import FinancePayablesPage from "@/pages/finance/payables/FinancePayablesPage";
+import FinanceAssetsPage from "@/pages/finance/assets/FinanceAssetsPage";
+import FinanceAssetEditorPage from "@/pages/finance/assets/FinanceAssetEditorPage";
+import FinanceAssetDisposalsPage from "@/pages/finance/assets/FinanceAssetDisposalsPage";
+import FinanceReportsPage from "@/pages/finance/reports/FinanceReportsPage";
+import FinanceReportDetailPage from "@/pages/finance/reports/FinanceReportDetailPage";
+import FinanceSettingsPage from "@/pages/finance/settings/FinanceSettingsPage";
+import FinanceDeductionTypesPage from "@/pages/finance/deductions/FinanceDeductionTypesPage";
+import FinanceChartAccountsPage from "@/pages/finance/accounts/FinanceChartAccountsPage";
+import FinanceCustomersPage from "@/pages/finance/customers";
+import FinanceVendorsPage from "@/pages/finance/vendors";
+import FinanceContactsPage from "@/pages/finance/contacts";
+import FinanceAccountsPage from "@/pages/finance/accounts/FinanceAccountsPage";
+import FinanceAccountDetailPage from "@/pages/finance/accounts/FinanceAccountDetailPage";
+import FinanceItemsPage from "@/pages/finance/items/FinanceItemsPage";
+import FinanceExpensesPage from "@/pages/finance/expenses/FinanceExpensesPage";
+import FinanceIncomePage from "@/pages/finance/income/FinanceIncomePage";
+import FinanceBillsPage from "@/pages/finance/bills/FinanceBillsPage";
+import FinanceSalesInvoicesPage from "@/pages/finance/invoices/FinanceSalesInvoicesPage";
+import FinanceManualEntryPage from "@/pages/finance/ledger/FinanceManualEntryPage";
+import AdminRolesPage from "@/pages/admin/roles/AdminRolesPage";
+import HrDashboardPage from "@/pages/hr/dashboard/HrDashboardPage";
+import HrLeavePage from "@/pages/hr/leave/HrLeavePage";
+import HrEmployeesPage from "@/pages/hr/employees/HrEmployeesPage";
+import HrEmployeeCreatePage from "@/pages/hr/employees/HrEmployeeCreatePage";
+import HrEmployeeDetailPage from "@/pages/hr/employees/HrEmployeeDetailPage";
+import HrEmployeeEditPage from "@/pages/hr/employees/HrEmployeeEditPage";
+import HrAttendancePage from "@/pages/hr/attendance/HrAttendancePage";
+import HrSettingsPage from "@/pages/hr/settings/HrSettingsPage";
+import AdminUsersPage from "@/pages/admin/users/AdminUsersPage";
+import AdminUserDetailPage from "@/pages/admin/users/AdminUserDetailPage";
+import AdminSettingsPage from "@/pages/admin/settings/AdminSettingsPage";
+import AdminGroupsPage from "@/pages/admin/groups/AdminGroupsPage";
+import AdminProjectsPage from "@/pages/admin/projects/AdminProjectsPage";
+import AdminFilesPage from "@/pages/admin/files/AdminFilesPage";
+import ProjectsPage from "@/pages/projects/ProjectsPage";
+import ProjectDetailPage from "@/pages/projects/ProjectDetailPage";
+import FilesPage from "@/pages/files/FilesPage";
 import {
   ProtectedRoute,
   PublicOnlyRoute,
@@ -59,16 +59,16 @@ import {
   ApprovalRoute,
   ModuleRoute,
 } from "@/shared/components/auth/AccessRoute";
-import AcceptInvitePage from "@/auth/AcceptInvitePage";
-import ForgotPasswordPage from "@/auth/ForgotPasswordPage";
-import LoginPage from "@/auth/LoginPage";
-import ResetPasswordPage from "@/auth/ResetPasswordPage";
-import SessionReauthPage from "@/auth/SessionReauthPage";
-import RequestDetailsPage from "@/requests/RequestDetailsPage";
-import RequestFormPage from "@/requests/new/RequestFormPage";
-import RequestTypePage from "@/requests/new/RequestTypePage";
-import ApprovalsPage from "@/requests/ApprovalsPage";
-import RequestsListPage from "@/requests/RequestsListPage";
+import AcceptInvitePage from "@/pages/auth/AcceptInvitePage";
+import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
+import LoginPage from "@/pages/auth/LoginPage";
+import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
+import SessionReauthPage from "@/pages/auth/SessionReauthPage";
+import RequestDetailsPage from "@/pages/requests/RequestDetailsPage";
+import RequestFormPage from "@/pages/requests/new/RequestFormPage";
+import RequestTypePage from "@/pages/requests/new/RequestTypePage";
+import ApprovalsPage from "@/pages/requests/ApprovalsPage";
+import RequestsListPage from "@/pages/requests/RequestsListPage";
 import {
   DownloadPage,
   HelpPage,
@@ -77,7 +77,7 @@ import {
   TimesheetsPage,
   ProfilePage,
   SettingsPage,
-} from "@/account";
+} from "@/pages/account";
 
 export default function App() {
   const navigate = useNavigate();
