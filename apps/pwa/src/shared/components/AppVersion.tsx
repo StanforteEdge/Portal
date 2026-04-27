@@ -10,7 +10,30 @@ type VersionManifest = {
 const POLL_INTERVAL_MS = 3 * 60 * 1000;
 const RELOAD_FLAG = "se_version_reload";
 
+function toComparableBuildVersion(value: string | null | undefined): number[] | null {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || !/^\d+(?:\.\d+)*$/.test(normalized)) {
+    return null;
+  }
+  return normalized.split(".").map((part) => Number(part));
+}
+
+function compareBuildVersions(current: string | null | undefined, latest: string | null | undefined): number {
+  const currentParts = toComparableBuildVersion(current);
+  const latestParts = toComparableBuildVersion(latest);
+  if (!currentParts || !latestParts) return 0;
+  const maxLength = Math.max(currentParts.length, latestParts.length);
+  for (let index = 0; index < maxLength; index += 1) {
+    const currentValue = currentParts[index] ?? 0;
+    const latestValue = latestParts[index] ?? 0;
+    if (latestValue > currentValue) return 1;
+    if (latestValue < currentValue) return -1;
+  }
+  return 0;
+}
+
 export function AppVersion() {
+  const buildVersion = import.meta.env.VITE_BUILD_VERSION as string | undefined;
   const builtAt = import.meta.env.VITE_APP_BUILT_AT as string | undefined;
   const [updateAvailable, setUpdateAvailable] = useState(false);
   const [newBuildVersion, setNewBuildVersion] = useState<string | null>(null);
@@ -22,9 +45,22 @@ export function AppVersion() {
       });
       if (!res.ok) return;
       const payload = (await res.json()) as VersionManifest;
-      if (payload.built_at && payload.built_at !== builtAt) {
+      const versionComparison = compareBuildVersions(buildVersion, payload.build_version);
+      const hasNewerBuild = versionComparison > 0;
+      const shouldUseBuiltAtFallback = versionComparison === 0 && !toComparableBuildVersion(buildVersion);
+      const hasNewerBuiltAt = Boolean(
+        shouldUseBuiltAtFallback &&
+        payload.built_at &&
+        builtAt &&
+        payload.built_at !== builtAt
+      );
+
+      if (hasNewerBuild || hasNewerBuiltAt) {
         setNewBuildVersion(payload.build_version ?? null);
         setUpdateAvailable(true);
+      } else {
+        setNewBuildVersion(null);
+        setUpdateAvailable(false);
       }
     } catch {
       // ignore — version check failures are non-critical
