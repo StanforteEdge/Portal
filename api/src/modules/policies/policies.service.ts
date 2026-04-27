@@ -146,6 +146,13 @@ export class PoliciesService {
     };
   }
 
+  async delete(id: string) {
+    const existing = await this.prisma.policy.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Policy not found');
+    await this.prisma.policy.delete({ where: { id } });
+    return { success: true };
+  }
+
   private async mapDtoToCreatePayload(dto: CreatePolicyDto, actorId?: string): Promise<Prisma.PolicyUncheckedCreateInput> {
     if (dto.document_id) {
       await this.ensureDocument(dto.document_id);

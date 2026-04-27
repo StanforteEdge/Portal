@@ -37,6 +37,8 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
   const [scopeId, setScopeId] = useState(policy?.scope_id || "");
   const [priority, setPriority] = useState(policy?.priority || 200);
   
+  const [scopeTypeChanged, setScopeTypeChanged] = useState(false);
+
   const [startTime, setStartTime] = useState(policy?.config_json?.start_time || "09:00");
   const [endTime, setEndTime] = useState(policy?.config_json?.end_time || "17:00");
   const [grace, setGrace] = useState(policy?.config_json?.grace_minutes || 15);
@@ -54,8 +56,17 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
       showToast({ tone: "warning", title: "Missing ID", message: "Please provide the Target ID (e.g. Org ID, Team ID or User Email)." });
       return;
     }
+
+    const isScopeChanged = scopeTypeChanged || 
+      (policy && (policy.scope_type !== scopeType || policy.scope_id !== scopeId));
+
     try {
       setSaving(true);
+      
+      if (isScopeChanged && policy?.id) {
+        await policyApi.deletePolicy(policy.id);
+      }
+      
       await policyApi.savePolicy({
         module: "attendance",
         policy_key: "schedule",
@@ -81,8 +92,9 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
-      <div className="flex h-screen w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-x-0 bottom-0 z-[100] flex justify-end">
+      <div className="absolute inset-0 top-16 bg-slate-950/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)] animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Attendance Policies</p>
@@ -93,14 +105,17 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
           </Button>
         </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-6">
+        <div className="flex-1 min-h-0 space-y-6 overflow-y-auto p-6">
           <SectionCard title="Target Scope">
             <div className="grid gap-4">
               <SelectField
                 label="Scope Type"
                 value={scopeType}
-                onChange={(e) => setScopeType(e.target.value as ScopeType)}
-                disabled={!!policy}
+                onChange={(e) => {
+                  setScopeType(e.target.value as ScopeType);
+                  setScopeTypeChanged(true);
+                  setScopeId("");
+                }}
               >
                 <option value="organization">Organization</option>
                 <option value="team">Team</option>
@@ -108,21 +123,21 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
               </SelectField>
 
               {scopeType === "organization" && (
-                <SelectField label="Target Organization" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                <SelectField label="Target Organization" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
                   <option value="">Select organization…</option>
                   {organizations.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
                 </SelectField>
               )}
 
               {scopeType === "team" && (
-                <SelectField label="Target Team" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                <SelectField label="Target Team" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
                   <option value="">Select team…</option>
                   {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
                 </SelectField>
               )}
 
               {scopeType === "user" && (
-                <SelectField label="Target Employee" value={scopeId} onChange={(e) => setScopeId(e.target.value)} disabled={!!policy}>
+                <SelectField label="Target Employee" value={scopeId} onChange={(e) => { setScopeId(e.target.value); setScopeTypeChanged(true); }}>
                   <option value="">Select staff member…</option>
                   {employees.map(s => <option key={s.id} value={s.id}>{s.name} ({s.subtitle})</option>)}
                 </SelectField>

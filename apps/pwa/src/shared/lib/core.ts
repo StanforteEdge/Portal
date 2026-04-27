@@ -5,6 +5,7 @@ import {
   createPolicyApi,
   createAttendanceApi,
   createRequestApi,
+  createAdminUsersApi,
   createFinanceApi,
   createCacheStore,
   createHttpClient,
@@ -27,6 +28,7 @@ export const resourceApi = createResourceApi(httpRequest);
 export const policyApi = createPolicyApi(httpRequest);
 export const attendanceApi = createAttendanceApi(httpRequest);
 export const requestApi = createRequestApi(httpRequest);
+export const adminUsersApi = createAdminUsersApi(httpRequest);
 export const financeApi = createFinanceApi(httpRequest);
 export const cacheStore = createCacheStore(CACHE_PREFIX);
 

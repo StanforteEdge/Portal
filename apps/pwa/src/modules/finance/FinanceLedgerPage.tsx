@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AppShell,
   Button,
   Chip,
   EmptyState,
   PageHeader,
+  PaginationControls,
   SectionCard,
   SelectField,
   StatCard,
@@ -16,10 +17,12 @@ import {
   TableHeaderRow,
   TableRow,
   TextField,
+  useToast,
 } from "@/shared";
 import { buildAppMobileNav, buildRequestsNavigation } from "@/features/requests/requests-data";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
+import { downloadBase64File } from "@/shared/lib/download";
 import { formatCurrency } from "@stanforte/shared";
 import type { FinanceLedgerEntry } from "@stanforte/shared";
 
@@ -37,10 +40,18 @@ function money(value: unknown, currency = "NGN") {
 
 export default function FinanceLedgerPage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [accountId, setAccountId] = useState("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  const [exporting, setExporting] = useState(false);
+
+  useEffect(() => {
+    setPage(1);
+  }, [from, to, accountId, search, perPage]);
 
   const query = useMemo(
     () => ({
@@ -48,16 +59,24 @@ export default function FinanceLedgerPage() {
       to: to || undefined,
       account_id: accountId !== "all" ? accountId : undefined,
       q: search.trim() || undefined,
+      page,
+      per_page: perPage,
     }),
-    [from, to, accountId, search],
+    [from, to, accountId, search, page, perPage],
   );
 
-  const { data: rowsData, loading, error } = useCachedQuery(
+  const { data: ledgerPayload, loading, error } = useCachedQuery(
     `finance:ledger:${JSON.stringify(query)}`,
-    () => financeApi.listLedger(query),
+    () => financeApi.listLedgerPaged(query),
     { ttlMs: 30_000, storage: "memory" },
   );
-  const rows = Array.isArray(rowsData) ? rowsData : [];
+  const rows = Array.isArray(ledgerPayload?.data) ? ledgerPayload.data : [];
+  const meta = (ledgerPayload?.meta as any) || {
+    page,
+    per_page: perPage,
+    total: rows.length,
+    last_page: 1,
+  };
 
   const { data: accountsData } = useCachedQuery(
     "finance:ledger:accounts",
@@ -82,6 +101,28 @@ export default function FinanceLedgerPage() {
 
   const userName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.email || "Staff";
 
+  async function handleExportLedger() {
+    try {
+      setExporting(true);
+      const file = await financeApi.exportLedger({
+        from: from || undefined,
+        to: to || undefined,
+        account_id: accountId !== "all" ? accountId : undefined,
+        q: search.trim() || undefined,
+      });
+      downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+      showToast({ tone: "success", title: "Ledger exported", message: "Your ledger CSV has been downloaded." });
+    } catch (err) {
+      showToast({
+        tone: "danger",
+        title: "Export failed",
+        message: err instanceof Error ? err.message : "Unable to export ledger right now.",
+      });
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
@@ -94,7 +135,11 @@ export default function FinanceLedgerPage() {
         breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Ledger" }]}
         title="General Ledger"
         description="Review transaction movements and account activity with audit-ready clarity."
-        actions={<Button variant="secondary">Export Ledger</Button>}
+        actions={
+          <Button variant="secondary" disabled={exporting} onClick={() => void handleExportLedger()}>
+            {exporting ? "Exporting..." : "Export Ledger"}
+          </Button>
+        }
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -124,37 +169,51 @@ export default function FinanceLedgerPage() {
         {error ? <p className="text-sm text-danger">{error}</p> : null}
 
         {rows.length ? (
-          <Table caption="Finance ledger">
-            <TableHead>
-              <TableHeaderRow>
-                <TableHeaderCell>Date</TableHeaderCell>
-                <TableHeaderCell>Reference</TableHeaderCell>
-                <TableHeaderCell>Account</TableHeaderCell>
-                <TableHeaderCell>Source</TableHeaderCell>
-                <TableHeaderCell>Direction</TableHeaderCell>
-                <TableHeaderCell className="text-right">Amount</TableHeaderCell>
-              </TableHeaderRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((row: FinanceLedgerEntry) => {
-                const direction = String(row.direction || "-").toLowerCase();
-                return (
-                  <TableRow key={row.id}>
-                    <TableCell>{dateText(row.entry_date || row.date)}</TableCell>
-                    <TableCell>{String(row.reference || row.id).slice(0, 36)}</TableCell>
-                    <TableCell>{String(row.account_name || "-")}</TableCell>
-                    <TableCell>{String(row.source_type || "-")}</TableCell>
-                    <TableCell>
-                      <Chip variant={direction === "in" ? "success" : direction === "out" ? "warning" : "neutral"}>
-                        {direction || "-"}
-                      </Chip>
-                    </TableCell>
-                    <TableCell className="text-right">{money(row.amount, String(row.currency || "NGN"))}</TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+          <>
+            <Table caption="Finance ledger">
+              <TableHead>
+                <TableHeaderRow>
+                  <TableHeaderCell>Date</TableHeaderCell>
+                  <TableHeaderCell>Reference</TableHeaderCell>
+                  <TableHeaderCell>Account</TableHeaderCell>
+                  <TableHeaderCell>Source</TableHeaderCell>
+                  <TableHeaderCell>Direction</TableHeaderCell>
+                  <TableHeaderCell className="text-right">Amount</TableHeaderCell>
+                </TableHeaderRow>
+              </TableHead>
+              <TableBody>
+                {rows.map((row: FinanceLedgerEntry) => {
+                  const direction = String(row.direction || "-").toLowerCase();
+                  return (
+                    <TableRow key={row.id}>
+                      <TableCell>{dateText(row.entry_date || row.date)}</TableCell>
+                      <TableCell>{String(row.reference || row.id).slice(0, 36)}</TableCell>
+                      <TableCell>{String(row.account_name || "-")}</TableCell>
+                      <TableCell>{String(row.source_type || "-")}</TableCell>
+                      <TableCell>
+                        <Chip variant={direction === "in" ? "success" : direction === "out" ? "warning" : "neutral"}>
+                          {direction || "-"}
+                        </Chip>
+                      </TableCell>
+                      <TableCell className="text-right">{money(row.amount, String(row.currency || "NGN"))}</TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+            <PaginationControls
+              page={Number(meta.page || page)}
+              totalPages={Number(meta.last_page || 1)}
+              totalCount={Number(meta.total || 0)}
+              itemLabel="entry"
+              perPage={Number(meta.per_page || perPage)}
+              onPerPageChange={(value) => {
+                setPerPage(value);
+                setPage(1);
+              }}
+              onPageChange={setPage}
+            />
+          </>
         ) : !loading ? (
           <EmptyState title="No ledger entries" description="Transactions will appear here once finance entries are posted." />
         ) : null}

@@ -14,7 +14,7 @@ import {
 import { attendanceApi, useCachedQuery } from "@/shared/lib/core";
 import { type AttendanceDaily } from "@stanforte/shared";
 
-import { formatDate, formatTime, formatDuration } from "@/shared/lib/format-utils";
+import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@stanforte/shared";
 
 const statusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   present: "success",
@@ -46,8 +46,9 @@ export default function StaffAttendanceSlideOver({
   const daily: AttendanceDaily[] = (data || []) as any;
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
-      <div className="flex h-screen w-full max-w-2xl flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-x-0 bottom-0 z-[100] flex justify-end">
+      <div className="absolute inset-0 top-16 bg-slate-950/40" onClick={onClose} />
+      <div className="relative w-full max-w-2xl flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)] animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">
@@ -63,7 +64,7 @@ export default function StaffAttendanceSlideOver({
           </Button>
         </div>
 
-        <div className="flex-1 space-y-6 overflow-y-auto p-6">
+        <div className="flex-1 min-h-0 overflow-y-auto p-6">
           {loading ? (
             <div className="text-sm text-slate-500">Loading...</div>
           ) : error ? (
@@ -86,7 +87,7 @@ export default function StaffAttendanceSlideOver({
                     <TableRow key={row.id}>
                       <TableCell>{formatDate(row.work_date)}</TableCell>
                       <TableCell>{formatTime(row.first_in_at)}</TableCell>
-                      <TableCell>{formatTime(row.last_out_at)}</TableCell>
+                      <TableCell>{formatTimeNextDay(row.last_out_at, row.first_in_at)}</TableCell>
                       <TableCell>{formatDuration(row.worked_minutes)}</TableCell>
                       <TableCell>
                         {row.late_minutes > 0 ? formatDuration(row.late_minutes) : "-"}

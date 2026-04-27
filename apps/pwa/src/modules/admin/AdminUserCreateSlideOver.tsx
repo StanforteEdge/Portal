@@ -6,14 +6,8 @@ import {
   TextField,
   useToast,
 } from "@/shared";
-import { resourceApi } from "@/shared/lib/core";
-import {
-  createAdminUser,
-  setAdminUserRoles,
-  sendUserInvite,
-  listRoleOptions,
-  type RoleOption,
-} from "./admin-users-api";
+import { adminUsersApi, resourceApi } from "@/shared/lib/core";
+import type { RoleOption } from "@stanforte/shared";
 import type { OrganizationItem } from "@/shared";
 
 type Props = {
@@ -38,7 +32,7 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
 
   useEffect(() => {
     Promise.all([
-      listRoleOptions().catch(() => []),
+      adminUsersApi.listRoleOptions().catch(() => []),
       resourceApi.listOrganizations().catch(() => []),
     ]).then(([roleData, orgData]) => {
       setRoles(roleData);
@@ -63,7 +57,7 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
     }
     try {
       setSaving(true);
-      const user = await createAdminUser({
+      const user = await adminUsersApi.createUser({
         email: email.trim(),
         first_name: firstName.trim() || undefined,
         last_name: lastName.trim() || undefined,
@@ -72,10 +66,10 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
         organization_id: organizationId,
       });
       if (selectedRoles.length > 0) {
-        await setAdminUserRoles(user.id, selectedRoles);
+        await adminUsersApi.setUserRoles(user.id, selectedRoles);
       }
       if (sendInvite) {
-        await sendUserInvite(user.id);
+        await adminUsersApi.sendUserInvite(user.id);
       }
       showToast({
         tone: "success",
@@ -97,8 +91,9 @@ export default function AdminUserCreateSlideOver({ onClose, onCreated }: Props) 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40">
-      <div className="flex h-full w-full max-w-lg flex-col bg-white shadow-xl">
+    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-end">
+      <div className="absolute inset-0 top-16 bg-slate-950/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)]">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">

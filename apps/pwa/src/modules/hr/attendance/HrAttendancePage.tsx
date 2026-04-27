@@ -30,7 +30,7 @@ import {
 } from "@stanforte/shared";
 import StaffAttendanceSlideOver from "./StaffAttendanceSlideOver";
 import CorrectionReviewSlideOver from "./CorrectionReviewSlideOver";
-import { formatDate, formatTime, formatDuration } from "@/shared/lib/format-utils";
+import { formatDate, formatTime, formatTimeNextDay, formatDuration } from "@stanforte/shared";
 
 const rowStatusVariant: Record<string, "success" | "warning" | "danger" | "neutral"> = {
   present: "success",
@@ -112,6 +112,7 @@ export default function HrAttendancePage() {
         description="Monitor daily attendance, worked hours, and manage correction requests."
       />
 
+      {/* TEST: Current time */}
       <div className="grid gap-6">
         {/* Today's snapshot */}
         <div className="grid gap-4 md:grid-cols-4">
@@ -199,7 +200,7 @@ export default function HrAttendancePage() {
                     </TableCell>
                     <TableCell>{formatDate(row.work_date)}</TableCell>
                     <TableCell>{formatTime(row.first_in_at)}</TableCell>
-                    <TableCell>{formatTime(row.last_out_at)}</TableCell>
+                    <TableCell>{formatTimeNextDay(row.last_out_at, row.first_in_at)}</TableCell>
                     <TableCell>{formatDuration(row.worked_minutes)}</TableCell>
                     <TableCell>
                       {row.late_minutes > 0

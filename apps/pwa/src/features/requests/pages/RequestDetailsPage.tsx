@@ -110,27 +110,13 @@ function buildWorkflow(
   }>,
   options?: { showDraftStep?: boolean },
 ): WorkflowStep[] {
-  const rawStatus = String(request?.status || "").toLowerCase();
+  const status = deriveRequestWorkflowStatus(request);
   const stateEvents = Array.isArray(request?.data?.state_events)
     ? request.data.state_events
     : [];
   const doneEntries = Array.isArray(request?.approvals?.done)
     ? request.approvals.done
     : [];
-  const hasWorkflowHistory =
-    doneEntries.length > 0 ||
-    pendingSteps.length > 0 ||
-    stateEvents.some((event: Record<string, unknown>) =>
-      [
-        "submit",
-        "workflow_start",
-        "workflow_auto_approved",
-        "approve",
-        "reject",
-      ].includes(String(event.action || "").toLowerCase()),
-    );
-  const status =
-    rawStatus === "draft" && hasWorkflowHistory ? "approval" : rawStatus;
   const requestTypeSteps = Array.isArray(
     request?.request_type?.approval_flow_json?.steps,
   )
@@ -352,6 +338,39 @@ function deriveRequestWorkflowStatus(request: any) {
   const stateEvents = Array.isArray(request?.data?.state_events)
     ? request.data.state_events
     : [];
+  const latestWorkflowEvent = [...stateEvents]
+    .reverse()
+    .find((event: Record<string, unknown>) => {
+      const action = String(event.action || "").toLowerCase();
+      const to = String(event.to || "").toLowerCase();
+      return ["return", "reject", "approve", "submit", "resubmit"].includes(action)
+        || ["returned", "returned_for_edit", "rejected", "approval", "sent"].includes(to);
+    }) as Record<string, unknown> | undefined;
+  const latestAction = String(latestWorkflowEvent?.action || "").toLowerCase();
+  const latestTo = String(latestWorkflowEvent?.to || "").toLowerCase();
+
+  if (rawStatus === "rejected") {
+    return "rejected";
+  }
+
+  if (rawStatus === "returned" || rawStatus === "returned_for_edit") {
+    return "returned";
+  }
+
+  if (
+    rawStatus === "draft" &&
+    (latestAction === "return" || latestTo === "returned" || latestTo === "returned_for_edit")
+  ) {
+    return "returned";
+  }
+
+  if (
+    rawStatus === "draft" &&
+    (latestAction === "reject" || latestTo === "rejected")
+  ) {
+    return "rejected";
+  }
+
   const hasSubmitted =
     stateEvents.some((event: Record<string, unknown>) => {
       const action = String(event.action || "").toLowerCase();
@@ -601,6 +620,10 @@ export function RequestDetailsPage() {
     retired_amount: "",
     notes: "",
     retirement_file_ids: [] as string[],
+    refund_amount: "",
+    refund_method: "bank_transfer",
+    refund_reference: "",
+    refund_date: new Date().toISOString().slice(0, 10),
   });
   const [showCertificateHonorForm, setShowCertificateHonorForm] =
     useState(false);
@@ -687,7 +710,8 @@ export function RequestDetailsPage() {
     );
 
   const family = requestFamilyFromRecord(request || undefined);
-  const statusTone = requestStatusTone(request?.status);
+  const workflowStatus = deriveRequestWorkflowStatus(request);
+  const statusTone = requestStatusTone(workflowStatus);
   const requestData =
     request?.data && typeof request.data === "object" ? request.data : {};
   const categoryTaxonomyKey = String(request?.request_type?.category_key || "");
@@ -753,7 +777,6 @@ export function RequestDetailsPage() {
   const defaultFinanceAccountId = financeAccounts?.[0]?.id ?? "";
   const pendingApprovals = request?.approvals?.pending ?? [];
   const completedApprovals = request?.approvals?.done ?? [];
-  const workflowStatus = deriveRequestWorkflowStatus(request);
   const workflow =
     family === "leave"
       ? buildLeaveWorkflow(request, pendingApprovals, {
@@ -799,8 +822,8 @@ export function RequestDetailsPage() {
     detailView === "finance" ? buildAppMobileNav("Finance") : requestsMobileNav;
   const canSubmit =
     (requestActions ?? []).includes("submit") &&
-    ["draft", "returned_for_edit"].includes(workflowStatus);
-  const canEditRequest = ["draft", "returned_for_edit"].includes(workflowStatus);
+    ["draft", "returned"].includes(workflowStatus);
+  const canEditRequest = ["draft", "returned"].includes(workflowStatus);
   const roles = (user?.roles ?? []).map((entry) =>
     String(entry).trim().toLowerCase(),
   );
@@ -1004,6 +1027,17 @@ export function RequestDetailsPage() {
       null,
     [paymentVouchers],
   );
+  const selectedRetirementVoucher = useMemo(
+    () =>
+      (paymentVouchers ?? []).find(
+        (voucher) => voucher.id === retireForm.voucher_id,
+      ) || null,
+    [paymentVouchers, retireForm.voucher_id],
+  );
+  const retirementAmountValue = Number(retireForm.retired_amount || 0);
+  const retirementShortfall = selectedRetirementVoucher
+    ? Math.max(0, Number(selectedRetirementVoucher.amount || 0) - retirementAmountValue)
+    : 0;
   const canShowNudge =
     !availableActions.length &&
     Boolean(request) &&
@@ -1054,6 +1088,12 @@ export function RequestDetailsPage() {
     setShowDisburseDialog(true);
   }
 
+  function canEditVoucher(voucher: FinancePaymentVoucherRecord) {
+    const hasRetirement =
+      Number(voucher.retired_amount || 0) > 0 || Boolean(voucher.retired_at);
+    return financeActionsVisible && !hasRetirement;
+  }
+
   function openVoucherPreview(voucher: FinancePaymentVoucherRecord) {
     setPreviewVoucher(voucher);
     setShowVoucherPreviewDialog(true);
@@ -1094,6 +1134,10 @@ export function RequestDetailsPage() {
             "",
           )
           : current.retired_amount,
+      refund_amount: "",
+      refund_method: "bank_transfer",
+      refund_reference: "",
+      refund_date: new Date().toISOString().slice(0, 10),
     }));
     setShowCertificateHonorForm(false);
     setShowRetireDialog(true);
@@ -1448,15 +1492,56 @@ export function RequestDetailsPage() {
       } else if (action === "confirm") {
         await confirmRequest(id);
       } else if (action === "retire") {
+        const selectedVoucher =
+          (paymentVouchers ?? []).find(
+            (voucher) => voucher.id === retireForm.voucher_id,
+          ) || null;
+        const retiredAmount = retireForm.retired_amount.trim()
+          ? Number(retireForm.retired_amount)
+          : undefined;
+        const shortfall = selectedVoucher
+          ? Math.max(0, Number(selectedVoucher.amount || 0) - Number(retiredAmount || 0))
+          : 0;
+        const refundAmount = retireForm.refund_amount.trim()
+          ? Number(retireForm.refund_amount)
+          : 0;
+        const hasRefundDetails =
+          refundAmount >= shortfall &&
+          Boolean(retireForm.refund_method.trim()) &&
+          Boolean(retireForm.refund_reference.trim());
+        const hasRefundEvidence = retireForm.retirement_file_ids.length > 0;
+
+        if (shortfall > 0 && !hasRefundDetails && !hasRefundEvidence) {
+          showToast({
+            title: "Refund evidence required",
+            message:
+              "You retired less than disbursed. Add refund details or upload refund evidence before submitting.",
+            tone: "warning",
+          });
+          return;
+        }
+
         await retireRequest(id, {
           voucher_id: retireForm.voucher_id || undefined,
-          retired_amount: retireForm.retired_amount.trim()
-            ? Number(retireForm.retired_amount)
-            : undefined,
+          retired_amount: retiredAmount,
           notes: retireForm.notes.trim() || actionComment.trim() || undefined,
           retirement_file_ids: retireForm.retirement_file_ids.length
             ? retireForm.retirement_file_ids
             : undefined,
+          breakdown:
+            shortfall > 0
+              ? {
+                  refund: {
+                    required_amount: shortfall,
+                    refund_amount: refundAmount || undefined,
+                    refund_method: retireForm.refund_method || undefined,
+                    refund_reference:
+                      retireForm.refund_reference.trim() || undefined,
+                    refund_date: retireForm.refund_date || undefined,
+                    evidence_file_ids: retireForm.retirement_file_ids,
+                  },
+                }
+              : undefined,
         });
       } else if (action === "complete") {
         await completeRequest(id);
@@ -1480,6 +1565,10 @@ export function RequestDetailsPage() {
         retired_amount: "",
         notes: "",
         retirement_file_ids: [],
+        refund_amount: "",
+        refund_method: "bank_transfer",
+        refund_reference: "",
+        refund_date: new Date().toISOString().slice(0, 10),
       });
       setShowCertificateHonorForm(false);
       setRetirementCertificateForm({
@@ -1525,12 +1614,45 @@ export function RequestDetailsPage() {
         tone: "success",
       });
     } catch (error) {
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "We couldn't complete that action just now.";
+      const staleActionState = [
+        "workflow instance is not active",
+        "workflow instance not found",
+        "request is not pending approval",
+      ].some((snippet) => errorMessage.toLowerCase().includes(snippet));
+
+      if (staleActionState && id) {
+        [
+          "requests:list:mine",
+          "requests:list:approvals",
+          "finance-admin:requests",
+          "finance-vouchers:list",
+          `requests:detail:${id}`,
+          `requests:actions:${id}`,
+          `requests:detail:payment-vouchers:${id}`,
+        ].forEach((key) => cacheStore.invalidateCache(key));
+
+        await Promise.allSettled([
+          refetch(),
+          refetchRequestActions(),
+          refetchPaymentVouchers(),
+        ]);
+
+        showToast({
+          title: "Request already updated",
+          message:
+            "The action was applied, and this view has been refreshed to show the latest status.",
+          tone: "warning",
+        });
+        return;
+      }
+
       showToast({
         title: "Action failed",
-        message:
-          error instanceof Error
-            ? error.message
-            : "We couldn't complete that action just now.",
+        message: errorMessage,
         tone: "danger",
       });
     } finally {
@@ -1629,7 +1751,7 @@ export function RequestDetailsPage() {
                   className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                 >
                   <Icon name="edit" className="text-[18px]" />
-                  {workflowStatus === "returned_for_edit" ? "Edit Returned Request" : "Edit Draft"}
+                  {workflowStatus === "returned" ? "Edit Returned Request" : "Edit Draft"}
                 </Link>
               ) : null}
             </div>
@@ -1854,7 +1976,7 @@ export function RequestDetailsPage() {
                                   type="button"
                                   className="text-left text-sm font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                                   onClick={() =>
-                                    financeActionsVisible
+                                    canEditVoucher(voucher)
                                       ? openVoucherEditor(voucher)
                                       : openVoucherPreview(voucher)
                                   }
@@ -1916,18 +2038,19 @@ export function RequestDetailsPage() {
                                     size="sm"
                                     variant="secondary"
                                     onClick={() =>
-                                      financeActionsVisible
+                                      canEditVoucher(voucher)
                                         ? openVoucherEditor(voucher)
                                         : openVoucherPreview(voucher)
                                     }
                                   >
-                                    {financeActionsVisible
+                                    {canEditVoucher(voucher)
                                       ? "View / Edit"
                                       : "View"}
                                   </Button>
                                   {ownerActionsVisible &&
                                     availableActions.includes("retire") &&
-                                    Number(voucher.voucher_balance || 0) > 0 ? (
+                                    Number(voucher.voucher_balance || 0) > 0 &&
+                                    Number(voucher.retired_amount || 0) <= 0 ? (
                                     <Button
                                       size="sm"
                                       variant="secondary"
@@ -2119,7 +2242,7 @@ export function RequestDetailsPage() {
                   >
                     {actionBusy === "submit"
                       ? "Submitting..."
-                      : workflowStatus === "returned_for_edit"
+                      : workflowStatus === "returned"
                         ? "Resubmit Request"
                         : "Submit Request"}
                   </Button>
@@ -2499,7 +2622,7 @@ export function RequestDetailsPage() {
                 >
                   {actionBusy === "submit"
                     ? "Submitting..."
-                    : workflowStatus === "returned_for_edit"
+                    : workflowStatus === "returned"
                       ? "Resubmit Request"
                       : "Submit Request"}
                 </Button>
@@ -2917,6 +3040,68 @@ export function RequestDetailsPage() {
                   </div>
                 </div>
               ) : null}
+              {previewVoucher.retirement_files?.length ? (
+                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+                  <div className="text-sm font-semibold text-slate-950">
+                    Retirement files
+                  </div>
+                  <div className="mt-3 space-y-2">
+                    {previewVoucher.retirement_files.map((file) => (
+                      <button
+                        type="button"
+                        key={file.id}
+                        className="flex w-full items-center justify-between gap-2 rounded-2xl bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                        onClick={() => openVoucherEvidence(file)}
+                        disabled={!file.public_url}
+                      >
+                        <span className="truncate">{file.file_name}</span>
+                        <span className="text-xs font-semibold text-brand-900">
+                          {file.public_url ? "View" : "Unavailable"}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+              {(() => {
+                const requestData = request?.data as Record<string, unknown> | null;
+                const retirement = typeof requestData?.retirement === "object" && requestData.retirement ? (requestData.retirement as Record<string, unknown>) : null;
+                const breakdown = typeof retirement?.breakdown === "object" && retirement.breakdown ? (retirement.breakdown as Record<string, unknown>) : null;
+                const refund = typeof breakdown?.refund === "object" && breakdown.refund ? (breakdown.refund as Record<string, unknown>) : null;
+                const refundAmount = typeof refund?.refund_amount === "number" ? refund.refund_amount : null;
+                if (!refund || !refundAmount) return null;
+                return (
+                  <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-4">
+                    <div className="text-sm font-semibold text-amber-900">
+                      Refund
+                    </div>
+                    <div className="mt-2 space-y-1 text-sm text-amber-800">
+                      <p>
+                        <span className="font-medium">Amount:</span>{" "}
+                        {formatCurrency(refundAmount, request?.currency)}
+                      </p>
+                      {refund.refund_method ? (
+                        <p>
+                          <span className="font-medium">Method:</span>{" "}
+                          {String(refund.refund_method)}
+                        </p>
+                      ) : null}
+                      {refund.refund_reference ? (
+                        <p>
+                          <span className="font-medium">Reference:</span>{" "}
+                          {String(refund.refund_reference)}
+                        </p>
+                      ) : null}
+                      {refund.refund_date ? (
+                        <p>
+                          <span className="font-medium">Date:</span>{" "}
+                          {formatDisplayDate(String(refund.refund_date))}
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+                );
+              })()}
             </div>
             <div className="border-t border-slate-100 px-6 py-4">
               <div className="flex flex-wrap justify-end gap-3">
@@ -3217,6 +3402,68 @@ export function RequestDetailsPage() {
                     : ""
                 }
               />
+
+              {retirementShortfall > 0 ? (
+                <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-4">
+                  <p className="text-sm font-semibold text-amber-900">
+                    Refund Required: {formatCurrency(retirementShortfall, request?.currency)}
+                  </p>
+                  <p className="mt-1 text-xs text-amber-800">
+                    You retired less than disbursed. Provide refund details below or upload refund evidence in Retirement Files.
+                  </p>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <TextField
+                      label="Refund Amount"
+                      type="number"
+                      min="0"
+                      value={retireForm.refund_amount}
+                      onChange={(event) =>
+                        setRetireForm((current) => ({
+                          ...current,
+                          refund_amount: event.target.value,
+                        }))
+                      }
+                      placeholder={String(retirementShortfall)}
+                    />
+                    <SelectField
+                      label="Refund Method"
+                      value={retireForm.refund_method}
+                      onChange={(event) =>
+                        setRetireForm((current) => ({
+                          ...current,
+                          refund_method: event.target.value,
+                        }))
+                      }
+                    >
+                      <option value="bank_transfer">Bank Transfer</option>
+                      <option value="cash_deposit">Cash Deposit</option>
+                      <option value="cash_handin">Cash Hand-in</option>
+                    </SelectField>
+                    <TextField
+                      label="Refund Reference"
+                      value={retireForm.refund_reference}
+                      onChange={(event) =>
+                        setRetireForm((current) => ({
+                          ...current,
+                          refund_reference: event.target.value,
+                        }))
+                      }
+                      placeholder="Txn ref / teller / receipt no"
+                    />
+                    <TextField
+                      label="Refund Date"
+                      type="date"
+                      value={retireForm.refund_date}
+                      onChange={(event) =>
+                        setRetireForm((current) => ({
+                          ...current,
+                          refund_date: event.target.value,
+                        }))
+                      }
+                    />
+                  </div>
+                </div>
+              ) : null}
 
               <TextAreaField
                 label="Retirement Notes"

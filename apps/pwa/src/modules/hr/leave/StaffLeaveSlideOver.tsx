@@ -40,8 +40,9 @@ export default function StaffLeaveSlideOver({ userId, userName, year, onClose }:
   const staffBalance = balancesData?.data.find((b) => b.user_id === userId);
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/40">
-      <div className="flex h-full w-full max-w-2xl flex-col bg-white shadow-xl">
+    <div className="fixed inset-x-0 bottom-0 z-50 flex justify-end">
+      <div className="absolute inset-0 top-16 bg-slate-950/40" onClick={onClose} />
+      <div className="relative w-full max-w-2xl flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)]">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">

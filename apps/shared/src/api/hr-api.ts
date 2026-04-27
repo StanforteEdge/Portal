@@ -175,6 +175,21 @@ export function createHrApi(httpRequest: HttpRequest) {
       return httpRequest<void>(`/hr/employees/${id}/teams/${teamId}`, {
         method: 'DELETE',
       });
+    },
+
+    async requestUserCreation(dto: {
+      email: string;
+      first_name?: string;
+      last_name?: string;
+      job_title?: string;
+      organization_id?: string;
+      employment_type?: EmploymentType;
+      hire_date?: string;
+    }) {
+      return httpRequest<{ id: string; status: string }>('/hr/user-requests', {
+        method: 'POST',
+        body: dto,
+      });
     }
   };
 }

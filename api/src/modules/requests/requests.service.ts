@@ -830,11 +830,11 @@ export class RequestsService {
     if (request.createdBy !== toBigInt(userId)) {
       throw new BadRequestException('Only owner can submit request');
     }
-    if (!['draft', 'returned_for_edit'].includes(request.status)) {
+    if (!['draft', 'returned'].includes(request.status)) {
       throw new BadRequestException('Request is not editable for submission');
     }
 
-    const submitAction = request.status === 'returned_for_edit' ? 'resubmit' : 'submit';
+    const submitAction = request.status === 'returned' ? 'resubmit' : 'submit';
     const updated = await this.transitionRequestStatus(request, 'sent', userId, {
       action: submitAction,
       comment: dto.comment
@@ -869,16 +869,16 @@ export class RequestsService {
       await this.notificationsService.create({
         userId,
         type: 'action',
-        title: request.status === 'returned_for_edit' ? 'Request resubmitted' : 'Request submitted',
+        title: request.status === 'returned' ? 'Request resubmitted' : 'Request submitted',
         message:
-          request.status === 'returned_for_edit'
+          request.status === 'returned'
             ? `Request #${request.id.toString()} resubmitted for approval.`
             : `Request #${request.id.toString()} submitted for approval.`,
         data: { requestId: request.id.toString(), comment: dto.comment },
         notifiableType: 'request',
         notifiableId: request.id,
         emailSubject:
-          request.status === 'returned_for_edit'
+          request.status === 'returned'
             ? `Request resubmitted (${formattedRequestNumber})`
             : `Request submitted (${formattedRequestNumber})`,
         emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
@@ -903,16 +903,37 @@ export class RequestsService {
   async approveRequest(id: string, userId: string, dto: ActionRequestDto) {
     const request = await this.getRequestOrThrow(id);
     if (!['sent', 'approval'].includes(request.status)) {
+      if (['cleared', 'disbursed', 'confirmed', 'retired', 'completed'].includes(request.status)) {
+        return this.getRequest(request.id.toString(), userId);
+      }
       throw new BadRequestException('Request is not pending approval');
     }
 
     if (request.workflowInstanceId) {
-      const stepResult = await this.workflowService.processDecision({
-        instanceId: request.workflowInstanceId,
-        action: 'approve',
-        performedBy: userId,
-        comment: dto.comment
-      });
+      let stepResult: { status: string; completed: boolean; currentStepId?: string };
+      try {
+        stepResult = await this.workflowService.processDecision({
+          instanceId: request.workflowInstanceId,
+          action: 'approve',
+          performedBy: userId,
+          comment: dto.comment
+        });
+      } catch (error) {
+        if (!this.isWorkflowInactiveError(error)) {
+          throw error;
+        }
+
+        const currentInstance = await this.prisma.workflowInstance.findUnique({
+          where: { id: request.workflowInstanceId },
+          select: { status: true }
+        });
+
+        if (currentInstance?.status === 'rejected' || currentInstance?.status === 'cancelled') {
+          throw new BadRequestException('Workflow is already closed and cannot be approved');
+        }
+
+        stepResult = { status: 'approved', completed: true };
+      }
 
       if (stepResult.status === 'pending') {
         await this.prisma.requestInstance.update({
@@ -939,17 +960,21 @@ export class RequestsService {
 
     await this.applyLeaveDebitIfNeeded(request.id, userId);
 
-    await this.notificationsService.create({
-      userId: request.createdBy,
-      type: 'success',
-      title: 'Request approved',
-      message: `Request #${request.id.toString()} has been approved.`,
-      data: { requestId: request.id.toString(), comment: dto.comment },
-      notifiableType: 'request',
-      notifiableId: request.id,
-      emailSubject: `Request approved (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
-    });
+    try {
+      await this.notificationsService.create({
+        userId: request.createdBy,
+        type: 'success',
+        title: 'Request approved',
+        message: `Request #${request.id.toString()} has been approved.`,
+        data: { requestId: request.id.toString(), comment: dto.comment },
+        notifiableType: 'request',
+        notifiableId: request.id,
+        emailSubject: `Request approved (${await this.getFormattedRequestNumber(request.id)})`,
+        emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+      });
+    } catch (error) {
+      console.error('approveRequest notification failed', error);
+    }
 
     return this.getRequest(updated.id.toString(), userId);
   }
@@ -957,16 +982,34 @@ export class RequestsService {
   async rejectRequest(id: string, userId: string, dto: ActionRequestDto) {
     const request = await this.getRequestOrThrow(id);
     if (!['sent', 'approval'].includes(request.status)) {
+      if (['rejected', 'cancelled'].includes(request.status)) {
+        return this.getRequest(request.id.toString(), userId);
+      }
       throw new BadRequestException('Request is not pending approval');
     }
 
     if (request.workflowInstanceId) {
-      await this.workflowService.processDecision({
-        instanceId: request.workflowInstanceId,
-        action: 'reject',
-        performedBy: userId,
-        comment: dto.comment
-      });
+      try {
+        await this.workflowService.processDecision({
+          instanceId: request.workflowInstanceId,
+          action: 'reject',
+          performedBy: userId,
+          comment: dto.comment
+        });
+      } catch (error) {
+        if (!this.isWorkflowInactiveError(error)) {
+          throw error;
+        }
+
+        const currentInstance = await this.prisma.workflowInstance.findUnique({
+          where: { id: request.workflowInstanceId },
+          select: { status: true }
+        });
+
+        if (currentInstance?.status === 'approved') {
+          throw new BadRequestException('Workflow is already approved and cannot be rejected');
+        }
+      }
     }
 
     const updated = await this.transitionRequestStatus(request, 'rejected', userId, {
@@ -976,17 +1019,21 @@ export class RequestsService {
 
     await this.revertLeaveDebitIfNeeded(request.id, userId, 'rejected');
 
-    await this.notificationsService.create({
-      userId: request.createdBy,
-      type: 'warning',
-      title: 'Request rejected',
-      message: `Request #${request.id.toString()} has been rejected.`,
-      data: { requestId: request.id.toString(), comment: dto.comment },
-      notifiableType: 'request',
-      notifiableId: request.id,
-      emailSubject: `Request rejected (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
-    });
+    try {
+      await this.notificationsService.create({
+        userId: request.createdBy,
+        type: 'warning',
+        title: 'Request rejected',
+        message: `Request #${request.id.toString()} has been rejected.`,
+        data: { requestId: request.id.toString(), comment: dto.comment },
+        notifiableType: 'request',
+        notifiableId: request.id,
+        emailSubject: `Request rejected (${await this.getFormattedRequestNumber(request.id)})`,
+        emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+      });
+    } catch (error) {
+      console.error('rejectRequest notification failed', error);
+    }
 
     return this.getRequest(updated.id.toString(), userId);
   }
@@ -994,6 +1041,9 @@ export class RequestsService {
   async returnRequest(id: string, userId: string, dto: ActionRequestDto) {
     const request = await this.getRequestOrThrow(id);
     if (!['sent', 'approval'].includes(request.status)) {
+      if (['returned', 'draft'].includes(request.status)) {
+        return this.getRequest(request.id.toString(), userId);
+      }
       throw new BadRequestException('Request is not pending approval');
     }
     const reason = String(dto.comment ?? '').trim();
@@ -1001,43 +1051,84 @@ export class RequestsService {
       throw new BadRequestException('Return comment is required');
     }
 
-    if (request.workflowInstanceId) {
-      await this.workflowService.processDecision({
-        instanceId: request.workflowInstanceId,
-        action: 'reject',
-        performedBy: userId,
-        comment: reason
-      });
-    }
+    try {
+      if (request.workflowInstanceId) {
+        try {
+          await this.workflowService.cancelWorkflow(
+            request.workflowInstanceId,
+            userId,
+            `Returned for edit: ${reason}`,
+          );
+        } catch (error) {
+          const message = String((error as Error)?.message ?? '').toLowerCase();
+          const alreadyClosed = message.includes('workflow is already closed');
+          if (!this.isWorkflowInactiveError(error) && !alreadyClosed) {
+            throw error;
+          }
 
-    const updated = await this.prisma.requestInstance.update({
-      where: { id: request.id },
-      data: {
-        status: 'returned_for_edit',
-        workflowInstanceId: null,
-        data: this.withStateEvent(request.data, {
-          from: request.status,
-          to: 'returned_for_edit',
-          by: userId,
-          action: 'return',
-          comment: reason
-        })
+          const currentInstance = await this.prisma.workflowInstance.findUnique({
+            where: { id: request.workflowInstanceId },
+            select: { status: true }
+          });
+
+          if (currentInstance?.status === 'approved') {
+            throw new BadRequestException('Workflow is already approved and cannot be returned for edit');
+          }
+        }
       }
-    });
 
-    await this.notificationsService.create({
-      userId: request.createdBy,
-      type: 'warning',
-      title: 'Request returned for edit',
-      message: `Request #${request.id.toString()} was returned for correction and resubmission.`,
-      data: { requestId: request.id.toString(), comment: reason },
-      notifiableType: 'request',
-      notifiableId: request.id,
-      emailSubject: `Request returned for edit (${await this.getFormattedRequestNumber(request.id)})`,
-      emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
-    });
+      const updated = await this.prisma.requestInstance.update({
+        where: { id: request.id },
+        data: {
+          status: 'returned',
+          workflowInstanceId: null,
+          data: this.withStateEvent(request.data, {
+            from: request.status,
+            to: 'returned',
+            by: userId,
+            action: 'return',
+            comment: reason
+          })
+        }
+      });
 
-    return this.getRequest(updated.id.toString(), userId);
+      try {
+        await this.notificationsService.create({
+          userId: request.createdBy,
+          type: 'warning',
+          title: 'Request returned for edit',
+          message: `Request #${request.id.toString()} was returned for correction and resubmission.`,
+          data: { requestId: request.id.toString(), comment: reason },
+          notifiableType: 'request',
+          notifiableId: request.id,
+          emailSubject: `Request returned for edit (${await this.getFormattedRequestNumber(request.id)})`,
+          emailThreadKey: this.getRequestThreadKey(await this.getFormattedRequestNumber(request.id))
+        });
+      } catch (error) {
+        console.error('returnRequest notification failed', error);
+      }
+
+      return this.getRequest(updated.id.toString(), userId);
+    } catch (error) {
+      console.error('returnRequest failed after transition attempt', {
+        requestId: request.id.toString(),
+        actorId: userId,
+        error,
+      });
+
+      const current = await this.prisma.requestInstance.findUnique({
+        where: { id: request.id },
+        include: this.getRequestInclude()
+      });
+
+      if (current?.status === 'returned') {
+        const serialized = this.serializeRequest(current);
+        serialized.approvals = { done: [], pending: [] };
+        return serialized;
+      }
+
+      throw error;
+    }
   }
 
   async listRequests(filters: Record<string, any>, userId: string) {
@@ -1085,7 +1176,7 @@ export class RequestsService {
     if (request.createdBy !== toBigInt(userId)) {
       throw new BadRequestException('Only owner can update request');
     }
-    if (!['draft', 'returned_for_edit'].includes(request.status)) {
+    if (!['draft', 'returned'].includes(request.status)) {
       throw new BadRequestException('Only draft or returned requests can be updated');
     }
 
@@ -1326,7 +1417,7 @@ export class RequestsService {
     const request = await this.getRequestOrThrow(id);
     const isOwner = request.createdBy === toBigInt(userId);
 
-    if (['draft', 'returned_for_edit'].includes(request.status)) return isOwner ? ['submit'] : [];
+    if (['draft', 'returned'].includes(request.status)) return isOwner ? ['submit'] : [];
     if (['sent', 'approval'].includes(request.status)) {
       const canAct = await this.isPendingApprovalForUser(id, userId);
       return canAct ? ['approve', 'reject', 'return'] : [];
@@ -3876,6 +3967,11 @@ export class RequestsService {
     }
 
     return false;
+  }
+
+  private isWorkflowInactiveError(error: unknown) {
+    const message = String((error as Error)?.message ?? '').toLowerCase();
+    return message.includes('workflow instance is not active') || message.includes('workflow instance not found');
   }
 
   private async listCurrentApproverUserIds(requestId: bigint): Promise<string[]> {

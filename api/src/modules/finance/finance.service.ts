@@ -269,6 +269,8 @@ export class FinanceService {
     const groupFilter = String(query.group ?? query.team ?? query.team_name ?? '').trim().toLowerCase();
     const organizationFilter = String(query.organization ?? query.organization_name ?? '').trim().toLowerCase();
     const dueDateFilter = String(query.due_date ?? '').trim().slice(0, 10);
+    const dueDateFromFilter = String(query.due_date_from ?? '').trim().slice(0, 10);
+    const dueDateToFilter = String(query.due_date_to ?? '').trim().slice(0, 10);
 
     const filteredByQuery = enriched.filter((entry) => {
       if (statusFilter && statusFilter !== 'all' && String(entry.row.status ?? '').toLowerCase() !== statusFilter) {
@@ -291,6 +293,9 @@ export class FinanceService {
         if (organizationName !== organizationFilter && organizationId !== organizationFilter) return false;
       }
       if (dueDateFilter && entry.dueDate !== dueDateFilter) return false;
+      if (dueDateFromFilter && entry.dueDate && entry.dueDate < dueDateFromFilter) return false;
+      if (dueDateToFilter && entry.dueDate && entry.dueDate > dueDateToFilter) return false;
+      if ((dueDateFromFilter || dueDateToFilter) && !entry.dueDate) return false;
       return true;
     });
 
@@ -1892,28 +1897,127 @@ export class FinanceService {
   }
 
   async listLedger(query: Record<string, any>) {
-    const where: Prisma.FinanceLedgerEntryWhereInput = {
-      ...(query.account_id ? { accountId: String(query.account_id) } : {}),
-      ...(query.direction ? { direction: String(query.direction) } : {}),
-      ...(query.source_type ? { sourceType: String(query.source_type) } : {}),
-      ...(query.from || query.to
-        ? {
-            entryDate: {
-              ...(query.from ? { gte: new Date(String(query.from)) } : {}),
-              ...(query.to ? { lte: new Date(String(query.to)) } : {})
-            }
-          }
-        : {})
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(200, Math.max(1, Number(query.per_page ?? query.limit ?? 20)));
+    const where = this.buildLedgerWhere(query);
+
+    const [rows, total] = await this.prisma.$transaction([
+      this.prisma.financeLedgerEntry.findMany({
+        where,
+        include: {
+          account: { select: { id: true, name: true, code: true, accountType: true } }
+        },
+        orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+        skip: (page - 1) * perPage,
+        take: perPage,
+      }),
+      this.prisma.financeLedgerEntry.count({ where }),
+    ]);
+
+    return {
+      data: rows.map((row) => this.serializeLedgerRow(row)),
+      meta: {
+        page,
+        per_page: perPage,
+        total,
+        last_page: Math.max(1, Math.ceil(total / perPage)),
+      },
     };
+  }
+
+  async exportLedger(query: Record<string, any>, format = 'csv') {
+    const normalizedFormat = String(format || 'csv').trim().toLowerCase();
+    if (!['csv'].includes(normalizedFormat)) {
+      throw new BadRequestException('Unsupported export format');
+    }
+
+    const where = this.buildLedgerWhere(query);
     const rows = await this.prisma.financeLedgerEntry.findMany({
       where,
       include: {
         account: { select: { id: true, name: true, code: true, accountType: true } }
       },
       orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
-      take: Math.min(500, Math.max(1, Number(query.limit ?? 100)))
+      take: 5000,
     });
-    return rows.map((row) => ({
+
+    if (!rows.length) {
+      throw new BadRequestException('Ledger export has no rows');
+    }
+
+    const csvRows = rows.map((row) => ({
+      date: this.formatDate(row.entryDate),
+      reference: row.sourceId || row.id,
+      account: row.account.name,
+      account_code: row.account.code || '',
+      source: row.sourceType || '',
+      direction: row.direction,
+      amount: Number(row.amount),
+      currency: row.currency,
+      description: row.description || '',
+      created_at: row.createdAt.toISOString(),
+    }));
+    const csv = this.toCsv(csvRows);
+
+    return {
+      file_name: `ledger-${new Date().toISOString().slice(0, 10)}.${normalizedFormat}`,
+      mime_type: 'text/csv; charset=utf-8',
+      content_base64: Buffer.from(`\uFEFF${csv}`, 'utf8').toString('base64'),
+    };
+  }
+
+  private buildLedgerWhere(query: Record<string, any>): Prisma.FinanceLedgerEntryWhereInput {
+    const fromDateRaw = String(query.from ?? '').trim();
+    const toDateRaw = String(query.to ?? '').trim();
+    const fromDate = fromDateRaw ? new Date(fromDateRaw) : null;
+    const toDate = toDateRaw ? new Date(toDateRaw) : null;
+    const q = String(query.q ?? query.search ?? '').trim();
+
+    const where: Prisma.FinanceLedgerEntryWhereInput = {
+      ...(query.account_id ? { accountId: String(query.account_id) } : {}),
+      ...(query.direction ? { direction: String(query.direction) } : {}),
+      ...(query.source_type ? { sourceType: String(query.source_type) } : {}),
+      ...((fromDate && !Number.isNaN(fromDate.getTime())) || (toDate && !Number.isNaN(toDate.getTime()))
+        ? {
+            entryDate: {
+              ...(fromDate && !Number.isNaN(fromDate.getTime()) ? { gte: fromDate } : {}),
+              ...(toDate && !Number.isNaN(toDate.getTime())
+                ? {
+                    lte: new Date(
+                      toDate.getFullYear(),
+                      toDate.getMonth(),
+                      toDate.getDate(),
+                      23,
+                      59,
+                      59,
+                      999,
+                    ),
+                  }
+                : {}),
+            },
+          }
+        : {}),
+    };
+
+    if (q) {
+      where.OR = [
+        { description: { contains: q, mode: 'insensitive' } },
+        { sourceType: { contains: q, mode: 'insensitive' } },
+        { sourceId: { contains: q, mode: 'insensitive' } },
+        { account: { name: { contains: q, mode: 'insensitive' } } },
+        { account: { code: { contains: q, mode: 'insensitive' } } },
+      ];
+    }
+
+    return where;
+  }
+
+  private serializeLedgerRow(
+    row: Prisma.FinanceLedgerEntryGetPayload<{
+      include: { account: { select: { id: true; name: true; code: true; accountType: true } } };
+    }>,
+  ) {
+    return {
       id: row.id,
       account_id: row.accountId,
       account_name: row.account.name,
@@ -1926,8 +2030,9 @@ export class FinanceService {
       description: row.description,
       source_type: row.sourceType,
       source_id: row.sourceId,
-      created_at: row.createdAt
-    }));
+      reference: row.sourceId || row.id,
+      created_at: row.createdAt,
+    };
   }
 
   async listAssets(query: Record<string, any>) {

@@ -78,8 +78,9 @@ export default function LeaveTypeSlideOver({ requestType, onClose, onSaved }: Pr
   }
 
   return (
-    <div className="fixed inset-0 z-[100] flex justify-end bg-slate-950/40 animate-in fade-in duration-200">
-      <div className="flex h-screen w-full max-w-lg flex-col bg-white shadow-xl animate-in slide-in-from-right duration-300">
+    <div className="fixed inset-x-0 bottom-0 z-[100] flex justify-end">
+      <div className="absolute inset-0 top-16 bg-slate-950/40" onClick={onClose} />
+      <div className="relative w-full max-w-lg flex flex-col bg-white shadow-xl max-h-[calc(100vh-4rem)] animate-in slide-in-from-right duration-300">
         <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500">Settings</p>

@@ -75,9 +75,10 @@ function formatClockTime(value?: string | null) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleTimeString("en-NG", {
+  return date.toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
   });
 }
 
@@ -341,7 +342,9 @@ export function AttendancePage() {
 
       const payload = {
         attendance_mode: selectedMode,
-        office_location_id: isOnsite ? selectedOfficeLocationId || undefined : undefined,
+        office_location_id: isOnsite
+          ? selectedOfficeLocationId || undefined
+          : undefined,
         ...coords,
       };
 
@@ -386,8 +389,8 @@ export function AttendancePage() {
       setSubmittingCorrection(true);
       const proposedAt = correctionForm.proposed_at
         ? new Date(
-          `${correctionForm.work_date}T${correctionForm.proposed_at}:00`,
-        ).toISOString()
+            `${correctionForm.work_date}T${correctionForm.proposed_at}:00`,
+          ).toISOString()
         : undefined;
       await createAttendanceCorrection({
         work_date: correctionForm.work_date,
@@ -423,7 +426,7 @@ export function AttendancePage() {
   const todayStatus = humanize(
     String(
       today?.status ||
-      (currentState?.is_clocked_in ? "present" : "not_started"),
+        (currentState?.is_clocked_in ? "present" : "not_started"),
     ),
   );
   const todayMode = humanize(
@@ -450,7 +453,7 @@ export function AttendancePage() {
     "No office selected";
   const premisesTone = toneFromStatus(
     today?.geofence_status ||
-    (selectedMode === "onsite" ? "unknown" : "not_applicable"),
+      (selectedMode === "onsite" ? "unknown" : "not_applicable"),
   );
 
   return (
@@ -554,8 +557,9 @@ export function AttendancePage() {
                 </div>
 
                 <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs text-slate-600">
-                  Onsite requires an office location and a verified device location. Remote can proceed without an
-                  office location. Field work should be pre-approved with location/details recorded.
+                  Onsite requires an office location and a verified device
+                  location. Remote can proceed without an office location. Field
+                  work should be pre-approved with location/details recorded.
                 </div>
 
                 <SelectField
@@ -662,9 +666,9 @@ export function AttendancePage() {
                         {humanize(
                           String(
                             today?.geofence_status ||
-                            (selectedMode === "onsite"
-                              ? "unknown"
-                              : "not_applicable"),
+                              (selectedMode === "onsite"
+                                ? "unknown"
+                                : "not_applicable"),
                           ),
                         )}
                       </Chip>
@@ -691,7 +695,7 @@ export function AttendancePage() {
               action={<Chip variant="neutral">{recentDaily.length} days</Chip>}
             >
               <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-                <Table caption="Attendance history">
+                <Table caption="Attendance historyss">
                   <TableHead>
                     <TableHeaderRow>
                       <TableHeaderCell>Date</TableHeaderCell>
@@ -799,7 +803,7 @@ export function AttendancePage() {
                   onClick={() => setShowCorrectionForm((value) => !value)}
                 >
                   <Icon name="add" className="text-[18px]" />
-                  {showCorrectionForm ? "Close" : "Submit New"}
+                  {showCorrectionForm ? "Close" : " New"}
                 </Button>
               }
             >
@@ -1101,9 +1105,9 @@ export function AttendancePage() {
                   {humanize(
                     String(
                       today?.geofence_status ||
-                      (selectedMode === "onsite"
-                        ? "unknown"
-                        : "not_applicable"),
+                        (selectedMode === "onsite"
+                          ? "unknown"
+                          : "not_applicable"),
                     ),
                   )}
                 </Chip>
