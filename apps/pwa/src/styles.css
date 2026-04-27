@@ -45,7 +45,7 @@
   }
 
   .page-title {
-    @apply font-headline text-[clamp(2rem,4vw,3.15rem)] font-semibold tracking-tight text-slate-950;
+    @apply font-headline text-[clamp(2rem,4vw,3.15rem)] font-semibold tracking-tight text-slate-950 capitalize;
   }
 
   .input-base {
