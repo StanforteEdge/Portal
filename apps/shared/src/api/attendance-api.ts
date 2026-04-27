@@ -100,7 +100,7 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
       };
     },
 
-    async listRecords(params: { from: string; to: string; user_id?: string; org_id?: string; status?: string }) {
+    async listRecords(params: { from: string; to: string; user_id?: string; org_id?: string; team_id?: string; status?: string }) {
       const query = new URLSearchParams();
       Object.entries(params).forEach(([k, v]) => { if (v) query.set(k, String(v)); });
       const res = await httpRequest<any>(`/hr/attendance/records?${query.toString()}`);

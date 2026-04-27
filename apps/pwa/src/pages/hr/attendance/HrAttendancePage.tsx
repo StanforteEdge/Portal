@@ -64,11 +64,18 @@ export default function HrAttendancePage() {
     { ttlMs: 1000 * 60 * 5, storage: "memory" },
   );
 
+  const { data: teams } = useCachedQuery(
+    "hr:attendance:teams",
+    () => resourceApi.listGroups({ active_only: true }),
+    { ttlMs: 1000 * 60 * 5, storage: "memory" },
+  );
+
   const [activeTab, setActiveTab] = useState<ActiveTab>("attendance");
   const [dateFrom, setDateFrom] = useState(new Date(Date.now() - 7 * 86400000).toISOString().slice(0, 10));
   const [dateTo, setDateTo] = useState(new Date().toISOString().slice(0, 10));
   const [statusFilter, setStatusFilter] = useState("");
   const [orgFilter, setOrgFilter] = useState("");
+  const [teamFilter, setTeamFilter] = useState("");
   const [corrStatusFilter, setCorrStatusFilter] = useState("");
   const [attPage, setAttPage] = useState(1);
   const [attPerPage, setAttPerPage] = useState(25);
@@ -89,13 +96,14 @@ export default function HrAttendancePage() {
   );
 
   const { data: attendanceData, loading: attLoading } = useCachedQuery(
-    `hr:attendance:list:${dateFrom}:${dateTo}:${statusFilter}:${orgFilter}`,
+    `hr:attendance:list:${dateFrom}:${dateTo}:${statusFilter}:${orgFilter}:${teamFilter}`,
     () =>
       attendanceApi.listRecords({
         from: dateFrom,
         to: dateTo,
         status: statusFilter || undefined,
         org_id: orgFilter || undefined,
+        team_id: teamFilter || undefined,
       }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
@@ -209,6 +217,16 @@ export default function HrAttendancePage() {
                   <option value="">All organizations</option>
                   {(organizations ?? []).map((org) => (
                     <option key={org.id} value={org.id}>{org.name}</option>
+                  ))}
+                </SelectField>
+                <SelectField
+                  label="Team"
+                  value={teamFilter}
+                  onChange={(e) => { setTeamFilter(e.target.value); setAttPage(1); }}
+                >
+                  <option value="">All teams</option>
+                  {(teams ?? []).map((team: any) => (
+                    <option key={team.id} value={team.id}>{team.name}</option>
                   ))}
                 </SelectField>
               </div>
