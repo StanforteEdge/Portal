@@ -78,7 +78,7 @@ export default function SettingsPage() {
         { label: "Profile", path: "/profile" },
         { label: "Settings" },
       ]}
-      eyebrow="Workspace > Settings"
+      eyebrow=""
       title="Settings"
       description="Manage security, notifications, and workspace defaults in one place."
     >

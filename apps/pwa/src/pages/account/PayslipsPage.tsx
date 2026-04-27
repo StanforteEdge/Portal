@@ -110,7 +110,7 @@ export default function PayslipsPage() {
   return (
     <AccountShellPage
       activeLabel="Payslips"
-      eyebrow="My Account"
+      eyebrow=""
       breadcrumbs={[
         { label: "Profile", path: "/profile" },
         { label: "Payslips" },
