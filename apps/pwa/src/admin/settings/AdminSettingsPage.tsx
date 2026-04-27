@@ -21,7 +21,7 @@ import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { requestApi } from "@/shared/lib/core";
 import { type RequestType } from "@stanforte/shared";
-import RequestTypeSlideOver from "./RequestTypeSlideOver";
+import RequestTypeSlideOver from "@/admin/request-types/RequestTypeSlideOver";
 
 type ActiveTab = "request-types" | "general" | "security";
 
