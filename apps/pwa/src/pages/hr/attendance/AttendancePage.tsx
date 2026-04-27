@@ -103,9 +103,17 @@ function toneFromStatus(
   if (["late", "pending", "submitted", "review"].includes(key))
     return "warning";
   if (["absent", "rejected", "outside"].includes(key)) return "danger";
-  if (["remote", "field", "holiday", "off_day", "leave"].includes(key))
-    return "pending";
+  if (["remote", "field"].includes(key)) return "success";
+  if (["holiday", "off_day", "leave"].includes(key)) return "neutral";
   return "neutral";
+}
+
+function deriveAttendanceStatus(row: AttendanceDaily): string {
+  const status = String(row.status || "").trim().toLowerCase();
+  if (["remote", "field", "onsite"].includes(status)) {
+    return row.first_in_at ? "present" : "absent";
+  }
+  return status || (row.first_in_at ? "present" : "not_started");
 }
 
 function mapAttendanceActionError(message: string, type: "in" | "out") {
@@ -747,12 +755,12 @@ export function AttendancePage() {
                         <TableCell className="rounded-r-2xl">
                           <Chip
                             variant={
-                              toneFromStatus(row.status) === "neutral"
+                              toneFromStatus(deriveAttendanceStatus(row)) === "neutral"
                                 ? "neutral"
-                                : toneFromStatus(row.status)
+                                : toneFromStatus(deriveAttendanceStatus(row))
                             }
                           >
-                            {humanize(row.status)}
+                            {humanize(deriveAttendanceStatus(row))}
                           </Chip>
                         </TableCell>
                       </TableRow>
@@ -1274,17 +1282,14 @@ export function AttendancePage() {
                   </div>
                   <div>
                     <div className="flex items-center gap-2">
-                      <p className="text-sm font-semibold text-slate-950">
-                        {humanize(row.status)}
-                      </p>
                       <Chip
                         variant={
-                          toneFromStatus(row.status) === "neutral"
+                          toneFromStatus(deriveAttendanceStatus(row)) === "neutral"
                             ? "neutral"
-                            : toneFromStatus(row.status)
+                            : toneFromStatus(deriveAttendanceStatus(row))
                         }
                       >
-                        {humanize(row.status)}
+                        {humanize(deriveAttendanceStatus(row))}
                       </Chip>
                     </div>
                     <p className="mt-1 text-xs font-medium text-slate-500">
