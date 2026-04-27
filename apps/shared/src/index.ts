@@ -8,10 +8,26 @@ export { createResourceApi } from "./api/resource-api";
 export type { OrganizationItem, TeamItem, TeamOption, TeamMember, OrganizationMapping } from "./api/resource-api";
 export { createPolicyApi } from "./api/policy-api";
 export { createAttendanceApi } from "./api/attendance-api";
+export { createWorkApi } from "./api/work-api";
 export { createRequestApi } from "./api/request-api";
 export { createAdminUsersApi } from "./api/admin-users-api";
 export type { ScopeType, PolicyRecord } from "./api/policy-api";
 export type { AttendanceDaily, StaffDailyRow, AdminCorrectionRow, OfficeLocation } from "./api/attendance-api";
+export type {
+  WorkItem,
+  WorkLog,
+  WorkGoal,
+  WorkObjective,
+  WorkKpi,
+  WorkItemType,
+  WorkItemPriority,
+  WorkItemStatus,
+  CreateWorkItemDto,
+  CreateWorkGoalDto,
+  CreateWorkObjectiveDto,
+  CreateWorkKpiDto,
+  CreateWorkLogDto,
+} from "./api/work-api";
 export type { RequestType, ResourceRequest } from "./api/request-api";
 export type {
   AdminUser,

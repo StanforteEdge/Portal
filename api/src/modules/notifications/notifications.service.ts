@@ -16,6 +16,8 @@ type NotificationInput = {
   notifiableId?: string | number | bigint;
   emailSubject?: string;
   emailHtml?: string;
+  emailPortalUrl?: string;
+  emailCtaLabel?: string;
   emailTo?: string;
   emailThreadKey?: string;
 };
@@ -26,6 +28,26 @@ export class NotificationsService {
     private readonly prisma: PrismaService,
     private readonly mailService: MailService
   ) {}
+
+  private resolveEmailPortalUrl(input: NotificationInput): string | undefined {
+    const explicitPortalUrl = String(input.emailPortalUrl ?? '').trim();
+    if (explicitPortalUrl) {
+      return explicitPortalUrl;
+    }
+
+    const link = String(input.link ?? '').trim();
+    if (!link) {
+      return undefined;
+    }
+
+    if (/^https?:\/\//i.test(link)) {
+      return link;
+    }
+
+    const appBaseUrl = (process.env.APP_BASE_URL || 'http://localhost:3000').replace(/\/$/, '');
+    const normalizedPath = link.startsWith('/') ? link : `/${link}`;
+    return `${appBaseUrl}${normalizedPath}`;
+  }
 
   async create(input: NotificationInput) {
     const created = await this.prisma.notification.create({
@@ -65,6 +87,8 @@ export class NotificationsService {
             subject: input.emailSubject ?? input.title,
             text: input.message,
             html: input.emailHtml,
+            portalUrl: this.resolveEmailPortalUrl(input),
+            ctaLabel: input.emailCtaLabel,
             threadKey,
             userId: input.userId,
             notifiableType: input.notifiableType,

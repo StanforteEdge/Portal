@@ -91,7 +91,7 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
   return {
     async getStats(date: string): Promise<AttendanceTodayStats> {
       const res = await httpRequest<any>(`/hr/attendance/summary?from=${date}&to=${date}`);
-      const stats = res?.data?.by_status || {};
+      const stats = res?.by_status || {};
       return {
         total_staff: (stats.present || 0) + (stats.late || 0) + (stats.absent || 0) + (stats.excused || 0),
         clocked_in: (stats.present || 0) + (stats.late || 0),

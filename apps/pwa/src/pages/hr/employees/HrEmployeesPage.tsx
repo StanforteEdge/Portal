@@ -23,7 +23,7 @@ import { hrApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { type EmployeeSummary } from "@stanforte/shared";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import type { OrganizationItem } from "@/shared";
+import type { OrganizationItem, TeamOption } from "@/shared";
 
 
 function humanize(value: string) {
@@ -51,10 +51,19 @@ export default function HrEmployeesPage() {
   const organizations: OrganizationItem[] = Array.isArray(orgsData) ? orgsData : [];
   const orgMap = new Map(organizations.map(o => [o.id, o]));
 
+  const { data: groupsData } = useCachedQuery(
+    "hr:groups",
+    () => resourceApi.listGroups({ active_only: true }),
+    { ttlMs: 1000 * 60, storage: "memory" },
+  );
+
+  const groups: TeamOption[] = Array.isArray(groupsData) ? groupsData : [];
+
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [employmentType, setEmploymentType] = useState("");
   const [orgFilter, setOrgFilter] = useState("");
+  const [groupFilter, setGroupFilter] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -65,8 +74,9 @@ export default function HrEmployeesPage() {
     if (status) p.status = status;
     if (employmentType) p.employment_type = employmentType;
     if (orgFilter) p.organization_id = orgFilter;
+    if (groupFilter) p.group_id = groupFilter;
     return p;
-  }, [search, status, employmentType, orgFilter, currentPage, perPage, refreshKey]);
+  }, [search, status, employmentType, orgFilter, groupFilter, currentPage, perPage, refreshKey]);
 
   const { data, loading, error, refetch } = useCachedQuery(
     `hr:employees:${JSON.stringify(params)}:${refreshKey}`,
@@ -80,7 +90,7 @@ export default function HrEmployeesPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [search, status, employmentType, orgFilter]);
+  }, [search, status, employmentType, orgFilter, groupFilter]);
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
@@ -165,6 +175,20 @@ export default function HrEmployeesPage() {
             {organizations.map((org) => (
               <option key={org.id} value={org.id}>
                 {org.name}
+              </option>
+            ))}
+          </SelectField>
+
+          <SelectField
+            label="Group"
+            value={groupFilter}
+            onChange={(e) => setGroupFilter(e.target.value)}
+            className="min-w-[160px] flex-1 lg:flex-none"
+          >
+            <option value="">All groups</option>
+            {groups.map((group) => (
+              <option key={group.id} value={group.id}>
+                {group.name}
               </option>
             ))}
           </SelectField>

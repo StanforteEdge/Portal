@@ -42,6 +42,7 @@ export function buildAppNavigation(options?: {
     // Staff section
     { label: "Dashboard", icon: "grid_view", path: "/", section: "Staff" },
     { label: "Attendance", icon: "pending_actions", path: "/attendance", section: "Staff" },
+    { key: "my-tasks", label: "My Tasks", icon: "checklist", path: "/tasks", section: "Staff" },
     {
       label: "Requests",
       icon: "format_list_bulleted",

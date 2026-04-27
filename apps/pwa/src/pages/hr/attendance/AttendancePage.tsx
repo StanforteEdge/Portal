@@ -18,6 +18,7 @@ import {
   useToast,
 } from "@/shared";
 import { formatRelativeTime, humanize, hasNextDay } from "@stanforte/shared";
+import { deriveAttendanceStatus, toneFromStatus } from "./attendance-data";
 import { TimeWithNextDay } from "@/shared/components/ui/TimeWithNextDay";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/shared/components/layout/AppShell";
@@ -90,30 +91,6 @@ function formatMinutes(minutes?: number | null) {
   if (hrs <= 0) return `${mins}m`;
   if (mins === 0) return `${hrs}h`;
   return `${hrs}h ${mins}m`;
-}
-
-function toneFromStatus(
-  status?: string | null,
-): "success" | "warning" | "danger" | "pending" | "neutral" {
-  const key = String(status || "")
-    .trim()
-    .toLowerCase();
-  if (["present", "approved", "resolved", "corrected"].includes(key))
-    return "success";
-  if (["late", "pending", "submitted", "review"].includes(key))
-    return "warning";
-  if (["absent", "rejected", "outside"].includes(key)) return "danger";
-  if (["remote", "field"].includes(key)) return "success";
-  if (["holiday", "off_day", "leave"].includes(key)) return "neutral";
-  return "neutral";
-}
-
-function deriveAttendanceStatus(row: AttendanceDaily): string {
-  const status = String(row.status || "").trim().toLowerCase();
-  if (["remote", "field", "onsite"].includes(status)) {
-    return row.first_in_at ? "present" : "absent";
-  }
-  return status || (row.first_in_at ? "present" : "not_started");
 }
 
 function mapAttendanceActionError(message: string, type: "in" | "out") {
@@ -256,30 +233,36 @@ export function AttendancePage() {
   }, [showToast, today?.geofence_status]);
 
   const stats = useMemo(() => {
-    const counts = daily.reduce<Record<string, number>>((acc, row) => {
-      const key = String(row.status || "").toLowerCase();
-      acc[key] = (acc[key] || 0) + 1;
-      return acc;
-    }, {});
+    let present = 0;
+    let remote = 0;
+    let late = 0;
+    let absent = 0;
+    for (const row of daily) {
+      const status = deriveAttendanceStatus(row);
+      if (status === "present") present++;
+      if (status === "late") { late++; present++; }
+      if (status === "absent") absent++;
+      if (String(row.attendance_mode || row.expected_mode || "").toLowerCase() === "remote" && row.first_in_at) remote++;
+    }
     return [
       {
         label: "Present",
-        value: String(counts.present ?? 0),
+        value: String(present),
         accentClass: "text-slate-950",
       },
       {
         label: "Remote",
-        value: String(counts.remote ?? 0),
+        value: String(remote),
         accentClass: "text-slate-950",
       },
       {
         label: "Late",
-        value: String(counts.late ?? 0),
+        value: String(late),
         accentClass: "text-warning",
       },
       {
         label: "Absent",
-        value: String(counts.absent ?? 0),
+        value: String(absent),
         accentClass: "text-danger",
       },
     ];

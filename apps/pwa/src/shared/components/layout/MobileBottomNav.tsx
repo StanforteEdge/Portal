@@ -53,12 +53,39 @@ export function MobileBottomNav({
   onSignOut,
 }: MobileBottomNavProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [openItem, setOpenItem] = useState<string | null>(null);
+  const [openGroups, setOpenGroups] = useState<Set<string>>(() => new Set());
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const menuRef = useRef<HTMLDivElement | null>(null);
+
+  const toggleGroup = (key: string) =>
+    setOpenGroups((prev) => {
+      const next = new Set(prev);
+      next.has(key) ? next.delete(key) : next.add(key);
+      return next;
+    });
 
   useEffect(() => {
     if (menuOpen) {
       closeButtonRef.current?.focus();
+      const activeParent =
+        navigation.find(
+          (item) =>
+            nodeHasActiveDescendant(item, activeLabel),
+        )?.label ?? null;
+      setOpenItem(activeParent);
+      const newOpenGroups = new Set<string>();
+      for (const item of navigation) {
+        for (const child of item.children ?? []) {
+          if (!child.path && child.key && child.children) {
+            const hasActive = child.children.some(
+              (gc) => gc.path && nodeHasActiveDescendant(gc, activeLabel),
+            );
+            if (hasActive) newOpenGroups.add(child.key);
+          }
+        }
+      }
+      setOpenGroups(newOpenGroups);
     }
   }, [menuOpen]);
 
@@ -222,6 +249,7 @@ export function MobileBottomNav({
                 const showSectionLabel =
                   entry.section && entry.section !== previousSection;
                 const hasChildren = Array.isArray(entry.children) && entry.children.length > 0;
+                const isOpen = openItem === entry.label;
 
                 return (
                   <div key={entry.label} className="space-y-2">
@@ -231,7 +259,7 @@ export function MobileBottomNav({
                       </div>
                     ) : null}
                     <div className="rounded-[24px] border border-slate-100 bg-white p-4">
-                      {entry.path ? (
+                      {entry.path && !hasChildren ? (
                         <NavLink
                           to={entry.path}
                           onClick={() => setMenuOpen(false)}
@@ -246,6 +274,31 @@ export function MobileBottomNav({
                           <span className="flex-1">{entry.label}</span>
                           <Icon name="chevron_right" className="text-[18px]" />
                         </NavLink>
+                      ) : hasChildren ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenItem((current) =>
+                              current === entry.label ? null : entry.label,
+                            )
+                          }
+                          className={[
+                            "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                            isOpen
+                              ? "bg-brand-900 text-white"
+                              : entry.active
+                                ? "bg-brand-900/10 text-brand-900"
+                                : "bg-slate-50 text-slate-700 hover:bg-slate-100",
+                          ].join(" ")}
+                          aria-expanded={isOpen}
+                        >
+                          <Icon name={entry.icon} fill={isOpen || entry.active} />
+                          <span className="flex-1 text-left">{entry.label}</span>
+                          <Icon
+                            name={isOpen ? "expand_less" : "expand_more"}
+                            className={isOpen ? "text-white" : "text-[18px] text-slate-400"}
+                          />
+                        </button>
                       ) : (
                         <div className="flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold text-slate-900">
                           <Icon name={entry.icon} fill={entry.active} />
@@ -253,7 +306,7 @@ export function MobileBottomNav({
                         </div>
                       )}
 
-                      {hasChildren ? (
+                      {hasChildren && isOpen ? (
                         <div className="mt-4 space-y-2 border-l border-slate-200 pl-4">
                           {entry.children!.map((child) => {
                             const nestedChildren = Array.isArray(child.children) && child.children.length > 0;
@@ -274,12 +327,25 @@ export function MobileBottomNav({
                                     <span>{child.label}</span>
                                   </NavLink>
                                 ) : (
-                                  <p className="px-1 pt-1 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-slate-400">
-                                    {child.label}
-                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => child.key && toggleGroup(child.key)}
+                                    className={[
+                                      "flex w-full items-center justify-between px-1 pt-1 text-[0.65rem] font-bold uppercase tracking-[0.16em] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                      "text-slate-400 hover:text-slate-600",
+                                    ].join(" ")}
+                                  >
+                                    <span>{child.label}</span>
+                                    {child.key ? (
+                                      <Icon
+                                        name={openGroups.has(child.key) ? "expand_less" : "expand_more"}
+                                        className="text-[14px]"
+                                      />
+                                    ) : null}
+                                  </button>
                                 )}
 
-                                {nestedChildren ? (
+                                {nestedChildren && child.key && openGroups.has(child.key) ? (
                                   <div className="space-y-2 border-l border-slate-100 pl-3">
                                     {child.children!.map((grandChild) =>
                                       grandChild.path ? (

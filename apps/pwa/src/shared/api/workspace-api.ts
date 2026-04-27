@@ -10,6 +10,14 @@ export type WorkspaceProfile = {
   last_name: string | null;
   phone: string | null;
   address?: string | null;
+  date_of_birth?: string | null;
+  gender?: string | null;
+  nationality?: string | null;
+  state?: string | null;
+  lga?: string | null;
+  marital_status?: string | null;
+  bio?: string | null;
+  occupation?: string | null;
   organizations?: Array<{ id: string; name: string; code: string; is_primary?: boolean }>;
   groups?: Array<{ id: string; name: string; type: string; role: string; is_primary?: boolean }>;
   employee_profile?: {
@@ -59,6 +67,12 @@ export async function updateWorkspaceProfile(payload: {
   occupation?: string;
   bio?: string;
   address?: string;
+  date_of_birth?: string;
+  gender?: string;
+  nationality?: string;
+  state?: string;
+  lga?: string;
+  marital_status?: string;
 }) {
   return httpRequest<WorkspaceProfile>("/profile", {
     method: "PATCH",

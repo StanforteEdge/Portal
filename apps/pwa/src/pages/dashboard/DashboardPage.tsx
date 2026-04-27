@@ -176,11 +176,24 @@ export default function DashboardPage() {
 
   const unreadNotifications = notifications ?? [];
   const latestNotice = unreadNotifications[0];
-  const nextShiftTime = attendance?.policy?.start_time
-    ? `Today, ${attendance.policy.start_time}`
-    : today?.first_in_at
-      ? `Clocked in ${formatTime(today.first_in_at)}`
-      : "No shift scheduled";
+  const isClockedIn = attendance?.current_state?.is_clocked_in;
+  let nextShiftLabel: string;
+  let nextShiftDetail: string;
+  let nextShiftMode: string;
+
+  if (isClockedIn && today?.first_in_at) {
+    nextShiftLabel = "Clocked In";
+    nextShiftDetail = formatTime(today.first_in_at);
+    nextShiftMode = humanize(String(today.attendance_mode || today.expected_mode || "onsite"));
+  } else if (attendance?.policy?.start_time) {
+    nextShiftLabel = "Next Shift";
+    nextShiftDetail = `Today, ${attendance.policy.start_time}`;
+    nextShiftMode = humanize(String(today?.expected_mode || "onsite"));
+  } else {
+    nextShiftLabel = "No Shift";
+    nextShiftDetail = "No shift scheduled";
+    nextShiftMode = "";
+  }
   const dashboardUserName = userDisplayName(user);
   const financeViewer = hasModuleAccess(user, "finance");
 
@@ -254,28 +267,24 @@ export default function DashboardPage() {
                 </div>
               </article>
 
-              <article className="section-card flex items-center justify-between p-6">
-                <div>
-                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.16em] text-slate-500">
-                    Next Shift
-                  </p>
-                  <p className="mt-3 text-lg font-semibold tracking-tight text-slate-950">
-                    {nextShiftTime}
-                  </p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    {humanize(
-                      String(
-                        today?.expected_mode ||
-                          today?.attendance_mode ||
-                          "onsite",
-                      ),
-                    )}
-                  </p>
-                </div>
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-slate-100 text-slate-700">
-                  <span className="material-symbols-outlined">schedule</span>
-                </div>
-              </article>
+<article className="section-card flex items-center justify-between p-6">
+                 <div>
+                   <p className="text-[0.72rem] font-bold uppercase tracking-[0.16em] text-slate-500">
+                     {nextShiftLabel}
+                   </p>
+                   <p className="mt-3 text-lg font-semibold tracking-tight text-slate-950">
+                     {nextShiftDetail}
+                   </p>
+                   {nextShiftMode && (
+                     <p className="mt-1 text-sm text-slate-500">
+                       {nextShiftMode}
+                     </p>
+                   )}
+                 </div>
+                 <div className={`flex h-12 w-12 items-center justify-center rounded-full ${isClockedIn ? "bg-emerald-50 text-emerald-600" : "bg-slate-100 text-slate-700"}`}>
+                   <span className="material-symbols-outlined">{isClockedIn ? "timer" : "schedule"}</span>
+                 </div>
+               </article>
             </div>
 
             <section className="relative overflow-hidden rounded-[1.5rem] bg-brand-900 p-8 text-white shadow-card">

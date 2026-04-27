@@ -198,6 +198,8 @@ export default function AdminRolesPage() {
                       <TableHeaderRow>
                         <TableHeaderCell>Name</TableHeaderCell>
                         <TableHeaderCell>Slug</TableHeaderCell>
+                        <TableHeaderCell>Permissions</TableHeaderCell>
+                        <TableHeaderCell>Users</TableHeaderCell>
                         <TableHeaderCell>Status</TableHeaderCell>
                         <TableHeaderCell className="text-right">Actions</TableHeaderCell>
                       </TableHeaderRow>
@@ -215,6 +217,12 @@ export default function AdminRolesPage() {
                             <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
                               {role.slug}
                             </code>
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {role.permissions?.length ?? 0}
+                          </TableCell>
+                          <TableCell className="text-sm text-slate-600">
+                            {role.users?.length ?? 0}
                           </TableCell>
                           <TableCell>
                             <Chip variant={role.is_active ? "success" : "neutral"}>
@@ -247,7 +255,7 @@ export default function AdminRolesPage() {
                       ))}
                       {!roles.length ? (
                         <TableRow>
-                          <TableCell colSpan={4} className="py-10 text-center">
+                          <TableCell colSpan={6} className="py-10 text-center">
                             <EmptyState
                               title="No roles found"
                               description="Roles will appear here once created."

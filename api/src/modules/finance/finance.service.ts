@@ -635,6 +635,7 @@ export class FinanceService {
           type: 'success',
           title: 'Request disbursed',
           message: `Your request #${request.id.toString()} has been disbursed and is awaiting your confirmation.`,
+          link: `/requests/details?id=${request.id.toString()}&view=mine`,
           data: {
             requestId: request.id.toString(),
             note: dto.note,
@@ -894,7 +895,7 @@ export class FinanceService {
       type: 'finance',
       title: 'Payment voucher correction approved',
       message: `Your correction for voucher ${correction.voucher.voucherNumber} has been approved.`,
-      link: `/app/finance/requests/request/${requestId}?voucher_id=${voucherId}`,
+      link: `/finance/requests/details?id=${requestId}&voucher_id=${voucherId}`,
       data: { voucher_id: voucherId, correction_id: correction.id, status: 'approved' } as Prisma.InputJsonValue
     }).catch(() => undefined);
 
@@ -931,7 +932,7 @@ export class FinanceService {
       message: comment?.trim()
         ? `Your correction for voucher ${correction.voucher.voucherNumber} was rejected: ${comment.trim()}`
         : `Your correction for voucher ${correction.voucher.voucherNumber} was rejected.`,
-      link: `/app/finance/requests/request/${requestId}?voucher_id=${voucherId}`,
+      link: `/finance/requests/details?id=${requestId}&voucher_id=${voucherId}`,
       data: { voucher_id: voucherId, correction_id: correction.id, status: 'rejected' } as Prisma.InputJsonValue
     }).catch(() => undefined);
 
@@ -1318,7 +1319,7 @@ export class FinanceService {
             type: 'finance',
             title: 'Payment voucher correction awaiting approval',
             message: `Voucher ${voucher.voucherNumber} has a correction request awaiting approval.`,
-            link: `/app/finance/requests/request/${voucher.request.id.toString()}?voucher_id=${voucher.id}`,
+            link: `/finance/requests/details?id=${voucher.request.id.toString()}&voucher_id=${voucher.id}`,
             data: {
               voucher_id: voucher.id,
               correction_id: correction.id,

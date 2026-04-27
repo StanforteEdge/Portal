@@ -6,7 +6,7 @@ import {
   useToast,
 } from "@/shared";
 import { SlideOver, SlideOverHeader, SlideOverContent, SlideOverFooter } from "@/shared/components/ui/SlideOver";
-import { createRole, updateRole, listPermissions, getRole, type Role, type RolePermission } from "./admin-roles-api";
+import { createRole, updateRole, listPermissions, type Role, type RolePermission } from "./admin-roles-api";
 
 type Props = {
   role?: Role | null;
@@ -30,13 +30,10 @@ export default function AdminRoleSlideOver({ role, onClose, onSaved }: Props) {
     async function load() {
       setLoadingPermissions(true);
       try {
-        const [perms, roleData] = await Promise.all([
-          listPermissions(),
-          role ? getRole(role.id) : Promise.resolve(null),
-        ]);
+        const perms = await listPermissions();
         setPermissions(perms);
-        if (roleData?.permissions) {
-          setSelectedPermissions(roleData.permissions.map((p) => p.slug));
+        if (role?.permissions) {
+          setSelectedPermissions(role.permissions.map((p) => p.slug));
         }
       } catch {
         setPermissions([]);

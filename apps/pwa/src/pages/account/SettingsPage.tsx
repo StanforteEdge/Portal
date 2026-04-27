@@ -9,6 +9,28 @@ const appVersion = import.meta.env.VITE_APP_VERSION as string;
 const buildVersion = import.meta.env.VITE_BUILD_VERSION as string;
 const builtAt = import.meta.env.VITE_APP_BUILT_AT as string | undefined;
 
+function toComparableBuildVersion(value: string | null | undefined): number[] | null {
+  const normalized = String(value ?? "").trim();
+  if (!normalized || !/^\d+(?:\.\d+)*$/.test(normalized)) {
+    return null;
+  }
+  return normalized.split(".").map((part) => Number(part));
+}
+
+function compareBuildVersions(current: string | null | undefined, latest: string | null | undefined): number {
+  const currentParts = toComparableBuildVersion(current);
+  const latestParts = toComparableBuildVersion(latest);
+  if (!currentParts || !latestParts) return 0;
+  const maxLength = Math.max(currentParts.length, latestParts.length);
+  for (let index = 0; index < maxLength; index += 1) {
+    const currentValue = currentParts[index] ?? 0;
+    const latestValue = latestParts[index] ?? 0;
+    if (latestValue > currentValue) return 1;
+    if (latestValue < currentValue) return -1;
+  }
+  return 0;
+}
+
 function formatBuiltAt(iso: string | undefined): string {
   if (!iso) return "—";
   return new Date(iso).toLocaleString("en-GB", {
@@ -60,10 +82,21 @@ export default function SettingsPage() {
       const res = await fetch(`/version.json?t=${Date.now()}`, { cache: "no-store" });
       if (!res.ok) throw new Error("fetch failed");
       const payload = (await res.json()) as { built_at: string; build_version: string };
-      if (payload.built_at && payload.built_at !== builtAt) {
+      const versionComparison = compareBuildVersions(buildVersion, payload.build_version);
+      const hasNewerBuild = versionComparison > 0;
+      const shouldUseBuiltAtFallback = versionComparison === 0 && !toComparableBuildVersion(buildVersion);
+      const hasNewerBuiltAt = Boolean(
+        shouldUseBuiltAtFallback &&
+        payload.built_at &&
+        builtAt &&
+        payload.built_at !== builtAt
+      );
+
+      if (hasNewerBuild || hasNewerBuiltAt) {
         setLatestBuild(payload.build_version ?? null);
         setCheckStatus("update-available");
       } else {
+        setLatestBuild(null);
         setCheckStatus("up-to-date");
       }
     } catch {

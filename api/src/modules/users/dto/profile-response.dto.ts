@@ -7,6 +7,15 @@ export class ProfileResponseDto {
   first_name!: string | null;
   last_name!: string | null;
   phone!: string | null;
+  address!: string | null;
+  date_of_birth!: string | null;
+  gender!: string | null;
+  nationality!: string | null;
+  state!: string | null;
+  lga!: string | null;
+  marital_status!: string | null;
+  bio!: string | null;
+  occupation!: string | null;
   avatar!: string | null;
   primary_organization_id!: string | null;
   created_at!: Date;

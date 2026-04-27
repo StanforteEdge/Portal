@@ -1008,6 +1008,9 @@ export class HrService {
       first_name: profile.firstName,
       last_name: profile.lastName,
       phone: profile.phone,
+      primary_organization: profile.primaryOrganization
+        ? { id: profile.primaryOrganization.id.toString(), name: profile.primaryOrganization.name, code: profile.primaryOrganization.code }
+        : null,
       organizations: (profile.organizations ?? []).map((entry: any) => ({
         id: entry.organization.id.toString(),
         name: entry.organization.name,

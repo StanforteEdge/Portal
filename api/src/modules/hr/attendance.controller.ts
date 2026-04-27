@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
@@ -60,7 +60,7 @@ export class AttendanceController {
     return this.attendanceService.createOfficeLocation(req.user?.id, dto);
   }
 
-  @Post('office-locations/:id')
+  @Patch('office-locations/:id')
   @Permissions('attendance.manage')
   updateOfficeLocation(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertOfficeLocationDto) {
     return this.attendanceService.updateOfficeLocation(req.user?.id, id, dto);
