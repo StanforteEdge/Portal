@@ -23,10 +23,9 @@ import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
   listRoles,
-  listPermissions,
-  createRole,
   deleteRole,
-  updateRole,
+  listPermissions,
+  deletePermission,
   type Role,
   type RolePermission,
 } from "./admin-roles-api";
@@ -106,8 +105,12 @@ export default function AdminRolesPage() {
     }
     try {
       setDeletingPermissionId(permission.id);
-      // Assuming deletePermission exists - will need to add to API if not
-      showToast({ tone: "success", title: "Deleted", message: `Permission "${permission.name}" has been removed.` });
+      const result = await deletePermission(permission.id);
+      showToast({
+        tone: "success",
+        title: "Deleted",
+        message: `Permission "${permission.name}" removed. ${result.affected_roles} role(s) updated.`,
+      });
       setListKey((k) => k + 1);
     } catch (err) {
       showToast({

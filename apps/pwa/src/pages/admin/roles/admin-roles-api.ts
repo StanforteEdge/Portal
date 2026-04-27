@@ -83,3 +83,45 @@ export async function listPermissions(): Promise<RolePermission[]> {
   );
   return Array.isArray(data) ? data : (data?.data ?? []);
 }
+
+export async function createPermission(payload: {
+  name: string;
+  slug: string;
+  description?: string;
+  module?: string;
+}): Promise<RolePermission> {
+  return httpRequest<RolePermission>("/admin/rbac/permissions", {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function updatePermission(
+  id: string,
+  payload: {
+    name?: string;
+    description?: string;
+    module?: string;
+  },
+): Promise<RolePermission> {
+  return httpRequest<RolePermission>(`/admin/rbac/permissions/${id}`, {
+    method: "POST",
+    body: payload,
+  });
+}
+
+export async function deletePermission(id: string): Promise<{ success: boolean; affected_roles: number }> {
+  return httpRequest<{ success: boolean; affected_roles: number }>(`/admin/rbac/permissions/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getPermissionDeleteImpact(id: string): Promise<{
+  affected_roles: number;
+  roles: Array<{ id: string; name: string }>;
+}> {
+  return httpRequest<{
+    affected_roles: number;
+    roles: Array<{ id: string; name: string }>;
+  }>(`/admin/rbac/permissions/${id}/delete-impact`);
+}
