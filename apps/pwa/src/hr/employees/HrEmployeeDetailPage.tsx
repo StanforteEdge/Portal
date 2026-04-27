@@ -7,8 +7,8 @@ import { hrApi, useCachedQuery } from "@/shared/lib/core";
 import { type EmployeeDetail } from "@stanforte/shared";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import EmployeeActionsTab from "@/modules/hr/employees/tabs/EmployeeActionsTab";
-import EmployeeAttendanceTab from "@/modules/hr/employees/tabs/EmployeeAttendanceTab";
+import EmployeeActionsTab from "@/hr/employees/tabs/EmployeeActionsTab";
+import EmployeeAttendanceTab from "@/hr/employees/tabs/EmployeeAttendanceTab";
 import { formatDate } from "@stanforte/shared";
 
 
