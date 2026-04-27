@@ -210,7 +210,7 @@ export default function DashboardPage() {
       <div className="hidden lg:block">
         <PageHeader
           breadcrumbs={[{ label: "Dashboard" }]}
-          title={`${greeting()}, ${dashboardUserName}.`}
+          title={`${greeting()}, ${userDisplayName(user)}.`}
           description={`${formatTodayLong()} • ${organization?.name || "No primary organization"}${primaryGroup ? ` • ${primaryGroup.name}` : ""}`}
           actions={
             <Link to="/requests/new" className="inline-flex">

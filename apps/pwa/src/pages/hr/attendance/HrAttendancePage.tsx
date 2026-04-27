@@ -419,7 +419,7 @@ export default function HrAttendancePage() {
                           </TableCell>
                           <TableCell>
                             {c.status === "pending" ? (
-                              <Button size="sm" variant="ghost" onClick={() => setReviewingItem(c)}>
+                              <Button size="sm" variant="ghost" requiredPermissions={["attendance.approve"]} onClick={() => setReviewingItem(c)}>
                                 Review
                               </Button>
                             ) : null}

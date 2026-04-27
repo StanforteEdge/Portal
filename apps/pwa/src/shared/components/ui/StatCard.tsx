@@ -1,5 +1,7 @@
 import { Chip } from "./Chip";
 import { Icon } from "./Icon";
+import { hasAnyPermission } from "@stanforte/shared";
+import { useAuth } from "@/shared/context/AuthProvider";
 
 type StatCardProps = {
   label: string;
@@ -8,6 +10,7 @@ type StatCardProps = {
   tone?: "neutral" | "success" | "warning" | "pending" | "danger";
   hint?: string;
   icon?: string;
+  requiredPermissions?: string[];
 };
 
 export function StatCard({
@@ -17,7 +20,12 @@ export function StatCard({
   tone = "neutral",
   hint,
   icon,
+  requiredPermissions,
 }: StatCardProps) {
+  const { user } = useAuth();
+  if (requiredPermissions?.length && !hasAnyPermission(user, requiredPermissions)) {
+    return null;
+  }
   return (
     <article className="stat-card">
       <div className="flex items-start justify-between gap-3">

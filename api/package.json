@@ -9,6 +9,7 @@
     "start": "node dist/main.js",
     "prepare:runtime": "prisma migrate deploy && prisma generate",
     "deploy:server": "npm run prepare:runtime && npm run build",
+    "db:seed": "node scripts/seed-rbac.js",
     "seed:rbac": "node scripts/seed-rbac.js",
     "seed:first-user": "node scripts/seed-first-user.js",
     "seed:finance-requests": "node scripts/seed-finance-requests.js",
@@ -45,6 +46,9 @@
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "swagger-ui-express": "^5.0.1"
+  },
+  "prisma": {
+    "seed": "node scripts/seed-rbac.js"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

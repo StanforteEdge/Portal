@@ -1,3 +1,6 @@
+// ─── Hooks ──────────────────────────────────────────────────────────────────────
+export { usePermission } from "./hooks/usePermission";
+
 // ─── Layout ───────────────────────────────────────────────────────────────────
 export { AppShell } from "./components/layout/AppShell";
 export { ActivityFeed } from "./components/layout/ActivityFeed";

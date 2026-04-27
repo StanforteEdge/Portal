@@ -4,10 +4,8 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { AssignUserRolesDto } from './dto/assign-user-roles.dto';
-import { CreatePermissionDto } from './dto/create-permission.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { SetRolePermissionsDto } from './dto/set-role-permissions.dto';
-import { UpdatePermissionDto } from './dto/update-permission.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { RbacService } from './rbac.service';
 
@@ -60,29 +58,6 @@ export class RbacController {
   @Get('permissions')
   listPermissions(@Query('module') module?: string, @Query('search') search?: string) {
     return this.rbacService.listPermissions({ module, search });
-  }
-
-  @Post('permissions')
-  createPermission(@Body() dto: CreatePermissionDto) {
-    return this.rbacService.createPermission(dto);
-  }
-
-  @Post('permissions/:id')
-  updatePermission(@Param('id') id: string, @Body() dto: UpdatePermissionDto) {
-    return this.rbacService.updatePermission(id, dto);
-  }
-
-  @Delete('permissions/:id')
-  deletePermission(
-    @Param('id') id: string,
-    @Query('replacement_permission_id') replacementPermissionId?: string
-  ) {
-    return this.rbacService.deletePermission(id, replacementPermissionId);
-  }
-
-  @Get('permissions/:id/delete-impact')
-  getPermissionDeleteImpact(@Param('id') id: string) {
-    return this.rbacService.getPermissionDeleteImpact(id);
   }
 
   @Get('users/:profileId')
