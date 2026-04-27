@@ -100,6 +100,11 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
       };
     },
 
+    async getTrend(from: string, to: string): Promise<Array<{ date: string; present: number; late: number; absent: number }>> {
+      const res = await httpRequest<any>(`/hr/attendance/summary?from=${from}&to=${to}`);
+      return res?.daily || [];
+    },
+
     async listRecords(params: { from: string; to: string; user_id?: string; org_id?: string; team_id?: string; status?: string }) {
       const query = new URLSearchParams();
       Object.entries(params).forEach(([k, v]) => { if (v) query.set(k, String(v)); });

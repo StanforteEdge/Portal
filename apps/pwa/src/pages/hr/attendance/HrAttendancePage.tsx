@@ -89,6 +89,20 @@ export default function HrAttendancePage() {
 
   const todayStr = new Date().toISOString().slice(0, 10);
 
+  // Trend: last 30 days
+  const trendFrom = new Date(Date.now() - 30 * 86400000).toISOString().slice(0, 10);
+  const { data: trendData } = useCachedQuery(
+    `hr:attendance:trend:${trendFrom}:${todayStr}`,
+    () => attendanceApi.getTrend(trendFrom, todayStr),
+    { ttlMs: 1000 * 60 * 5, storage: "memory" },
+  );
+
+  // Compute max value for chart scaling
+  const trendMax = useMemo(() => {
+    const data = (trendData ?? []) as Array<{ present: number; late: number; absent: number }>;
+    return Math.max(10, ...data.map(d => (d.present || 0) + (d.late || 0) + (d.absent || 0)));
+  }, [trendData]);
+
   const { data: stats } = useCachedQuery(
     `hr:attendance:stats:${todayStr}`,
     () => attendanceApi.getStats(todayStr),
@@ -179,6 +193,49 @@ export default function HrAttendancePage() {
             icon="person_off"
           />
         </div>
+
+        {/* Attendance Trend: last 30 days */}
+        {trendData && (trendData as any[]).length > 0 && (
+          <SectionCard title="Attendance Trend (Last 30 Days)">
+            <div className="flex gap-1 items-end h-40 overflow-x-auto pb-2">
+              {(trendData as Array<{ date: string; present: number; late: number; absent: number }>).map((day) => {
+                const total = Math.max(1, day.present + day.late + day.absent);
+                const presentPct = (day.present / trendMax) * 100;
+                const latePct = (day.late / trendMax) * 100;
+                const absentPct = (day.absent / trendMax) * 100;
+                return (
+                  <div key={day.date} className="flex-1 min-w-[8px] flex flex-col items-center gap-0.5">
+                    <div className="w-full flex flex-col h-32 justify-end">
+                      <div
+                        className="w-full bg-success/80 rounded-t-sm"
+                        style={{ height: `${presentPct}%` }}
+                        title={`Present: ${day.present}`}
+                      />
+                      <div
+                        className="w-full bg-warning/80"
+                        style={{ height: `${latePct}%` }}
+                        title={`Late: ${day.late}`}
+                      />
+                      <div
+                        className="w-full bg-danger/80 rounded-b-sm"
+                        style={{ height: `${absentPct}%` }}
+                        title={`Absent: ${day.absent}`}
+                      />
+                    </div>
+                    <span className="text-[9px] text-slate-400 rotate-45 origin-left">
+                      {new Date(day.date).getDate()}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mt-2 flex gap-4 text-xs text-slate-500">
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-success/80 rounded-sm" /> Present</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-warning/80 rounded-sm" /> Late</span>
+              <span className="flex items-center gap-1"><span className="inline-block w-3 h-3 bg-danger/80 rounded-sm" /> Absent</span>
+            </div>
+          </SectionCard>
+        )}
 
         <SidebarTabs items={tabItems} activeTab={activeTab} onTabChange={(id) => setActiveTab(id as ActiveTab)}>
           {activeTab === "attendance" && (
