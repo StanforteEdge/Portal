@@ -299,6 +299,12 @@ export async function retireRequest(
   });
 }
 
+type DisburseResult = {
+  id: string;
+  status: string;
+  voucher?: { id: string };
+};
+
 export async function disburseRequest(
   id: string,
   payload?: {
@@ -310,12 +316,13 @@ export async function disburseRequest(
     evidence_file_ids?: string[];
     paid_from_account_id?: string;
     disbursed_at?: string;
+    contact_id?: string;
   },
   options?: {
     traceId?: string;
   }
 ) {
-  return httpRequest<RequestRecord>(`/finance/requests/${id}/disburse`, {
+  return httpRequest<DisburseResult>(`/finance/requests/${id}/disburse`, {
     method: "POST",
     body: payload ?? {},
     headers: options?.traceId ? { "x-trace-id": options.traceId } : undefined,
