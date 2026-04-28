@@ -24,6 +24,8 @@ function loadApiEnv() {
 const roles = [
   { name: 'Administrator', slug: 'administrator', description: 'Super User with access to everything' },
   { name: 'Admin', slug: 'admin', description: 'System Administrator' },
+  { name: 'HR Manager', slug: 'hr_manager', description: 'Head of Human Resources' },
+  { name: 'HR Officer', slug: 'hr_officer', description: 'HR Department Staff' },
   { name: 'Finance Manager', slug: 'finance_manager', description: 'Head of Finance' },
   { name: 'Finance Officer', slug: 'finance_officer', description: 'Finance Department Staff' },
   { name: 'Finance Auditor', slug: 'finance_auditor', description: 'External/Internal Auditor' },
