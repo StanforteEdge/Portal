@@ -109,8 +109,27 @@ export default function HrDashboardPage() {
         description="Monitor headcount, attendance, and leave across the organisation."
       />
 
-      <div className="grid gap-6">
-        {/* Needs Attention — full width */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Employees — first */}
+        {canViewEmployees && (
+          <SectionCard
+            title="Employees"
+            description="Headcount and workforce status."
+            action={
+              <Link to="/hr/employees" className="text-sm font-semibold text-brand-900 transition hover:underline">
+                Manage →
+              </Link>
+            }
+          >
+            <div className="grid gap-4 md:grid-cols-3">
+              <StatCard label="Total Employees" value={String(summary?.total ?? 0)} tone="neutral" icon="group" />
+              <StatCard label="Active" value={String(summary?.active ?? 0)} tone="success" icon="check_circle" />
+              <StatCard label="Suspended / Exited" value={String((summary?.suspended ?? 0) + (summary?.exited ?? 0))} tone="danger" icon="block" />
+            </div>
+          </SectionCard>
+        )}
+
+        {/* Needs Attention */}
         {attentionItems.length > 0 && (
           <SectionCard title="Needs Attention">
             <div className="flex flex-col gap-3">
@@ -129,27 +148,6 @@ export default function HrDashboardPage() {
                   <Icon name="chevron_right" className="ml-auto text-[18px] text-slate-400" />
                 </Link>
               ))}
-            </div>
-          </SectionCard>
-        )}
-
-        {/* Domain section cards — 2-col on large screens */}
-        <div className="grid gap-6 lg:grid-cols-2">
-        {/* Employees — first */}
-        {canViewEmployees && (
-          <SectionCard
-            title="Employees"
-            description="Headcount and workforce status."
-            action={
-              <Link to="/hr/employees" className="text-sm font-semibold text-brand-900 transition hover:underline">
-                Manage →
-              </Link>
-            }
-          >
-            <div className="grid gap-4 md:grid-cols-3">
-              <StatCard label="Total Employees" value={String(summary?.total ?? 0)} tone="neutral" icon="group" />
-              <StatCard label="Active" value={String(summary?.active ?? 0)} tone="success" icon="check_circle" />
-              <StatCard label="Suspended / Exited" value={String((summary?.suspended ?? 0) + (summary?.exited ?? 0))} tone="danger" icon="block" />
             </div>
           </SectionCard>
         )}
@@ -190,7 +188,6 @@ export default function HrDashboardPage() {
             </div>
           </SectionCard>
         )}
-        </div>
       </div>
     </AppShell>
   );
