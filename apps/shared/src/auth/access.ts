@@ -63,6 +63,12 @@ export function hasModuleAccess(user: Pick<AuthUser, "roles" | "permissions" | "
     return Array.from(roleSet).some((role) => FINANCE_ROLES.has(role)) || hasFinancePermission;
   }
 
+  if (module === "hr") {
+    return Array.from(permissionSet).some(
+      (p) => p.startsWith("hr.") || p.startsWith("attendance.") || p.startsWith("leave.") || p.startsWith("work."),
+    );
+  }
+
   if (module === "admin") {
     return roleSet.has("administrator") || roleSet.has("admin") || hasAnyPermission(user, ["users.manage", "roles.manage", "settings.manage"]);
   }
