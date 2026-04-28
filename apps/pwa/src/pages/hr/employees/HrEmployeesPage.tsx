@@ -80,7 +80,7 @@ export default function HrEmployeesPage() {
   const params = useMemo(() => {
     const p: Record<string, unknown> = { page: currentPage, per_page: perPage };
     if (search.trim()) p.search = search.trim();
-    if (status) p.status = status;
+    if (status) p.employment_status = status;
     if (employmentType) p.employment_type = employmentType;
     if (orgFilter) p.organization_id = orgFilter;
     if (groupFilter) p.group_id = groupFilter;
