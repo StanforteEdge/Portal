@@ -110,7 +110,7 @@ export default function HrDashboardPage() {
       />
 
       <div className="grid gap-6">
-        {/* Needs Attention */}
+        {/* Needs Attention — full width */}
         {attentionItems.length > 0 && (
           <SectionCard title="Needs Attention">
             <div className="flex flex-col gap-3">
@@ -133,7 +133,9 @@ export default function HrDashboardPage() {
           </SectionCard>
         )}
 
-        {/* Employees */}
+        {/* Domain section cards — 2-col on large screens */}
+        <div className="grid gap-6 lg:grid-cols-2">
+        {/* Employees — first */}
         {canViewEmployees && (
           <SectionCard
             title="Employees"
@@ -188,6 +190,7 @@ export default function HrDashboardPage() {
             </div>
           </SectionCard>
         )}
+        </div>
       </div>
     </AppShell>
   );
