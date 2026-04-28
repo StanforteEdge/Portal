@@ -14,7 +14,8 @@ export class OrganizationsController {
   constructor(private readonly organizationsService: OrganizationsService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, PermissionsGuard)
+  @Permissions('organizations.view', 'settings.manage')
   list(@Query() query: Record<string, any>) {
     return this.organizationsService.listOrganizations(query);
   }

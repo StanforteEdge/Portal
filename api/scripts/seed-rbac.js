@@ -53,6 +53,7 @@ const permissions = [
   { name: 'Approve Finance', slug: 'finance.approve', module: 'finance', description: 'Can approve finance workflow steps' },
   { name: 'Generate Vouchers', slug: 'finance.vouchers', module: 'finance', description: 'Can generate payment vouchers' },
   { name: 'Approve Payroll', slug: 'payroll.approve', module: 'payroll', description: 'Can approve payroll workflow steps' },
+  { name: 'View Organizations', slug: 'organizations.view', module: 'organizations', description: 'Can view organizations and their details' },
   { name: 'View Groups', slug: 'groups.view', module: 'groups', description: 'Can view groups and their memberships' },
   { name: 'Manage Groups', slug: 'groups.manage', module: 'groups', description: 'Can create groups, assign organizations, and manage members' },
   { name: 'Clock Attendance', slug: 'attendance.clock', module: 'attendance', description: 'Can clock in and out' },
@@ -86,6 +87,8 @@ const permissions = [
 const rolePermissionMap = {
   administrator: ['*'],
   admin: ['admin.view', 'users.view', 'users.manage', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'roles.manage', 'settings.manage', 'audit.view', 'audit.manage', 'workflow.view', 'workflow.manage', 'send_notifications'],
+  hr_manager: [],
+  hr_officer: [],
   finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.correct_completed', 'finance.view', 'finance.approve', 'finance.vouchers', 'payroll.approve', 'groups.view', 'projects.view', 'workflow.view', 'work.view', 'work.manage', 'work.approve'],
   accountant: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'groups.view', 'projects.view', 'workflow.view'],
   finance_officer: ['requests.view', 'finance.view', 'finance.vouchers', 'groups.view', 'projects.view', 'workflow.view'],

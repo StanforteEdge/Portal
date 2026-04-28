@@ -392,6 +392,45 @@ export class AttendanceService {
     };
   }
 
+  async getAttendanceStatus(userId: string) {
+    const actorId = toBigInt(userId);
+    const profile = await this.getProfileContext(actorId);
+    const policy = await this.resolveAttendancePolicy(actorId, profile);
+    const today = this.toWorkDate(new Date());
+    const todayEnd = new Date(today);
+    todayEnd.setDate(todayEnd.getDate() + 1);
+
+    const entries = await this.prisma.attendanceEntry.findMany({
+      where: {
+        userId: actorId,
+        workDate: today,
+      },
+      orderBy: { entryAt: 'desc' }
+    });
+
+    const openClockIn = entries.find(e => e.entryType === 'clock_in' && !entries.some(out => out.entryType === 'clock_out' && out.entryAt > e.entryAt));
+    const lastEntry = entries[0] ?? null;
+
+    const response = {
+      current_state: {
+        is_clocked_in: !!openClockIn,
+        last_clock_in_at: openClockIn?.entryAt?.toISOString() ?? null,
+        last_clock_in_work_date: openClockIn?.workDate?.toISOString().slice(0, 10) ?? null,
+        can_clock_in: !openClockIn && new Date() >= new Date(today.setHours(9, 0, 0, 0)),
+        can_clock_out: !!openClockIn,
+        reason: null as string | null,
+      },
+      policy: {
+        start_time: policy.start_time,
+        end_time: policy.end_time,
+        onsite_weekdays: policy.onsite_weekdays,
+        remote_weekdays: policy.remote_weekdays,
+      },
+    };
+
+    return response;
+  }
+
   async createOfficeLocation(userId: string, dto: UpsertOfficeLocationDto) {
     const actorId = toBigInt(userId);
     const organizationIds = this.uniqueBigInts(dto.organization_ids ?? []);

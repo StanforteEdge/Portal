@@ -122,7 +122,10 @@ export default function DashboardPage() {
   );
   const { data: attendance } = useCachedQuery(
     "dashboard:attendance",
-    () => getMyAttendance(),
+    () => {
+      const today = new Date().toISOString().slice(0, 10);
+      return getMyAttendance({ from: today, to: today });
+    },
     {
       ttlMs: 1000 * 30,
       storage: "memory",
@@ -228,10 +231,12 @@ export default function DashboardPage() {
     nextShiftDetail = "No shift scheduled";
     nextShiftMode = "";
   }
-  const dashboardUserName = userFirstName(user);
   const financeViewer = hasModuleAccess(user, "finance");
+  const dashboardUserName = profile?.first_name || userFirstName(user);
 
-  console.log("userFirstName(user)", userFirstName(user));
+  console.log("profile first_name:", profile?.first_name);
+  console.log("userFirstName(user):", userFirstName(user));
+  console.log("dashboardUserName:", dashboardUserName);
   
 
   return (
@@ -239,7 +244,7 @@ export default function DashboardPage() {
       navigation={buildRequestsNavigation()}
       activeLabel="Dashboard"
       user={{
-        name: userFirstName(user),
+        name: dashboardUserName,
         role: profile?.employee_profile?.job_title || "Staff",
       }}
       mobileNav={buildAppMobileNav("Dashboard")}

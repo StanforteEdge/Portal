@@ -36,6 +36,12 @@ export class AttendanceController {
     return this.attendanceService.myAttendance(req.user?.id, query);
   }
 
+  @Get('status')
+  @Permissions('attendance.view_self')
+  status(@Req() req: any) {
+    return this.attendanceService.getAttendanceStatus(req.user?.id);
+  }
+
   @Get('summary')
   @Permissions('attendance.view_team')
   summary(@Query() query: Record<string, any>) {
