@@ -57,13 +57,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
       }
     } catch {
-      const fallbackUser = await authApi.fetchCurrentUser();
-      if (fallbackUser) {
-        setUser(fallbackUser);
-        setLastKnownEmail(fallbackUser.email || null);
-        setStatus("authenticated");
-        setAuthIssue(null);
-      } else {
+      try {
+        const fallbackUser = await authApi.fetchCurrentUser();
+        if (fallbackUser) {
+          setUser(fallbackUser);
+          setLastKnownEmail(fallbackUser.email || null);
+          setStatus("authenticated");
+          setAuthIssue(null);
+        } else {
+          setUser(null);
+          setStatus("unauthenticated");
+          setAuthIssue(null);
+        }
+      } catch {
         setUser(null);
         setStatus("unauthenticated");
         setAuthIssue(null);
