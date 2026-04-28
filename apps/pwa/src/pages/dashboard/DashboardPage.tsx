@@ -232,12 +232,7 @@ export default function DashboardPage() {
     nextShiftMode = "";
   }
   const financeViewer = hasModuleAccess(user, "finance");
-  const dashboardUserName = profile?.first_name || userFirstName(user);
-
-  console.log("profile first_name:", profile?.first_name);
-  console.log("userFirstName(user):", userFirstName(user));
-  console.log("dashboardUserName:", dashboardUserName);
-  
+  const dashboardUserName = profile?.first_name || "Staff User";
 
   return (
     <AppShell
