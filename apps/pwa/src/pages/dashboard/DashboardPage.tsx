@@ -106,7 +106,7 @@ export default function DashboardPage() {
   );
   const { data: requests, loading: loadingRequests } = useCachedQuery(
     "dashboard:requests",
-    () => listRequests(),
+    () => listRequests({ only_mine: "true" }),
     {
       ttlMs: 1000 * 30,
       storage: "memory",
