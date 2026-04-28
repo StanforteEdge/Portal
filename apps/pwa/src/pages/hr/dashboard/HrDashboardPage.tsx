@@ -17,10 +17,12 @@ import {
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { hrApi, useCachedQuery } from "@/shared/lib/core";
+import { hrApi, attendanceApi, useCachedQuery } from "@/shared/lib/core";
 import { type HrSummary, type EmployeeSummary } from "@stanforte/shared";
+import { type AttendanceTodayStats } from "@stanforte/shared/src/api/attendance-api";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
+import { listHrLeaveRequests } from "../leave/hr-leave-api";
 
 function humanize(value: string) {
     return String(value || "")
@@ -44,8 +46,23 @@ export default function HrDashboardPage() {
         { ttlMs: 1000 * 30, storage: "memory" },
     );
 
+    const today = new Date().toISOString().slice(0, 10);
+    const { data: attendanceStats } = useCachedQuery(
+        `hr:attendance:stats:${today}`,
+        () => attendanceApi.getStats(today),
+        { ttlMs: 1000 * 60, storage: "memory" },
+    );
+
+    const { data: pendingLeave } = useCachedQuery(
+        "hr:leave:pending",
+        () => listHrLeaveRequests({ status: "pending" }),
+        { ttlMs: 1000 * 60, storage: "memory" },
+    );
+
+    const stats = attendanceStats as AttendanceTodayStats | undefined;
     const summary = summaryData as HrSummary | undefined;
     const recentHires = summary?.recent_hires ?? [];
+    const pendingLeaveCount = Array.isArray(pendingLeave) ? pendingLeave.length : 0;
 
     const userName =
         `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
@@ -65,15 +82,7 @@ export default function HrDashboardPage() {
             <PageHeader
                 breadcrumbs={[{ label: "Dashboard", path: "/" }, { label: "HR" }]}
                 title="HR Overview"
-                description="Monitor headcount stats and manage employee records."
-                actions={
-                    <Link to="/hr/employees/new" className="inline-flex">
-                        <button className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-800">
-                            <Icon name="add" className="text-[18px]" />
-                            Add Employee
-                        </button>
-                    </Link>
-                }
+                description="Monitor headcount, attendance, and leave across the organisation."
             />
 
             <div className="grid gap-6">
@@ -115,17 +124,12 @@ export default function HrDashboardPage() {
                     </div>
                 </SectionCard>
 
-                {/* Employment type breakdown */}
+                {/* Cross-domain stats: attendance + leave */}
                 <div className="grid gap-4 md:grid-cols-4">
-                    {(['full_time', 'contract', 'intern', 'consultant'] as const).map((type) => (
-                        <StatCard
-                            key={type}
-                            label={humanize(type)}
-                            value={String(summary?.by_employment_type?.[type] ?? 0)}
-                            tone="neutral"
-                            icon="badge"
-                        />
-                    ))}
+                    <StatCard label="Clocked In Today" value={String(stats?.clocked_in ?? 0)} tone="success" icon="login" />
+                    <StatCard label="Late Today" value={String(stats?.late ?? 0)} tone="warning" icon="schedule" />
+                    <StatCard label="Absent Today" value={String(stats?.absent ?? 0)} tone="danger" icon="person_off" />
+                    <StatCard label="Pending Leave" value={String(pendingLeaveCount)} tone="pending" icon="event_available" />
                 </div>
 
                 {/* Recent Hires */}
