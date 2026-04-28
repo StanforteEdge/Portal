@@ -153,10 +153,9 @@ export function AppShell({
     const profileDisplayName =
       `${profile?.first_name ?? ""} ${profile?.last_name ?? ""}`.trim();
     const authDisplayName =
-      `${authUser?.first_name ?? ""} ${authUser?.last_name ?? ""}`.trim() ||
-      authUser?.username ||
-      authUser?.email ||
-      "";
+      authUser?.first_name
+        ? `${authUser.first_name} ${authUser.last_name ?? ""}`.trim()
+        : "";
     const roles = sortRoles(
       Array.from(
         new Set(
@@ -173,7 +172,7 @@ export function AppShell({
     const extraRoles = roles.slice(1).map(roleLabel);
 
     return {
-      name: profileDisplayName || authDisplayName || user.name,
+      name: profileDisplayName || authDisplayName || user.name || "Staff User",
       title: profileTitle || primaryRole,
     };
   }, [
