@@ -150,9 +150,6 @@ export default function LeavePage() {
                   New Leave Request
                 </Button>
               </Link>
-              <Link to="/requests?family=leave">
-                <Button variant="secondary">View All Leave Requests</Button>
-              </Link>
             </div>
           }
         />
@@ -224,6 +221,11 @@ export default function LeavePage() {
         <SectionCard
           title="Recent Leave Requests"
           description="Your latest leave submissions and current approval status."
+          action={
+            <Link to="/requests?family=leave">
+              <Button variant="secondary">View All Leave Requests</Button>
+            </Link>
+          }
         >
           {leaveBalanceError ? (
             <p className="mb-4 text-sm text-danger">

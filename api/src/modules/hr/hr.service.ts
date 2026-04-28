@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import * as bcrypt from 'bcryptjs';
-import { Prisma, EmploymentStatus, GroupUserRole } from '@prisma/client';
+import { Prisma, EmploymentStatus, EmploymentType, GroupUserRole } from '@prisma/client';
 import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { randomToken } from '../../common/utils/crypto';
@@ -55,12 +55,16 @@ export class HrService {
     }
 
     if (query.status) where.status = String(query.status);
-    if (query.employment_status) {
-      where.employeeProfile = {
-        is: {
-          employmentStatus: String(query.employment_status) as EmploymentStatus
-        }
-      };
+
+    const profileFilter: Prisma.EmployeeProfileWhereInput = {};
+    if (query.employment_status) profileFilter.employmentStatus = String(query.employment_status) as EmploymentStatus;
+    if (query.employment_type) profileFilter.employmentType = String(query.employment_type) as EmploymentType;
+    if (Object.keys(profileFilter).length > 0) {
+      where.employeeProfile = { is: profileFilter };
+    }
+
+    if (query.organization_id) {
+      where.primaryOrganizationId = this.parseId(String(query.organization_id), 'organization id');
     }
 
     const [data, total] = await this.prisma.$transaction([

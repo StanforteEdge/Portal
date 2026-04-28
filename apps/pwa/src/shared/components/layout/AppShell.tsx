@@ -156,6 +156,11 @@ export function AppShell({
       authUser?.first_name
         ? `${authUser.first_name} ${authUser.last_name ?? ""}`.trim()
         : "";
+    console.log("[AppShell] profile:", profile?.first_name, profile?.last_name);
+    console.log("[AppShell] authUser:", authUser?.first_name, authUser?.last_name, authUser?.username);
+    console.log("[AppShell] user.name (passed):", user.name);
+    console.log("[AppShell] profileDisplayName:", profileDisplayName);
+    console.log("[AppShell] authDisplayName:", authDisplayName);
     const roles = sortRoles(
       Array.from(
         new Set(

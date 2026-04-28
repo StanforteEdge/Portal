@@ -1,5 +1,4 @@
 import {
-  Button,
   Chip,
   EmptyState,
   Icon,
@@ -7,6 +6,7 @@ import {
   PageHeader,
   SectionCard,
   SelectField,
+  StatCard,
   Table,
   TableBody,
   TableCell,
@@ -21,7 +21,7 @@ import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { hrApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
-import { type EmployeeSummary } from "@stanforte/shared";
+import { type EmployeeSummary, type HrSummary } from "@stanforte/shared";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import type { OrganizationItem, TeamOption } from "@/shared";
@@ -61,6 +61,13 @@ export default function HrEmployeesPage() {
 
   const groups: TeamOption[] = Array.isArray(groupsData) ? groupsData : [];
 
+  const { data: summaryData } = useCachedQuery(
+    "hr:summary",
+    () => hrApi.getSummary(),
+    { ttlMs: 1000 * 60, storage: "memory" },
+  );
+  const summary = summaryData as HrSummary | undefined;
+
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
   const [employmentType, setEmploymentType] = useState("");
@@ -73,7 +80,7 @@ export default function HrEmployeesPage() {
   const params = useMemo(() => {
     const p: Record<string, unknown> = { page: currentPage, per_page: perPage };
     if (search.trim()) p.search = search.trim();
-    if (status) p.status = status;
+    if (status) p.employment_status = status;
     if (employmentType) p.employment_type = employmentType;
     if (orgFilter) p.organization_id = orgFilter;
     if (groupFilter) p.group_id = groupFilter;
@@ -128,6 +135,20 @@ export default function HrEmployeesPage() {
           ) : null
         }
       />
+
+      {/* Headcount stats */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-2">
+        <StatCard label="Total Employees" value={String(summary?.total ?? 0)} tone="neutral" icon="group" />
+        {(['full_time', 'contract', 'intern', 'consultant'] as const).map((type) => (
+          <StatCard
+            key={type}
+            label={humanize(type)}
+            value={String(summary?.by_employment_type?.[type] ?? 0)}
+            tone="neutral"
+            icon="badge"
+          />
+        ))}
+      </div>
 
       {/* Filter bar */}
       <section className="section-card p-4 sm:p-5 mb-6" aria-label="Employee filters">

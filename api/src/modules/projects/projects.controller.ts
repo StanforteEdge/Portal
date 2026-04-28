@@ -16,13 +16,13 @@ export class ProjectsController {
   constructor(private readonly projectsService: ProjectsService) {}
 
   @Get()
-  @Permissions('projects.view')
+  @UseGuards(JwtAuthGuard)
   list(@Query() query: Record<string, any>) {
     return this.projectsService.list(query);
   }
 
   @Get(':id')
-  @Permissions('projects.view')
+  @UseGuards(JwtAuthGuard)
   get(@Param('id') id: string) {
     return this.projectsService.get(id);
   }

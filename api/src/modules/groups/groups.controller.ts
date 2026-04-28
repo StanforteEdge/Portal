@@ -19,14 +19,14 @@ export class GroupsController {
 
   @Get()
   @ApiOperation({ summary: 'List groups across all group types' })
-  @Permissions('groups.view')
+  @UseGuards(JwtAuthGuard)
   list(@Query() query: Record<string, any>) {
     return this.groupsService.list(query);
   }
 
   @Get(':id')
   @ApiOperation({ summary: 'Get group details by id' })
-  @Permissions('groups.view')
+  @UseGuards(JwtAuthGuard)
   get(@Param('id') id: string) {
     return this.groupsService.get(id);
   }

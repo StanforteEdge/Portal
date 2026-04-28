@@ -22,91 +22,91 @@ export class HrController {
   constructor(private readonly hrService: HrService) {}
 
   @Get('summary')
-  @Permissions('users.manage')
+  @Permissions('hr.view', 'hr.manage', 'hr.employees')
   summary() {
     return this.hrService.summary();
   }
 
   @Get('employees')
-  @Permissions('users.manage')
+  @Permissions('hr.view', 'hr.manage', 'hr.employees')
   list(@Query() query: Record<string, any>) {
     return this.hrService.listEmployees(query);
   }
 
   @Post('employees')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   create(@Body() dto: UpsertEmployeeDto) {
     return this.hrService.createEmployee(dto);
   }
 
   @Get('employees/:id')
-  @Permissions('users.manage')
+  @Permissions('hr.view', 'hr.manage', 'hr.employees')
   get(@Param('id') id: string) {
     return this.hrService.getEmployee(id);
   }
 
   @Patch('employees/:id')
-  @Permissions('users.manage')
+  @Permissions('hr.manage', 'hr.employees')
   update(@Param('id') id: string, @Body() dto: UpsertEmployeeDto) {
     return this.hrService.updateEmployee(id, dto);
   }
 
   @Patch('employees/:id/action')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   runAction(@Param('id') id: string, @Body() dto: EmployeeActionDto) {
     return this.hrService.runEmployeeAction(id, dto);
   }
 
   @Post('employees/:id/organizations')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   addOrganization(@Param('id') id: string, @Body() dto: AssignEmployeeOrganizationDto) {
     return this.hrService.addOrganizationMembership(id, dto);
   }
 
   @Delete('employees/:id/organizations/:organizationId')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   removeOrganization(@Param('id') id: string, @Param('organizationId') organizationId: string) {
     return this.hrService.removeOrganizationMembership(id, organizationId);
   }
 
   @Post('employees/:id/teams')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   addTeam(@Param('id') id: string, @Body() dto: AssignEmployeeTeamDto) {
     return this.hrService.addTeamMembership(id, dto);
   }
 
   @Delete('employees/:id/teams/:teamId')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   removeTeam(@Param('id') id: string, @Param('teamId') teamId: string) {
     return this.hrService.removeTeamMembership(id, teamId);
   }
 
   @Post('employees/:id/primary-organization')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   setPrimaryOrganization(@Param('id') id: string, @Body() dto: SetPrimaryOrganizationDto) {
     return this.hrService.setPrimaryOrganization(id, dto);
   }
 
   @Get('onboarding/forms')
-  @Permissions('users.manage')
+  @Permissions('hr.manage', 'hr.employees')
   listOnboardingFormAssignments(@Query() query: Record<string, any>) {
     return this.hrService.listOnboardingFormAssignments(query);
   }
 
   @Post('onboarding/forms/assign')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   assignOnboardingForm(@Body() dto: AssignOnboardingFormDto) {
     return this.hrService.assignOnboardingForm(dto);
   }
 
   @Delete('onboarding/forms/assignments/:id')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   deleteOnboardingFormAssignment(@Param('id') id: string) {
     return this.hrService.deleteOnboardingFormAssignment(id);
   }
 
   @Patch('onboarding/forms/assignments/:id')
-  @Permissions('users.manage')
+  @Permissions('hr.manage')
   updateOnboardingFormAssignment(
     @Param('id') id: string,
     @Body() dto: UpdateOnboardingFormAssignmentDto
@@ -115,13 +115,13 @@ export class HrController {
   }
 
   @Get('leave/balance')
-  @Permissions('users.manage')
+  @Permissions('hr.manage', 'leave.manage', 'leave.view')
   leaveBalance(@Query() query: Record<string, any>) {
     return this.hrService.getLeaveBalance(query);
   }
 
   @Post('leave/balance/adjust')
-  @Permissions('users.manage')
+  @Permissions('hr.manage', 'leave.manage')
   adjustLeaveBalance(@Req() req: any, @Body() dto: AdjustLeaveBalanceDto) {
     return this.hrService.adjustLeaveBalance(dto, req.user?.id);
   }

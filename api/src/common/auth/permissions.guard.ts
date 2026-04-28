@@ -18,6 +18,6 @@ export class PermissionsGuard implements CanActivate {
     const userPerms: string[] = user?.permissions ?? [];
 
     if (userPerms.includes('*')) return true;
-    return required.every((perm) => userPerms.includes(perm));
+    return required.some((perm) => userPerms.includes(perm));
   }
 }
