@@ -61,6 +61,7 @@ import {
   ModuleRoute,
   PermissionRoute,
 } from "@/shared/components/auth/AccessRoute";
+import { UpdateBanner } from "@/shared/components/ui/UpdateBanner";
 import AcceptInvitePage from "@/pages/auth/AcceptInvitePage";
 import ForgotPasswordPage from "@/pages/auth/ForgotPasswordPage";
 import LoginPage from "@/pages/auth/LoginPage";
@@ -234,6 +235,8 @@ export default function App() {
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
+
+      <UpdateBanner />
     </Routes>
   );
 }
