@@ -111,6 +111,27 @@ export async function getMyAttendance(params?: { from?: string; to?: string }) {
   return httpRequest<MyAttendanceResponse>(`/hr/attendance/me${suffix}`);
 }
 
+export type AttendanceStatusResponse = {
+  current_state: {
+    is_clocked_in: boolean;
+    last_clock_in_at: string | null;
+    last_clock_in_work_date: string | null;
+    can_clock_in: boolean;
+    can_clock_out: boolean;
+    reason: string | null;
+  };
+  policy: {
+    start_time: string;
+    end_time: string;
+    onsite_weekdays: number[];
+    remote_weekdays: number[];
+  };
+};
+
+export async function getAttendanceStatus() {
+  return httpRequest<AttendanceStatusResponse>("/hr/attendance/status");
+}
+
 export async function clockIn(payload?: {
   source?: string;
   at?: string;
