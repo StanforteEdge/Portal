@@ -9,6 +9,7 @@ import {
 } from "react";
 import type { AuthUser } from "@stanforte/shared";
 import { authApi, authSession } from "@/shared/lib/core";
+import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 
 type AuthStatus = "checking" | "authenticated" | "unauthenticated";
 type AuthIssue = "session_expired" | null;
@@ -43,7 +44,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLastKnownEmail(result.user.email || null);
         setStatus("authenticated");
         setAuthIssue(null);
+        // Pre-fetch profile to cache for use throughout the app
+        getWorkspaceProfile().catch(() => {});
       } else {
+        const fallbackUser = await authApi.fetchCurrentUser();
+        if (fallbackUser) {
+          setUser(fallbackUser);
+          setLastKnownEmail(fallbackUser.email || null);
+          setStatus("authenticated");
+          setAuthIssue(null);
+          // Pre-fetch profile to cache
+          getWorkspaceProfile().catch(() => {});
+        } else {
+          setUser(null);
+          setStatus("unauthenticated");
+          setAuthIssue(null);
+        }
+      }
+    } catch {
+      try {
         const fallbackUser = await authApi.fetchCurrentUser();
         if (fallbackUser) {
           setUser(fallbackUser);
@@ -55,15 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           setStatus("unauthenticated");
           setAuthIssue(null);
         }
-      }
-    } catch {
-      const fallbackUser = await authApi.fetchCurrentUser();
-      if (fallbackUser) {
-        setUser(fallbackUser);
-        setLastKnownEmail(fallbackUser.email || null);
-        setStatus("authenticated");
-        setAuthIssue(null);
-      } else {
+      } catch {
         setUser(null);
         setStatus("unauthenticated");
         setAuthIssue(null);

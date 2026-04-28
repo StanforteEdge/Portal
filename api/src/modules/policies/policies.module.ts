@@ -6,6 +6,7 @@ import { PoliciesService } from './policies.service';
 @Module({
   imports: [PrismaModule],
   controllers: [PoliciesController],
-  providers: [PoliciesService]
+  providers: [PoliciesService],
+  exports: [PoliciesService]
 })
 export class PoliciesModule {}
