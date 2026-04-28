@@ -136,8 +136,9 @@ export default function HrEmployeesPage() {
         }
       />
 
-      {/* Employment type breakdown */}
-      <div className="grid gap-4 md:grid-cols-4 mb-2">
+      {/* Headcount stats */}
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5 mb-2">
+        <StatCard label="Total Employees" value={String(summary?.total ?? 0)} tone="neutral" icon="group" />
         {(['full_time', 'contract', 'intern', 'consultant'] as const).map((type) => (
           <StatCard
             key={type}
