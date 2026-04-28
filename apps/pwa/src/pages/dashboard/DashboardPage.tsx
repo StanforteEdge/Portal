@@ -234,6 +234,10 @@ export default function DashboardPage() {
   const financeViewer = hasModuleAccess(user, "finance");
   const dashboardUserName = profile?.first_name || "Staff User";
 
+  console.log("profile first_name:", profile?.first_name);
+  console.log("userFirstName(user):", userFirstName(user));
+  console.log("dashboardUserName:", dashboardUserName);
+
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
