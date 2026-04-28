@@ -97,7 +97,8 @@ export default function App() {
   }, [navigate]);
 
   return (
-    <Routes>
+    <>
+      <Routes>
       <Route element={<PublicOnlyRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
@@ -235,8 +236,9 @@ export default function App() {
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
 
       <UpdateBanner />
-    </Routes>
+    </>
   );
 }
