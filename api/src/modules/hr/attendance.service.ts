@@ -1106,12 +1106,11 @@ export class AttendanceService {
 
   private resolveExpectedMode(profile: ProfileContext, workDate: Date, policy: AttendancePolicy): AttendanceMode {
     const day = workDate.getUTCDay();
-    if (profile.workMode === 'onsite') return 'onsite';
-    if (profile.workMode === 'remote') return 'remote';
-
     const extraOnsiteDays = this.normalizeWeekdayList(profile.employeeMeta.attendance_extra_onsite_days, []);
-    if (policy.onsite_weekdays.includes(day) || extraOnsiteDays.includes(day)) return 'onsite';
     if (policy.remote_weekdays.includes(day)) return 'remote';
+    if (policy.onsite_weekdays.includes(day) || extraOnsiteDays.includes(day)) return 'onsite';
+    if (profile.workMode === 'remote') return 'remote';
+    if (profile.workMode === 'onsite') return 'onsite';
     return 'onsite';
   }
 
