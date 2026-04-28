@@ -22,7 +22,11 @@ export class PoliciesService {
     const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
 
     const where: Prisma.PolicyWhereInput = {};
-    if (query.module) where.module = String(query.module).trim().toLowerCase();
+    if (query.modules && Array.isArray(query.modules)) {
+      where.module = { in: query.modules.map((m: string) => m.trim().toLowerCase()) };
+    } else if (query.module) {
+      where.module = String(query.module).trim().toLowerCase();
+    }
     if (query.policy_key) where.policyKey = String(query.policy_key).trim().toLowerCase();
     if (query.scope_type) where.scopeType = String(query.scope_type).trim().toLowerCase();
     if (query.scope_id) where.scopeId = String(query.scope_id);

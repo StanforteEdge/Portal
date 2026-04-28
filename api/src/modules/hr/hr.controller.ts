@@ -13,13 +13,22 @@ import {
   AssignOnboardingFormDto,
   UpdateOnboardingFormAssignmentDto
 } from './dto/manage-employee-links.dto';
+import { PoliciesService } from '../policies/policies.service';
+import { CreatePolicyDto } from '../policies/dto/create-policy.dto';
+import { UpdatePolicyDto } from '../policies/dto/update-policy.dto';
+import { ResolvePolicyDto } from '../policies/dto/resolve-policy.dto';
+
+const HR_POLICY_MODULES = ['hr', 'attendance', 'leave', 'work'];
 
 @Controller('hr')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 @ApiTags('HR')
 @ApiBearerAuth('bearer')
 export class HrController {
-  constructor(private readonly hrService: HrService) {}
+  constructor(
+    private readonly hrService: HrService,
+    private readonly policiesService: PoliciesService
+  ) {}
 
   @Get('summary')
   @Permissions('hr.view', 'hr.manage', 'hr.employees')
@@ -124,5 +133,35 @@ export class HrController {
   @Permissions('hr.manage', 'leave.manage')
   adjustLeaveBalance(@Req() req: any, @Body() dto: AdjustLeaveBalanceDto) {
     return this.hrService.adjustLeaveBalance(dto, req.user?.id);
+  }
+
+  @Get('policies')
+  @Permissions('hr.view', 'hr.manage')
+  listPolicies(@Query() query: Record<string, any>) {
+    return this.policiesService.list({ ...query, modules: HR_POLICY_MODULES });
+  }
+
+  @Post('policies')
+  @Permissions('hr.manage')
+  createPolicy(@Req() req: any, @Body() dto: CreatePolicyDto) {
+    return this.policiesService.create(dto, req.user?.id);
+  }
+
+  @Post('policies/resolve')
+  @Permissions('hr.view', 'hr.manage')
+  resolvePolicy(@Body() dto: ResolvePolicyDto) {
+    return this.policiesService.resolve(dto);
+  }
+
+  @Post('policies/:id')
+  @Permissions('hr.manage')
+  updatePolicy(@Req() req: any, @Param('id') id: string, @Body() dto: UpdatePolicyDto) {
+    return this.policiesService.update(id, dto, req.user?.id);
+  }
+
+  @Delete('policies/:id')
+  @Permissions('hr.manage')
+  deletePolicy(@Param('id') id: string) {
+    return this.policiesService.delete(id);
   }
 }

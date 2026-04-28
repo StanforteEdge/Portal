@@ -16,7 +16,7 @@ export class PoliciesController {
   constructor(private readonly policiesService: PoliciesService) {}
 
   @Get()
-  @Permissions('settings.manage', 'hr.manage', 'hr.view', 'attendance.manage', 'leave.manage')
+  @Permissions('settings.manage')
   list(@Query() query: Record<string, any>) {
     return this.policiesService.list(query);
   }
