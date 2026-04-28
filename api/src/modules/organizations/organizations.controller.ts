@@ -15,7 +15,7 @@ export class OrganizationsController {
 
   @Get()
   @UseGuards(JwtAuthGuard, PermissionsGuard)
-  @Permissions('settings.manage')
+  @Permissions('settings.manage', 'hr.view', 'hr.manage', 'hr.employees')
   list(@Query() query: Record<string, any>) {
     return this.organizationsService.listOrganizations(query);
   }
