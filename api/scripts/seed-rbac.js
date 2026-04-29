@@ -162,16 +162,20 @@ async function main() {
         ? allPermissionIds
         : slugs.map((slug) => permBySlug[slug]).filter(Boolean).map((p) => p.id);
 
-      await prisma.$transaction([
-        prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
-        prisma.rolePermission.createMany({
-          data: permissionIds.map((permissionId) => ({
-            roleId: role.id,
-            permissionId
-          })),
+      // Only insert missing — never delete existing (preserves manually-added permissions)
+      const existing = await prisma.rolePermission.findMany({
+        where: { roleId: role.id },
+        select: { permissionId: true }
+      });
+      const existingIds = new Set(existing.map((r) => r.permissionId));
+      const toAdd = permissionIds.filter((id) => !existingIds.has(id));
+
+      if (toAdd.length > 0) {
+        await prisma.rolePermission.createMany({
+          data: toAdd.map((permissionId) => ({ roleId: role.id, permissionId })),
           skipDuplicates: true
-        })
-      ]);
+        });
+      }
     }
 
     console.log('RBAC seed complete');
