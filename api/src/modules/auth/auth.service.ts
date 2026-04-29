@@ -113,7 +113,8 @@ export class AuthService {
       user: {
         id: profile.id.toString(),
         email: profile.email,
-        username: profile.username,
+        first_name: profile.firstName ?? undefined,
+        last_name: profile.lastName ?? undefined,
         organization: {
           id: organization.id.toString(),
           name: organization.name,
@@ -197,7 +198,8 @@ export class AuthService {
     return {
       id: profile.id.toString(),
       email: profile.email,
-      username: profile.username,
+      first_name: profile.firstName ?? undefined,
+      last_name: profile.lastName ?? undefined,
       status: profile.status,
       roles: authContext.roles,
       permissions: authContext.permissions,
@@ -381,7 +383,8 @@ export class AuthService {
     return {
       id: profile.id.toString(),
       email: profile.email,
-      username: profile.username,
+      first_name: profile.firstName ?? undefined,
+      last_name: profile.lastName ?? undefined,
       permissions,
       roles
     };

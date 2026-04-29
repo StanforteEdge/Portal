@@ -5,8 +5,10 @@ export class AuthUserDto {
   id!: string;
   @ApiProperty({ example: 'olalekan@stanforteedge.com' })
   email!: string;
-  @ApiProperty({ example: 'olalekan' })
-  username!: string | null;
+  @ApiProperty({ required: false, example: 'Olalekan' })
+  first_name?: string | null;
+  @ApiProperty({ required: false, example: 'Owonikoko' })
+  last_name?: string | null;
   @ApiProperty({ example: ['admin'] })
   roles!: string[];
   @ApiProperty({ example: ['*'] })
@@ -40,8 +42,10 @@ export class AuthStatusResponseDto {
   id!: string;
   @ApiProperty({ example: 'olalekan@stanforteedge.com' })
   email!: string;
-  @ApiProperty({ example: 'olalekan' })
-  username!: string | null;
+  @ApiProperty({ required: false, example: 'Olalekan' })
+  first_name?: string | null;
+  @ApiProperty({ required: false, example: 'Owonikoko' })
+  last_name?: string | null;
   @ApiProperty({ example: 'active' })
   status!: string;
   @ApiProperty({ example: ['admin'] })
