@@ -4,7 +4,6 @@ import {
   Chip,
   EmptyState,
   Icon,
-  MediaPickerModal,
   PageHeader,
   RightRail,
   SelectField,
@@ -22,11 +21,9 @@ import {
   useToast,
   WorkflowStepper,
   type WorkflowStep,
-  type WorkflowStepStatus,
 } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
-import { PDFDocument, StandardFonts } from "pdf-lib";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -54,449 +51,25 @@ import {
   submitRequest,
 } from "@/pages/requests/requests-api";
 import { listEntityTags, listManagedTaxonomies } from "@/pages/requests/taxonomy-api";
-import { listFileAssets, uploadFileAsset } from "@/pages/files/files-api";
 import { financeApi } from "@/shared/lib/core";
-import type { FinancePaymentVoucherRecord } from "@/shared";
 import { downloadBase64File } from "@/shared/lib/download";
 import { formatDisplayDate } from "@stanforte/shared";
 import {
+  buildLeaveWorkflow,
+  buildWorkflow,
+  deriveRequestWorkflowStatus,
   formatPersonName,
   formatRequestStatus,
   formatViewerRequestStatus,
+  requestHasDraftHistory,
   requestFamilyFromRecord,
   requestStatusTone,
 } from "@/pages/requests/request-helpers";
-
-function normalizeWorkflowLabel(step: Record<string, any>, index: number) {
-  const role = String(
-    step.role || step.approver?.value || step.approver_id || "",
-  ).toLowerCase();
-  const approverType = String(
-    step.approver?.type || step.approver_type || "",
-  ).toLowerCase();
-  if (
-    role.includes("team_lead_or_manager") ||
-    step.approver?.value === "requester_team_lead_or_manager"
-  ) {
-    return index === 0 ? "Team Lead Approval" : "Manager Approval";
-  }
-  if (
-    role.includes("team_lead") ||
-    step.approver?.value === "requester_team_lead"
-  ) {
-    return "Team Lead Approval";
-  }
-  if (
-    role.includes("accountant") ||
-    step.approver?.value === "finance.approve" ||
-    approverType === "permission"
-  ) {
-    return "Accountant Clears";
-  }
-  if (role.includes("hr")) return "HR Approval";
-  if (role.includes("coo")) return "COO Approval";
-  if (role.includes("ed")) return "ED Approval";
-  if (role.includes("board")) return "Board Member Approval";
-  return String(step.step || step.name || `Approval ${index + 1}`);
-}
-
-function buildWorkflow(
-  request: any,
-  pendingSteps: Array<{ step: string }>,
-  paymentVouchers: Array<{
-    amount?: number;
-    retired_amount?: number;
-    retirement_status?: string;
-  }>,
-  options?: { showDraftStep?: boolean },
-): WorkflowStep[] {
-  const status = deriveRequestWorkflowStatus(request);
-  const stateEvents = Array.isArray(request?.data?.state_events)
-    ? request.data.state_events
-    : [];
-  const doneEntries = Array.isArray(request?.approvals?.done)
-    ? request.approvals.done
-    : [];
-  const requestTypeSteps = Array.isArray(
-    request?.request_type?.approval_flow_json?.steps,
-  )
-    ? request.request_type.approval_flow_json.steps
-    : [];
-  const approvalStepsSource = requestTypeSteps.length
-    ? requestTypeSteps
-    : [{ role: "team_lead" }, { role: "accountant" }];
-  const approvalLabels = approvalStepsSource.map(
-    (step: Record<string, any>, index: number) =>
-      normalizeWorkflowLabel(step, index),
-  );
-  const total = Number(request?.total_amount || 0);
-  const disbursedTotal = paymentVouchers.reduce(
-    (sum, voucher) => sum + Number(voucher.amount || 0),
-    0,
-  );
-  const retiredTotal = paymentVouchers.reduce(
-    (sum, voucher) => sum + Number(voucher.retired_amount || 0),
-    0,
-  );
-  const requestComplete = status === "completed";
-  const approvalDoneCount = Math.min(doneEntries.length, approvalLabels.length);
-  const approvalCurrentIndex =
-    pendingSteps.length > 0
-      ? Math.min(approvalDoneCount, Math.max(0, approvalLabels.length - 1))
-      : -1;
-  const financeCurrent =
-    status === "cleared" ||
-    (status === "disbursed" && total > 0 && disbursedTotal < total);
-  const confirmCurrent =
-    status === "disbursed" && !(total > 0 && disbursedTotal < total);
-  const retireCurrent = status === "confirmed";
-  const completeCurrent = status === "retired" || requestComplete;
-
-  const showDraftStep = options?.showDraftStep ?? true;
-  const draftedStatus: WorkflowStepStatus =
-    showDraftStep &&
-      (status === "draft" ||
-        stateEvents.some(
-          (event: Record<string, unknown>) =>
-            String(event.from || "").toLowerCase() === "draft",
-        )) &&
-      !approvalDoneCount &&
-      disbursedTotal === 0 &&
-      retiredTotal === 0
-      ? "current"
-      : "complete";
-  const approvalSteps: WorkflowStep[] = approvalLabels.map(
-    (label: string, index: number) => {
-      const done =
-        index < approvalDoneCount ||
-        requestComplete ||
-        status === "cleared" ||
-        status === "disbursed" ||
-        status === "confirmed" ||
-        status === "retired";
-      const isCurrent =
-        approvalCurrentIndex === index &&
-        ["approval", "sent", "under_review", "review"].includes(status);
-      return {
-        label,
-        detail: isCurrent
-          ? `Waiting on ${label}.`
-          : done
-            ? `${label} completed.`
-            : `Awaiting ${label}.`,
-        status:
-          done && !isCurrent ? "complete" : isCurrent ? "current" : "upcoming",
-      } satisfies WorkflowStep;
-    },
-  );
-
-  const financeSteps: WorkflowStep[] = [
-    {
-      label: "Disbursement",
-      detail:
-        total > 0
-          ? `${formatCurrency(disbursedTotal, request?.currency)} / ${formatCurrency(total, request?.currency)}`
-          : "Funds/payment voucher issued by finance.",
-      status: financeCurrent
-        ? "current"
-        : confirmCurrent || retireCurrent || completeCurrent
-          ? "complete"
-          : "upcoming",
-    },
-    {
-      label: "Confirmation",
-      detail: "Requester confirms receipt after disbursement.",
-      status: confirmCurrent
-        ? "current"
-        : retireCurrent || completeCurrent
-          ? "complete"
-          : "upcoming",
-    },
-    {
-      label: "Retirement",
-      detail:
-        total > 0
-          ? `${formatCurrency(retiredTotal, request?.currency)} / ${formatCurrency(total, request?.currency)}`
-          : "Retirement support submitted for verification.",
-      status: retireCurrent
-        ? "current"
-        : completeCurrent || requestComplete || retiredTotal >= total
-          ? "complete"
-          : "upcoming",
-    },
-    {
-      label: "Completed",
-      detail: "Finance verifies the retirement and closes the request.",
-      status: completeCurrent
-        ? "current"
-        : requestComplete
-          ? "complete"
-          : "upcoming",
-    },
-  ];
-
-  const steps: WorkflowStep[] = [
-    ...(showDraftStep
-      ? [
-        {
-          label: "Drafted",
-          detail: "Request initialized and saved.",
-          status: draftedStatus,
-        } satisfies WorkflowStep,
-      ]
-      : []),
-    ...approvalSteps,
-    ...financeSteps,
-  ];
-
-  let currentMarked = false;
-  return steps.map((step) => {
-    if (step.status !== "upcoming") return step;
-    if (!currentMarked && !requestComplete) {
-      currentMarked = true;
-      return { ...step, status: "current" as const };
-    }
-    return step;
-  });
-}
-
-function buildLeaveWorkflow(
-  request: any,
-  pendingSteps: Array<{ step: string }>,
-  options?: { showDraftStep?: boolean },
-): WorkflowStep[] {
-  const status = deriveRequestWorkflowStatus(request);
-  const doneEntries = Array.isArray(request?.approvals?.done)
-    ? request.approvals.done
-    : [];
-  const requestTypeSteps = Array.isArray(
-    request?.request_type?.approval_flow_json?.steps,
-  )
-    ? request.request_type.approval_flow_json.steps
-    : [];
-  const approvalStepsSource = requestTypeSteps.length
-    ? requestTypeSteps
-    : [{ role: "team_lead" }, { role: "hr" }];
-  const approvalLabels = approvalStepsSource.map(
-    (step: Record<string, any>, index: number) =>
-      normalizeWorkflowLabel(step, index),
-  );
-  const approvalDoneCount = Math.min(doneEntries.length, approvalLabels.length);
-  const approvalCurrentIndex =
-    pendingSteps.length > 0
-      ? Math.min(approvalDoneCount, Math.max(0, approvalLabels.length - 1))
-      : -1;
-  const requestComplete = ["approved", "completed"].includes(String(status));
-  const requestRejected = String(status) === "rejected";
-  const showDraftStep = options?.showDraftStep ?? true;
-
-  const draftStep = showDraftStep
-    ? [
-      {
-        label: "Drafted",
-        detail: "Leave request initialized and saved.",
-        status:
-          status === "draft" && approvalDoneCount === 0
-            ? ("current" as const)
-            : ("complete" as const),
-      } satisfies WorkflowStep,
-    ]
-    : [];
-
-  const approvalSteps: WorkflowStep[] = approvalLabels.map((label: string, index: number) => {
-    const done = index < approvalDoneCount || requestComplete || requestRejected;
-    const isCurrent =
-      approvalCurrentIndex === index &&
-      ["approval", "sent", "under_review", "review"].includes(String(status));
-    return {
-      label,
-      detail: isCurrent
-        ? `Waiting on ${label}.`
-        : done
-          ? `${label} completed.`
-          : `Awaiting ${label}.`,
-      status:
-        done && !isCurrent ? "complete" : isCurrent ? "current" : "upcoming",
-    } satisfies WorkflowStep;
-  });
-
-  const finalStep: WorkflowStep = {
-    label: requestRejected ? "Rejected" : "Approved",
-    detail: requestRejected
-      ? "Leave request was rejected."
-      : requestComplete
-        ? "Leave request approved and closed."
-        : "Awaiting final decision.",
-    status: requestRejected || requestComplete ? "complete" : "upcoming",
-  };
-
-  return [...draftStep, ...approvalSteps, finalStep];
-}
-
-function deriveRequestWorkflowStatus(request: any) {
-  const rawStatus = String(request?.status || "").toLowerCase();
-  const stateEvents = Array.isArray(request?.data?.state_events)
-    ? request.data.state_events
-    : [];
-  const latestWorkflowEvent = [...stateEvents]
-    .reverse()
-    .find((event: Record<string, unknown>) => {
-      const action = String(event.action || "").toLowerCase();
-      const to = String(event.to || "").toLowerCase();
-      return ["return", "reject", "approve", "submit", "resubmit"].includes(action)
-        || ["returned", "returned_for_edit", "rejected", "approval", "sent"].includes(to);
-    }) as Record<string, unknown> | undefined;
-  const latestAction = String(latestWorkflowEvent?.action || "").toLowerCase();
-  const latestTo = String(latestWorkflowEvent?.to || "").toLowerCase();
-
-  if (rawStatus === "rejected") {
-    return "rejected";
-  }
-
-  if (rawStatus === "returned" || rawStatus === "returned_for_edit") {
-    return "returned";
-  }
-
-  if (
-    rawStatus === "draft" &&
-    (latestAction === "return" || latestTo === "returned" || latestTo === "returned_for_edit")
-  ) {
-    return "returned";
-  }
-
-  if (
-    rawStatus === "draft" &&
-    (latestAction === "reject" || latestTo === "rejected")
-  ) {
-    return "rejected";
-  }
-
-  const hasSubmitted =
-    stateEvents.some((event: Record<string, unknown>) => {
-      const action = String(event.action || "").toLowerCase();
-      const to = String(event.to || "").toLowerCase();
-      return (
-        action === "submit" ||
-        action === "workflow_start" ||
-        action === "workflow_auto_approved" ||
-        to === "sent" ||
-        to === "approval"
-      );
-    }) ||
-    (Array.isArray(request?.approvals?.pending) &&
-      request.approvals.pending.length > 0) ||
-    (Array.isArray(request?.approvals?.done) &&
-      request.approvals.done.length > 0);
-
-  if (rawStatus === "draft" && hasSubmitted) {
-    return "approval";
-  }
-
-  return rawStatus;
-}
-
-function requestHasDraftHistory(request: any) {
-  const stateEvents = Array.isArray(request?.data?.state_events)
-    ? request.data.state_events
-    : [];
-  return stateEvents.some(
-    (event: Record<string, unknown>) =>
-      String(event.from || "").toLowerCase() === "draft" ||
-      String(event.to || "").toLowerCase() === "draft",
-  );
-}
-
-function formatCertificateCurrency(amount: number, currency?: string | null) {
-  const value = Number.isFinite(amount) ? amount : 0;
-  const formatted = new Intl.NumberFormat("en-NG", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value);
-  const prefix = currency ? String(currency).toUpperCase() : "NGN";
-  return `${prefix} ${formatted}`;
-}
-
-async function buildCertificateOfHonorPdf(input: {
-  requestLabel: string;
-  voucherNumber: string;
-  staffName: string;
-  amountLabel: string;
-  declaration: string;
-  reason: string;
-  issuedAt: string;
-}) {
-  const pdf = await PDFDocument.create();
-  const page = pdf.addPage([595.28, 841.89]);
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const marginX = 48;
-  let y = 792;
-
-  const write = (
-    text: string,
-    size = 11,
-    isBold = false,
-    indent = 0,
-    lineGap = 18,
-  ) => {
-    if (y < 72) y = 792;
-    page.drawText(text, {
-      x: marginX + indent,
-      y,
-      size,
-      font: isBold ? bold : regular,
-    });
-    y -= lineGap;
-  };
-
-  write("CERTIFICATE OF HONOR", 20, true);
-  write("Cash Advance Retirement Declaration", 12, true);
-  y -= 12;
-  write(`Request: ${input.requestLabel}`, 11, true);
-  write(`Payment Voucher: ${input.voucherNumber}`);
-  write(`Staff Member: ${input.staffName}`);
-  write(`Amount: ${input.amountLabel}`);
-  write(`Date: ${input.issuedAt}`);
-  y -= 8;
-  write("Declaration", 13, true);
-  [
-    input.declaration ||
-    "I hereby certify that the cash advance and/or disbursed funds referenced above were used for official purposes.",
-    "Supporting receipts are not available for the full amount because:",
-    input.reason || "No additional explanation provided.",
-  ].forEach((line) => write(line, 11, false, 12, 16));
-  y -= 10;
-  write(
-    "I accept responsibility for the accuracy of this declaration and understand it will",
-    11,
-    false,
-    12,
-    16,
-  );
-  write(
-    "form part of the retirement record for this request.",
-    11,
-    false,
-    12,
-    16,
-  );
-  y -= 18;
-  write("Signature: ____________________________", 11, false);
-  write("Name: ________________________________", 11, false);
-
-  const bytes = await pdf.save();
-  const byteArrayBuffer = bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
-  return new File(
-    [byteArrayBuffer],
-    `Certificate_of_Honor_${input.requestLabel.replace(/[\\/]+/g, "-")}.pdf`,
-    {
-      type: "application/pdf",
-    },
-  );
-}
+import { useFinanceRequest } from "./hooks/useFinanceRequest";
+import { LeaveRequestBody } from "./bodies/LeaveRequestBody";
+import { FinanceRequestBody } from "./bodies/FinanceRequestBody";
+import { buildFinanceProgress, buildFinanceViewerStatus } from "./status/financeStatus";
+import { buildLeaveViewerStatus } from "./status/leaveStatus";
 
 function DownloadDropdown(props: {
   actionBusy: string;
@@ -580,63 +153,27 @@ function DownloadDropdown(props: {
   );
 }
 
-type RequestDetailsView = "mine" | "approvals" | "finance";
+export type RequestDetailsView = "mine" | "approvals" | "finance" | "hr";
 
-export function RequestDetailsPage() {
+type RequestDetailsPageProps = {
+  detailView?: RequestDetailsView;
+};
+
+function detailPathForView(view: RequestDetailsView, id: string) {
+  if (view === "finance") return `/finance/requests/${id}`;
+  if (view === "approvals") return `/requests/approvals/${id}`;
+  if (view === "hr") return `/hr/requests/${id}`;
+  return `/requests/${id}`;
+}
+
+export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   const navigate = useNavigate();
+  const { id: routeId } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
   const [actionComment, setActionComment] = useState("");
   const [actionBusy, setActionBusy] = useState<string>("");
-  const [showDisburseDialog, setShowDisburseDialog] = useState(false);
-  const [showRetireDialog, setShowRetireDialog] = useState(false);
-  const [showVoucherPreviewDialog, setShowVoucherPreviewDialog] =
-    useState(false);
-  const [previewVoucher, setPreviewVoucher] =
-    useState<FinancePaymentVoucherRecord | null>(null);
-  const [voucherFilePreview, setVoucherFilePreview] = useState<{
-    name: string;
-    url: string;
-    mime_type: string | null;
-  } | null>(null);
-  const [disburseMode, setDisburseMode] = useState<"create" | "edit">("create");
-  const [editingVoucherId, setEditingVoucherId] = useState<string>("");
-  const [disburseForm, setDisburseForm] = useState({
-    amount: "",
-    method: "bank_transfer",
-    transaction_ref: "",
-    paid_from_account_id: "",
-    note: "",
-    disbursed_at: new Date().toISOString().slice(0, 10),
-  });
-  const [disburseFiles, setDisburseFiles] = useState<
-    Array<{ id: string; file_name: string }>
-  >([]);
-  const [showDisbursementMediaPicker, setShowDisbursementMediaPicker] =
-    useState(false);
-  const [showRetirementMediaPicker, setShowRetirementMediaPicker] =
-    useState(false);
-  const [retireForm, setRetireForm] = useState({
-    voucher_id: "",
-    retired_amount: "",
-    notes: "",
-    retirement_file_ids: [] as string[],
-    refund_amount: "",
-    refund_method: "bank_transfer",
-    refund_reference: "",
-    refund_date: new Date().toISOString().slice(0, 10),
-  });
-  const [showCertificateHonorForm, setShowCertificateHonorForm] =
-    useState(false);
-  const [retirementCertificateForm, setRetirementCertificateForm] = useState({
-    declaration:
-      "I hereby certify that the disbursed funds referenced above were used for official purposes in line with the approved request.",
-    reason:
-      "No supporting receipt is available for the full amount because the expense was settled without a formal receipt or the receipt could not be obtained in time for retirement.",
-  });
-  const defaultCertificateReason =
-    "No supporting receipt is available for the full amount because the expense was settled without a formal receipt or the receipt could not be obtained in time for retirement.";
-  const id = searchParams.get("id") || "";
-  const detailView = (searchParams.get("view") || "mine") as RequestDetailsView;
+  const id = routeId || searchParams.get("id") || "";
+  const detailView = props.detailView ?? "mine";
   const { user } = useAuth();
   const currentUserId = user?.id ? String(user.id) : undefined;
   const { showToast } = useToast();
@@ -697,17 +234,6 @@ export function RequestDetailsPage() {
         : Promise.resolve({ taxonomy: null, tags: [] }),
     { ttlMs: 1000 * 60, storage: "memory" },
   );
-  const { data: financeAccounts } = useCachedQuery(
-    "finance:accounts:options",
-    () => financeApi.listAccounts({ is_active: true }),
-    { ttlMs: 1000 * 60 * 10, storage: "memory" },
-  );
-  const { data: paymentVouchers, refetch: refetchPaymentVouchers } =
-    useCachedQuery(
-      `requests:detail:payment-vouchers:${id || "none"}`,
-      () => (id ? financeApi.listRequestPaymentVouchers(id) : Promise.resolve([])),
-      { ttlMs: 1000 * 60, storage: "memory" },
-    );
 
   const family = requestFamilyFromRecord(request || undefined);
   const workflowStatus = deriveRequestWorkflowStatus(request);
@@ -757,24 +283,8 @@ export function RequestDetailsPage() {
   const lineItems = request?.items ?? [];
   const documents = lineItems.flatMap((item) => item.files ?? []);
   const requestTotal = Number(request?.total_amount || 0);
-  const disbursedTotal = useMemo(
-    () =>
-      (paymentVouchers ?? []).reduce(
-        (sum, voucher) => sum + Number(voucher.amount || 0),
-        0,
-      ),
-    [paymentVouchers],
-  );
-  const retiredTotal = useMemo(
-    () =>
-      (paymentVouchers ?? []).reduce(
-        (sum, voucher) => sum + Number(voucher.retired_amount || 0),
-        0,
-      ),
-    [paymentVouchers],
-  );
-  const remainingDisbursement = Math.max(0, requestTotal - disbursedTotal);
-  const defaultFinanceAccountId = financeAccounts?.[0]?.id ?? "";
+  const availableActions = requestActions ?? [];
+  const finance = useFinanceRequest(id, requestTotal, availableActions);
   const pendingApprovals = request?.approvals?.pending ?? [];
   const completedApprovals = request?.approvals?.done ?? [];
   const workflow =
@@ -788,7 +298,7 @@ export function RequestDetailsPage() {
       : buildWorkflow(
         request,
         pendingApprovals,
-        paymentVouchers ?? [],
+        finance.paymentVouchers ?? [],
         {
           showDraftStep:
             detailView === "mine" &&
@@ -797,7 +307,9 @@ export function RequestDetailsPage() {
         },
       );
   const parentPath =
-    detailView === "mine" && family === "leave"
+    detailView === "hr"
+      ? "/hr/leave"
+      : detailView === "mine" && family === "leave"
       ? "/leave"
       : detailView === "approvals"
         ? "/requests/approvals"
@@ -805,7 +317,9 @@ export function RequestDetailsPage() {
           ? "/finance/requests"
           : "/requests";
   const parentLabel =
-    detailView === "mine" && family === "leave"
+    detailView === "hr"
+      ? "HR Requests"
+      : detailView === "mine" && family === "leave"
       ? "Leave Tracker"
       : detailView === "approvals"
         ? "Approvals"
@@ -813,13 +327,19 @@ export function RequestDetailsPage() {
           ? "Finance Requests"
           : "My Requests";
   const detailActiveLabel =
-    detailView === "finance"
+    detailView === "hr"
+      ? "hr-leave"
+      : detailView === "finance"
       ? "Finance Requests"
       : detailView === "approvals"
         ? "Approvals"
         : "Request Details";
   const detailMobileNav =
-    detailView === "finance" ? buildAppMobileNav("Finance") : requestsMobileNav;
+    detailView === "finance"
+      ? buildAppMobileNav("Finance")
+      : detailView === "hr"
+        ? buildAppMobileNav("HR")
+        : requestsMobileNav;
   const canSubmit =
     (requestActions ?? []).includes("submit") &&
     ["draft", "returned"].includes(workflowStatus);
@@ -830,7 +350,6 @@ export function RequestDetailsPage() {
   const permissions = (user?.permissions ?? []).map((entry) =>
     String(entry).trim().toLowerCase(),
   );
-  const availableActions = requestActions ?? [];
   const requestStatus = workflowStatus;
   const approvalActionsVisible =
     availableActions.includes("approve") ||
@@ -838,7 +357,7 @@ export function RequestDetailsPage() {
     availableActions.includes("return");
   // Finance clearing uses "approve" action key — hide approve/reject/return buttons
   // in the team lead approvals view when the pending step belongs to Finance.
-  // Finance users must act from /finance/requests/details instead.
+  // Finance users must act from /finance/requests/:id instead.
   const isFinancePendingStep = pendingApprovals.some(
     (p: any) =>
       p?.approver_id === "finance.approve" || p?.approver_id === "accountant",
@@ -846,104 +365,37 @@ export function RequestDetailsPage() {
   const financeActionsVisible = detailView === "finance";
   const ownerActionsVisible = detailView === "mine";
   const viewerStatus = useMemo(() => {
-    if (!request)
+    if (!request) {
       return { label: "Loading", hint: "", tone: "neutral" as const };
-    if (approvalActionsVisible) {
-      return {
-        label: formatViewerRequestStatus(
-          workflowStatus,
-          availableActions,
-          pendingApprovals[0]?.step,
-        ),
-        hint: financeActionsVisible
-          ? "Finance is the current approver for this request. Clear it here for disbursement or the next finance step."
-          : "You are the current approver for this step.",
-        tone: "warning" as const,
-      };
     }
-    if (ownerActionsVisible && availableActions.includes("submit")) {
-      return {
-        label: formatViewerRequestStatus(
-          workflowStatus,
-          availableActions,
-          pendingApprovals[0]?.step,
-        ),
-        hint: "You can still revise this before submission.",
-        tone: "neutral" as const,
-      };
-    }
-    if (financeActionsVisible && availableActions.includes("disburse")) {
-      return {
-        label: "Ready for Disbursement",
-        hint: "Finance can now disburse the request and start voucher handling.",
-        tone: "success" as const,
-      };
-    }
-    if (ownerActionsVisible && availableActions.includes("confirm")) {
-      return {
-        label: formatViewerRequestStatus(
-          workflowStatus,
-          availableActions,
-          pendingApprovals[0]?.step,
-        ),
-        hint: "Finance has disbursed this request. Confirm receipt here once the funds or voucher reach you.",
-        tone: "warning" as const,
-      };
-    }
-    if (ownerActionsVisible && availableActions.includes("retire")) {
-      return {
-        label: formatViewerRequestStatus(
-          workflowStatus,
-          availableActions,
-          pendingApprovals[0]?.step,
-        ),
-        hint: "After spending the disbursed amount, submit retirement details and receipt support here.",
-        tone: "warning" as const,
-      };
-    }
-    if (financeActionsVisible && availableActions.includes("complete")) {
-      return {
-        label: formatViewerRequestStatus(
-          workflowStatus,
-          availableActions,
-          pendingApprovals[0]?.step,
-        ),
-        hint: "Finance can verify the retirement and complete this request.",
-        tone: "warning" as const,
-      };
-    }
-    if (requestStatus === "approval") {
-      const financeViewer =
-        roles.some(
-          (role) => role.includes("finance") || role === "accountant",
-        ) || permissions.some((permission) => permission === "finance.approve");
-      return {
-        label: financeViewer ? "In Approval Workflow" : "In Review",
-        hint: financeViewer
-          ? "This request is progressing through the approval chain."
-          : "Your request is currently under review.",
-        tone: "warning" as const,
-      };
-    }
-    if (requestStatus === "cleared") {
-      return {
-        label: "Ready for Disbursement",
-        hint: "Finance can now prepare disbursement and voucher handling.",
-        tone: "success" as const,
-      };
-    }
-    return {
-      label: formatViewerRequestStatus(
+    const pendingStep = pendingApprovals[0]?.step;
+    if (family === "leave") {
+      return buildLeaveViewerStatus({
+        approvalActionsVisible,
+        ownerActionsVisible,
+        requestStatus,
         workflowStatus,
         availableActions,
-        pendingApprovals[0]?.step,
-      ),
-      hint: "This reflects the current workflow state for your view.",
-      tone: statusTone,
-    };
+        pendingStep,
+        statusTone,
+      });
+    }
+    return buildFinanceViewerStatus({
+      approvalActionsVisible,
+      ownerActionsVisible,
+      financeActionsVisible,
+      requestStatus,
+      workflowStatus,
+      availableActions,
+      pendingStep,
+      roles,
+      permissions,
+      statusTone,
+    });
   }, [
     approvalActionsVisible,
     availableActions,
+    family,
     financeActionsVisible,
     ownerActionsVisible,
     pendingApprovals,
@@ -956,47 +408,18 @@ export function RequestDetailsPage() {
   ]);
 
   const financeProgress = useMemo(() => {
-    if (!request) return { label: "", hint: "" };
-    if (requestStatus === "cleared") {
-      return {
-        label: "Ready for Disbursement",
-        hint: "Finance can release the first payment voucher or split the request across multiple vouchers.",
-      };
-    }
-    if (requestStatus === "disbursed") {
-      if (requestTotal > 0 && disbursedTotal < requestTotal) {
-        return {
-          label: "Partially Disbursed",
-          hint: `${formatCurrency(remainingDisbursement, request.currency)} remains to be disbursed before requester confirmation.`,
-        };
-      }
-      return {
-        label: "Awaiting Confirmation",
-        hint: "The disbursement is complete. The requester should confirm receipt before retirement.",
-      };
-    }
-    if (requestStatus === "confirmed") {
-      return {
-        label: "Awaiting Retirement",
-        hint: "The requester has confirmed receipt. Retirement support can now be submitted.",
-      };
-    }
-    if (requestStatus === "retired") {
-      return {
-        label: "Awaiting Verification",
-        hint: "Finance should verify the retirement records before the request can close.",
-      };
-    }
-    if (requestStatus === "completed") {
-      return {
-        label: "Completed",
-        hint: "The finance workflow has been fully closed.",
-      };
-    }
-    return { label: "", hint: "" };
+    if (!request || family === "leave") return { label: "", hint: "" };
+    return buildFinanceProgress({
+      requestStatus,
+      requestTotal,
+      disbursedTotal: finance.disbursedTotal,
+      remainingDisbursement: finance.remainingDisbursement,
+      currency: request.currency,
+    });
   }, [
-    disbursedTotal,
-    remainingDisbursement,
+    finance.disbursedTotal,
+    finance.remainingDisbursement,
+    family,
     request,
     requestStatus,
     requestTotal,
@@ -1005,46 +428,9 @@ export function RequestDetailsPage() {
   const disbursementButtonLabel =
     requestStatus === "disbursed" &&
       requestTotal > 0 &&
-      disbursedTotal < requestTotal
+      finance.disbursedTotal < requestTotal
       ? "Disburse More"
       : "Disburse Request";
-
-  useEffect(() => {
-    if (!showDisburseDialog) return;
-    if (disburseMode !== "create") return;
-    if (disburseForm.paid_from_account_id || !defaultFinanceAccountId) return;
-
-    setDisburseForm((current) => ({
-      ...current,
-      paid_from_account_id: defaultFinanceAccountId,
-    }));
-  }, [
-    defaultFinanceAccountId,
-    disburseForm.paid_from_account_id,
-    disburseMode,
-    showDisburseDialog,
-  ]);
-
-  const retireableVoucher = useMemo(
-    () =>
-      (paymentVouchers ?? []).find(
-        (voucher) => Number(voucher.voucher_balance || 0) > 0,
-      ) ||
-      (paymentVouchers ?? [])[0] ||
-      null,
-    [paymentVouchers],
-  );
-  const selectedRetirementVoucher = useMemo(
-    () =>
-      (paymentVouchers ?? []).find(
-        (voucher) => voucher.id === retireForm.voucher_id,
-      ) || null,
-    [paymentVouchers, retireForm.voucher_id],
-  );
-  const retirementAmountValue = Number(retireForm.retired_amount || 0);
-  const retirementShortfall = selectedRetirementVoucher
-    ? Math.max(0, Number(selectedRetirementVoucher.amount || 0) - retirementAmountValue)
-    : 0;
   const canShowNudge =
     !availableActions.length &&
     Boolean(request) &&
@@ -1057,9 +443,7 @@ export function RequestDetailsPage() {
     const requestLabel = request.request_number || `Request #${request.id}`;
     const link =
       typeof window !== "undefined"
-        ? detailView === "finance"
-          ? `${window.location.origin}/finance/requests/details?id=${request.id}`
-          : `${window.location.origin}/requests/details?id=${request.id}&view=${detailView}`
+        ? `${window.location.origin}${detailPathForView(detailView, request.id)}`
         : "";
     return [
       `Hi, please take a look at ${requestLabel}.`,
@@ -1069,92 +453,6 @@ export function RequestDetailsPage() {
       .filter(Boolean)
       .join("\n");
   }, [availableActions, detailView, pendingApprovals, request]);
-
-  function openVoucherEditor(voucher: FinancePaymentVoucherRecord) {
-    setDisburseMode("edit");
-    setEditingVoucherId(voucher.id);
-    setDisburseFiles(
-      voucher.evidence_files?.map((file) => ({
-        id: file.id,
-        file_name: file.file_name,
-      })) ?? [],
-    );
-    setDisburseForm((current) => ({
-      ...current,
-      amount: String(voucher.amount ?? ""),
-      method: voucher.method || current.method,
-      transaction_ref: voucher.transaction_ref || current.transaction_ref,
-      paid_from_account_id:
-        voucher.paid_from_account?.id || current.paid_from_account_id,
-      note: voucher.note || current.note,
-      disbursed_at: voucher.disbursed_at
-        ? String(voucher.disbursed_at).slice(0, 10)
-        : current.disbursed_at,
-    }));
-    setShowDisbursementMediaPicker(false);
-    setShowDisburseDialog(true);
-  }
-
-  function canEditVoucher(voucher: FinancePaymentVoucherRecord) {
-    const hasRetirement =
-      Number(voucher.retired_amount || 0) > 0 || Boolean(voucher.retired_at);
-    return financeActionsVisible && !hasRetirement;
-  }
-
-  function openVoucherPreview(voucher: FinancePaymentVoucherRecord) {
-    setPreviewVoucher(voucher);
-    setShowVoucherPreviewDialog(true);
-  }
-
-  function openVoucherEvidence(file: {
-    id: string;
-    file_name: string;
-    mime_type: string | null;
-    public_url: string | null;
-  }) {
-    if (!file.public_url) {
-      showToast({
-        tone: "warning",
-        title: "File unavailable",
-        message: "This file has no preview URL yet.",
-      });
-      return;
-    }
-    setVoucherFilePreview({
-      name: file.file_name,
-      url: file.public_url,
-      mime_type: file.mime_type,
-    });
-  }
-
-  function openRetireDialog(voucher?: FinancePaymentVoucherRecord | null) {
-    setRetireForm((current) => ({
-      ...current,
-      voucher_id: voucher?.id || retireableVoucher?.id || current.voucher_id,
-      retired_amount:
-        voucher || retireableVoucher
-          ? String(
-            voucher?.voucher_balance ||
-            voucher?.amount ||
-            retireableVoucher?.voucher_balance ||
-            retireableVoucher?.amount ||
-            "",
-          )
-          : current.retired_amount,
-      refund_amount: "",
-      refund_method: "bank_transfer",
-      refund_reference: "",
-      refund_date: new Date().toISOString().slice(0, 10),
-    }));
-    setShowCertificateHonorForm(false);
-    setShowRetireDialog(true);
-  }
-
-  function closeDisburseDialog() {
-    setShowDisburseDialog(false);
-    setDisburseMode("create");
-    setEditingVoucherId("");
-  }
 
   async function handleDownloadArtifact(
     action: "request_pdf" | "full_document" | "pv_pdf",
@@ -1360,7 +658,7 @@ export function RequestDetailsPage() {
         };
       });
 
-    const voucherActivity: ActivityItem[] = (paymentVouchers ?? []).flatMap(
+    const voucherActivity: ActivityItem[] = (finance.paymentVouchers ?? []).flatMap(
       (voucher) => {
         const items: ActivityItem[] = [
           {
@@ -1432,7 +730,7 @@ export function RequestDetailsPage() {
     completedApprovals,
     detailView,
     pendingApprovals,
-    paymentVouchers,
+    finance.paymentVouchers,
     request?.created_at,
     request?.currency,
     request?.data,
@@ -1476,21 +774,21 @@ export function RequestDetailsPage() {
             ? crypto.randomUUID()
             : `trace_${Date.now()}_${Math.random().toString(16).slice(2)}`;
         const disbursePayload = {
-          amount: Number(disburseForm.amount || request?.total_amount || 0),
-          method: disburseForm.method || undefined,
-          transaction_ref: disburseForm.transaction_ref.trim() || undefined,
-          paid_from_account_id: disburseForm.paid_from_account_id || undefined,
-          note: disburseForm.note.trim() || undefined,
-          disbursed_at: disburseForm.disbursed_at
-            ? `${disburseForm.disbursed_at}T00:00:00.000Z`
+          amount: Number(finance.disburseForm.amount || request?.total_amount || 0),
+          method: finance.disburseForm.method || undefined,
+          transaction_ref: finance.disburseForm.transaction_ref.trim() || undefined,
+          paid_from_account_id: finance.disburseForm.paid_from_account_id || undefined,
+          note: finance.disburseForm.note.trim() || undefined,
+          disbursed_at: finance.disburseForm.disbursed_at
+            ? `${finance.disburseForm.disbursed_at}T00:00:00.000Z`
             : undefined,
-          evidence_file_id: disburseFiles[0]?.id,
-          evidence_file_ids: disburseFiles.map((file) => file.id),
+          evidence_file_id: finance.disburseFiles[0]?.id,
+          evidence_file_ids: finance.disburseFiles.map((file) => file.id),
         };
-        if (disburseMode === "edit" && editingVoucherId) {
+        if (finance.disburseMode === "edit" && finance.editingVoucherId) {
           await financeApi.updatePaymentVoucher(
             id,
-            editingVoucherId,
+            finance.editingVoucherId,
             disbursePayload,
           );
         } else {
@@ -1500,23 +798,23 @@ export function RequestDetailsPage() {
         await confirmRequest(id);
       } else if (action === "retire") {
         const selectedVoucher =
-          (paymentVouchers ?? []).find(
-            (voucher) => voucher.id === retireForm.voucher_id,
+          (finance.paymentVouchers ?? []).find(
+            (voucher) => voucher.id === finance.retireForm.voucher_id,
           ) || null;
-        const retiredAmount = retireForm.retired_amount.trim()
-          ? Number(retireForm.retired_amount)
+        const retiredAmount = finance.retireForm.retired_amount.trim()
+          ? Number(finance.retireForm.retired_amount)
           : undefined;
         const shortfall = selectedVoucher
           ? Math.max(0, Number(selectedVoucher.amount || 0) - Number(retiredAmount || 0))
           : 0;
-        const refundAmount = retireForm.refund_amount.trim()
-          ? Number(retireForm.refund_amount)
+        const refundAmount = finance.retireForm.refund_amount.trim()
+          ? Number(finance.retireForm.refund_amount)
           : 0;
         const hasRefundDetails =
           refundAmount >= shortfall &&
-          Boolean(retireForm.refund_method.trim()) &&
-          Boolean(retireForm.refund_reference.trim());
-        const hasRefundEvidence = retireForm.retirement_file_ids.length > 0;
+          Boolean(finance.retireForm.refund_method.trim()) &&
+          Boolean(finance.retireForm.refund_reference.trim());
+        const hasRefundEvidence = finance.retireForm.retirement_file_ids.length > 0;
 
         if (shortfall > 0 && !hasRefundDetails && !hasRefundEvidence) {
           showToast({
@@ -1529,11 +827,11 @@ export function RequestDetailsPage() {
         }
 
         await retireRequest(id, {
-          voucher_id: retireForm.voucher_id || undefined,
+          voucher_id: finance.retireForm.voucher_id || undefined,
           retired_amount: retiredAmount,
-          notes: retireForm.notes.trim() || actionComment.trim() || undefined,
-          retirement_file_ids: retireForm.retirement_file_ids.length
-            ? retireForm.retirement_file_ids
+          notes: finance.retireForm.notes.trim() || actionComment.trim() || undefined,
+          retirement_file_ids: finance.retireForm.retirement_file_ids.length
+            ? finance.retireForm.retirement_file_ids
             : undefined,
           breakdown:
             shortfall > 0
@@ -1541,11 +839,11 @@ export function RequestDetailsPage() {
                   refund: {
                     required_amount: shortfall,
                     refund_amount: refundAmount || undefined,
-                    refund_method: retireForm.refund_method || undefined,
+                    refund_method: finance.retireForm.refund_method || undefined,
                     refund_reference:
-                      retireForm.refund_reference.trim() || undefined,
-                    refund_date: retireForm.refund_date || undefined,
-                    evidence_file_ids: retireForm.retirement_file_ids,
+                      finance.retireForm.refund_reference.trim() || undefined,
+                    refund_date: finance.retireForm.refund_date || undefined,
+                    evidence_file_ids: finance.retireForm.retirement_file_ids,
                   },
                 }
               : undefined,
@@ -1554,11 +852,9 @@ export function RequestDetailsPage() {
         await completeRequest(id);
       }
       setActionComment("");
-      setShowDisburseDialog(false);
-      setShowRetireDialog(false);
-      setDisburseMode("create");
-      setEditingVoucherId("");
-      setDisburseForm({
+      finance.closeDisburseDialog();
+      finance.closeRetireDialog();
+      finance.setDisburseForm({
         amount: "",
         method: "bank_transfer",
         transaction_ref: "",
@@ -1566,8 +862,8 @@ export function RequestDetailsPage() {
         note: "",
         disbursed_at: new Date().toISOString().slice(0, 10),
       });
-      setDisburseFiles([]);
-      setRetireForm({
+      finance.setDisburseFiles([]);
+      finance.setRetireForm({
         voucher_id: "",
         retired_amount: "",
         notes: "",
@@ -1577,8 +873,8 @@ export function RequestDetailsPage() {
         refund_reference: "",
         refund_date: new Date().toISOString().slice(0, 10),
       });
-      setShowCertificateHonorForm(false);
-      setRetirementCertificateForm({
+      finance.setShowCertificateHonorForm(false);
+      finance.setRetirementCertificateForm({
         declaration:
           "I hereby certify that the disbursed funds referenced above were used for official purposes in line with the approved request.",
         reason:
@@ -1596,7 +892,7 @@ export function RequestDetailsPage() {
       await Promise.allSettled([
         refetch(),
         refetchRequestActions(),
-        refetchPaymentVouchers(),
+        finance.refetchPaymentVouchers(),
       ]);
       showToast({
         title: "Request updated",
@@ -1610,7 +906,7 @@ export function RequestDetailsPage() {
               : action === "reject"
                 ? "Your rejection has been recorded."
                 : action === "disburse"
-                  ? disburseMode === "edit"
+                  ? finance.disburseMode === "edit"
                     ? "The payment voucher has been updated."
                     : "The request has been marked as disbursed."
                   : action === "confirm"
@@ -1645,7 +941,7 @@ export function RequestDetailsPage() {
         await Promise.allSettled([
           refetch(),
           refetchRequestActions(),
-          refetchPaymentVouchers(),
+          finance.refetchPaymentVouchers(),
         ]);
 
         showToast({
@@ -1711,8 +1007,9 @@ export function RequestDetailsPage() {
   return (
     <AppShell
       navigation={buildRequestsNavigation({
-        includeRequestDetails: detailView !== "finance",
-        requestDetailsPath: `/requests/details?id=${id}&view=${detailView}`,
+        includeRequestDetails:
+          detailView === "mine" || detailView === "approvals",
+        requestDetailsPath: detailPathForView(detailView, id),
         requestDetailsParent: detailView === "finance" ? "finance" : "requests",
       })}
       activeLabel={detailActiveLabel}
@@ -1728,6 +1025,12 @@ export function RequestDetailsPage() {
                 { label: parentLabel, path: parentPath },
                 { label: request?.request_number || "Details" },
               ]
+              : detailView === "hr"
+                ? [
+                  { label: "HR", path: "/hr" },
+                  { label: parentLabel, path: parentPath },
+                  { label: request?.request_number || "Details" },
+                ]
               : [
                 { label: "Requests", path: parentPath },
                 { label: parentLabel, path: parentPath },
@@ -1814,274 +1117,34 @@ export function RequestDetailsPage() {
                 </div>
               </SectionCard>
 
-              {family !== "leave" ? (
-                <SectionCard
-                  title="Work Context"
-                  description="The workstream and ownership context for this request."
-                >
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                    <StatCard
-                      label="Project"
-                      value={projectName}
-                      tone="neutral"
-                    />
-                    <StatCard label="Team" value={teamName} tone="neutral" />
-                    <StatCard
-                      label="Organization"
-                      value={organizationName}
-                      tone="neutral"
-                    />
-                  </div>
-                </SectionCard>
-              ) : null}
-
               {family === "leave" ? (
-                <SectionCard
-                  title="Leave Coverage"
-                  description="Leave-specific dates and handover details."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <StatCard
-                      label="Start Date"
-                      value={formatDisplayDate(
-                        String(requestData.start_date || ""),
-                      )}
-                      tone="neutral"
-                    />
-                    <StatCard
-                      label="End Date"
-                      value={formatDisplayDate(
-                        String(requestData.end_date || ""),
-                      )}
-                      tone="neutral"
-                    />
-                    <StatCard
-                      label="Days Requested"
-                      value={String(requestData.days_requested || "-")}
-                      tone="warning"
-                    />
-                    <StatCard
-                      label="Handover Colleague"
-                      value={handoverColleagueName}
-                      tone="neutral"
-                    />
-                  </div>
-                  <div className="mt-4 rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
-                    Handover acknowledgement:
-                    {" "}
-                    {String(requestData.handover_ack_status || "Pending acknowledgement")}
-                    . Team lead/workflow approvers make the leave decision.
-                  </div>
-                  <div className="mt-4 rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-4 text-sm leading-6 text-slate-600">
-                    {String(
-                      requestData.handover_notes ||
-                      "No handover notes captured.",
-                    )}
-                  </div>
-                </SectionCard>
+                <LeaveRequestBody
+                  requestData={requestData}
+                  handoverColleagueName={handoverColleagueName}
+                />
               ) : (
-                <SectionCard
-                  title="Request Items"
-                  description="Itemized request costs and supporting notes."
-                  action={
-                    <Chip variant="neutral">
-                      {lineItems.length} item{lineItems.length === 1 ? "" : "s"}
-                    </Chip>
-                  }
-                >
-                  {lineItems.length ? (
-                    <div className="rounded-[22px] border border-slate-200 bg-white">
-                      <Table caption="Request items">
-                        <TableHead>
-                          <TableHeaderRow>
-                            <TableHeaderCell>Item</TableHeaderCell>
-                            <TableHeaderCell>Qty</TableHeaderCell>
-                            <TableHeaderCell>Unit Price</TableHeaderCell>
-                            <TableHeaderCell>Total</TableHeaderCell>
-                          </TableHeaderRow>
-                        </TableHead>
-                        <TableBody>
-                          {lineItems.map((item) => (
-                            <TableRow key={item.id}>
-                              <TableCell>
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <p className="text-sm font-semibold text-slate-950">
-                                      {item.description || "Untitled item"}
-                                    </p>
-                                    {(item.files?.length ?? 0) > 0 ? (
-                                      <span
-                                        className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-brand-900/10 text-brand-900"
-                                        title={`${item.files?.length} attachment${item.files?.length === 1 ? "" : "s"}`}
-                                      >
-                                        <Icon
-                                          name="attach_file"
-                                          className="text-[16px]"
-                                        />
-                                      </span>
-                                    ) : null}
-                                  </div>
-                                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                                    {item.notes || ""}
-                                  </p>
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-sm font-semibold text-slate-700">
-                                {item.quantity ?? 1}
-                              </TableCell>
-                              <TableCell className="text-sm font-semibold text-slate-700">
-                                {formatCurrency(item.amount, request.currency)}
-                              </TableCell>
-                              <TableCell className="text-sm font-semibold text-slate-700">
-                                {formatCurrency(
-                                  (item.amount ?? 0) * (item.quantity ?? 1),
-                                  request.currency,
-                                )}
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <EmptyState
-                      title="No line items"
-                      description="This request does not include any itemized costs."
-                    />
-                  )}
-                </SectionCard>
+                <FinanceRequestBody
+                  request={request}
+                  requestData={requestData}
+                  categoryName={categoryName}
+                  projectName={projectName}
+                  teamName={teamName}
+                  organizationName={organizationName}
+                  requestTags={requestTags}
+                  lineItems={lineItems}
+                  currentUserId={currentUserId}
+                  ownerActionsVisible={ownerActionsVisible}
+                  availableActions={availableActions}
+                  actionBusy={actionBusy}
+                  finance={finance}
+                  financeProgress={financeProgress}
+                  onHandleDisburse={() => handleWorkflowAction("disburse")}
+                  onHandleRetire={() => handleWorkflowAction("retire")}
+                  onHandleDownloadArtifact={async (action, voucherId) => {
+                    await handleDownloadArtifact(action, voucherId);
+                  }}
+                />
               )}
-
-              {family !== "leave" ? (
-                <SectionCard
-                  title="Disbursements (Payment Vouchers)"
-                  description="Track what finance has paid, what remains, and what still needs confirmation or retirement."
-                  action={
-                    <Chip variant="neutral">
-                      {formatCurrency(remainingDisbursement, request.currency)}
-                    </Chip>
-                  }
-                >
-                  {(paymentVouchers ?? []).length ? (
-                    <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-                      <Table caption="Payment vouchers">
-                        <TableHead>
-                          <TableHeaderRow>
-                            <TableHeaderCell>PV</TableHeaderCell>
-                            <TableHeaderCell>Amount</TableHeaderCell>
-                            <TableHeaderCell>Retirement</TableHeaderCell>
-                            <TableHeaderCell className="text-right">
-                              Action
-                            </TableHeaderCell>
-                          </TableHeaderRow>
-                        </TableHead>
-                        <TableBody>
-                          {(paymentVouchers ?? []).map((voucher) => (
-                            <TableRow key={voucher.id}>
-                              <TableCell>
-                                <button
-                                  type="button"
-                                  className="text-left text-sm font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                                  onClick={() =>
-                                    canEditVoucher(voucher)
-                                      ? openVoucherEditor(voucher)
-                                      : openVoucherPreview(voucher)
-                                  }
-                                >
-                                  <span className="inline-flex items-center gap-2">
-                                    {voucher.evidence_files?.length ? (
-                                      <Icon
-                                        name="attach_file"
-                                        className="text-[15px] text-brand-900"
-                                      />
-                                    ) : null}
-                                    <span>{voucher.voucher_number}</span>
-                                  </span>
-                                </button>
-                                <div className="mt-1 text-xs text-slate-500">
-                                  {formatDisplayDate(voucher.disbursed_at)}
-                                </div>
-                              </TableCell>
-                              <TableCell className="text-sm font-semibold text-slate-700">
-                                {formatCurrency(
-                                  voucher.amount,
-                                  request.currency,
-                                )}
-                              </TableCell>
-                              <TableCell className="text-sm font-semibold text-slate-700">
-                                {Number(voucher.retired_amount || 0) > 0 ? (
-                                  <button
-                                    type="button"
-                                    className="inline-flex items-center gap-2 text-left hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                                    onClick={() => openVoucherPreview(voucher)}
-                                  >
-                                    <Icon
-                                      name={
-                                        voucher.retirement_status === "verified"
-                                          ? "verified"
-                                          : "receipt_long"
-                                      }
-                                      className="text-[18px] text-brand-900"
-                                    />
-                                    <span>
-                                      {formatCurrency(
-                                        voucher.retired_amount,
-                                        request.currency,
-                                      )}
-                                      <span className="ml-2 text-xs font-semibold uppercase tracking-[0.12em] text-slate-500">
-                                        {formatRequestStatus(
-                                          voucher.retirement_status,
-                                        )}
-                                      </span>
-                                    </span>
-                                  </button>
-                                ) : (
-                                  <span className="text-slate-400">-</span>
-                                )}
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <div className="inline-flex flex-wrap justify-end gap-2">
-                                  <Button
-                                    size="sm"
-                                    variant="secondary"
-                                    onClick={() =>
-                                      canEditVoucher(voucher)
-                                        ? openVoucherEditor(voucher)
-                                        : openVoucherPreview(voucher)
-                                    }
-                                  >
-                                    {canEditVoucher(voucher)
-                                      ? "View / Edit"
-                                      : "View"}
-                                  </Button>
-                                  {ownerActionsVisible &&
-                                    availableActions.includes("retire") &&
-                                    Number(voucher.voucher_balance || 0) > 0 &&
-                                    Number(voucher.retired_amount || 0) <= 0 ? (
-                                    <Button
-                                      size="sm"
-                                      variant="secondary"
-                                      onClick={() => openRetireDialog(voucher)}
-                                      disabled={actionBusy !== ""}
-                                    >
-                                      Retire
-                                    </Button>
-                                  ) : null}
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  ) : (
-                    <EmptyState
-                      title="No payment vouchers yet"
-                      description="Once finance disburses, payment vouchers will appear here."
-                    />
-                  )}
-                </SectionCard>
-              ) : null}
 
               <SectionCard title="Supporting Documents">
                 {documents.length ? (
@@ -2148,9 +1211,9 @@ export function RequestDetailsPage() {
                     <h3 className="text-[1.65rem] font-semibold tracking-tight">
                       {formatCurrency(request.total_amount, request.currency)}
                     </h3>
-                    {disbursedTotal > 0 ? (
+                    {finance.disbursedTotal > 0 ? (
                       <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/60">
-                        / {formatCurrency(disbursedTotal, request.currency)} disbursed
+                        / {formatCurrency(finance.disbursedTotal, request.currency)} disbursed
                       </span>
                     ) : null}
                   </div>
@@ -2244,7 +1307,7 @@ export function RequestDetailsPage() {
                   <p className="mt-4 text-sm text-white/75">
                     This step requires Finance clearance.{" "}
                     <Link
-                      to={`/finance/requests/details?id=${id}`}
+                      to={`/finance/requests/${id}`}
                       className="font-medium text-white underline"
                     >
                       Open in Finance
@@ -2268,11 +1331,11 @@ export function RequestDetailsPage() {
                 {financeActionsVisible &&
                   (requestStatus === "cleared" ||
                     (requestStatus === "disbursed" &&
-                      requestTotal > disbursedTotal)) ? (
+                      requestTotal > finance.disbursedTotal)) ? (
                   <Button
                     variant="secondary"
                     className="mt-4 w-full justify-center"
-                    onClick={() => setShowDisburseDialog(true)}
+                    onClick={() => finance.openDisburseDialog()}
                     disabled={actionBusy !== ""}
                   >
                     {actionBusy === "disburse"
@@ -2296,7 +1359,7 @@ export function RequestDetailsPage() {
                   <Button
                     variant="secondary"
                     className="mt-4 w-full justify-center"
-                    onClick={() => openRetireDialog()}
+                    onClick={() => finance.openRetireDialog()}
                     disabled={actionBusy !== ""}
                   >
                     {actionBusy === "retire" ? "Preparing..." : "Retire"}
@@ -2440,113 +1503,34 @@ export function RequestDetailsPage() {
               </div>
             </SectionCard>
 
-            {family !== "leave" ? (
-              <SectionCard title="Request Items">
-                {lineItems.length ? (
-                  <div className="rounded-[22px] border border-slate-200 bg-white">
-                    <Table caption="Request items">
-                      <TableHead>
-                        <TableHeaderRow>
-                          <TableHeaderCell>Item</TableHeaderCell>
-                          <TableHeaderCell>Qty</TableHeaderCell>
-                          <TableHeaderCell>Total</TableHeaderCell>
-                        </TableHeaderRow>
-                      </TableHead>
-                      <TableBody>
-                        {lineItems.map((item) => (
-                          <TableRow key={item.id}>
-                            <TableCell>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <p className="text-sm font-semibold text-slate-950">
-                                    {item.description || "Untitled item"}
-                                  </p>
-                                  {(item.files?.length ?? 0) > 0 ? (
-                                    <Icon
-                                      name="attach_file"
-                                      className="text-[15px] text-brand-900"
-                                    />
-                                  ) : null}
-                                </div>
-                                {item.notes ? (
-                                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                                    {item.notes}
-                                  </p>
-                                ) : null}
-                              </div>
-                            </TableCell>
-                            <TableCell className="text-sm font-semibold text-slate-700">
-                              {item.quantity ?? 1}
-                            </TableCell>
-                            <TableCell className="text-sm font-semibold text-slate-700">
-                              {formatCurrency(
-                                (item.amount ?? 0) * (item.quantity ?? 1),
-                                request.currency,
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
-                  </div>
-                ) : (
-                  <EmptyState
-                    title="No line items"
-                    description="This request does not include any itemized costs."
-                  />
-                )}
-              </SectionCard>
-            ) : null}
-
-            {(paymentVouchers ?? []).length ? (
-              <SectionCard title="Payment Vouchers">
-                <div className="rounded-[22px] border border-slate-200 bg-white">
-                  <Table caption="Payment vouchers">
-                    <TableHead>
-                      <TableHeaderRow>
-                        <TableHeaderCell>PV</TableHeaderCell>
-                        <TableHeaderCell>Amount</TableHeaderCell>
-                        <TableHeaderCell>Retirement</TableHeaderCell>
-                      </TableHeaderRow>
-                    </TableHead>
-                    <TableBody>
-                      {(paymentVouchers ?? []).map((voucher) => (
-                        <TableRow key={voucher.id}>
-                          <TableCell>
-                            <button
-                              type="button"
-                              className="text-left text-sm font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                              onClick={() => openVoucherPreview(voucher)}
-                            >
-                              {voucher.voucher_number}
-                            </button>
-                          </TableCell>
-                          <TableCell className="text-sm text-slate-700">
-                            {formatCurrency(voucher.amount, request.currency)}
-                          </TableCell>
-                          <TableCell className="text-sm text-slate-700">
-                            {Number(voucher.retired_amount || 0) > 0
-                              ? (
-                                <button
-                                  type="button"
-                                  className="font-semibold text-brand-900 hover:underline focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                                  onClick={() => openVoucherPreview(voucher)}
-                                >
-                                  {formatCurrency(
-                                    voucher.retired_amount,
-                                    request.currency,
-                                  )}
-                                </button>
-                              )
-                              : "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-              </SectionCard>
-            ) : null}
+            {family === "leave" ? (
+              <LeaveRequestBody
+                requestData={requestData}
+                handoverColleagueName={handoverColleagueName}
+              />
+            ) : (
+              <FinanceRequestBody
+                request={request}
+                requestData={requestData}
+                categoryName={categoryName}
+                projectName={projectName}
+                teamName={teamName}
+                organizationName={organizationName}
+                requestTags={requestTags}
+                lineItems={lineItems}
+                currentUserId={currentUserId}
+                ownerActionsVisible={ownerActionsVisible}
+                availableActions={availableActions}
+                actionBusy={actionBusy}
+                finance={finance}
+                financeProgress={financeProgress}
+                onHandleDisburse={() => handleWorkflowAction("disburse")}
+                onHandleRetire={() => handleWorkflowAction("retire")}
+                onHandleDownloadArtifact={async (action, voucherId) => {
+                  await handleDownloadArtifact(action, voucherId);
+                }}
+              />
+            )}
 
             <SectionCard title="Approval Workflow">
               <WorkflowStepper steps={workflow} />
@@ -2636,7 +1620,7 @@ export function RequestDetailsPage() {
                 <p className="mt-4 text-sm text-slate-600">
                   This step requires Finance clearance.{" "}
                   <Link
-                    to={`/finance/requests/details?id=${id}`}
+                    to={`/finance/requests/${id}`}
                     className="font-medium text-brand-700 underline"
                   >
                     Open in Finance
@@ -2659,11 +1643,11 @@ export function RequestDetailsPage() {
               {financeActionsVisible &&
                 (requestStatus === "cleared" ||
                   (requestStatus === "disbursed" &&
-                    requestTotal > disbursedTotal)) ? (
+                    requestTotal > finance.disbursedTotal)) ? (
                 <Button
                   variant="secondary"
                   className="mt-4 w-full justify-center"
-                  onClick={() => setShowDisburseDialog(true)}
+                  onClick={() => finance.openDisburseDialog()}
                   disabled={actionBusy !== ""}
                 >
                   {actionBusy === "disburse"
@@ -2687,7 +1671,7 @@ export function RequestDetailsPage() {
                 <Button
                   variant="secondary"
                   className="mt-4 w-full justify-center"
-                  onClick={() => openRetireDialog()}
+                  onClick={() => finance.openRetireDialog()}
                   disabled={actionBusy !== ""}
                 >
                   {actionBusy === "retire" ? "Preparing..." : "Retire PV"}
@@ -2741,1010 +1725,6 @@ export function RequestDetailsPage() {
         ) : null}
       </div>
 
-      {showDisburseDialog ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4">
-          <button
-            type="button"
-            aria-label="Close disbursement dialog"
-            className="absolute inset-0"
-            onClick={() => closeDisburseDialog()}
-          />
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="disburse-request-title"
-            className="relative z-[81] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-card"
-          >
-            <div className="border-b border-slate-100 px-6 py-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Finance Action
-                  </p>
-                  <h2
-                    id="disburse-request-title"
-                    className="mt-2 text-2xl font-semibold tracking-tight text-slate-950"
-                  >
-                    {disburseMode === "edit"
-                      ? "Edit Payment Voucher"
-                      : "Disburse Request"}
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    {disburseMode === "edit"
-                      ? "Update the existing payment voucher without creating a new disbursement."
-                      : "Capture the disbursement record, finance account, transaction reference, and supporting evidence."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => closeDisburseDialog()}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
-                >
-                  <Icon name="close" />
-                </button>
-              </div>
-              {financeProgress.label ? (
-                <div className="mt-4 rounded-[18px] border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900">
-                  <div className="font-semibold">{financeProgress.label}</div>
-                  <div className="mt-1 text-brand-900/75">
-                    {financeProgress.hint}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5">
-              <div className="grid gap-4 md:grid-cols-2">
-                <TextField
-                  label="Amount"
-                  type="number"
-                  min="0"
-                  value={disburseForm.amount}
-                  onChange={(event) =>
-                    setDisburseForm((current) => ({
-                      ...current,
-                      amount: event.target.value,
-                    }))
-                  }
-                  placeholder={String(request?.total_amount ?? "")}
-                />
-                <SelectField
-                  label="Method"
-                  value={disburseForm.method}
-                  onChange={(event) =>
-                    setDisburseForm((current) => ({
-                      ...current,
-                      method: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="bank_transfer">Bank Transfer</option>
-                  <option value="cash">Cash</option>
-                  <option value="mobile_money">Mobile Money</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="other">Other</option>
-                </SelectField>
-                <TextField
-                  label="Transaction Reference"
-                  value={disburseForm.transaction_ref}
-                  onChange={(event) =>
-                    setDisburseForm((current) => ({
-                      ...current,
-                      transaction_ref: event.target.value,
-                    }))
-                  }
-                  placeholder="Bank reference / voucher ref"
-                />
-                <TextField
-                  label="Disbursement Date"
-                  type="date"
-                  value={disburseForm.disbursed_at}
-                  onChange={(event) =>
-                    setDisburseForm((current) => ({
-                      ...current,
-                      disbursed_at: event.target.value,
-                    }))
-                  }
-                />
-                <SelectField
-                  label="Paid From Account"
-                  value={disburseForm.paid_from_account_id}
-                  onChange={(event) =>
-                    setDisburseForm((current) => ({
-                      ...current,
-                      paid_from_account_id: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="">Select finance account</option>
-                  {(financeAccounts ?? []).map((account) => (
-                    <option key={account.id} value={account.id}>
-                      {account.name}
-                      {account.code ? ` (${account.code})` : ""}
-                    </option>
-                  ))}
-                </SelectField>
-                {!financeAccounts?.length ? (
-                  <p className="mt-1 text-xs text-amber-700">
-                    No active finance account is available. Disbursement cannot
-                    continue until one is configured.
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="mt-4">
-                <TextAreaField
-                  label="Disbursement Note"
-                  helpText="Optional context for the payment voucher and finance trail."
-                  value={disburseForm.note}
-                  onChange={(event) =>
-                    setDisburseForm((current) => ({
-                      ...current,
-                      note: event.target.value,
-                    }))
-                  }
-                  rows={4}
-                />
-              </div>
-
-              <div className="mt-4 rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-950">
-                      Evidence Upload
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Attach transfer proof, voucher support, or any
-                      disbursement evidence.
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowDisbursementMediaPicker(true)}
-                  >
-                    {disburseFiles.length
-                      ? "Change Evidence Files"
-                      : "Pick Evidence Files"}
-                  </Button>
-                </div>
-                {disburseFiles.length ? (
-                  <div className="mt-3 space-y-2">
-                    {disburseFiles.map((file) => (
-                      <div
-                        key={file.id}
-                        className="flex items-center gap-2 rounded-2xl bg-white px-3 py-2 text-sm text-slate-700"
-                      >
-                        <Icon
-                          name="attach_file"
-                          className="text-[16px] text-brand-900"
-                        />
-                        <span className="flex-1 truncate">
-                          {file.file_name}
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="mt-3 text-xs text-slate-500">
-                    You can select existing uploads or add new evidence here.
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="border-t border-slate-100 px-6 py-4">
-              <div className="flex flex-wrap justify-end gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => closeDisburseDialog()}
-                  disabled={actionBusy !== ""}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => void handleWorkflowAction("disburse")}
-                  disabled={
-                    actionBusy !== "" ||
-                    (!financeAccounts?.length
-                      ? true
-                      : !disburseForm.paid_from_account_id)
-                  }
-                >
-                  {actionBusy === "disburse"
-                    ? disburseMode === "edit"
-                      ? "Saving..."
-                      : "Disbursing..."
-                    : disburseMode === "edit"
-                      ? "Save Changes"
-                      : "Confirm Disbursement"}
-                </Button>
-              </div>
-            </div>
-          </section>
-        </div>
-      ) : null}
-      {showVoucherPreviewDialog && previewVoucher ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-6">
-          <button
-            type="button"
-            aria-label="Close payment voucher preview"
-            className="absolute inset-0"
-            onClick={() => setShowVoucherPreviewDialog(false)}
-          />
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="voucher-preview-title"
-            className="relative z-[81] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-card"
-          >
-            <div className="border-b border-slate-100 px-6 py-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Payment Voucher
-                  </p>
-                  <h2
-                    id="voucher-preview-title"
-                    className="mt-2 text-2xl font-semibold tracking-tight text-slate-950"
-                  >
-                    {previewVoucher.voucher_number}
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Read-only voucher details for the requester view.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowVoucherPreviewDialog(false)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
-                >
-                  <Icon name="close" />
-                </button>
-              </div>
-            </div>
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                    Amount
-                  </div>
-                  <div className="mt-1 text-lg font-semibold text-slate-950">
-                    {formatCurrency(previewVoucher.amount, request?.currency)}
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-                  <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                    Retirement
-                  </div>
-                  <div className="mt-1 text-lg font-semibold text-slate-950">
-                    {formatCurrency(
-                      previewVoucher.retired_amount || 0,
-                      request?.currency,
-                    )}
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-[22px] border border-slate-200 bg-white p-4 space-y-2">
-                <div className="text-sm text-slate-700">
-                  <span className="font-semibold text-slate-950">Method:</span>{" "}
-                  {previewVoucher.method || "-"}
-                </div>
-                <div className="text-sm text-slate-700">
-                  <span className="font-semibold text-slate-950">
-                    Disbursed:
-                  </span>{" "}
-                  {formatDisplayDate(previewVoucher.disbursed_at)}
-                </div>
-                <div className="text-sm text-slate-700">
-                  <span className="font-semibold text-slate-950">
-                    Retirement status:
-                  </span>{" "}
-                  {formatRequestStatus(previewVoucher.retirement_status)}
-                </div>
-                <div className="text-sm text-slate-700">
-                  <span className="font-semibold text-slate-950">Note:</span>{" "}
-                  {previewVoucher.note || "-"}
-                </div>
-              </div>
-              {previewVoucher.evidence_files?.length ? (
-                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-slate-950">
-                    Evidence files
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {previewVoucher.evidence_files.map((file) => (
-                      <button
-                        type="button"
-                        key={file.id}
-                        className="flex w-full items-center justify-between gap-2 rounded-2xl bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                        onClick={() => openVoucherEvidence(file)}
-                        disabled={!file.public_url}
-                      >
-                        <span className="truncate">{file.file_name}</span>
-                        <span className="text-xs font-semibold text-brand-900">
-                          {file.public_url ? "View" : "Unavailable"}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {previewVoucher.retirement_files?.length ? (
-                <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                  <div className="text-sm font-semibold text-slate-950">
-                    Retirement files
-                  </div>
-                  <div className="mt-3 space-y-2">
-                    {previewVoucher.retirement_files.map((file) => (
-                      <button
-                        type="button"
-                        key={file.id}
-                        className="flex w-full items-center justify-between gap-2 rounded-2xl bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:bg-slate-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                        onClick={() => openVoucherEvidence(file)}
-                        disabled={!file.public_url}
-                      >
-                        <span className="truncate">{file.file_name}</span>
-                        <span className="text-xs font-semibold text-brand-900">
-                          {file.public_url ? "View" : "Unavailable"}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-              {(() => {
-                const requestData = request?.data as Record<string, unknown> | null;
-                const retirement = typeof requestData?.retirement === "object" && requestData.retirement ? (requestData.retirement as Record<string, unknown>) : null;
-                const breakdown = typeof retirement?.breakdown === "object" && retirement.breakdown ? (retirement.breakdown as Record<string, unknown>) : null;
-                const refund = typeof breakdown?.refund === "object" && breakdown.refund ? (breakdown.refund as Record<string, unknown>) : null;
-                const refundAmount = typeof refund?.refund_amount === "number" ? refund.refund_amount : null;
-                if (!refund || !refundAmount) return null;
-                return (
-                  <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-4">
-                    <div className="text-sm font-semibold text-amber-900">
-                      Refund
-                    </div>
-                    <div className="mt-2 space-y-1 text-sm text-amber-800">
-                      <p>
-                        <span className="font-medium">Amount:</span>{" "}
-                        {formatCurrency(refundAmount, request?.currency)}
-                      </p>
-                      {refund.refund_method ? (
-                        <p>
-                          <span className="font-medium">Method:</span>{" "}
-                          {String(refund.refund_method)}
-                        </p>
-                      ) : null}
-                      {refund.refund_reference ? (
-                        <p>
-                          <span className="font-medium">Reference:</span>{" "}
-                          {String(refund.refund_reference)}
-                        </p>
-                      ) : null}
-                      {refund.refund_date ? (
-                        <p>
-                          <span className="font-medium">Date:</span>{" "}
-                          {formatDisplayDate(String(refund.refund_date))}
-                        </p>
-                      ) : null}
-                    </div>
-                  </div>
-                );
-              })()}
-            </div>
-            <div className="border-t border-slate-100 px-6 py-4">
-              <div className="flex flex-wrap justify-end gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() =>
-                    void handleDownloadArtifact("pv_pdf", previewVoucher.id)
-                  }
-                  disabled={actionBusy !== ""}
-                >
-                  {actionBusy === `download_pv:${previewVoucher.id}`
-                    ? "Downloading..."
-                    : "Download PV"}
-                </Button>
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowVoucherPreviewDialog(false)}
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-          </section>
-        </div>
-      ) : null}
-      {voucherFilePreview ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/55 px-4 py-6">
-          <button
-            type="button"
-            aria-label="Close file preview"
-            className="absolute inset-0"
-            onClick={() => setVoucherFilePreview(null)}
-          />
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="voucher-file-preview-title"
-            className="relative z-[91] flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-card"
-          >
-            <div className="flex items-start justify-between border-b border-slate-100 px-6 py-5">
-              <div className="min-w-0">
-                <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                  File Preview
-                </p>
-                <h2
-                  id="voucher-file-preview-title"
-                  className="mt-2 truncate text-lg font-semibold text-slate-950"
-                >
-                  {voucherFilePreview.name}
-                </h2>
-              </div>
-              <button
-                type="button"
-                onClick={() => setVoucherFilePreview(null)}
-                className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
-              >
-                <Icon name="close" />
-              </button>
-            </div>
-            <div className="flex-1 overflow-auto bg-slate-100 p-4">
-              {voucherFilePreview.mime_type?.startsWith("image/") ? (
-                <img
-                  src={voucherFilePreview.url}
-                  alt={voucherFilePreview.name}
-                  className="mx-auto max-h-[70vh] rounded-2xl border border-slate-200 bg-white object-contain"
-                />
-              ) : (
-                <iframe
-                  src={voucherFilePreview.url}
-                  title={voucherFilePreview.name}
-                  className="h-[70vh] w-full rounded-2xl border border-slate-200 bg-white"
-                />
-              )}
-            </div>
-            <div className="border-t border-slate-100 px-6 py-4">
-              <div className="flex flex-wrap justify-end gap-3">
-                <a href={voucherFilePreview.url} target="_blank" rel="noreferrer">
-                  <Button variant="secondary">Open in new tab</Button>
-                </a>
-                <Button
-                  variant="secondary"
-                  onClick={() => setVoucherFilePreview(null)}
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-          </section>
-        </div>
-      ) : null}
-      <MediaPickerModal
-        open={showDisbursementMediaPicker}
-        onClose={() => setShowDisbursementMediaPicker(false)}
-        title="Select Disbursement Evidence"
-        multiple
-        selectedIds={disburseFiles.map((file) => file.id)}
-        loadFiles={async (search) =>
-          listFileAssets({
-            include_usage: true,
-            per_page: 200,
-            search,
-            uploaded_by: currentUserId,
-          })
-        }
-        uploadFiles={async (files, onProgress) => {
-          const total = files.length;
-          let uploadedCount = 0;
-          for (const file of Array.from(files)) {
-            onProgress?.({
-              uploaded: uploadedCount,
-              total,
-              current_file_name: file.name,
-            });
-            const uploaded = await uploadFileAsset(file, {
-              organization_id:
-                String(requestData.organization_id || "") || undefined,
-              metadata: { source: "request_disbursement", request_id: id },
-            });
-            uploadedCount += 1;
-            onProgress?.({
-              uploaded: uploadedCount,
-              total,
-              current_file_name: file.name,
-            });
-            setDisburseFiles((current) => {
-              if (current.some((row) => row.id === uploaded.id)) return current;
-              return [
-                ...current,
-                { id: uploaded.id, file_name: uploaded.file_name },
-              ];
-            });
-          }
-        }}
-        onSelect={(files) => {
-          setDisburseFiles(
-            files.map((file) => ({ id: file.id, file_name: file.file_name })),
-          );
-        }}
-      />
-      <MediaPickerModal
-        open={showRetirementMediaPicker}
-        onClose={() => setShowRetirementMediaPicker(false)}
-        title="Select Retirement Files"
-        multiple
-        selectedIds={retireForm.retirement_file_ids}
-        loadFiles={async (search) =>
-          listFileAssets({
-            include_usage: true,
-            per_page: 200,
-            search,
-            uploaded_by: currentUserId,
-          })
-        }
-        uploadFiles={async (files, onProgress) => {
-          const total = files.length;
-          let uploadedCount = 0;
-          for (const file of Array.from(files)) {
-            onProgress?.({
-              uploaded: uploadedCount,
-              total,
-              current_file_name: file.name,
-            });
-            const uploaded = await uploadFileAsset(file, {
-              organization_id:
-                String(requestData.organization_id || "") || undefined,
-              metadata: { source: "request_retirement", request_id: id },
-            });
-            uploadedCount += 1;
-            onProgress?.({
-              uploaded: uploadedCount,
-              total,
-              current_file_name: file.name,
-            });
-            setRetireForm((current) => ({
-              ...current,
-              retirement_file_ids: Array.from(
-                new Set([...current.retirement_file_ids, uploaded.id]),
-              ),
-            }));
-          }
-        }}
-        onSelect={(files) => {
-          setRetireForm((current) => ({
-            ...current,
-            retirement_file_ids: files.map((file) => file.id),
-          }));
-        }}
-      />
-
-      {showRetireDialog ? (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-6">
-          <button
-            type="button"
-            aria-label="Close retirement dialog"
-            className="absolute inset-0"
-            onClick={() => setShowRetireDialog(false)}
-          />
-          <section
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="retire-request-title"
-            className="relative z-[81] flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-[28px] border border-white/70 bg-white shadow-card"
-          >
-            <div className="border-b border-slate-100 px-6 py-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Requester Action
-                  </p>
-                  <h2
-                    id="retire-request-title"
-                    className="mt-2 text-2xl font-semibold tracking-tight text-slate-950"
-                  >
-                    Submit Retirement
-                  </h2>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    Attach receipts and confirm how the disbursed amount was
-                    used.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowRetireDialog(false)}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-700 transition hover:bg-slate-200"
-                >
-                  <Icon name="close" />
-                </button>
-              </div>
-              {retireableVoucher ? (
-                <div className="mt-4 rounded-[18px] border border-brand-200 bg-brand-50 px-4 py-3 text-sm text-brand-900">
-                  <div className="font-semibold">
-                    Voucher {retireableVoucher.voucher_number}
-                  </div>
-                  <div className="mt-1 text-brand-900/75">
-                    Disbursed{" "}
-                    {formatCurrency(
-                      retireableVoucher.amount,
-                      request?.currency,
-                    )}{" "}
-                    • Remaining{" "}
-                    {formatCurrency(
-                      retireableVoucher.voucher_balance,
-                      request?.currency,
-                    )}
-                  </div>
-                </div>
-              ) : null}
-            </div>
-
-            <div className="flex-1 overflow-y-auto px-6 py-5 space-y-4">
-              <SelectField
-                label="Payment Voucher"
-                value={retireForm.voucher_id}
-                onChange={(event) => {
-                  const next = (paymentVouchers ?? []).find(
-                    (voucher) => voucher.id === event.target.value,
-                  );
-                  setRetireForm((current) => ({
-                    ...current,
-                    voucher_id: event.target.value,
-                    retired_amount: next
-                      ? String(next.voucher_balance || next.amount || "")
-                      : current.retired_amount,
-                    retirement_file_ids: next
-                      ? current.retirement_file_ids
-                      : current.retirement_file_ids,
-                  }));
-                }}
-              >
-                <option value="">Select voucher</option>
-                {(paymentVouchers ?? []).map((voucher) => (
-                  <option key={voucher.id} value={voucher.id}>
-                    {voucher.voucher_number} (
-                    {formatCurrency(voucher.voucher_balance, request?.currency)}{" "}
-                    remaining)
-                  </option>
-                ))}
-              </SelectField>
-
-              <TextField
-                label="Retirement Amount"
-                type="number"
-                min="0"
-                value={retireForm.retired_amount}
-                onChange={(event) =>
-                  setRetireForm((current) => ({
-                    ...current,
-                    retired_amount: event.target.value,
-                  }))
-                }
-                placeholder={
-                  retireableVoucher
-                    ? String(
-                      retireableVoucher.voucher_balance ||
-                      retireableVoucher.amount ||
-                      "",
-                    )
-                    : ""
-                }
-              />
-
-              {retirementShortfall > 0 ? (
-                <div className="rounded-[22px] border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-sm font-semibold text-amber-900">
-                    Refund Required: {formatCurrency(retirementShortfall, request?.currency)}
-                  </p>
-                  <p className="mt-1 text-xs text-amber-800">
-                    You retired less than disbursed. Provide refund details below or upload refund evidence in Retirement Files.
-                  </p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <TextField
-                      label="Refund Amount"
-                      type="number"
-                      min="0"
-                      value={retireForm.refund_amount}
-                      onChange={(event) =>
-                        setRetireForm((current) => ({
-                          ...current,
-                          refund_amount: event.target.value,
-                        }))
-                      }
-                      placeholder={String(retirementShortfall)}
-                    />
-                    <SelectField
-                      label="Refund Method"
-                      value={retireForm.refund_method}
-                      onChange={(event) =>
-                        setRetireForm((current) => ({
-                          ...current,
-                          refund_method: event.target.value,
-                        }))
-                      }
-                    >
-                      <option value="bank_transfer">Bank Transfer</option>
-                      <option value="cash_deposit">Cash Deposit</option>
-                      <option value="cash_handin">Cash Hand-in</option>
-                    </SelectField>
-                    <TextField
-                      label="Refund Reference"
-                      value={retireForm.refund_reference}
-                      onChange={(event) =>
-                        setRetireForm((current) => ({
-                          ...current,
-                          refund_reference: event.target.value,
-                        }))
-                      }
-                      placeholder="Txn ref / teller / receipt no"
-                    />
-                    <TextField
-                      label="Refund Date"
-                      type="date"
-                      value={retireForm.refund_date}
-                      onChange={(event) =>
-                        setRetireForm((current) => ({
-                          ...current,
-                          refund_date: event.target.value,
-                        }))
-                      }
-                    />
-                  </div>
-                </div>
-              ) : null}
-
-              <TextAreaField
-                label="Retirement Notes"
-                helpText="Add receipts context, what was spent, and any important explanation."
-                value={retireForm.notes}
-                onChange={(event) => {
-                  const nextNotes = event.target.value;
-                  setRetireForm((current) => ({
-                    ...current,
-                    notes: nextNotes,
-                  }));
-                  setRetirementCertificateForm((current) => {
-                    const currentReason = current.reason.trim();
-                    const shouldMirrorNotes =
-                      !currentReason ||
-                      currentReason === defaultCertificateReason;
-                    return shouldMirrorNotes
-                      ? {
-                        ...current,
-                        reason: nextNotes.trim() || defaultCertificateReason,
-                      }
-                      : current;
-                  });
-                }}
-                rows={4}
-              />
-
-              <div className="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-950">
-                      Retirement Files
-                    </p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Attach receipts, invoices, and proof of expenditure.
-                    </p>
-                  </div>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setShowRetirementMediaPicker(true)}
-                  >
-                    {retireForm.retirement_file_ids.length
-                      ? "Manage Retirement Files"
-                      : "Pick Retirement Files"}
-                  </Button>
-                </div>
-                {retireForm.retirement_file_ids.length ? (
-                  <div className="mt-3 text-xs text-slate-500">
-                    {retireForm.retirement_file_ids.length} file(s) selected
-                  </div>
-                ) : (
-                  <div className="mt-3 text-xs text-slate-500">
-                    No retirement files selected yet.
-                  </div>
-                )}
-                <div className="mt-4 rounded-[18px] border border-brand-200 bg-brand-50 px-4 py-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-brand-950">
-                        Certificate of Honor
-                      </p>
-                      <p className="mt-1 text-sm leading-6 text-brand-900/80">
-                        Use this when receipts are unavailable. Add it only if
-                        the retirement needs a declaration or explanation.
-                      </p>
-                    </div>
-                    <Button
-                      variant="secondary"
-                      onClick={() =>
-                        setShowCertificateHonorForm((current) => !current)
-                      }
-                    >
-                      {showCertificateHonorForm
-                        ? "Hide Certificate"
-                        : "Add Certificate"}
-                    </Button>
-                  </div>
-                  {showCertificateHonorForm ? (
-                    <div className="mt-4 grid gap-4">
-                      <TextAreaField
-                        label="Certificate declaration"
-                        helpText="This statement will be printed into the generated certificate."
-                        value={retirementCertificateForm.declaration}
-                        onChange={(event) =>
-                          setRetirementCertificateForm((current) => ({
-                            ...current,
-                            declaration: event.target.value,
-                          }))
-                        }
-                        rows={4}
-                      />
-                      <TextAreaField
-                        label="Why receipts are unavailable"
-                        helpText="Explain the cash-advance, discount, missing receipt, or other reason for honoring the retirement without full receipt support."
-                        value={retirementCertificateForm.reason}
-                        onChange={(event) =>
-                          setRetirementCertificateForm((current) => ({
-                            ...current,
-                            reason: event.target.value,
-                          }))
-                        }
-                        rows={4}
-                      />
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        <div className="rounded-[18px] border border-brand-200 bg-white px-4 py-3 text-sm text-slate-700">
-                          <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                            Prepared by
-                          </div>
-                          <div className="mt-1 font-semibold text-slate-950">
-                            {formatPersonName(user)}
-                          </div>
-                        </div>
-                        <div className="rounded-[18px] border border-brand-200 bg-white px-4 py-3 text-sm text-slate-700">
-                          <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
-                            Certificate status
-                          </div>
-                          <div className="mt-1 font-semibold text-slate-950">
-                            {retireForm.retirement_file_ids.length
-                              ? "Attached to retirement"
-                              : "Not yet attached"}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-3">
-                        <Button
-                          variant="secondary"
-                          onClick={() => {
-                            if (!retireForm.voucher_id) {
-                              showToast({
-                                title: "Select a voucher first",
-                                message:
-                                  "Choose the payment voucher before generating the certificate.",
-                                tone: "danger",
-                              });
-                              return;
-                            }
-                            void (async () => {
-                              try {
-                                setActionBusy("certificate_honor");
-                                const selectedVoucher =
-                                  (paymentVouchers ?? []).find(
-                                    (voucher) =>
-                                      voucher.id === retireForm.voucher_id,
-                                  ) || retireableVoucher;
-                                if (!selectedVoucher) {
-                                  throw new Error(
-                                    "Select a payment voucher first.",
-                                  );
-                                }
-                                const file = await buildCertificateOfHonorPdf({
-                                  requestLabel:
-                                    request?.request_number || `Request ${id}`,
-                                  voucherNumber: selectedVoucher.voucher_number,
-                                  staffName: formatPersonName(user),
-                                  amountLabel: formatCertificateCurrency(
-                                    Number(
-                                      retireForm.retired_amount ||
-                                      selectedVoucher.voucher_balance ||
-                                      selectedVoucher.amount ||
-                                      0,
-                                    ),
-                                    request?.currency,
-                                  ),
-                                  declaration:
-                                    retirementCertificateForm.declaration.trim(),
-                                  reason:
-                                    retirementCertificateForm.reason.trim() ||
-                                    retireForm.notes.trim() ||
-                                    defaultCertificateReason,
-                                  issuedAt: new Date()
-                                    .toISOString()
-                                    .slice(0, 10),
-                                });
-                                const uploaded = await uploadFileAsset(file, {
-                                  organization_id:
-                                    String(requestData.organization_id || "") ||
-                                    undefined,
-                                  metadata: {
-                                    source: "request_retirement_certificate",
-                                    request_id: id,
-                                    voucher_id: selectedVoucher.id,
-                                  },
-                                });
-                                setRetireForm((current) => ({
-                                  ...current,
-                                  retirement_file_ids: Array.from(
-                                    new Set([
-                                      ...current.retirement_file_ids,
-                                      uploaded.id,
-                                    ]),
-                                  ),
-                                }));
-                                showToast({
-                                  title: "Certificate attached",
-                                  message:
-                                    "The Certificate of Honor has been generated and added to the retirement files.",
-                                  tone: "success",
-                                });
-                              } catch (error) {
-                                showToast({
-                                  title: "Certificate generation failed",
-                                  message:
-                                    error instanceof Error
-                                      ? error.message
-                                      : "We couldn't generate the certificate right now.",
-                                  tone: "danger",
-                                });
-                              } finally {
-                                setActionBusy("");
-                              }
-                            })();
-                          }}
-                          disabled={actionBusy !== "" || !retireForm.voucher_id}
-                        >
-                          {actionBusy === "certificate_honor"
-                            ? "Generating..."
-                            : "Generate & Attach Certificate"}
-                        </Button>
-                      </div>
-                      <p className="text-xs leading-5 text-brand-900/75">
-                        The generated certificate will be downloadable with the
-                        request and can still sit alongside any scanned signed
-                        copy you upload manually.
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-              </div>
-            </div>
-
-            <div className="border-t border-slate-100 px-6 py-4">
-              <div className="flex flex-wrap justify-end gap-3">
-                <Button
-                  variant="secondary"
-                  onClick={() => setShowRetireDialog(false)}
-                  disabled={actionBusy !== ""}
-                >
-                  Cancel
-                </Button>
-                <Button
-                  onClick={() => void handleWorkflowAction("retire")}
-                  disabled={actionBusy !== "" || !retireForm.voucher_id}
-                >
-                  {actionBusy === "retire"
-                    ? "Submitting..."
-                    : "Submit Retirement"}
-                </Button>
-              </div>
-            </div>
-          </section>
-        </div>
-      ) : null}
     </AppShell>
   );
 }
