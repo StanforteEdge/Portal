@@ -87,8 +87,8 @@ const permissions = [
 const rolePermissionMap = {
   administrator: ['*'],
   admin: ['admin.view', 'users.view', 'users.manage', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'roles.manage', 'settings.manage', 'audit.view', 'audit.manage', 'workflow.view', 'workflow.manage', 'send_notifications'],
-  hr_manager: [],
-  hr_officer: [],
+  hr_manager: ['hr.view', 'hr.manage', 'hr.employees', 'hr.approve', 'attendance.clock', 'attendance.view_self', 'attendance.view_team', 'attendance.manage', 'attendance.approve', 'attendance.correct', 'leave.view', 'leave.manage', 'leave.approve', 'work.view', 'work.manage', 'work.approve', 'organizations.view', 'groups.view', 'projects.view', 'requests.view', 'requests.approve'],
+  hr_officer: ['hr.view', 'hr.employees', 'attendance.clock', 'attendance.view_self', 'attendance.view_team', 'leave.view', 'work.view', 'organizations.view', 'groups.view', 'projects.view', 'requests.view'],
   finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.correct_completed', 'finance.view', 'finance.approve', 'finance.vouchers', 'payroll.approve', 'groups.view', 'projects.view', 'workflow.view', 'work.view', 'work.manage', 'work.approve'],
   accountant: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'groups.view', 'projects.view', 'workflow.view'],
   finance_officer: ['requests.view', 'finance.view', 'finance.vouchers', 'groups.view', 'projects.view', 'workflow.view'],
