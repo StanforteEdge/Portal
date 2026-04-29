@@ -1,5 +1,6 @@
 // apps/pwa/src/modules/hr/leave/HrLeavePage.tsx
 import { useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Button,
   Chip,
@@ -31,7 +32,6 @@ import {
   rejectRequest,
   type RequestRecord,
 } from "./hr-leave-api";
-import StaffLeaveSlideOver from "./StaffLeaveSlideOver";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -79,11 +79,8 @@ export default function HrLeavePage() {
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
+  const navigate = useNavigate();
   const [statusFilter, setStatusFilter] = useState("");
-  const [slideOver, setSlideOver] = useState<{
-    userId: string;
-    userName: string;
-  } | null>(null);
   const [reviewingId, setReviewingId] = useState<string | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [reviewLoading, setReviewLoading] = useState(false);
@@ -385,17 +382,15 @@ export default function HrLeavePage() {
                         </Chip>
                       </TableCell>
                       <TableCell>
-                        {userId ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              setSlideOver({ userId, userName: name })
-                            }
-                          >
-                            Detail
-                          </Button>
-                        ) : null}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            navigate(`/leave/details?id=${r.id}&view=hr`)
+                          }
+                        >
+                          Detail
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
@@ -416,14 +411,6 @@ export default function HrLeavePage() {
         </SectionCard>
       </div>
 
-      {slideOver ? (
-        <StaffLeaveSlideOver
-          userId={slideOver.userId}
-          userName={slideOver.userName}
-          year={currentYear}
-          onClose={() => setSlideOver(null)}
-        />
-      ) : null}
     </AppShell>
   );
 }
