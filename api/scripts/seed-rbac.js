@@ -81,7 +81,6 @@ const permissions = [
   { name: 'Manage Roles', slug: 'roles.manage', module: 'roles', description: 'Manage roles and assign permissions' },
   { name: 'View Audit', slug: 'audit.view', module: 'audit', description: 'Can view audit and email logs' },
   { name: 'Manage Audit', slug: 'audit.manage', module: 'audit', description: 'Can create audit events' },
-  { name: 'Grade Applications', slug: 'grading.grade', module: 'grading', description: 'Can grade applications' }
 ];
 
 const rolePermissionMap = {
