@@ -15,7 +15,7 @@ import {
   EmptyState,
   Icon,
 } from "@/shared";
-import { policyApi, requestApi, useCachedQuery } from "@/shared/lib/core";
+import { cacheStore, policyApi, requestApi, useCachedQuery } from "@/shared/lib/core";
 import { type PolicyRecord, type RequestType } from "@stanforte/shared";
 
 type Props = {
@@ -32,7 +32,7 @@ export default function LeaveSettingsTab({ onEditPolicy, onEditType }: Props) {
     "hr:leave_types",
     async () => {
       const res = await requestApi.listTypes();
-      return res.filter(t => 
+      return res.filter((t: RequestType) =>
         t.category?.toLowerCase().includes('leave') || 
         t.name.toLowerCase().includes('leave')
       );
@@ -69,6 +69,8 @@ export default function LeaveSettingsTab({ onEditPolicy, onEditType }: Props) {
     if (!confirm("Are you sure you want to delete this leave type?")) return;
     try {
       await requestApi.deleteType(id);
+      cacheStore.invalidateCache("requests:types");
+      cacheStore.invalidateCache("hr:leave_types");
       showToast({ tone: "success", title: "Deleted", message: "Leave type removed." });
       void refetchTypes();
     } catch (err) {
@@ -103,7 +105,7 @@ export default function LeaveSettingsTab({ onEditPolicy, onEditType }: Props) {
             </TableHeaderRow>
           </TableHead>
           <TableBody>
-            {(requestTypes ?? []).map((type) => (
+            {(requestTypes ?? []).map((type: RequestType) => (
               <TableRow key={type.id}>
                 <TableCell className="font-medium text-slate-900">{type.name}</TableCell>
                 <TableCell className="text-slate-500">{type.slug}</TableCell>

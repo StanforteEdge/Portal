@@ -1,6 +1,5 @@
 import RequestDetailsPage from "@/pages/requests/RequestDetailsPage";
 
 export default function LeaveRequestDetailsPage() {
-  return <RequestDetailsPage />;
+  return <RequestDetailsPage detailView="mine" />;
 }
-
