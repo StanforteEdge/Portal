@@ -22,8 +22,8 @@ export function buildAppNavigation(options?: {
   const detailsPath =
     options?.requestDetailsPath ??
     (detailsParent === "finance"
-      ? "/finance/requests/details"
-      : "/requests/details");
+      ? "/finance/requests"
+      : "/requests");
 
   const requestDetailsItem = {
     label: "Request Details",

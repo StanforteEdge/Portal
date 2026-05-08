@@ -1,5 +1,12 @@
 import { useEffect } from "react";
-import { Navigate, Route, Routes, useNavigate } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
 import { onDeepLink } from "@/lib/tauri-bridge";
 import AttendancePage from "@/pages/hr/attendance/AttendancePage";
 import LeavePage from "@/pages/hr/leave/LeavePage";
@@ -36,6 +43,7 @@ import FinanceManualEntryPage from "@/pages/finance/ledger/FinanceManualEntryPag
 import AdminRolesPage from "@/pages/admin/roles/AdminRolesPage";
 import HrDashboardPage from "@/pages/hr/dashboard/HrDashboardPage";
 import HrLeavePage from "@/pages/hr/leave/HrLeavePage";
+import HrRequestDetailsPage from "@/pages/hr/requests/HrRequestDetailsPage";
 import HrEmployeesPage from "@/pages/hr/employees/HrEmployeesPage";
 import HrEmployeeCreatePage from "@/pages/hr/employees/HrEmployeeCreatePage";
 import HrEmployeeDetailPage from "@/pages/hr/employees/HrEmployeeDetailPage";
@@ -68,6 +76,7 @@ import LoginPage from "@/pages/auth/LoginPage";
 import ResetPasswordPage from "@/pages/auth/ResetPasswordPage";
 import SessionReauthPage from "@/pages/auth/SessionReauthPage";
 import RequestDetailsPage from "@/pages/requests/RequestDetailsPage";
+import ApprovalRequestDetailsPage from "@/pages/requests/ApprovalRequestDetailsPage";
 import RequestFormPage from "@/pages/requests/new/RequestFormPage";
 import RequestTypePage from "@/pages/requests/new/RequestTypePage";
 import ApprovalsPage from "@/pages/requests/ApprovalsPage";
@@ -81,6 +90,22 @@ import {
   ProfilePage,
   SettingsPage,
 } from "@/pages/account";
+
+type LegacyDetailRedirectProps = {
+  toBase: string;
+  fallbackPath?: string;
+};
+
+function LegacyDetailRedirect(props: LegacyDetailRedirectProps) {
+  const [searchParams] = useSearchParams();
+  const { id: pathId } = useParams<{ id?: string }>();
+  const id = pathId || searchParams.get("id") || "";
+
+  if (!id) {
+    return <Navigate to={props.fallbackPath ?? props.toBase} replace />;
+  }
+  return <Navigate to={`${props.toBase}/${id}`} replace />;
+}
 
 export default function App() {
   const navigate = useNavigate();
@@ -113,14 +138,51 @@ export default function App() {
         <Route path="/attendance" element={<AttendancePage />} />
         <Route path="/leave" element={<LeavePage />} />
         <Route path="/leave/new/form" element={<LeaveRequestFormPage />} />
-        <Route path="/leave/details" element={<LeaveRequestDetailsPage />} />
+        <Route
+          path="/leave/details"
+          element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/leave" />}
+        />
+        <Route
+          path="/leave/details/:id"
+          element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/leave" />}
+        />
         <Route path="/requests" element={<RequestsListPage />} />
         <Route element={<ApprovalRoute />}>
           <Route path="/requests/approvals" element={<ApprovalsPage />} />
+          <Route
+            path="/requests/approvals/:id"
+            element={<ApprovalRequestDetailsPage />}
+          />
+          <Route
+            path="/requests/approvals/details"
+            element={
+              <LegacyDetailRedirect
+                toBase="/requests/approvals"
+                fallbackPath="/requests/approvals"
+              />
+            }
+          />
+          <Route
+            path="/requests/approvals/details/:id"
+            element={
+              <LegacyDetailRedirect
+                toBase="/requests/approvals"
+                fallbackPath="/requests/approvals"
+              />
+            }
+          />
         </Route>
         <Route path="/requests/new" element={<RequestTypePage />} />
         <Route path="/requests/new/form" element={<RequestFormPage />} />
-        <Route path="/requests/details" element={<RequestDetailsPage />} />
+        <Route path="/requests/:id" element={<RequestDetailsPage />} />
+        <Route
+          path="/requests/details"
+          element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/requests" />}
+        />
+        <Route
+          path="/requests/details/:id"
+          element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/requests" />}
+        />
         <Route path="/requests/financial" element={<RequestFormPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
@@ -136,8 +198,26 @@ export default function App() {
             <Route path="/finance" element={<FinanceDashboardPage />} />
             <Route path="/finance/requests" element={<FinanceRequestsPage />} />
             <Route
-              path="/finance/requests/details"
+              path="/finance/requests/:id"
               element={<FinanceRequestDetailsPage />}
+            />
+            <Route
+              path="/finance/requests/details"
+              element={
+                <LegacyDetailRedirect
+                  toBase="/finance/requests"
+                  fallbackPath="/finance/requests"
+                />
+              }
+            />
+            <Route
+              path="/finance/requests/details/:id"
+              element={
+                <LegacyDetailRedirect
+                  toBase="/finance/requests"
+                  fallbackPath="/finance/requests"
+                />
+              }
             />
             <Route
               path="/finance/payment-vouchers"
@@ -192,6 +272,28 @@ export default function App() {
 
             <Route element={<PermissionRoute requiredPermissions={["leave.view", "leave.manage", "leave.approve"]} any />}>
               <Route path="/hr/leave" element={<HrLeavePage />} />
+              <Route
+                path="/hr/requests/:id"
+                element={<HrRequestDetailsPage />}
+              />
+              <Route
+                path="/hr/requests/details"
+                element={
+                  <LegacyDetailRedirect
+                    toBase="/hr/requests"
+                    fallbackPath="/hr/leave"
+                  />
+                }
+              />
+              <Route
+                path="/hr/requests/details/:id"
+                element={
+                  <LegacyDetailRedirect
+                    toBase="/hr/requests"
+                    fallbackPath="/hr/leave"
+                  />
+                }
+              />
             </Route>
 
             <Route element={<PermissionRoute requiredPermissions={["hr.manage", "settings.manage"]} any />}>
@@ -201,7 +303,14 @@ export default function App() {
           <Route path="/attendance" element={<AttendancePage />} />
           <Route path="/leave" element={<LeavePage />} />
           <Route path="/leave/new/form" element={<LeaveRequestFormPage />} />
-          <Route path="/leave/details" element={<LeaveRequestDetailsPage />} />
+          <Route
+            path="/leave/details"
+            element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/leave" />}
+          />
+          <Route
+            path="/leave/details/:id"
+            element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/leave" />}
+          />
           <Route path="/tasks" element={<TasksPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
