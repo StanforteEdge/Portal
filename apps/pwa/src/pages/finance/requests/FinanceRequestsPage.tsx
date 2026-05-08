@@ -492,7 +492,7 @@ export default function FinanceRequestsPage() {
                       <TableRow key={entry.id}>
                         <TableCell>
                           <Link
-                            to={`/finance/requests/details?id=${entry.id}`}
+                            to={`/finance/requests/${entry.id}`}
                             className="text-sm font-semibold text-brand-900 transition hover:underline"
                           >
                             {entry.request_number || entry.id}
@@ -548,7 +548,7 @@ export default function FinanceRequestsPage() {
                             return (
                               <div className="inline-flex items-center gap-3">
                                 <Link
-                                  to={`/finance/requests/details?id=${entry.id}`}
+                                  to={`/finance/requests/${entry.id}`}
                                   className="inline-flex items-center gap-1 text-sm font-semibold text-brand-900 transition hover:underline"
                                 >
                                   <Icon

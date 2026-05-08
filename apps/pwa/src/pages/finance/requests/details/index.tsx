@@ -4,7 +4,7 @@ import {
   EmptyState,
   useToast,
 } from "@/shared";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { useEffect, useMemo, useState } from "react";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -68,6 +68,7 @@ function resolveFinanceDetailView(): "mine" | "approvals" | "finance" {
 
 export function FinanceRequestDetailsPage() {
   const navigate = useNavigate();
+  const { id: routeId } = useParams<{ id?: string }>();
   const [searchParams] = useSearchParams();
   const [actionComment, setActionComment] = useState("");
   const [actionBusy, setActionBusy] = useState<string>("");
@@ -102,7 +103,7 @@ export function FinanceRequestDetailsPage() {
   const defaultCertificateReason =
     "No supporting receipt is available for the full amount because the expense was settled without a formal receipt or the receipt could not be obtained in time for retirement.";
 
-  const id = searchParams.get("id") || "";
+  const id = routeId || searchParams.get("id") || "";
   const detailView = resolveFinanceDetailView();
   const { user } = useAuth();
   const currentUserId = user?.id ? String(user.id) : undefined;
@@ -494,8 +495,8 @@ export function FinanceRequestDetailsPage() {
     const link =
       typeof window !== "undefined"
         ? detailView === "finance"
-          ? `${window.location.origin}/finance/requests/details?id=${request.id}`
-          : `${window.location.origin}/requests/details?id=${request.id}&view=${detailView}`
+          ? `${window.location.origin}/finance/requests/${request.id}`
+          : `${window.location.origin}/requests/${request.id}`
         : "";
     return [
       `Hi, please take a look at ${requestLabel}.`,
@@ -1170,7 +1171,7 @@ export function FinanceRequestDetailsPage() {
       <AppShell
         navigation={buildRequestsNavigation({
           includeRequestDetails: detailView !== "finance",
-          requestDetailsPath: `/requests/details?id=${id}&view=${detailView}`,
+          requestDetailsPath: `/requests/${id}`,
           requestDetailsParent:
             detailView === "finance" ? "finance" : "requests",
         })}
