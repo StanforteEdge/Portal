@@ -232,18 +232,13 @@ export default function DashboardPage() {
     nextShiftMode = "";
   }
   const financeViewer = hasModuleAccess(user, "finance");
-  const dashboardUserName = profile?.first_name || "Staff User";
-
-  console.log("profile first_name:", profile?.first_name);
-  console.log("userFirstName(user):", userFirstName(user));
-  console.log("dashboardUserName:", dashboardUserName);
 
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
       activeLabel="Dashboard"
       user={{
-        name: dashboardUserName,
+        name: userFirstName(user),
         role: profile?.employee_profile?.job_title || "Staff",
       }}
       mobileNav={buildAppMobileNav("Dashboard")}
@@ -251,7 +246,7 @@ export default function DashboardPage() {
       <div className="hidden lg:block">
         <PageHeader
           breadcrumbs={[{ label: "Dashboard" }]}
-          title={`${greeting()}, ${profile?.first_name}.`}
+          title={`${greeting()}, ${userFirstName(user)}.`}
           description={`${formatTodayLong()} • ${organization?.name || "No primary organization"}${primaryGroup ? ` • ${primaryGroup.name}` : ""}`}
           actions={
             <Link to="/requests/new" className="inline-flex">
@@ -442,7 +437,7 @@ export default function DashboardPage() {
                   return (
                     <Link
                       key={row.id}
-                      to={`/requests/details?id=${row.id}&view=mine`}
+                      to={`/requests/${row.id}`}
                       className="flex items-center justify-between gap-4 px-1 py-4 transition hover:bg-slate-50/70"
                     >
                       <div className="flex min-w-0 items-center gap-4">
@@ -628,7 +623,7 @@ export default function DashboardPage() {
           <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
             Dashboard
           </p>
-          <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">{`${greeting()}, ${dashboardUserName}.`}</h1>
+          <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">{`${greeting()}, ${userFirstName(user)}.`}</h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
             {formatTodayLong()}
           </p>
@@ -716,7 +711,7 @@ export default function DashboardPage() {
               return (
                 <Link
                   key={row.id}
-                  to={`/requests/details?id=${row.id}`}
+                  to={`/requests/${row.id}`}
                   className="block rounded-2xl border border-slate-100 p-4 transition hover:bg-slate-50"
                 >
                   <p className="text-sm font-semibold text-slate-950">

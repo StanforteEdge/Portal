@@ -261,7 +261,7 @@ export default function LeavePage() {
                     <TableRow key={row.requestId}>
                       <TableCell className="rounded-l-2xl">
                         <Link
-                          to={`/requests/details?id=${row.requestId}&view=mine`}
+                          to={`/requests/${row.requestId}`}
                           className="text-sm font-semibold text-brand-900 transition hover:underline"
                         >
                           {row.id}

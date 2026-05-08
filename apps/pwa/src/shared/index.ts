@@ -40,6 +40,13 @@ export { TextField, SelectField, Select, TextAreaField } from "./components/ui/f
 export { TextInput } from "./components/ui/TextInput";
 export { SlideOver, SlideOverPanel, SlideOverHeader, SlideOverContent, SlideOverFooter } from "./components/ui/SlideOver";
 export { SidebarTabs } from "./components/ui/SidebarTabs";
+export {
+  ApprovalFlowBuilder,
+  createApprovalFlowStep,
+  parseApprovalFlowSteps,
+  serializeApprovalFlowSteps,
+} from "./components/ui/ApprovalFlowBuilder";
+export type { ApprovalFlowEditorStep, ApprovalStepMode } from "./components/ui/ApprovalFlowBuilder";
 
 // ─── Feedback ─────────────────────────────────────────────────────────────────
 export { ToastProvider, useToast } from "./components/feedback/ToastProvider";

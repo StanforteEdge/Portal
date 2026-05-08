@@ -19,7 +19,7 @@ import {
 } from "@/shared";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { requestApi } from "@/shared/lib/core";
+import { cacheStore, requestApi } from "@/shared/lib/core";
 import { type RequestType } from "@stanforte/shared";
 import RequestTypeSlideOver from "@/pages/admin/request-types/RequestTypeSlideOver";
 
@@ -56,6 +56,8 @@ export default function AdminSettingsPage() {
     }
     try {
       await requestApi.deleteType(type.id);
+      cacheStore.invalidateCache("requests:types");
+      cacheStore.invalidateCache("hr:leave_types");
       showToast({ tone: "success", title: "Deleted", message: `${type.name} has been removed.` });
       void load();
     } catch (err) {

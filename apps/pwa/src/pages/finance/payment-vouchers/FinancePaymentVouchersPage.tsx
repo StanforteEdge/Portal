@@ -220,7 +220,7 @@ export default function FinancePaymentVouchersPage() {
                             Deductions
                           </button>
                           <Link
-                            to={`/finance/requests/details?id=${row.request_id}`}
+                            to={`/finance/requests/${row.request_id}`}
                             className="text-sm font-semibold text-brand-900 transition hover:underline"
                           >
                             Open request

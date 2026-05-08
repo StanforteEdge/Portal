@@ -637,12 +637,7 @@ export function RequestFormPage() {
         `requests:detail:${created.id}`,
         `requests:actions:${created.id}`,
       ].forEach((key) => cacheStore.invalidateCache(key));
-      navigate(
-        family === "leave"
-          ? `/leave/details?id=${created.id}&view=mine`
-          : `/requests/details?id=${created.id}`,
-        { replace: true },
-      );
+      navigate(`/requests/${created.id}`, { replace: true });
     } catch (requestError) {
       showToast({
         tone: "danger",

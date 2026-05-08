@@ -572,7 +572,7 @@ function RequestsListTable({
               <TableRow key={row.id}>
                 <TableCell className="rounded-l-2xl">
                   <Link
-                    to={`/requests/details?id=${row.requestId}&view=mine`}
+                    to={`/requests/${row.requestId}`}
                     className="text-sm font-semibold text-brand-900 transition hover:underline"
                   >
                     {row.id}
@@ -628,7 +628,7 @@ function RequestsListTable({
                     </Link>
                   ) : (
                     <Link
-                      to={`/requests/details?id=${row.requestId}&view=mine`}
+                      to={`/requests/${row.requestId}`}
                       className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:underline"
                     >
                       View
@@ -705,7 +705,7 @@ function RequestsMobileList({
       {rows.map((row) => (
         <Link
           key={row.id}
-          to={`/requests/details?id=${row.requestId}&view=mine`}
+          to={`/requests/${row.requestId}`}
           className="flex w-full items-start justify-between gap-3 rounded-[22px] border border-slate-100 bg-white px-4 py-4 text-left shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
         >
           <div className="flex min-w-0 gap-3">

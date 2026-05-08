@@ -132,21 +132,27 @@ async function main() {
       },
     });
 
-    await prisma.$transaction(async (tx) => {
-      await tx.taxonomyTerm.deleteMany({ where: { taxonomyId: taxonomy.id } });
-      await tx.taxonomyTerm.createMany({
-        data: TAXONOMY.terms.map((term, index) => ({
-          taxonomyId: taxonomy.id,
-          value: term,
-          label: term
-            .split('_')
-            .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-            .join(' '),
-          sortOrder: index,
-          isActive: true,
-        })),
-      });
+    const existingTerms = await prisma.taxonomyTerm.findMany({
+      where: { taxonomyId: taxonomy.id },
+      select: { value: true }
     });
+    const existingValues = new Set(existingTerms.map((t) => t.value));
+    const nextSortOrder = existingTerms.length;
+    const newTerms = TAXONOMY.terms
+      .filter((term) => !existingValues.has(term))
+      .map((term, index) => ({
+        taxonomyId: taxonomy.id,
+        value: term,
+        label: term
+          .split('_')
+          .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+          .join(' '),
+        sortOrder: nextSortOrder + index,
+        isActive: true,
+      }));
+    if (newTerms.length > 0) {
+      await prisma.taxonomyTerm.createMany({ data: newTerms, skipDuplicates: true });
+    }
 
     const leaveRequestType = await prisma.requestType.upsert({
       where: {

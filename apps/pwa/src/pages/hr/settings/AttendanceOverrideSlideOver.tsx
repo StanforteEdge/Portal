@@ -27,6 +27,8 @@ const WEEKDAYS = [
   { label: "Sunday", value: 0 },
 ];
 
+const WORK_WEEKDAYS = [1, 2, 3, 4, 5];
+
 export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }: Props) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
@@ -83,6 +85,7 @@ export default function AttendanceOverrideSlideOver({ policy, onClose, onSaved }
           end_time: endTime,
           grace_minutes: Number(grace),
           onsite_weekdays: onsiteDays,
+          remote_weekdays: WORK_WEEKDAYS.filter(d => !onsiteDays.includes(d)),
           enforce_expected_mode_clock_in: enforceClockInMode,
           enforce_clock_out_match_clock_in_mode: enforceClockOutModeMatch,
         },

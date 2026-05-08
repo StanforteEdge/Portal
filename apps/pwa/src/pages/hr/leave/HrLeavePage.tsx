@@ -1,5 +1,6 @@
 // apps/pwa/src/modules/hr/leave/HrLeavePage.tsx
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Button,
   Chip,
@@ -15,23 +16,27 @@ import {
   TableHeaderCell,
   TableHeaderRow,
   TableRow,
-  TextField,
-  useToast,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { requestStatusTone } from "@/pages/requests/request-helpers";
+import {
+  deriveRequestWorkflowStatus,
+  requestStatusTone,
+} from "@/pages/requests/request-helpers";
 import {
   listHrLeaveRequests,
   listHrLeaveApprovals,
-  approveRequest,
-  rejectRequest,
   type RequestRecord,
 } from "./hr-leave-api";
-import StaffLeaveSlideOver from "./StaffLeaveSlideOver";
+
+type HistoryFilter =
+  | "approved_or_completed"
+  | "approved"
+  | "completed"
+  | "rejected";
 
 function formatDate(value?: string | null) {
   if (!value) return "-";
@@ -58,20 +63,27 @@ function isCurrentlyOnLeave(record: RequestRecord): boolean {
   const start = String(d.start_date ?? "");
   const end = String(d.end_date ?? "");
   if (!start || !end) return false;
+  const workflowStatus = deriveRequestWorkflowStatus(record);
   const now = new Date();
   const startD = new Date(start);
   const endD = new Date(end);
   return (
-    record.status === "approved" &&
+    ["approved", "completed"].includes(workflowStatus) &&
     now >= startD &&
     now <= endD
   );
 }
 
+function matchesHistoryFilter(record: RequestRecord, filter: HistoryFilter) {
+  const workflowStatus = deriveRequestWorkflowStatus(record);
+  if (filter === "approved_or_completed") {
+    return workflowStatus === "approved" || workflowStatus === "completed";
+  }
+  return workflowStatus === filter;
+}
+
 export default function HrLeavePage() {
   const { user } = useAuth();
-  const { showToast } = useToast();
-  const currentYear = new Date().getFullYear();
 
   const { data: profile } = useCachedQuery(
     "hr:profile",
@@ -79,14 +91,10 @@ export default function HrLeavePage() {
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
-  const [statusFilter, setStatusFilter] = useState("");
-  const [slideOver, setSlideOver] = useState<{
-    userId: string;
-    userName: string;
-  } | null>(null);
-  const [reviewingId, setReviewingId] = useState<string | null>(null);
-  const [reviewComment, setReviewComment] = useState("");
-  const [reviewLoading, setReviewLoading] = useState(false);
+  const navigate = useNavigate();
+  const [historyFilter, setHistoryFilter] = useState<HistoryFilter>(
+    "approved_or_completed",
+  );
 
   const { data: approvals, loading: appLoading } = useCachedQuery(
     "hr:leave:approvals",
@@ -95,56 +103,23 @@ export default function HrLeavePage() {
   );
 
   const { data: allLeave, loading: allLoading } = useCachedQuery(
-    `hr:leave:all:${statusFilter}`,
-    () => listHrLeaveRequests({ status: statusFilter || undefined }),
+    "hr:leave:all",
+    () => listHrLeaveRequests(),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
   const pendingApprovals: RequestRecord[] = approvals ?? [];
   const allLeaveRequests: RequestRecord[] = allLeave ?? [];
-
   const currentlyOnLeave = allLeaveRequests.filter(isCurrentlyOnLeave);
+  const historyLeaveRequests = useMemo(
+    () => allLeaveRequests.filter((record) => matchesHistoryFilter(record, historyFilter)),
+    [allLeaveRequests, historyFilter],
+  );
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
     "HR Staff";
-
-  async function handleApprove(id: string) {
-    try {
-      setReviewLoading(true);
-      await approveRequest(id, reviewComment || undefined);
-      showToast({ tone: "success", title: "Leave approved", message: "Request has been approved." });
-      setReviewingId(null);
-      setReviewComment("");
-    } catch (err) {
-      showToast({
-        tone: "danger",
-        title: "Approval failed",
-        message: err instanceof Error ? err.message : "Unable to approve.",
-      });
-    } finally {
-      setReviewLoading(false);
-    }
-  }
-
-  async function handleReject(id: string) {
-    try {
-      setReviewLoading(true);
-      await rejectRequest(id, reviewComment || undefined);
-      showToast({ tone: "success", title: "Leave rejected", message: "Request has been rejected." });
-      setReviewingId(null);
-      setReviewComment("");
-    } catch (err) {
-      showToast({
-        tone: "danger",
-        title: "Rejection failed",
-        message: err instanceof Error ? err.message : "Unable to reject.",
-      });
-    } finally {
-      setReviewLoading(false);
-    }
-  }
 
   return (
     <AppShell
@@ -159,7 +134,7 @@ export default function HrLeavePage() {
       <PageHeader
         breadcrumbs={[{ label: "HR", path: "/hr" }, { label: "Leave" }]}
         title="Leave"
-        description="Review pending leave requests, track staff leave history, and see who is currently on leave."
+        description="Open pending leave requests in HR details to review and approve, then track finalized leave outcomes."
       />
 
       <div className="grid gap-6">
@@ -215,7 +190,7 @@ export default function HrLeavePage() {
         {/* Pending approvals queue */}
         <SectionCard
           title="Pending Approvals"
-          description="Leave requests awaiting your approval."
+          description="Open each request to review details and take approval action."
         >
           {appLoading ? (
             <div className="text-sm text-slate-500">Loading approvals...</div>
@@ -228,18 +203,17 @@ export default function HrLeavePage() {
                   <TableHeaderCell>Dates</TableHeaderCell>
                   <TableHeaderCell>Days</TableHeaderCell>
                   <TableHeaderCell>Submitted</TableHeaderCell>
-                  <TableHeaderCell>{""}</TableHeaderCell>
+                  <TableHeaderCell>Action</TableHeaderCell>
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
-                {pendingApprovals.flatMap((r) => {
+                {pendingApprovals.map((r) => {
                   const d = r.data ?? {};
                   const start = formatDate(String(d.start_date ?? ""));
                   const end = formatDate(String(d.end_date ?? ""));
                   const days = Number(d.days_requested ?? 0);
                   const name = creatorName(r);
-
-                  const mainRow = (
+                  return (
                     <TableRow key={r.id}>
                       <TableCell>
                         <p className="font-semibold text-slate-900">{name}</p>
@@ -254,66 +228,17 @@ export default function HrLeavePage() {
                       <TableCell>{days > 0 ? `${days}d` : "-"}</TableCell>
                       <TableCell>{formatDate(r.created_at)}</TableCell>
                       <TableCell>
-                        {reviewingId !== r.id ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            requiredPermissions={["leave.approve"]}
-                            onClick={() => setReviewingId(r.id)}
-                          >
-                            Review
-                          </Button>
-                        ) : null}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          requiredPermissions={["leave.approve"]}
+                          onClick={() => navigate(`/hr/requests/${r.id}`)}
+                        >
+                          Open Details
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
-
-                  if (reviewingId !== r.id) return [mainRow];
-
-                  const reviewRow = (
-                    <TableRow key={`${r.id}-review`}>
-                      <TableCell colSpan={6} className="bg-slate-50 px-4 py-3">
-                        <div className="flex flex-wrap items-end gap-3">
-                          <div className="flex-1">
-                            <TextField
-                              label="Comment (optional)"
-                              value={reviewComment}
-                              onChange={(e) => setReviewComment(e.target.value)}
-                            />
-                          </div>
-                          <Button
-                            size="sm"
-                            requiredPermissions={["leave.approve"]}
-                            onClick={() => void handleApprove(r.id)}
-                            disabled={reviewLoading}
-                          >
-                            Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="danger"
-                            requiredPermissions={["leave.approve"]}
-                            onClick={() => void handleReject(r.id)}
-                            disabled={reviewLoading}
-                          >
-                            Reject
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setReviewingId(null);
-                              setReviewComment("");
-                            }}
-                          >
-                            Cancel
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  );
-
-                  return [mainRow, reviewRow];
                 })}
               </TableBody>
             </Table>
@@ -328,19 +253,18 @@ export default function HrLeavePage() {
         {/* Full leave history */}
         <SectionCard
           title="Leave History"
-          description="All staff leave requests across the organisation."
+          description="Finalized leave requests (approved/completed/rejected)."
         >
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <SelectField
               label="Status"
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
+              value={historyFilter}
+              onChange={(e) => setHistoryFilter(e.target.value as HistoryFilter)}
             >
-              <option value="">All statuses</option>
+              <option value="approved_or_completed">Approved + Completed</option>
               <option value="approved">Approved</option>
-              <option value="pending">Pending</option>
+              <option value="completed">Completed</option>
               <option value="rejected">Rejected</option>
-              <option value="draft">Draft</option>
             </SelectField>
           </div>
 
@@ -361,11 +285,11 @@ export default function HrLeavePage() {
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
-                {allLeaveRequests.map((r) => {
+                {historyLeaveRequests.map((r) => {
                   const d = r.data ?? {};
+                  const workflowStatus = deriveRequestWorkflowStatus(r);
                   const days = Number(d.days_requested ?? 0);
                   const name = creatorName(r);
-                  const userId = r.creator?.id ?? "";
                   return (
                     <TableRow key={r.id}>
                       <TableCell>
@@ -380,33 +304,31 @@ export default function HrLeavePage() {
                       <TableCell>{days > 0 ? `${days}d` : "-"}</TableCell>
                       <TableCell>{formatDate(r.created_at)}</TableCell>
                       <TableCell>
-                        <Chip variant={requestStatusTone(r.status)}>
-                          {r.status}
+                        <Chip variant={requestStatusTone(workflowStatus)}>
+                          {workflowStatus}
                         </Chip>
                       </TableCell>
                       <TableCell>
-                        {userId ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              setSlideOver({ userId, userName: name })
-                            }
-                          >
-                            Detail
-                          </Button>
-                        ) : null}
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() =>
+                            navigate(`/hr/requests/${r.id}`)
+                          }
+                        >
+                          Detail
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
                 })}
-                {!allLeaveRequests.length ? (
+                {!historyLeaveRequests.length ? (
                   <TableRow>
                     <TableCell
                       colSpan={8}
                       className="py-10 text-center text-slate-500"
                     >
-                      No leave requests found.
+                      No leave requests found for this status.
                     </TableCell>
                   </TableRow>
                 ) : null}
@@ -416,14 +338,6 @@ export default function HrLeavePage() {
         </SectionCard>
       </div>
 
-      {slideOver ? (
-        <StaffLeaveSlideOver
-          userId={slideOver.userId}
-          userName={slideOver.userName}
-          year={currentYear}
-          onClose={() => setSlideOver(null)}
-        />
-      ) : null}
     </AppShell>
   );
 }

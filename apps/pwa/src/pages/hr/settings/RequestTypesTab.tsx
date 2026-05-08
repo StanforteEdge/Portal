@@ -27,7 +27,7 @@ export default function RequestTypesTab() {
       setLoading(true);
       const res = await requestApi.listTypes();
       // Filter for HR related types (Leave, etc.)
-      const hrTypes = res.filter(t => 
+      const hrTypes = res.filter((t: RequestType) =>
         t.category?.toLowerCase().includes('leave') || 
         t.category?.toLowerCase().includes('hr') ||
         t.name.toLowerCase().includes('leave')

@@ -81,14 +81,13 @@ const permissions = [
   { name: 'Manage Roles', slug: 'roles.manage', module: 'roles', description: 'Manage roles and assign permissions' },
   { name: 'View Audit', slug: 'audit.view', module: 'audit', description: 'Can view audit and email logs' },
   { name: 'Manage Audit', slug: 'audit.manage', module: 'audit', description: 'Can create audit events' },
-  { name: 'Grade Applications', slug: 'grading.grade', module: 'grading', description: 'Can grade applications' }
 ];
 
 const rolePermissionMap = {
   administrator: ['*'],
   admin: ['admin.view', 'users.view', 'users.manage', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'roles.manage', 'settings.manage', 'audit.view', 'audit.manage', 'workflow.view', 'workflow.manage', 'send_notifications'],
-  hr_manager: [],
-  hr_officer: [],
+  hr_manager: ['hr.view', 'hr.manage', 'hr.employees', 'hr.approve', 'attendance.clock', 'attendance.view_self', 'attendance.view_team', 'attendance.manage', 'attendance.approve', 'attendance.correct', 'leave.view', 'leave.manage', 'leave.approve', 'work.view', 'work.manage', 'work.approve', 'organizations.view', 'groups.view', 'projects.view', 'requests.view', 'requests.approve'],
+  hr_officer: ['hr.view', 'hr.employees', 'attendance.clock', 'attendance.view_self', 'attendance.view_team', 'leave.view', 'work.view', 'organizations.view', 'groups.view', 'projects.view', 'requests.view'],
   finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.correct_completed', 'finance.view', 'finance.approve', 'finance.vouchers', 'payroll.approve', 'groups.view', 'projects.view', 'workflow.view', 'work.view', 'work.manage', 'work.approve'],
   accountant: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.view', 'finance.approve', 'finance.vouchers', 'groups.view', 'projects.view', 'workflow.view'],
   finance_officer: ['requests.view', 'finance.view', 'finance.vouchers', 'groups.view', 'projects.view', 'workflow.view'],
@@ -162,16 +161,20 @@ async function main() {
         ? allPermissionIds
         : slugs.map((slug) => permBySlug[slug]).filter(Boolean).map((p) => p.id);
 
-      await prisma.$transaction([
-        prisma.rolePermission.deleteMany({ where: { roleId: role.id } }),
-        prisma.rolePermission.createMany({
-          data: permissionIds.map((permissionId) => ({
-            roleId: role.id,
-            permissionId
-          })),
+      // Only insert missing — never delete existing (preserves manually-added permissions)
+      const existing = await prisma.rolePermission.findMany({
+        where: { roleId: role.id },
+        select: { permissionId: true }
+      });
+      const existingIds = new Set(existing.map((r) => r.permissionId));
+      const toAdd = permissionIds.filter((id) => !existingIds.has(id));
+
+      if (toAdd.length > 0) {
+        await prisma.rolePermission.createMany({
+          data: toAdd.map((permissionId) => ({ roleId: role.id, permissionId })),
           skipDuplicates: true
-        })
-      ]);
+        });
+      }
     }
 
     console.log('RBAC seed complete');
