@@ -3,11 +3,16 @@ import {
   Button,
   TextField,
   SelectField,
+  ApprovalFlowBuilder,
+  createApprovalFlowStep,
+  parseApprovalFlowSteps,
+  serializeApprovalFlowSteps,
+  type ApprovalFlowEditorStep,
   useToast,
   SectionCard,
 } from "@/shared";
 import { SlideOver, SlideOverHeader, SlideOverContent, SlideOverFooter } from "@/shared/components/ui/SlideOver";
-import { requestApi } from "@/shared/lib/core";
+import { cacheStore, requestApi } from "@/shared/lib/core";
 import { type RequestType } from "@stanforte/shared";
 
 type Props = {
@@ -39,6 +44,12 @@ export default function LeaveTypeSlideOver({ requestType, onClose, onSaved }: Pr
   const [allowCarryOver, setAllowCarryOver] = useState<boolean>(metadata.allow_carry_over ?? false);
   const [maxCarryOver, setMaxCarryOver] = useState<number>(metadata.max_carry_over || 5);
   const [noticeDays, setNoticeDays] = useState<number>(metadata.notice_days || 0);
+  const [approvalSteps, setApprovalSteps] = useState<ApprovalFlowEditorStep[]>(() =>
+    parseApprovalFlowSteps(requestType?.approval_flow_json || requestType?.approvalFlowJson, [
+      createApprovalFlowStep("role", "team_lead"),
+      createApprovalFlowStep("role", "hr"),
+    ]),
+  );
 
   async function handleSubmit() {
     if (!name.trim()) {
@@ -49,13 +60,31 @@ export default function LeaveTypeSlideOver({ requestType, onClose, onSaved }: Pr
       showToast({ tone: "danger", title: "Error", message: "HR Request Group not found. Cannot create type." });
       return;
     }
+    if (approvalSteps.length === 0) {
+      showToast({
+        tone: "warning",
+        title: "Approval flow required",
+        message: "Add at least one approval step.",
+      });
+      return;
+    }
+    const hasMissingStepValue = approvalSteps.some((step) => !step.value.trim());
+    if (hasMissingStepValue) {
+      showToast({
+        tone: "warning",
+        title: "Missing step value",
+        message: "Each approval step needs a value.",
+      });
+      return;
+    }
+    const approvalFlowJson = serializeApprovalFlowSteps(approvalSteps) as Record<string, unknown>;
+
     try {
       setSaving(true);
-      await requestApi.saveType({
+      const payload: Partial<RequestType> = {
         name: name.trim(),
-        slug: slug.trim() || name.toLowerCase().replace(/\s+/g, "_"),
-        category: "leave",
         is_active: isActive,
+        approval_flow_json: approvalFlowJson,
         metadata: {
           accrual_type: accrualType,
           prorate: prorateNewHires,
@@ -64,8 +93,15 @@ export default function LeaveTypeSlideOver({ requestType, onClose, onSaved }: Pr
           max_carry_over: allowCarryOver ? Number(maxCarryOver) : 0,
           notice_days: Number(noticeDays),
         }
-      }, requestType?.id, hrGroupId);
+      };
+      if (!requestType?.id) {
+        payload.slug = slug.trim() || name.toLowerCase().replace(/\s+/g, "_");
+        payload.category = "leave";
+      }
+      await requestApi.saveType(payload, requestType?.id, hrGroupId);
 
+      cacheStore.invalidateCache("requests:types");
+      cacheStore.invalidateCache("hr:leave_types");
       showToast({ tone: "success", title: "Saved", message: `Leave type ${requestType ? "updated" : "created"}.` });
       onSaved();
     } catch (err) {
@@ -96,7 +132,11 @@ export default function LeaveTypeSlideOver({ requestType, onClose, onSaved }: Pr
               placeholder="e.g. annual_leave" 
               value={slug} 
               onChange={(e) => setSlug(e.target.value)} 
+              disabled={!!requestType}
             />
+            {requestType && (
+              <p className="text-xs text-slate-400 -mt-2">Slug is fixed after type creation.</p>
+            )}
             <div className="flex items-center gap-3 pt-4">
               <input 
                 type="checkbox" 
@@ -188,6 +228,14 @@ export default function LeaveTypeSlideOver({ requestType, onClose, onSaved }: Pr
               )}
             </div>
           </div>
+        </SectionCard>
+
+        <SectionCard title="Approval Flow">
+          <ApprovalFlowBuilder
+            steps={approvalSteps}
+            onChange={setApprovalSteps}
+            roleOptions={["team_lead", "hr", "coo", "ed", "ceo"]}
+          />
         </SectionCard>
       </SlideOverContent>
       <SlideOverFooter>
