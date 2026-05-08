@@ -395,7 +395,7 @@ export function ApprovalsPage() {
                     <TableRow key={row.id}>
                       <TableCell className="rounded-l-2xl">
                         <Link
-                          to={`/requests/details?id=${row.requestId}&view=approvals`}
+                          to={`/requests/approvals/${row.requestId}`}
                           className="text-sm font-semibold text-brand-900 transition hover:underline"
                         >
                           {row.requestNo}
@@ -429,7 +429,7 @@ export function ApprovalsPage() {
                       </TableCell>
                       <TableCell className="rounded-r-2xl text-right">
                         <Link
-                          to={`/requests/details?id=${row.requestId}&view=approvals`}
+                          to={`/requests/approvals/${row.requestId}`}
                           className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-brand-900 transition hover:bg-brand-900/5"
                         >
                           Review
@@ -489,7 +489,7 @@ export function ApprovalsPage() {
             {pagedRows.map((row) => (
               <Link
                 key={row.id}
-                to={`/requests/details?id=${row.requestId}&view=approvals`}
+                to={`/requests/approvals/${row.requestId}`}
                 className="flex w-full items-start justify-between gap-3 rounded-[22px] border border-slate-100 bg-white px-4 py-4 shadow-sm transition hover:bg-slate-50"
               >
                 <div className="min-w-0">

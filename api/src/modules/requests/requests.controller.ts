@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequestsService } from './requests.service';
 import { CreateGroupDto } from './dto/create-group.dto';
@@ -108,6 +108,28 @@ export class RequestsController {
     }
   })
   updateType(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTypeDto) {
+    return this.requestsService.updateType(id, dto, this.currentUserId(req));
+  }
+
+  @Patch('types/:id')
+  @Permissions('requests.manage')
+  @ApiBody({
+    type: UpdateTypeDto,
+    examples: {
+      updateWorkflow: {
+        value: {
+          approval_flow_json: {
+            steps: [
+              { approver: { type: 'relation', value: 'requester_team_lead' } },
+              { approver: { type: 'permission', value: 'finance.approve' } },
+              { approver: { type: 'office', value: 'coo' }, min_amount: 300000 }
+            ]
+          }
+        }
+      }
+    }
+  })
+  patchType(@Req() req: any, @Param('id') id: string, @Body() dto: UpdateTypeDto) {
     return this.requestsService.updateType(id, dto, this.currentUserId(req));
   }
 
