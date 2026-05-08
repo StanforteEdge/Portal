@@ -437,7 +437,7 @@ export default function DashboardPage() {
                   return (
                     <Link
                       key={row.id}
-                      to={`/requests/details?id=${row.id}&view=mine`}
+                      to={`/requests/${row.id}`}
                       className="flex items-center justify-between gap-4 px-1 py-4 transition hover:bg-slate-50/70"
                     >
                       <div className="flex min-w-0 items-center gap-4">
@@ -711,7 +711,7 @@ export default function DashboardPage() {
               return (
                 <Link
                   key={row.id}
-                  to={`/requests/details?id=${row.id}`}
+                  to={`/requests/${row.id}`}
                   className="block rounded-2xl border border-slate-100 p-4 transition hover:bg-slate-50"
                 >
                   <p className="text-sm font-semibold text-slate-950">
