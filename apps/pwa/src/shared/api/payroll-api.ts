@@ -109,6 +109,30 @@ export async function submitMyProjectTimesheet(id: string) {
   return httpRequest<any>(`/payroll/my/timesheets/${id}/submit`, { method: "POST" });
 }
 
+export type PayrollRunSummary = {
+  id: string;
+  name: string;
+  year: number;
+  month: number;
+  status: string;
+  currency: string;
+  net_total?: number;
+  worker_count?: number;
+};
+
+export async function listPayrollRuns(params?: { page?: number; per_page?: number }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.per_page) query.set("per_page", String(params.per_page));
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const res = await httpRequest<any>(`/payroll/runs${suffix}`);
+  return res?.data ? res : { items: Array.isArray(res) ? res : [] };
+}
+
+export async function getPayrollRun(id: string) {
+  return httpRequest<any>(`/payroll/runs/${id}`);
+}
+
 export async function authorizePayrollRun(id: string, payload?: { notes?: string }) {
   const res = await httpRequest<any>(`/payroll/runs/${id}/authorize`, {
     method: "POST",
