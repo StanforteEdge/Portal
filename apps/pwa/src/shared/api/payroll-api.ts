@@ -248,10 +248,6 @@ export async function updatePayrollWorker(id: string, payload: Partial<UpsertWor
   return (res?.data ?? res) as PayrollWorker;
 }
 
-export async function getPayrollRun(id: string) {
-  return httpRequest<any>(`/payroll/runs/${id}`);
-}
-
 export async function authorizePayrollRun(id: string, payload?: { notes?: string }) {
   const res = await httpRequest<any>(`/payroll/runs/${id}/authorize`, {
     method: "POST",
