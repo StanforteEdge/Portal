@@ -42,11 +42,7 @@ export function DisburseDialog() {
     () => financeApi.listContacts({ contact_type: "vendor", per_page: 200 }),
     { ttlMs: 60_000, storage: "memory" },
   );
-  const vendors: any[] = Array.isArray((contactsData as any)?.result)
-    ? (contactsData as any).result
-    : Array.isArray(contactsData)
-      ? contactsData
-      : [];
+  const vendors: any[] = Array.isArray(contactsData?.result) ? contactsData.result : [];
 
   const { data: deductionTypesData } = useCachedQuery(
     "finance:deduction-types:active",

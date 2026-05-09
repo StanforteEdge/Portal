@@ -70,9 +70,13 @@ export default function FinanceIncomePage() {
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const income = Array.isArray((incomeData as any)?.result) ? (incomeData as any).result : [];
-  const pagination = (incomeData as any) || {};
-  const totalIncome = Number(pagination.total_result ?? income.length);
+  const income = Array.isArray(incomeData?.result) ? incomeData.result : [];
+  const totalIncome = Number(incomeData?.total ?? 0);
+  const pagination = {
+    page: incomeData?.page ?? page,
+    pages: incomeData?.pages ?? 1,
+    total_result: incomeData?.total ?? 0,
+  };
 
   const totalAmount = income.reduce(
     (sum: number, entry: any) => sum + Number(entry.amount ?? 0),

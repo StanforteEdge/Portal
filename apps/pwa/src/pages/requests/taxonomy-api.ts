@@ -30,8 +30,9 @@ export async function listManagedTaxonomies(params?: { include_inactive?: boolea
   if (params?.include_inactive) query.set("include_inactive", "true");
   if (params?.module) query.set("module", params.module);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  const rows = await httpRequest<any[]>(`/taxonomy/taxonomies${suffix}`);
-  return (rows ?? []).map((row) => ({
+  const res = await httpRequest<any>(`/taxonomy/taxonomies${suffix}`);
+  const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+  return rows.map((row: any) => ({
     id: String(row.id),
     key: String(row.key),
     name: String(row.name),
@@ -48,8 +49,9 @@ export async function listManagedTaxonomies(params?: { include_inactive?: boolea
 
 export async function suggestTagTerms(taxonomyKey: string, query?: string) {
   const suffix = query ? `?q=${encodeURIComponent(query)}` : "";
-  const rows = await httpRequest<any[]>(`/taxonomy/tags/${taxonomyKey}/suggest${suffix}`);
-  return (rows ?? []).map(mapTagTerm);
+  const res = await httpRequest<any>(`/taxonomy/tags/${taxonomyKey}/suggest${suffix}`);
+  const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+  return rows.map(mapTagTerm);
 }
 
 export async function replaceEntityTags(

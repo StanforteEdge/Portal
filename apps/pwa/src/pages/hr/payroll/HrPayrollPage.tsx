@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Button,
@@ -5,6 +6,7 @@ import {
   EmptyState,
   PageHeader,
   SectionCard,
+  SelectField,
   StatCard,
   Table,
   TableBody,
@@ -27,10 +29,10 @@ const MONTH_NAMES = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
-function runStatusTone(
-  status: string,
-): "neutral" | "warning" | "success" | "danger" {
+function runStatusTone(status: string): "neutral" | "warning" | "success" | "danger" {
   switch (status) {
+    case "draft": return "neutral";
+    case "generated": return "neutral";
     case "submitted": return "warning";
     case "reviewed": return "warning";
     case "approved": return "success";
@@ -41,138 +43,127 @@ function runStatusTone(
   }
 }
 
-export default function FinancePayrollPage() {
+function periodLabel(run: any) {
+  return `${MONTH_NAMES[run.month] ?? run.month} ${run.year}`;
+}
+
+export default function HrPayrollPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [statusFilter, setStatusFilter] = useState("all");
 
   const { data: profile } = useCachedQuery(
-    "finance:profile",
+    "hr:profile",
     () => getWorkspaceProfile(),
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
   const { data: runsResp, loading } = useCachedQuery(
-    "finance:payroll:runs",
+    "hr:payroll:runs",
     () => listPayrollRuns({ per_page: 100 }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
   const allRuns: PayrollRunSummary[] = runsResp?.items ?? [];
 
-  const pendingReview = allRuns.filter((r) =>
-    r.status === "submitted" || r.status === "prepared" || r.status === "reviewed",
-  );
-  const approved = allRuns.filter((r) => r.status === "approved");
-  const paid = allRuns.filter(
-    (r) => r.status === "paid" && r.year === new Date().getFullYear(),
-  );
+  const pendingSubmission = allRuns.filter((r) =>
+    r.status === "draft" || r.status === "generated",
+  ).length;
+  const awaitingApproval = allRuns.filter((r) =>
+    r.status === "submitted" || r.status === "reviewed" || r.status === "approved",
+  ).length;
+  const paidThisYear = allRuns.filter((r) =>
+    r.status === "paid" && r.year === new Date().getFullYear(),
+  ).length;
+
+  const filteredRuns =
+    statusFilter === "all"
+      ? allRuns
+      : allRuns.filter((r) => r.status === statusFilter);
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
-    "Finance Staff";
+    "HR Staff";
 
   return (
     <AppShell
       navigation={buildAppNavigation()}
-      activeLabel="finance-payroll"
+      activeLabel="hr-payroll"
       user={{
         name: userName,
-        role: profile?.employee_profile?.job_title || "Finance Staff",
+        role: profile?.employee_profile?.job_title || "HR Staff",
       }}
-      mobileNav={buildAppMobileNav("Finance")}
+      mobileNav={buildAppMobileNav("HR")}
     >
       <PageHeader
-        breadcrumbs={[{ label: "Financial", path: "/finance" }, { label: "Payroll" }]}
-        title="Payroll Approval"
-        description="Review and approve payroll runs submitted by HR."
+        breadcrumbs={[{ label: "HR", path: "/hr" }, { label: "Payroll" }]}
+        title="Payroll"
+        description="Create and submit payroll runs for Finance approval."
+        actions={
+          <Button
+            size="sm"
+            requiredPermissions={["payroll.manage"]}
+            onClick={() => navigate("/hr/payroll/runs/new")}
+          >
+            New Payroll Run
+          </Button>
+        }
       />
 
       <div className="grid gap-6">
         <div className="grid gap-4 md:grid-cols-3">
           <StatCard
-            label="Pending Review"
-            value={String(pendingReview.length)}
+            label="Draft / Generated"
+            value={String(pendingSubmission)}
+            tone="neutral"
+            icon="edit_note"
+          />
+          <StatCard
+            label="Awaiting Finance Approval"
+            value={String(awaitingApproval)}
             tone="warning"
             icon="pending_actions"
           />
           <StatCard
-            label="Approved (pending payment)"
-            value={String(approved.length)}
+            label={`Paid Runs (${new Date().getFullYear()})`}
+            value={String(paidThisYear)}
             tone="success"
-            icon="check_circle"
-          />
-          <StatCard
-            label={`Paid (${new Date().getFullYear()})`}
-            value={String(paid.length)}
-            tone="neutral"
             icon="payments"
           />
         </div>
 
-        {pendingReview.length > 0 && (
-          <SectionCard
-            title="Pending Review"
-            description="Runs submitted by HR awaiting Finance review."
-          >
+        <SectionCard
+          title="Payroll Runs"
+          description="All runs you have created. Submit a generated run to send it to Finance for approval."
+        >
+          <div className="mb-4">
+            <SelectField
+              label="Status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="all">All</option>
+              <option value="draft">Draft</option>
+              <option value="generated">Generated</option>
+              <option value="submitted">Submitted</option>
+              <option value="reviewed">Under Review</option>
+              <option value="approved">Approved</option>
+              <option value="paid">Paid</option>
+              <option value="rejected">Rejected</option>
+              <option value="closed">Closed</option>
+            </SelectField>
+          </div>
+
+          {loading ? (
+            <div className="text-sm text-slate-500">Loading runs...</div>
+          ) : filteredRuns.length ? (
             <Table>
               <TableHead>
                 <TableHeaderRow>
                   <TableHeaderCell>Name</TableHeaderCell>
                   <TableHeaderCell>Period</TableHeaderCell>
                   <TableHeaderCell>Workers</TableHeaderCell>
-                  <TableHeaderCell>Net Pay</TableHeaderCell>
-                  <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell>{""}</TableHeaderCell>
-                </TableHeaderRow>
-              </TableHead>
-              <TableBody>
-                {pendingReview.map((run: any) => (
-                  <TableRow key={run.id}>
-                    <TableCell>
-                      <p className="font-semibold text-slate-900">{run.name}</p>
-                    </TableCell>
-                    <TableCell>
-                      {MONTH_NAMES[run.month] ?? run.month} {run.year}
-                    </TableCell>
-                    <TableCell>{run.item_count ?? "-"}</TableCell>
-                    <TableCell>
-                      {run.totals?.net != null
-                        ? formatCurrency(run.totals.net, run.currency)
-                        : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Chip variant={runStatusTone(run.status)}>{run.status}</Chip>
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        requiredPermissions={["payroll.approve"]}
-                        onClick={() => navigate(`/finance/payroll/runs/${run.id}`)}
-                      >
-                        Review
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </SectionCard>
-        )}
-
-        <SectionCard
-          title="All Payroll Runs"
-          description="Full history of payroll runs visible to Finance."
-        >
-          {loading ? (
-            <div className="text-sm text-slate-500">Loading runs...</div>
-          ) : allRuns.length ? (
-            <Table>
-              <TableHead>
-                <TableHeaderRow>
-                  <TableHeaderCell>Name</TableHeaderCell>
-                  <TableHeaderCell>Period</TableHeaderCell>
                   <TableHeaderCell>Gross</TableHeaderCell>
                   <TableHeaderCell>Net</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
@@ -180,14 +171,13 @@ export default function FinancePayrollPage() {
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
-                {allRuns.map((run: any) => (
+                {filteredRuns.map((run: any) => (
                   <TableRow key={run.id}>
                     <TableCell>
                       <p className="font-semibold text-slate-900">{run.name}</p>
                     </TableCell>
-                    <TableCell>
-                      {MONTH_NAMES[run.month] ?? run.month} {run.year}
-                    </TableCell>
+                    <TableCell>{periodLabel(run)}</TableCell>
+                    <TableCell>{run.item_count ?? "-"}</TableCell>
                     <TableCell>
                       {run.totals?.gross != null
                         ? formatCurrency(run.totals.gross, run.currency)
@@ -199,13 +189,15 @@ export default function FinancePayrollPage() {
                         : "-"}
                     </TableCell>
                     <TableCell>
-                      <Chip variant={runStatusTone(run.status)}>{run.status}</Chip>
+                      <Chip variant={runStatusTone(run.status)}>
+                        {run.status}
+                      </Chip>
                     </TableCell>
                     <TableCell>
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => navigate(`/finance/payroll/runs/${run.id}`)}
+                        onClick={() => navigate(`/hr/payroll/runs/${run.id}`)}
                       >
                         Open
                       </Button>
@@ -217,7 +209,7 @@ export default function FinancePayrollPage() {
           ) : (
             <EmptyState
               title="No payroll runs"
-              description="HR has not submitted any payroll runs yet."
+              description="Create a new payroll run to get started."
             />
           )}
         </SectionCard>

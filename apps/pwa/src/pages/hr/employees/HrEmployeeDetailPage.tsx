@@ -9,6 +9,11 @@ import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import EmployeeActionsTab from "@/pages/hr/employees/tabs/EmployeeActionsTab";
 import EmployeeAttendanceTab from "@/pages/hr/employees/tabs/EmployeeAttendanceTab";
+import EmployeeOrgsTeamsTab from "@/pages/hr/employees/tabs/EmployeeOrgsTeamsTab";
+import EmployeeOverviewTab from "@/pages/hr/employees/tabs/EmployeeOverviewTab";
+import EmployeeWorkTab from "@/pages/hr/employees/tabs/EmployeeWorkTab";
+import EmployeeOrgsOverviewTab from "@/pages/hr/employees/tabs/EmployeeOrgsOverviewTab";
+import { DetailField } from "@/pages/hr/employees/tabs/DetailField";
 import { formatDate } from "@stanforte/shared";
 
 
@@ -25,19 +30,6 @@ const allTabs = [
   { key: 'attendance', label: 'Attendance' },
   { key: 'actions', label: 'Actions' },
 ] as const;
-
-function DetailField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
-      <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">
-        {label}
-      </p>
-      <p className="mt-1 text-sm font-semibold text-slate-900">
-        {value || "-"}
-      </p>
-    </div>
-  );
-}
 
 function employeeFullName(employee: EmployeeDetail) {
   return `${employee.first_name || ""} ${employee.last_name || ""}`.trim() || employee.username || "Unknown Employee";
@@ -57,119 +49,6 @@ function employeeManagerName(employee: EmployeeDetail) {
   if (!employee.manager) return "-";
   const name = `${employee.manager.first_name || ""} ${employee.manager.last_name || ""}`.trim();
   return name || employee.manager.email || "-";
-}
-
-function EmployeeOverviewTab({ employee }: { employee: EmployeeDetail }) {
-  return (
-    <div className="space-y-6">
-      <div>
-        <h3 className="text-sm font-semibold text-slate-900">Personal Details</h3>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <DetailField label="First Name" value={employee.first_name || "-"} />
-          <DetailField label="Last Name" value={employee.last_name || "-"} />
-          <DetailField label="Email" value={employee.email || "-"} />
-          <DetailField label="Phone" value={employee.phone || "-"} />
-          <DetailField label="Username" value={employee.username || "-"} />
-          <DetailField label="Employee Code" value={employee.employee_code || "-"} />
-        </div>
-      </div>
-      <div>
-        <h3 className="text-sm font-semibold text-slate-900">Current Assignment</h3>
-        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          <DetailField label="Job Title" value={employee.job_title || "-"} />
-          <DetailField label="Primary Organization" value={employee.primary_organization?.name || "-"} />
-          <DetailField label="Primary Team" value={employee.primary_team?.name || "-"} />
-          <DetailField label="Status" value={humanize(employee.employment_status || "draft")} />
-          <DetailField label="Employment Type" value={humanize(employee.employment_type || "-")} />
-          <DetailField label="Work Mode" value={humanize(employee.work_mode || "-")} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function EmployeeWorkEmploymentTab({ employee }: { employee: EmployeeDetail }) {
-  return (
-    <div className="space-y-6">
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <DetailField label="Job Title" value={employee.job_title || "-"} />
-        <DetailField label="Employment Type" value={humanize(employee.employment_type || "-")} />
-        <DetailField label="Work Mode" value={humanize(employee.work_mode || "-")} />
-        <DetailField label="Hire Date" value={formatDate(employee.hire_date)} />
-        <DetailField label="Confirmation Date" value={formatDate(employee.confirmation_date)} />
-        <DetailField label="Exit Date" value={formatDate(employee.exit_date)} />
-        <DetailField label="Manager" value={employeeManagerName(employee)} />
-      </div>
-      <div className="rounded-2xl border border-slate-200 bg-white px-4 py-4">
-        <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">
-          Job Description
-        </p>
-        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-          {employee.job_description || "-"}
-        </p>
-      </div>
-    </div>
-  );
-}
-
-function EmployeeOrgsTeamsOverviewTab({ employee }: { employee: EmployeeDetail }) {
-  const organizations = Array.isArray(employee.organizations) ? employee.organizations : [];
-  const teams = Array.isArray(employee.teams) ? employee.teams : [];
-
-  return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-slate-900">Organizations</h3>
-        {organizations.length ? organizations.map((organization: any) => (
-          <div
-            key={String(organization.id || organization.organization_id || organization.name)}
-            className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-          >
-            <div>
-              <p className="text-sm font-semibold text-slate-900">
-                {organization.name || organization.organization?.name || "-"}
-              </p>
-              <p className="text-xs text-slate-500">
-                {organization.code || organization.organization?.code || ""}
-              </p>
-            </div>
-            {organization.is_primary ? (
-              <Chip variant="success">Primary</Chip>
-            ) : null}
-          </div>
-        )) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-            No organization assignments.
-          </div>
-        )}
-      </div>
-      <div className="space-y-3">
-        <h3 className="text-sm font-semibold text-slate-900">Teams</h3>
-        {teams.length ? teams.map((team: any) => (
-          <div
-            key={String(team.id || team.team_id || team.name)}
-            className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-3"
-          >
-            <div>
-              <p className="text-sm font-semibold text-slate-900">
-                {team.name || team.team?.name || "-"}
-              </p>
-              <p className="text-xs text-slate-500">
-                {humanize(team.role || "member")}
-              </p>
-            </div>
-            {team.group_type ? (
-              <Chip variant="neutral">{humanize(String(team.group_type))}</Chip>
-            ) : null}
-          </div>
-        )) : (
-          <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-sm text-slate-500">
-            No team assignments.
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 export default function HrEmployeeDetailPage() {
@@ -267,8 +146,6 @@ export default function HrEmployeeDetailPage() {
     >
       <PageHeader
         breadcrumbs={[
-          { label: "Dashboard", path: "/" },
-          { label: "HR", path: "/hr" },
           { label: "Employees", path: "/hr/employees" },
           { label: `${employee.first_name} ${employee.last_name}` },
         ]}
@@ -355,9 +232,13 @@ export default function HrEmployeeDetailPage() {
         }
       >
         {activeTab === 'overview' && <EmployeeOverviewTab employee={employee} />}
-        {activeTab === 'work' && <EmployeeWorkEmploymentTab employee={employee} />}
+        {activeTab === 'work' && <EmployeeWorkTab employee={employee} />}
         {activeTab === 'attendance' && <EmployeeAttendanceTab employeeId={employee.id} />}
-        {activeTab === 'orgs' && <EmployeeOrgsTeamsOverviewTab employee={employee} />}
+        {activeTab === 'orgs' && (
+          canManage
+            ? <EmployeeOrgsTeamsTab employee={employee} onSaved={handleSaved} />
+            : <EmployeeOrgsOverviewTab employee={employee} />
+        )}
         {canManage && activeTab === 'actions' && <EmployeeActionsTab employee={employee} onSaved={handleSaved} />}
       </SectionCard>
     </AppShell>

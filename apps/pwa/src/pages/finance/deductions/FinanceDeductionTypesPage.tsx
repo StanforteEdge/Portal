@@ -61,11 +61,7 @@ export default function FinanceDeductionTypesPage() {
   );
 
   const types = Array.isArray(deductionTypes) ? deductionTypes : [];
-  const glAccounts = Array.isArray((glAccountsData as any)?.result)
-    ? (glAccountsData as any).result
-    : Array.isArray(glAccountsData)
-      ? glAccountsData
-      : [];
+  const glAccounts = Array.isArray(glAccountsData?.result) ? glAccountsData.result : Array.isArray(glAccountsData) ? glAccountsData : [];
 
   const activeCount = types.filter((t: any) => t.is_active).length;
   const highestRate = types.length > 0

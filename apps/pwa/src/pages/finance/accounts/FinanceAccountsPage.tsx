@@ -76,8 +76,8 @@ export default function FinanceAccountsPage() {
     { ttlMs: 0, storage: "memory" },
   );
 
-  const accounts = Array.isArray((accountsData as any)?.result) ? (accountsData as any).result : [];
-  const totalCount = Number((accountsData as any)?.total_result ?? accounts.length);
+  const accounts = Array.isArray(accountsData?.result) ? accountsData.result : [];
+  const totalCount = Number(accountsData?.total ?? 0);
   const totalPages = Math.ceil(totalCount / perPage) || 1;
 
   const totalOpening = accounts.reduce((sum: number, a: any) => sum + (a.opening_balance || 0), 0);

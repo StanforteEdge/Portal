@@ -93,9 +93,9 @@ export default function HrEmployeesPage() {
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const employees = Array.isArray((data as any)?.result) ? (data as any).result : [];
-  const totalEmployees = Number((data as any)?.total_result ?? employees.length);
-  const totalPages = Number((data as any)?.pages ?? 1);
+  const employees = Array.isArray(data?.result) ? data.result : [];
+  const totalEmployees = Number(data?.total ?? 0);
+  const totalPages = Number(data?.pages ?? 1);
 
   useEffect(() => {
     setCurrentPage(1);

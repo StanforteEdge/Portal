@@ -56,7 +56,7 @@ export default function AdminProjectSlideOver({ project, onClose, onSaved }: Pro
         const orgs = await resourceApi.listOrganizations();
         const employeesResult = await hrApi.listEmployees({ status: "active" }) as any;
         setOrganizations(orgs);
-        const employeesList = employeesResult?.result ?? employeesResult?.data ?? [];
+        const employeesList = employeesResult?.data?.items ?? [];
         setUsers(employeesList);
       } catch {
         setOrganizations([]);

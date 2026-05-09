@@ -70,7 +70,7 @@ export default function FinanceExpensesPage() {
     () => financeApi.listContacts({ contact_type: "vendor", is_active: true }),
     { ttlMs: 60_000, storage: "memory" },
   );
-  const vendorOptions = Array.isArray((contacts as any)?.result) ? (contacts as any).result : [];
+  const vendorOptions = Array.isArray(contacts?.result) ? contacts.result : [];
   const { data: accounts } = useCachedQuery(
     "finance:accounts:all",
     () => resourceApi.listFinanceAccounts({ is_active: true }),
@@ -82,9 +82,14 @@ export default function FinanceExpensesPage() {
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const expenses = Array.isArray((expensesPayload as any)?.result) ? (expensesPayload as any).result : [];
-  const pagination = (expensesPayload as any) || {};
-  const totalExpenses = Number(pagination.total_result ?? expenses.length);
+  const expenses = Array.isArray(expensesPayload?.result) ? expensesPayload.result : [];
+  const totalExpenses = Number(expensesPayload?.total ?? 0);
+  const pagination = {
+    page: expensesPayload?.page ?? page,
+    pages: expensesPayload?.pages ?? 1,
+    total_result: expensesPayload?.total ?? 0,
+    per_page: expensesPayload?.per_page ?? perPage,
+  };
 
   const totalAmount = expenses.reduce((sum: number, entry: any) => sum + Number(entry.totalAmount ?? entry.total_amount ?? entry.amount ?? 0), 0);
 

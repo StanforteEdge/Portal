@@ -63,8 +63,12 @@ export default function AdminRolesPage() {
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const roles: Role[] = Array.isArray(rolesData) ? rolesData : [];
-  const permissions: RolePermission[] = Array.isArray(permissionsData) ? permissionsData : [];
+  const roles: Role[] = Array.isArray((rolesData as any)?.data?.items) 
+    ? (rolesData as any).data.items 
+    : Array.isArray(rolesData) ? rolesData : [];
+  const permissions: RolePermission[] = Array.isArray((permissionsData as any)?.data?.items) 
+    ? (permissionsData as any).data.items 
+    : Array.isArray(permissionsData) ? permissionsData : [];
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||

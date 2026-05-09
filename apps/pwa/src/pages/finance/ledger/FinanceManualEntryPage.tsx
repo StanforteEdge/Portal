@@ -55,7 +55,7 @@ export default function FinanceManualEntryPage() {
     () => financeApi.listManualEntries({ page: 1, per_page: 50 }),
     { ttlMs: 0, storage: "memory" },
   );
-  const entries = Array.isArray((entriesPayload as any)?.result) ? (entriesPayload as any).result : [];
+  const entries = Array.isArray(entriesPayload?.result) ? entriesPayload.result : [];
 
   const totals = useMemo(
     () =>

@@ -120,11 +120,11 @@ export default function FinancePayrollRunDetailPage() {
     );
   }
 
-  const period = `${MONTH_NAMES[run.period_month] ?? run.period_month} ${run.period_year}`;
+  const period = `${MONTH_NAMES[run.month] ?? run.month} ${run.year}`;
   const items = run.items ?? [];
 
   const canReview = run.status === "submitted";
-  const canApprove = run.status === "reviewed" || run.status === "submitted";
+  const canApprove = run.status === "submitted" || run.status === "reviewed";
   const canReject = ["submitted", "reviewed", "approved"].includes(run.status);
   const canPay = run.status === "authorized";
   const canClose = run.status === "paid";
@@ -238,15 +238,15 @@ export default function FinancePayrollRunDetailPage() {
           />
           <StatCard
             label="Workers"
-            value={String(run.worker_count ?? items.length)}
+            value={String(run.item_count ?? items.length)}
             tone="neutral"
             icon="group"
           />
           <StatCard
             label="Total Net Pay"
             value={
-              run.total_net != null
-                ? formatCurrency(run.total_net, run.currency)
+              run.totals?.net != null
+                ? formatCurrency(run.totals.net, run.currency)
                 : "-"
             }
             tone="neutral"
@@ -303,25 +303,25 @@ export default function FinancePayrollRunDetailPage() {
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
-                {items.map((item) => (
+                {items.map((item: any) => (
                   <TableRow key={item.id}>
                     <TableCell>
                       <p className="font-semibold text-slate-900">
-                        {item.worker_name ?? "-"}
+                        {item.worker?.fullName ?? item.worker_name ?? "-"}
                       </p>
                     </TableCell>
-                    <TableCell>{formatCurrency(item.gross_pay, run.currency)}</TableCell>
-                    <TableCell>{formatCurrency(item.total_deductions, run.currency)}</TableCell>
+                    <TableCell>{formatCurrency(item.grossPay ?? item.gross_pay ?? 0, run.currency)}</TableCell>
+                    <TableCell>{formatCurrency(item.totalDeductions ?? item.total_deductions ?? 0, run.currency)}</TableCell>
                     <TableCell>
                       <span className="font-semibold">
-                        {formatCurrency(item.net_pay, run.currency)}
+                        {formatCurrency(item.netPay ?? item.net_pay ?? 0, run.currency)}
                       </span>
                     </TableCell>
                     <TableCell>
                       <Chip
-                        variant={item.payment_status === "paid" ? "success" : "neutral"}
+                        variant={(item.paymentStatus ?? item.payment_status ?? "pending") === "paid" ? "success" : "neutral"}
                       >
-                        {item.payment_status ?? "pending"}
+                        {item.paymentStatus ?? item.payment_status ?? "pending"}
                       </Chip>
                     </TableCell>
                   </TableRow>

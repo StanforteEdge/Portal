@@ -14,7 +14,7 @@ type Props = {
 
 type Form = {
   work_item_id: string;
-  notes: string;
+  note: string;
   hours_spent: string;
 };
 
@@ -22,7 +22,7 @@ export default function AddLogEntrySlideOver({ logDate, editing, preselectedTask
   const { showToast } = useToast();
   const [form, setForm] = useState<Form>({
     work_item_id: editing?.work_item?.id ?? preselectedTaskId ?? "",
-    notes: editing?.note ?? editing?.notes ?? "",
+    note: editing?.note ?? "",
     hours_spent: editing?.hours_spent ? String(editing.hours_spent) : "",
   });
   const [saving, setSaving] = useState(false);
@@ -41,7 +41,7 @@ export default function AddLogEntrySlideOver({ logDate, editing, preselectedTask
       showToast({ message: "Select a task.", tone: "danger" });
       return;
     }
-    if (!form.notes.trim()) {
+    if (!form.note.trim()) {
       showToast({ message: "Notes are required.", tone: "danger" });
       return;
     }
@@ -63,7 +63,7 @@ export default function AddLogEntrySlideOver({ logDate, editing, preselectedTask
       const dto: CreateWorkLogDto = {
         work_item_id: form.work_item_id,
         log_date: logDate,
-        note: form.notes,
+        note: form.note,
         hours_spent: parsedHours,
       };
 
@@ -99,8 +99,8 @@ export default function AddLogEntrySlideOver({ logDate, editing, preselectedTask
           </SelectField>
           <TextField
             label="Notes (what did you do?)"
-            value={form.notes}
-            onChange={(e) => set({ notes: e.target.value })}
+            value={form.note}
+            onChange={(e) => set({ note: e.target.value })}
           />
           <TextField
             label="Hours (optional)"

@@ -71,7 +71,9 @@ export default function AdminProjectsPage() {
     { ttlMs: 0, storage: "memory" },
   );
 
-  const projects: ProjectRow[] = Array.isArray(projectsData) ? projectsData : [];
+  const projects: ProjectRow[] = Array.isArray((projectsData as any)?.data?.items) 
+    ? (projectsData as any).data.items 
+    : Array.isArray(projectsData) ? projectsData : [];
   const activeProjects = projects.filter((p) => p.isActive && p.governance?.governance_status !== "archived").length;
   const archivedProjects = projects.filter((p) => !p.isActive || p.governance?.governance_status === "archived").length;
 

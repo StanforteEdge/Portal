@@ -108,7 +108,8 @@ export async function getMyAttendance(params?: { from?: string; to?: string }) {
   if (params?.from) query.set("from", params.from);
   if (params?.to) query.set("to", params.to);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return httpRequest<MyAttendanceResponse>(`/hr/attendance/me${suffix}`);
+  const res = await httpRequest<any>(`/hr/attendance/me${suffix}`);
+  return (res?.data ?? res) as MyAttendanceResponse;
 }
 
 export type AttendanceStatusResponse = {
@@ -129,7 +130,8 @@ export type AttendanceStatusResponse = {
 };
 
 export async function getAttendanceStatus() {
-  return httpRequest<AttendanceStatusResponse>("/hr/attendance/status");
+  const res = await httpRequest<any>("/hr/attendance/status");
+  return (res?.data ?? res) as AttendanceStatusResponse;
 }
 
 export async function clockIn(payload?: {

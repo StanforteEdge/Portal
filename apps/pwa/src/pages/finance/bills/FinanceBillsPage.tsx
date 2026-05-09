@@ -64,11 +64,15 @@ export default function FinanceBillsPage() {
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const vendorOptions = Array.isArray((contacts as any)?.result) ? (contacts as any).result : [];
+  const vendorOptions = Array.isArray(contacts?.result) ? contacts.result : [];
 
-  const bills = Array.isArray((billsData as any)?.result) ? (billsData as any).result : [];
-  const pagination = (billsData as any) || {};
-  const totalBills = Number(pagination.total_result ?? bills.length);
+  const bills = Array.isArray(billsData?.result) ? billsData.result : [];
+  const totalBills = Number(billsData?.total ?? 0);
+  const pagination = {
+    page: billsData?.page ?? page,
+    pages: billsData?.pages ?? 1,
+    total_result: billsData?.total ?? 0
+  };
 
   const totalAmount = bills.reduce(
     (sum: number, bill: any) => sum + Number(bill.totalAmount ?? bill.total_amount ?? 0),
