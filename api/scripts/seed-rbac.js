@@ -53,6 +53,7 @@ const permissions = [
   { name: 'Approve Finance', slug: 'finance.approve', module: 'finance', description: 'Can approve finance workflow steps' },
   { name: 'Generate Vouchers', slug: 'finance.vouchers', module: 'finance', description: 'Can generate payment vouchers' },
   { name: 'Approve Payroll', slug: 'payroll.approve', module: 'payroll', description: 'Can approve payroll workflow steps' },
+  { name: 'Authorize Payroll', slug: 'payroll.authorize', module: 'payroll', description: 'Final ED/COO authorization required before Finance can pay' },
   { name: 'View Organizations', slug: 'organizations.view', module: 'organizations', description: 'Can view organizations and their details' },
   { name: 'View Groups', slug: 'groups.view', module: 'groups', description: 'Can view groups and their memberships' },
   { name: 'Manage Groups', slug: 'groups.manage', module: 'groups', description: 'Can create groups, assign organizations, and manage members' },
@@ -96,8 +97,8 @@ const rolePermissionMap = {
   staff: ['requests.create', 'requests.view', 'requests.retire', 'groups.view', 'projects.view', 'attendance.clock', 'attendance.view_self', 'work.view'],
   team_lead: ['requests.view', 'requests.approve', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'workflow.view', 'attendance.clock', 'attendance.view_self', 'attendance.view_team', 'attendance.approve', 'work.view', 'work.manage', 'work.approve'],
   line_manager: ['requests.view', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'workflow.view', 'attendance.view_team', 'attendance.approve', 'work.view', 'work.manage', 'work.approve'],
-  coo: ['requests.view', 'requests.approve', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'workflow.view', 'attendance.view_team', 'attendance.approve', 'attendance.manage', 'attendance.correct', 'work.view', 'work.manage', 'work.approve'],
-  ed: ['requests.view', 'requests.approve', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'workflow.view', 'attendance.view_team', 'attendance.approve', 'attendance.manage', 'attendance.correct', 'work.view', 'work.manage', 'work.approve']
+  coo: ['requests.view', 'requests.approve', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'workflow.view', 'attendance.view_team', 'attendance.approve', 'attendance.manage', 'attendance.correct', 'work.view', 'work.manage', 'work.approve', 'payroll.authorize'],
+  ed: ['requests.view', 'requests.approve', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'workflow.view', 'attendance.view_team', 'attendance.approve', 'attendance.manage', 'attendance.correct', 'work.view', 'work.manage', 'work.approve', 'payroll.authorize']
 };
 
 async function main() {
