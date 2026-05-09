@@ -50,6 +50,18 @@ import HrEmployeeDetailPage from "@/pages/hr/employees/HrEmployeeDetailPage";
 import HrEmployeeEditPage from "@/pages/hr/employees/HrEmployeeEditPage";
 import HrAttendancePage from "@/pages/hr/attendance/HrAttendancePage";
 import HrSettingsPage from "@/pages/hr/settings/HrSettingsPage";
+import HrPayrollPage from "@/pages/hr/payroll/HrPayrollPage";
+import HrPayrollRunFormPage from "@/pages/hr/payroll/HrPayrollRunFormPage";
+import HrPayrollRunDetailPage from "@/pages/hr/payroll/HrPayrollRunDetailPage";
+import HrPayrollWorkersPage from "@/pages/hr/payroll/HrPayrollWorkersPage";
+import FinancePayrollPage from "@/pages/finance/payroll/FinancePayrollPage";
+import FinancePayrollRunDetailPage from "@/pages/finance/payroll/FinancePayrollRunDetailPage";
+import AdminPayrollAuthorizationPage from "@/pages/admin/payroll/AdminPayrollAuthorizationPage";
+import AdminPayrollRunAuthorizePage from "@/pages/admin/payroll/AdminPayrollRunAuthorizePage";
+import FinancePayrollComponentsPage from "@/pages/finance/payroll/FinancePayrollComponentsPage";
+import FinancePayrollTaxTablesPage from "@/pages/finance/payroll/FinancePayrollTaxTablesPage";
+import HrPayrollWorkerDetailPage from "@/pages/hr/payroll/HrPayrollWorkerDetailPage";
+import HrPayrollLoansPage from "@/pages/hr/payroll/HrPayrollLoansPage";
 import AdminUsersPage from "@/pages/admin/users/AdminUsersPage";
 import AdminUserDetailPage from "@/pages/admin/users/AdminUserDetailPage";
 import AdminSettingsPage from "@/pages/admin/settings/AdminSettingsPage";
@@ -251,6 +263,16 @@ export default function App() {
             <Route element={<PermissionRoute requiredPermissions={["finance.manage"]} any />}>
               <Route path="/finance/settings" element={<FinanceSettingsPage />} />
             </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["payroll.approve"]} />}>
+              <Route path="/finance/payroll" element={<FinancePayrollPage />} />
+              <Route path="/finance/payroll/runs/:id" element={<FinancePayrollRunDetailPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["finance.manage"]} any />}>
+              <Route path="/finance/payroll/components" element={<FinancePayrollComponentsPage />} />
+              <Route path="/finance/payroll/tax-tables" element={<FinancePayrollTaxTablesPage />} />
+            </Route>
           </Route>
         </Route>
         <Route element={<ModuleRoute moduleKey="hr" />}>
@@ -296,6 +318,15 @@ export default function App() {
               />
             </Route>
 
+            <Route element={<PermissionRoute requiredPermissions={["payroll.manage"]} />}>
+              <Route path="/hr/payroll" element={<HrPayrollPage />} />
+              <Route path="/hr/payroll/runs/new" element={<HrPayrollRunFormPage />} />
+              <Route path="/hr/payroll/runs/:id" element={<HrPayrollRunDetailPage />} />
+              <Route path="/hr/payroll/workers" element={<HrPayrollWorkersPage />} />
+              <Route path="/hr/payroll/workers/:id" element={<HrPayrollWorkerDetailPage />} />
+              <Route path="/hr/payroll/loans" element={<HrPayrollLoansPage />} />
+            </Route>
+
             <Route element={<PermissionRoute requiredPermissions={["hr.manage", "settings.manage"]} any />}>
               <Route path="/hr/settings" element={<HrSettingsPage />} />
             </Route>
@@ -337,6 +368,11 @@ export default function App() {
 
             <Route element={<PermissionRoute requiredPermissions={["settings.manage"]} any />}>
               <Route path="/admin/settings" element={<AdminSettingsPage />} />
+            </Route>
+
+            <Route element={<PermissionRoute requiredPermissions={["payroll.authorize"]} any />}>
+              <Route path="/admin/payroll/authorization" element={<AdminPayrollAuthorizationPage />} />
+              <Route path="/admin/payroll/authorize/:id" element={<AdminPayrollRunAuthorizePage />} />
             </Route>
 
             <Route path="/admin/files" element={<AdminFilesPage />} />
