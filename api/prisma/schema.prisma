@@ -1922,6 +1922,9 @@ model PayrollRun {
   preparedById       BigInt?   @map("prepared_by")
   reviewedById       BigInt?   @map("reviewed_by")
   approvedById       BigInt?   @map("approved_by")
+  authorizedAt       DateTime? @map("authorized_at")
+  authorizedById     BigInt?   @map("authorized_by")
+  authorizationNotes String?   @map("authorization_notes")
   paidAt             DateTime? @map("paid_at")
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
@@ -1930,6 +1933,7 @@ model PayrollRun {
   preparedBy              Profile?                        @relation("PayrollRunPreparedBy", fields: [preparedById], references: [id], onDelete: SetNull)
   reviewedBy              Profile?                        @relation("PayrollRunReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
   approvedBy              Profile?                        @relation("PayrollRunApprovedBy", fields: [approvedById], references: [id], onDelete: SetNull)
+  authorizedBy            Profile?                        @relation("PayrollRunAuthorizedBy", fields: [authorizedById], references: [id], onDelete: SetNull)
   items                   PayrollRunItem[]
   postings                PayrollAccountingPosting[]
   events                  PayrollRunEvent[]

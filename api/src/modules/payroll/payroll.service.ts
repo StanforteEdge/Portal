@@ -20,6 +20,7 @@ import { UpsertPayrollComponentDto } from './dto/upsert-payroll-component.dto';
 import { UpsertPayrollSettingDto } from './dto/upsert-payroll-setting.dto';
 import { UpsertPayrollTaxTableDto } from './dto/upsert-payroll-tax-table.dto';
 import { UpsertPayrollWorkerDto } from './dto/upsert-payroll-worker.dto';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 
 @Injectable()
 export class PayrollService {
@@ -57,7 +58,7 @@ export class PayrollService {
       select: { id: true }
     });
     if (!worker) {
-      return { data: [], meta: { page, per_page: perPage, total: 0, last_page: 1 } };
+      return paginatedResponse([], { page, per_page: perPage, total: 0 });
     }
 
     const [rows, total] = await this.prisma.$transaction([
@@ -74,30 +75,27 @@ export class PayrollService {
       this.prisma.payrollRunItem.count({ where: { workerId: worker.id } }),
     ]);
 
-    return {
-      data: rows.map((row) => ({
-        id: row.id,
-        run_id: row.runId,
-        run_name: row.run.name,
-        year: row.run.year,
-        month: row.run.month,
-        status: row.run.status,
-        gross_pay: Number(row.grossPay || 0),
-        total_deductions: Number(row.totalDeductions || 0),
-        net_pay: Number(row.netPay || 0),
-        payment_status: row.paymentStatus,
-        payment_reference: row.paymentReference,
-        latest_distribution: row.payslipDistributions?.[0]
-          ? {
-              id: row.payslipDistributions[0].id,
-              status: row.payslipDistributions[0].status,
-              sent_at: row.payslipDistributions[0].sentAt,
-              created_at: row.payslipDistributions[0].createdAt,
-            }
-          : null,
-      })),
-      meta: { page, per_page: perPage, total, last_page: Math.max(1, Math.ceil(total / perPage)) }
-    };
+    return paginatedResponse(rows.map((row) => ({
+      id: row.id,
+      run_id: row.runId,
+      run_name: row.run.name,
+      year: row.run.year,
+      month: row.run.month,
+      status: row.run.status,
+      gross_pay: Number(row.grossPay || 0),
+      total_deductions: Number(row.totalDeductions || 0),
+      net_pay: Number(row.netPay || 0),
+      payment_status: row.paymentStatus,
+      payment_reference: row.paymentReference,
+      latest_distribution: row.payslipDistributions?.[0]
+        ? {
+            id: row.payslipDistributions[0].id,
+            status: row.payslipDistributions[0].status,
+            sent_at: row.payslipDistributions[0].sentAt,
+            created_at: row.payslipDistributions[0].createdAt,
+          }
+        : null,
+    })), { page, per_page: perPage, total });
   }
 
   async getMyPayslipDetails(userId: string, runId: string, itemId: string) {
@@ -444,10 +442,7 @@ export class PayrollService {
       this.prisma.payrollWorker.count({ where })
     ]);
 
-    return {
-      data: rows.map((row) => this.serializeWorker(row)),
-      meta: { page, per_page: perPage, total, last_page: Math.max(1, Math.ceil(total / perPage)) }
-    };
+    return paginatedResponse(rows.map((row) => this.serializeWorker(row)), { page, per_page: perPage, total });
   }
 
   async getWorker(id: string) {
@@ -766,10 +761,7 @@ export class PayrollService {
       }),
       this.prisma.payrollRun.count({ where })
     ]);
-    return {
-      data: rows.map((row) => this.serializeRunSummary(row)),
-      meta: { page, per_page: perPage, total, last_page: Math.max(1, Math.ceil(total / perPage)) }
-    };
+    return paginatedResponse(rows.map((row) => this.serializeRunSummary(row)), { page, per_page: perPage, total });
   }
 
   async getRun(id: string) {
@@ -1906,10 +1898,7 @@ export class PayrollService {
       this.prisma.payrollImportJob.count({ where }),
     ]);
 
-    return {
-      data: rows.map((row) => this.serializeImportJobSummary(row)),
-      meta: { page, per_page: perPage, total, last_page: Math.max(1, Math.ceil(total / perPage)) },
-    };
+    return paginatedResponse(rows.map((row) => this.serializeImportJobSummary(row)), { page, per_page: perPage, total });
   }
 
   async getImportJob(id: string) {
