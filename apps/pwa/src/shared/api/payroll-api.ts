@@ -166,9 +166,9 @@ export async function getPayrollRun(id: string) {
   return (res?.data ?? res) as PayrollRunDetail;
 }
 
-export async function createPayrollRun(payload: { name: string; year: number; month: number; description?: string }) {
+export async function createPayrollRun(payload: { name: string; year: number; month: number; period_start: string; period_end: string; currency?: string; notes?: string; paid_from_account_id?: string }) {
   const res = await httpRequest<any>("/payroll/runs", { method: "POST", body: payload });
-  return (res?.data ?? res) as PayrollRunDetail;
+  return (res?.data ?? res) as any;
 }
 
 export async function generatePayrollRun(id: string) {
