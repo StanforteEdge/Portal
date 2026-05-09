@@ -230,7 +230,7 @@ export default function HrPayrollRunDetailPage() {
           />
           <StatCard
             label="Total Net Pay"
-            value={totalNet > 0 ? formatCurrency(totalNet, run.currency) : (run.totals?.net > 0 ? formatCurrency(run.totals.net, run.currency) : "-")}
+            value={totalNet > 0 ? formatCurrency(totalNet, run.currency) : (run.totals?.net && run.totals?.net > 0 ? formatCurrency(run.totals.net, run.currency) : "-")}
             tone="neutral"
             icon="payments"
           />

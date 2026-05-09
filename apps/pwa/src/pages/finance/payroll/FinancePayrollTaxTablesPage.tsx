@@ -131,7 +131,7 @@ export default function FinancePayrollTaxTablesPage() {
         ]}
         title="Tax Tables"
         description="Manage progressive tax bands by worker type."
-        action={<Button onClick={openCreate}><Icon name="add" className="text-[18px]" /> Add Table</Button>}
+        actions={<Button onClick={openCreate}><Icon name="add" className="text-[18px]" /> Add Table</Button>}
       />
 
       <SectionCard title="Tax Tables" description="Active tax tables for payroll calculations.">

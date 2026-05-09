@@ -154,7 +154,7 @@ export default function FinancePayrollComponentsPage() {
         ]}
         title="Salary Components"
         description="Define earnings, deductions, and employer costs used in payroll runs."
-        action={
+        actions={
           <Button onClick={openCreate}>
             <Icon name="add" className="text-[18px]" />
             Add Component

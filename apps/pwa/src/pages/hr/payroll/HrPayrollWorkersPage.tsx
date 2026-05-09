@@ -201,7 +201,7 @@ export default function HrPayrollWorkersPage() {
         ]}
         title="Payroll Workers"
         description="Employee and consultant payroll profiles — salary basis, bank details, and tax identifiers."
-        action={
+        actions={
           <Button onClick={openCreate}>
             <Icon name="add" className="text-[18px]" />
             Add Worker
@@ -299,7 +299,7 @@ export default function HrPayrollWorkersPage() {
                   value={searchQuery}
                   onChange={(e) => void handleEmployeeSearch(e.target.value)}
                   placeholder="Type to search employees..."
-                  hint={searching ? "Searching..." : ""}
+                  helpText={searching ? "Searching..." : ""}
                 />
                 {searchResults.length > 0 && (
                   <div className="absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">

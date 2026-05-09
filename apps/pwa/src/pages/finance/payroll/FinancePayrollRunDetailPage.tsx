@@ -156,7 +156,7 @@ export default function FinancePayrollRunDetailPage() {
                 requiredPermissions={["payroll.approve"]}
                 disabled={acting === "review"}
                 onClick={() =>
-                  act("review", () => reviewPayrollRun(id!, note || undefined), "Run marked as reviewed")
+                  act("review", () => reviewPayrollRun(id!, {}), "Run marked as reviewed")
                 }
               >
                 {acting === "review" ? "Reviewing..." : "Mark Reviewed"}
@@ -168,7 +168,7 @@ export default function FinancePayrollRunDetailPage() {
                 requiredPermissions={["payroll.approve"]}
                 disabled={acting === "approve"}
                 onClick={() =>
-                  act("approve", () => approvePayrollRun(id!, note || undefined), "Run approved")
+                  act("approve", () => approvePayrollRun(id!, {}), "Run approved")
                 }
               >
                 {acting === "approve" ? "Approving..." : "Approve"}
@@ -180,7 +180,7 @@ export default function FinancePayrollRunDetailPage() {
                 requiredPermissions={["payroll.approve"]}
                 disabled={acting === "pay"}
                 onClick={() =>
-                  act("pay", () => payPayrollRun(id!, { note: note || undefined }), "Run marked as paid")
+                  act("pay", () => payPayrollRun(id!, {}), "Run marked as paid")
                 }
               >
                 {acting === "pay" ? "Processing..." : "Mark as Paid"}
@@ -193,7 +193,7 @@ export default function FinancePayrollRunDetailPage() {
                 requiredPermissions={["payroll.approve"]}
                 disabled={acting === "close"}
                 onClick={() =>
-                  act("close", () => closePayrollRun(id!, note || undefined), "Run closed")
+                  act("close", () => closePayrollRun(id!), "Run closed")
                 }
               >
                 Close Run
@@ -216,7 +216,7 @@ export default function FinancePayrollRunDetailPage() {
                   a.click();
                   URL.revokeObjectURL(url);
                 } catch {
-                  toast({ title: "Export failed", variant: "error" });
+                  showToast({ message: "Export failed", tone: "danger" });
                 } finally {
                   setActing(null);
                 }
