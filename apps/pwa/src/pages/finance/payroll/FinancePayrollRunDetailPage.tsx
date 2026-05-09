@@ -30,6 +30,7 @@ import {
   payPayrollRun,
   closePayrollRun,
   reopenPayrollRun,
+  downloadMonthlyBreakdown,
 } from "@/shared/api/payroll-api";
 import { formatCurrency } from "@stanforte/shared";
 
@@ -125,7 +126,7 @@ export default function FinancePayrollRunDetailPage() {
   const canReview = run.status === "submitted";
   const canApprove = run.status === "reviewed" || run.status === "submitted";
   const canReject = ["submitted", "reviewed", "approved"].includes(run.status);
-  const canPay = run.status === "approved";
+  const canPay = run.status === "authorized";
   const canClose = run.status === "paid";
   const canReopen = run.status === "rejected" || run.status === "closed";
 
@@ -198,32 +199,31 @@ export default function FinancePayrollRunDetailPage() {
                 Close Run
               </Button>
             )}
-            {canReject && (
-              <Button
-                size="sm"
-                variant="ghost"
-                requiredPermissions={["payroll.approve"]}
-                disabled={acting === "reject"}
-                onClick={() =>
-                  act("reject", () => rejectPayrollRun(id!, note || undefined), "Run rejected")
+            <Button
+              size="sm"
+              variant="secondary"
+              disabled={acting === "export"}
+              onClick={async () => {
+                setActing("export");
+                try {
+                  const result = await downloadMonthlyBreakdown(id!);
+                  const bytes = Uint8Array.from(atob(result.content_base64), (c) => c.charCodeAt(0));
+                  const blob = new Blob([bytes], { type: result.mime_type });
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement("a");
+                  a.href = url;
+                  a.download = result.file_name;
+                  a.click();
+                  URL.revokeObjectURL(url);
+                } catch {
+                  toast({ title: "Export failed", variant: "error" });
+                } finally {
+                  setActing(null);
                 }
-              >
-                Reject
-              </Button>
-            )}
-            {canReopen && (
-              <Button
-                size="sm"
-                variant="ghost"
-                requiredPermissions={["payroll.approve"]}
-                disabled={acting === "reopen"}
-                onClick={() =>
-                  act("reopen", () => reopenPayrollRun(id!, note || undefined), "Run reopened")
-                }
-              >
-                Reopen
-              </Button>
-            )}
+              }}
+            >
+              {acting === "export" ? "Exporting..." : "Export Breakdown"}
+            </Button>
           </div>
         }
       />
@@ -253,6 +253,33 @@ export default function FinancePayrollRunDetailPage() {
             icon="payments"
           />
         </div>
+
+        {run.status === "approved" && (
+          <SectionCard title="Authorization Required">
+            <div className="flex items-center gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4">
+              <span className="material-symbols-outlined text-amber-600">pending</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-900">Awaiting ED/COO Authorization</p>
+                <p className="mt-0.5 text-sm text-amber-700">
+                  This run has been approved but requires authorization from the ED or COO before you can mark it as paid.
+                </p>
+              </div>
+            </div>
+          </SectionCard>
+        )}
+        {run.status === "authorized" && (
+          <SectionCard title="Authorization">
+            <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 p-4">
+              <span className="material-symbols-outlined text-green-600">verified</span>
+              <div>
+                <p className="text-sm font-semibold text-green-900">Authorized for Payment</p>
+                <p className="mt-0.5 text-sm text-green-700">
+                  ED/COO authorization confirmed. You can now mark this run as paid.
+                </p>
+              </div>
+            </div>
+          </SectionCard>
+        )}
 
         <SectionCard title="Review Note">
           <TextAreaField
