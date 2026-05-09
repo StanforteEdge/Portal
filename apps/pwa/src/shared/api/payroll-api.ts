@@ -108,8 +108,6 @@ export async function submitMyProjectTimesheet(id: string) {
   return httpRequest<any>(`/payroll/my/timesheets/${id}/submit`, { method: "POST" });
 }
 
-// ─── Payroll Run Management (payroll.manage / payroll.approve) ────────────────
-
 export type PayrollRunSummary = {
   id: string;
   name: string;
@@ -117,12 +115,6 @@ export type PayrollRunSummary = {
   month: number;
   status: string;
   currency: string;
-  gross_total: number;
-  net_total: number;
-  worker_count: number;
-  submitted_at?: string | null;
-  approved_at?: string | null;
-  paid_at?: string | null;
   created_at: string;
 };
 
@@ -159,16 +151,14 @@ export type PayrollWorker = {
   organization?: { name: string } | null;
 };
 
-export async function listPayrollRuns(params?: { status?: string; page?: number; per_page?: number }) {
+export async function listPayrollRuns(params?: { page?: number; per_page?: number }) {
   const query = new URLSearchParams();
-  if (params?.status) query.set("status", params.status);
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
   const suffix = query.toString() ? `?${query.toString()}` : "";
   const res = await httpRequest<any>(`/payroll/runs${suffix}`);
-  const items: PayrollRunSummary[] = res?.data?.items ?? [];
-  const meta = res?.data?.meta ?? { page: 1, per_page: 20, total: items.length, pages: 1 };
-  return { items, meta };
+  const items: PayrollRunSummary[] = res?.data?.items ?? res?.data ?? (Array.isArray(res) ? res : []);
+  return { items };
 }
 
 export async function getPayrollRun(id: string) {
@@ -256,4 +246,152 @@ export async function createPayrollWorker(payload: UpsertWorkerPayload) {
 export async function updatePayrollWorker(id: string, payload: Partial<UpsertWorkerPayload>) {
   const res = await httpRequest<any>(`/payroll/workers/${id}`, { method: "POST", body: payload });
   return (res?.data ?? res) as PayrollWorker;
+}
+
+export async function getPayrollRun(id: string) {
+  return httpRequest<any>(`/payroll/runs/${id}`);
+}
+
+export async function authorizePayrollRun(id: string, payload?: { notes?: string }) {
+  const res = await httpRequest<any>(`/payroll/runs/${id}/authorize`, {
+    method: "POST",
+    body: payload ?? {},
+  });
+  return (res?.data ?? res) as any;
+}
+
+export async function downloadMonthlyBreakdown(id: string) {
+  const res = await httpRequest<any>(`/payroll/runs/${id}/monthly-breakdown`, {
+    method: "POST",
+  });
+  return (res?.data ?? res) as { file_name: string; mime_type: string; content_base64: string };
+}
+
+export type PayrollLoan = {
+  id: string;
+  worker_id: string;
+  worker_name?: string | null;
+  principal: number;
+  balance: number;
+  monthly_recovery: number;
+  issued_date: string;
+  expected_end_date?: string | null;
+  status: string;
+  currency?: string | null;
+};
+
+export type UpsertLoanPayload = {
+  worker_id: string;
+  principal: number;
+  monthly_recovery: number;
+  issued_date: string;
+  expected_end_date?: string;
+  currency?: string;
+  notes?: string;
+};
+
+export async function listLoans(params?: { page?: number; per_page?: number; worker_id?: string }) {
+  const query = new URLSearchParams();
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.per_page) query.set("per_page", String(params.per_page));
+  if (params?.worker_id) query.set("worker_id", params.worker_id);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const res = await httpRequest<any>(`/payroll/loans${suffix}`);
+  const items: PayrollLoan[] = res?.data?.items ?? res?.data ?? res ?? [];
+  return { items };
+}
+
+export async function createLoan(payload: UpsertLoanPayload) {
+  const res = await httpRequest<any>("/payroll/loans", { method: "POST", body: payload });
+  return (res?.data ?? res) as PayrollLoan;
+}
+
+export async function updateLoan(id: string, payload: Partial<UpsertLoanPayload>) {
+  const res = await httpRequest<any>(`/payroll/loans/${id}`, { method: "POST", body: payload });
+  return (res?.data ?? res) as PayrollLoan;
+}
+
+export type PayrollComponent = {
+  id: string;
+  code: string;
+  name: string;
+  component_type: "earning" | "deduction" | "employer_cost";
+  calculation_type: string;
+  amount?: number | null;
+  rate?: number | null;
+  taxable: boolean;
+  statutory: boolean;
+  is_active: boolean;
+};
+
+export type UpsertComponentPayload = {
+  code: string;
+  name: string;
+  component_type: "earning" | "deduction" | "employer_cost";
+  calculation_type: string;
+  amount?: number;
+  rate?: number;
+  taxable?: boolean;
+  statutory?: boolean;
+  notes?: string;
+};
+
+export async function listPayrollComponents() {
+  const res = await httpRequest<any>("/payroll/components");
+  const items: PayrollComponent[] = res?.data?.items ?? res?.data ?? (Array.isArray(res) ? res : []);
+  return { items };
+}
+
+export async function createPayrollComponent(payload: UpsertComponentPayload) {
+  const res = await httpRequest<any>("/payroll/components", { method: "POST", body: payload });
+  return (res?.data ?? res) as PayrollComponent;
+}
+
+export async function updatePayrollComponent(id: string, payload: Partial<UpsertComponentPayload>) {
+  const res = await httpRequest<any>(`/payroll/components/${id}`, { method: "POST", body: payload });
+  return (res?.data ?? res) as PayrollComponent;
+}
+
+export async function deletePayrollComponent(id: string) {
+  return httpRequest<any>(`/payroll/components/${id}`, { method: "DELETE" });
+}
+
+export type TaxBand = {
+  from: number;
+  to?: number | null;
+  rate: number;
+};
+
+export type PayrollTaxTable = {
+  id: string;
+  name: string;
+  worker_type?: string | null;
+  effective_date: string;
+  currency?: string | null;
+  bands: TaxBand[];
+  is_active: boolean;
+};
+
+export type UpsertTaxTablePayload = {
+  name: string;
+  worker_type?: string;
+  effective_date: string;
+  currency?: string;
+  bands: TaxBand[];
+};
+
+export async function listPayrollTaxTables() {
+  const res = await httpRequest<any>("/payroll/tax-tables");
+  const items: PayrollTaxTable[] = res?.data?.items ?? res?.data ?? (Array.isArray(res) ? res : []);
+  return { items };
+}
+
+export async function createPayrollTaxTable(payload: UpsertTaxTablePayload) {
+  const res = await httpRequest<any>("/payroll/tax-tables", { method: "POST", body: payload });
+  return (res?.data ?? res) as PayrollTaxTable;
+}
+
+export async function updatePayrollTaxTable(id: string, payload: Partial<UpsertTaxTablePayload>) {
+  const res = await httpRequest<any>(`/payroll/tax-tables/${id}`, { method: "POST", body: payload });
+  return (res?.data ?? res) as PayrollTaxTable;
 }

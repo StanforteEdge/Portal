@@ -17,6 +17,7 @@ import { ReviewPayrollRunDto } from './dto/review-payroll-run.dto';
 import { UpsertPayrollComponentDto } from './dto/upsert-payroll-component.dto';
 import { UpsertPayrollSettingDto } from './dto/upsert-payroll-setting.dto';
 import { UpsertPayrollWorkerDto } from './dto/upsert-payroll-worker.dto';
+import { AuthorizePayrollRunDto } from './dto/authorize-payroll-run.dto';
 import { PayrollService } from './payroll.service';
 
 @Controller('payroll')
@@ -223,16 +224,16 @@ export class PayrollController {
     return this.payrollService.deleteComponent(id);
   }
 
-  @Get('runs')
-  @Permissions('finance.view')
-  listRuns(@Query() query: Record<string, any>) {
-    return this.payrollService.listRuns(query);
-  }
-
   @Get('runs/:id')
-  @Permissions('finance.view')
+  @Permissions('payroll.manage', 'payroll.approve', 'payroll.authorize')
   getRun(@Param('id') id: string) {
     return this.payrollService.getRun(id);
+  }
+
+  @Get('runs')
+  @Permissions('payroll.manage', 'payroll.approve', 'payroll.authorize')
+  listRuns(@Query() query: Record<string, any>) {
+    return this.payrollService.listRuns(query);
   }
 
   @Delete('runs/:id')
@@ -283,6 +284,12 @@ export class PayrollController {
     return this.payrollService.rejectRun(id, dto, req.user?.id);
   }
 
+  @Post('runs/:id/authorize')
+  @Permissions('payroll.authorize')
+  authorizeRun(@Req() req: any, @Param('id') id: string, @Body() dto: AuthorizePayrollRunDto) {
+    return this.payrollService.authorizeRun(id, dto, req.user?.id);
+  }
+
   @Post('runs/:id/reopen')
   @Permissions('finance.manage')
   reopenRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
@@ -323,6 +330,12 @@ export class PayrollController {
   @Permissions('finance.view')
   generateBankSchedule(@Param('id') id: string) {
     return this.payrollService.generateBankSchedule(id);
+  }
+
+  @Post('runs/:id/monthly-breakdown')
+  @Permissions('payroll.manage', 'payroll.approve', 'payroll.authorize')
+  monthlyBreakdown(@Param('id') id: string) {
+    return this.payrollService.monthlyBreakdown(id);
   }
 
   @Get('reports/overview')
