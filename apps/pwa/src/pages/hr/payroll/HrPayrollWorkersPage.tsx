@@ -27,6 +27,7 @@ import { useAuth } from "@/shared/context/AuthProvider";
 import { useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
+import { hrApi } from "@/shared/lib/core";
 import {
   listPayrollWorkers,
   createPayrollWorker,
@@ -60,6 +61,9 @@ export default function HrPayrollWorkersPage() {
   const [editingWorker, setEditingWorker] = useState<PayrollWorker | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<UpsertWorkerPayload>(EMPTY_FORM);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [searching, setSearching] = useState(false);
 
   const { data: profile } = useCachedQuery(
     "hr:profile",
@@ -86,7 +90,37 @@ export default function HrPayrollWorkersPage() {
   const openCreate = () => {
     setEditingWorker(null);
     setForm(EMPTY_FORM);
+    setSearchQuery("");
+    setSearchResults([]);
     setShowSlideOver(true);
+  };
+
+  const handleEmployeeSearch = async (query: string) => {
+    setSearchQuery(query);
+    if (query.length < 2) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const result = await hrApi.listEmployees({ search: query, status: "active", per_page: 10 });
+      setSearchResults(result.result ?? []);
+    } catch {
+      setSearchResults([]);
+    } finally {
+      setSearching(false);
+    }
+  };
+
+  const selectEmployee = (emp: any) => {
+    setForm((f) => ({
+      ...f,
+      full_name: emp.full_name ?? emp.name ?? emp.first_name + " " + emp.last_name,
+      email: emp.email ?? "",
+      staff_code: emp.staff_code ?? emp.code ?? "",
+    }));
+    setSearchQuery("");
+    setSearchResults([]);
   };
 
   const openEdit = (w: any) => {
@@ -258,6 +292,34 @@ export default function HrPayrollWorkersPage() {
         />
         <SlideOverContent>
           <div className="grid gap-4">
+            {!editingWorker && (
+              <div className="relative">
+                <TextField
+                  label="Search Employee"
+                  value={searchQuery}
+                  onChange={(e) => void handleEmployeeSearch(e.target.value)}
+                  placeholder="Type to search employees..."
+                  hint={searching ? "Searching..." : ""}
+                />
+                {searchResults.length > 0 && (
+                  <div className="absolute z-50 mt-1 w-full rounded-md border border-slate-200 bg-white shadow-lg">
+                    {searchResults.map((emp: any) => (
+                      <button
+                        key={emp.id}
+                        type="button"
+                        className="flex w-full flex-col gap-0.5 border-b border-slate-100 px-4 py-3 text-left last:border-0 hover:bg-slate-50"
+                        onClick={() => selectEmployee(emp)}
+                      >
+                        <span className="text-sm font-medium text-slate-900">
+                          {emp.full_name ?? emp.name ?? `${emp.first_name} ${emp.last_name}`}
+                        </span>
+                        <span className="text-xs text-slate-500">{emp.email} {emp.staff_code ? `· ${emp.staff_code}` : ""}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             <TextField label="Full Name" value={form.full_name} onChange={setField("full_name")} placeholder="e.g. Jane Doe" />
             <div className="grid grid-cols-2 gap-4">
               <SelectField label="Worker Type" value={form.worker_type} onChange={setField("worker_type")}>

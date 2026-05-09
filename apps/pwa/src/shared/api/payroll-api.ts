@@ -115,7 +115,8 @@ export type PayrollRunSummary = {
   month: number;
   status: string;
   currency: string;
-  created_at: string;
+  net_total?: number;
+  worker_count?: number;
 };
 
 export type PayrollRunItem = {
@@ -133,7 +134,9 @@ export type PayrollRunItem = {
 export type PayrollRunDetail = PayrollRunSummary & {
   description?: string | null;
   notes?: string | null;
-  items: PayrollRunItem[];
+  item_count?: number;
+  totals?: { gross: number; deductions: number; employer_cost: number; net: number };
+  items: any[];
   review_notes?: string | null;
   rejection_reason?: string | null;
 };
