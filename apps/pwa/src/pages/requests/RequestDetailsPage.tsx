@@ -51,6 +51,7 @@ import {
   submitRequest,
 } from "@/pages/requests/requests-api";
 import { listEntityTags, listManagedTaxonomies } from "@/pages/requests/taxonomy-api";
+import type { MyOrganization, ProjectOption, TeamOption } from "@/pages/requests/requests-api";
 import { financeApi } from "@/shared/lib/core";
 import { downloadBase64File } from "@/shared/lib/download";
 import { formatDisplayDate } from "@stanforte/shared";
@@ -251,11 +252,11 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
     String(requestData.category_name || requestData.category_id || "-");
   const requestTags = tagsResponse?.tags ?? [];
   const projectName =
-    projects?.find((entry) => entry.id === String(requestData.project_id || ""))
+    projects?.find((entry: ProjectOption) => entry.id === String(requestData.project_id || ""))
       ?.name ||
     String(requestData.project_name || requestData.project_id || "-");
   const teamName =
-    teams?.find((entry) => entry.id === String(requestData.team_id || ""))
+    teams?.find((entry: TeamOption) => entry.id === String(requestData.team_id || ""))
       ?.name || String(requestData.team_name || requestData.team_id || "-");
   const handoverUserId = String(requestData.handover_user_id || "");
   const handoverColleagueName = useMemo(() => {
@@ -276,7 +277,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   }, [handoverUserId, teams]);
   const organizationName =
     organizations?.find(
-      (entry) =>
+      (entry: MyOrganization) =>
         entry.organization.id === String(requestData.organization_id || ""),
     )?.organization.name ||
     String(requestData.organization_name || requestData.organization_id || "-");
@@ -1249,7 +1250,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
                   </div>
                 ) : null}
                 {!isFinancePendingStep && approvalActionsVisible &&
-                  availableActions.some((action) =>
+                  availableActions.some((action: string) =>
                     ["approve", "reject", "return"].includes(action),
                   ) ? (
                   <div className="mt-4 space-y-3">
@@ -1559,7 +1560,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
               ) : null}
               {!isFinancePendingStep && approvalActionsVisible &&
                 availableActions.some(
-                  (action) =>
+                  (action: string) =>
                     action === "approve" ||
                     action === "reject" ||
                     action === "return",

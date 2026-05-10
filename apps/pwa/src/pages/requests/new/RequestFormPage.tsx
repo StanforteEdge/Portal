@@ -453,7 +453,7 @@ export function RequestFormPage() {
   const selectedType = useMemo(
     () =>
       (requestTypes ?? []).find(
-        (type) => type.id === form.request_type_id || type.id === typeId,
+        (type: RequestTypeOption) => type.id === form.request_type_id || type.id === typeId,
       ),
     [form.request_type_id, requestTypes, typeId],
   );
@@ -764,14 +764,14 @@ export function RequestFormPage() {
                   disabled={Boolean(editId)}
                 >
                   <option value="">Select request type</option>
-                  {(["financial", "leave", "other"] as const).map((fam) => {
+                    {(["financial", "leave", "other"] as const).map((fam) => {
                     const famTypes = (requestTypes ?? []).filter(
-                      (t) => requestFamilyFromType(t) === fam,
+                      (t: RequestTypeOption) => requestFamilyFromType(t) === fam,
                     );
                     if (!famTypes.length) return null;
                     return (
                       <optgroup key={fam} label={requestFamilyLabel(fam)}>
-                        {famTypes.map((type) => (
+                        {famTypes.map((type: RequestTypeOption) => (
                           <option key={type.id} value={type.id}>
                             {type.name}
                           </option>
@@ -925,7 +925,7 @@ export function RequestFormPage() {
                       disabled={organizationOptions.length <= 1}
                     >
                       <option value="">Select organization</option>
-                      {organizationOptions.map((organization) => (
+                      {organizationOptions.map((organization: { id: string; name: string; code: string }) => (
                         <option key={organization.id} value={organization.id}>
                           {organization.name}
                         </option>
@@ -1071,7 +1071,7 @@ export function RequestFormPage() {
                       disabled={organizationOptions.length <= 1}
                     >
                       <option value="">Select organization</option>
-                      {organizationOptions.map((organization) => (
+                      {organizationOptions.map((organization: { id: string; name: string; code: string }) => (
                         <option key={organization.id} value={organization.id}>
                           {organization.name}
                         </option>
@@ -1428,7 +1428,7 @@ export function RequestFormPage() {
               disabled={Boolean(editId)}
             >
               <option value="">Select request type</option>
-              {(requestTypes ?? []).map((type) => (
+              {(requestTypes ?? []).map((type: RequestTypeOption) => (
                 <option key={type.id} value={type.id}>
                   {type.name}
                 </option>

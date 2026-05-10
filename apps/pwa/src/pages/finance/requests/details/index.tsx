@@ -44,6 +44,7 @@ import {
   requestStatusTone,
 } from "@/pages/requests/request-helpers";
 import type { FinancePaymentVoucherRecord } from "@/shared";
+import type { MyOrganization, ProjectOption, TeamOption } from "@/pages/requests/requests-api";
 import {
   buildWorkflow,
   deriveRequestWorkflowStatus,
@@ -194,15 +195,15 @@ export function FinanceRequestDetailsPage() {
   const requestTags = tagsResponse?.tags ?? [];
   const projectName =
     projects?.find(
-      (entry) => entry.id === String(requestData.project_id || ""),
+      (entry: ProjectOption) => entry.id === String(requestData.project_id || ""),
     )?.name ||
     String(requestData.project_name || requestData.project_id || "-");
   const teamName =
-    teams?.find((entry) => entry.id === String(requestData.team_id || ""))
+    teams?.find((entry: TeamOption) => entry.id === String(requestData.team_id || ""))
       ?.name || String(requestData.team_name || requestData.team_id || "-");
   const organizationName =
     organizations?.find(
-      (entry) =>
+      (entry: MyOrganization) =>
         entry.organization.id === String(requestData.organization_id || ""),
     )?.organization.name ||
     String(
