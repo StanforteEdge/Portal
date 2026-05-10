@@ -33,7 +33,7 @@ export function TagPicker({
     const timer = window.setTimeout(async () => {
       try {
         const rows = await suggestTagTerms(taxonomyKey, query.trim());
-        setSuggestions(rows.filter((row) => !selectedIds.has(row.id)));
+        setSuggestions(rows.filter((row: TagTerm) => !selectedIds.has(row.id)));
       } catch {
         setSuggestions([]);
       }

@@ -111,7 +111,7 @@ export function RequestTypePage() {
       other: [],
     };
 
-    (requestTypes ?? []).forEach((type) => {
+    (requestTypes ?? []).forEach((type: RequestTypeOption) => {
       grouped[requestFamilyFromType(type)].push(type);
     });
 
