@@ -43,7 +43,7 @@ export type RoleOption = {
 
 export function createAdminUsersApi(httpRequest: HttpRequest) {
   return {
-    listUsers(params?: {
+    async listUsers(params?: {
       page?: number;
       per_page?: number;
       search?: string;
@@ -59,14 +59,18 @@ export function createAdminUsersApi(httpRequest: HttpRequest) {
       if (params?.type) query.set("type", params.type);
       if (params?.organization_id) query.set("organization_id", params.organization_id);
       const suffix = query.toString() ? `?${query.toString()}` : "";
-      return httpRequest<AdminUsersResponse>(`/admin/users${suffix}`);
+      const res = await httpRequest<any>(`/admin/users${suffix}`);
+      const items: AdminUser[] = res?.data?.items ?? [];
+      const m = res?.data?.meta ?? {};
+      return { data: items, meta: { page: m.page ?? 1, per_page: m.per_page ?? 20, total: m.total ?? 0, last_page: m.pages ?? 1 } };
     },
 
-    getUser(id: string): Promise<AdminUserDetail> {
-      return httpRequest<AdminUserDetail>(`/admin/users/${id}`);
+    async getUser(id: string): Promise<AdminUserDetail> {
+      const res = await httpRequest<any>(`/admin/users/${id}`);
+      return (res?.data ?? res) as AdminUserDetail;
     },
 
-    createUser(payload: {
+    async createUser(payload: {
       email: string;
       first_name?: string;
       last_name?: string;
@@ -74,13 +78,14 @@ export function createAdminUsersApi(httpRequest: HttpRequest) {
       status?: string;
       organization_id?: string;
     }): Promise<AdminUser> {
-      return httpRequest<AdminUser>("/admin/users", {
+      const res = await httpRequest<any>("/admin/users", {
         method: "POST",
         body: payload,
       });
+      return (res?.data ?? res) as AdminUser;
     },
 
-    updateUser(
+    async updateUser(
       id: string,
       payload: {
         email?: string;
@@ -90,27 +95,30 @@ export function createAdminUsersApi(httpRequest: HttpRequest) {
         organization_id?: string;
       },
     ): Promise<AdminUser> {
-      return httpRequest<AdminUser>(`/admin/users/${id}`, {
+      const res = await httpRequest<any>(`/admin/users/${id}`, {
         method: "POST",
         body: payload,
       });
+      return (res?.data ?? res) as AdminUser;
     },
 
-    updateUserStatus(
+    async updateUserStatus(
       id: string,
       payload: { status: string; reason?: string },
     ): Promise<AdminUser> {
-      return httpRequest<AdminUser>(`/admin/users/${id}/status`, {
+      const res = await httpRequest<any>(`/admin/users/${id}/status`, {
         method: "POST",
         body: payload,
       });
+      return (res?.data ?? res) as AdminUser;
     },
 
-    getUserRoles(id: string): Promise<{
+    async getUserRoles(id: string): Promise<{
       user: { id: string; email: string };
       roles: AdminUserRole[];
     }> {
-      return httpRequest(`/users/${id}/roles`);
+      const res = await httpRequest<any>(`/users/${id}/roles`);
+      return (res?.data ?? res) as { user: { id: string; email: string }; roles: AdminUserRole[] };
     },
 
     setUserRoles(id: string, roles: string[]): Promise<void> {
@@ -127,9 +135,10 @@ export function createAdminUsersApi(httpRequest: HttpRequest) {
       return httpRequest(`/users/${id}/invite`, { method: "POST", body: {} });
     },
 
-    searchUsers(query: string): Promise<AdminUser[]> {
+    async searchUsers(query: string): Promise<AdminUser[]> {
       const q = new URLSearchParams({ search: query, per_page: "20" }).toString();
-      return httpRequest<AdminUser[]>(`/admin/users?${q}`);
+      const res = await httpRequest<any>(`/admin/users?${q}`);
+      return (res?.data?.items ?? (Array.isArray(res?.data) ? res.data : [])) as AdminUser[];
     },
 
     async listRoleOptions(): Promise<RoleOption[]> {

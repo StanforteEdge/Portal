@@ -5,6 +5,7 @@ import { toBigInt } from '../../common/utils/ids';
 import { CreatePolicyDto } from './dto/create-policy.dto';
 import { ResolvePolicyDto } from './dto/resolve-policy.dto';
 import { UpdatePolicyDto } from './dto/update-policy.dto';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 
 type PolicyContext = {
   organization_id?: string;
@@ -49,15 +50,7 @@ export class PoliciesService {
       this.prisma.policy.count({ where })
     ]);
 
-    return {
-      data: rows.map((row) => this.serialize(row)),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
-    };
+    return paginatedResponse(rows.map((row) => this.serialize(row)), { page, per_page: perPage, total });
   }
 
   async create(dto: CreatePolicyDto, actorId?: string) {

@@ -184,6 +184,7 @@ model Profile {
   payrollRunsPrepared             PayrollRun[]                      @relation("PayrollRunPreparedBy")
   payrollRunsReviewed             PayrollRun[]                      @relation("PayrollRunReviewedBy")
   payrollRunsApproved             PayrollRun[]                      @relation("PayrollRunApprovedBy")
+  payrollRunsAuthorized           PayrollRun[]                      @relation("PayrollRunAuthorizedBy")
   payrollRunEvents                PayrollRunEvent[]                 @relation("PayrollRunEventActor")
   payrollPayslipDistributionsSent PayrollPayslipDistribution[]      @relation("PayrollPayslipDistributionSentBy")
   payrollNotificationPreference   PayrollNotificationPreference?

@@ -5,6 +5,7 @@ import { PrismaClientKnownRequestError } from '@prisma/client/runtime/library';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { randomToken } from '../../common/utils/crypto';
 import { toBigInt } from '../../common/utils/ids';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { generateUniqueUsername, makeUsernameSeed } from '../../common/utils/username';
 import { SetPrimaryOrganizationDto } from './dto/set-primary-organization.dto';
 import { EmployeeActionDto, UpsertEmployeeDto } from './dto/upsert-employee.dto';
@@ -78,14 +79,10 @@ export class HrService {
       this.prisma.profile.count({ where })
     ]);
 
-    return {
-      result: data.map((item) => this.serializeEmployee(item)),
-      total,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(total / perPage))
-    };
+    return paginatedResponse(
+      data.map((item) => this.serializeEmployee(item)),
+      { page, per_page: perPage, total }
+    );
   }
 
   async createEmployee(dto: UpsertEmployeeDto) {

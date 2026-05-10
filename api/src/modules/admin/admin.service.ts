@@ -6,6 +6,7 @@ import { CreateAdminUserDto } from './dto/create-admin-user.dto';
 import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { generateUniqueUsername, makeUsernameSeed } from '../../common/utils/username';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 
 @Injectable()
 export class AdminService {
@@ -57,15 +58,7 @@ export class AdminService {
       this.prisma.profile.count({ where })
     ]);
 
-    return {
-      data: users.map((user) => this.serializeUser(user)),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
-    };
+    return paginatedResponse(users.map((user) => this.serializeUser(user)), { page, per_page: perPage, total });
   }
 
   async getUser(profileId: string) {

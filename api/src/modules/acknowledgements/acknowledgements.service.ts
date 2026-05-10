@@ -5,6 +5,7 @@ import { toBigInt } from '../../common/utils/ids';
 import { CreateAcknowledgementDto } from './dto/create-acknowledgement.dto';
 import { ListAcknowledgementsDto } from './dto/list-acknowledgements.dto';
 import { RevokeAcknowledgementDto } from './dto/revoke-acknowledgement.dto';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 
 @Injectable()
 export class AcknowledgementsService {
@@ -169,15 +170,7 @@ export class AcknowledgementsService {
       this.prisma.acknowledgement.count({ where })
     ]);
 
-    return {
-      data: rows.map((row) => this.serialize(row)),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
-    };
+    return paginatedResponse(rows.map((row) => this.serialize(row)), { page, per_page: perPage, total });
   }
 
   private serialize(row: any) {

@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { DisburseRequestDto } from './dto/disburse-request.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UpdateFinanceSettingsDto } from './dto/update-finance-settings.dto';
@@ -330,8 +331,8 @@ export class FinanceService {
     const pageData = sorted.slice((page - 1) * perPage, (page - 1) * perPage + perPage);
     const pages = Math.max(1, Math.ceil(totalResult / perPage));
 
-    return {
-      result: pageData.map((entry) => ({
+    return paginatedResponse(
+      pageData.map((entry) => ({
         id: entry.row.id.toString(),
         request_number: entry.requestNumber,
         request_status: entry.row.status,
@@ -372,12 +373,8 @@ export class FinanceService {
         updated_at: entry.row.updatedAt.toISOString(),
         items: []
       })),
-      total: pageData.length,
-      total_result: totalResult,
-      per_page: perPage,
-      page,
-      pages,
-    };
+      { page, per_page: perPage, total: totalResult }
+    );
   }
 
   private isLeaveRequestType(
@@ -1463,14 +1460,7 @@ export class FinanceService {
       };
     });
 
-    return {
-      result: data,
-      total: data.length,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(total / perPage)),
-    };
+    return paginatedResponse(data, { page, per_page: perPage, total });
   }
 
   async listAccounts(query: Record<string, any>) {
@@ -1494,10 +1484,8 @@ export class FinanceService {
 
     const movementByAccount = await this.getLedgerMovementByAccount(data.map((row) => row.id));
 
-    const pages = Math.max(1, Math.ceil(total / perPage));
-
-    return {
-      result: data.map((row) => ({
+    return paginatedResponse(
+      data.map((row) => ({
         id: row.id,
         organization_id: row.organizationId?.toString() ?? null,
         name: row.name,
@@ -1514,12 +1502,8 @@ export class FinanceService {
         created_at: row.createdAt,
         updated_at: row.updatedAt
       })),
-      total,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages
-    };
+      { page, per_page: perPage, total }
+    );
   }
 
   async getAccount(id: string) {
@@ -1810,14 +1794,7 @@ export class FinanceService {
         : null,
       created_at: row.createdAt
     }));
-    return {
-      result,
-      total: result.length,
-      total_result: totalResult,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(totalResult / perPage)),
-    };
+    return paginatedResponse(result, { page, per_page: perPage, total: totalResult });
   }
 
   async createTransfer(dto: CreateTransferDto, actorId?: string) {
@@ -1950,14 +1927,7 @@ export class FinanceService {
     ]);
 
     const result = rows.map((row) => this.serializeLedgerRow(row));
-    return {
-      result,
-      total: result.length,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(total / perPage)),
-    };
+    return paginatedResponse(result, { page, per_page: perPage, total });
   }
 
   async exportLedger(query: Record<string, any>, format = 'csv') {
@@ -2105,14 +2075,7 @@ export class FinanceService {
     ]);
 
     const result = rows.map((row) => this.serializeAsset(row));
-    return {
-      result,
-      total: result.length,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(total / perPage)),
-    };
+    return paginatedResponse(result, { page, per_page: perPage, total });
   }
 
   async listAssetDisposals(query: Record<string, any>) {
@@ -2380,16 +2343,10 @@ export class FinanceService {
       this.prisma.financeChartAccount.count({ where: whereCount })
     ]);
 
-    const pages = Math.max(1, Math.ceil(total / perPage));
-
-    return {
-      result: data.map((row) => this.serializeChartAccount(row)),
-      total,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages
-    };
+    return paginatedResponse(
+      data.map((row) => this.serializeChartAccount(row)),
+      { page, per_page: perPage, total }
+    );
   }
 
   async getChartAccount(id: string) {
@@ -2568,14 +2525,10 @@ export class FinanceService {
       }),
       this.prisma.financeContact.count({ where })
     ]);
-    return {
-      result: data.map((row) => this.serializeContact(row)),
-      total,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(total / perPage))
-    };
+    return paginatedResponse(
+      data.map((row) => this.serializeContact(row)),
+      { page, per_page: perPage, total }
+    );
   }
 
   async getContact(id: string) {
@@ -3349,14 +3302,7 @@ export class FinanceService {
     }
     const totalResult = filtered.length;
     const result = filtered.slice((page - 1) * perPage, (page - 1) * perPage + perPage);
-    return {
-      result,
-      total: result.length,
-      total_result: totalResult,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(totalResult / perPage)),
-    };
+    return paginatedResponse(result, { page, per_page: perPage, total: totalResult });
   }
 
   async getSalesInvoice(id: string) {
@@ -3548,14 +3494,7 @@ export class FinanceService {
       this.prisma.financeBillHeader.count({ where }),
     ]);
     const result = rows.map((row) => this.serializeBill(row));
-    return {
-      result,
-      total: result.length,
-      total_result: totalResult,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(totalResult / perPage)),
-    };
+    return paginatedResponse(result, { page, per_page: perPage, total: totalResult });
   }
 
   async getBill(id: string) {
@@ -6179,14 +6118,7 @@ export class FinanceService {
       this.prisma.financeJournalEntry.count({ where }),
     ]);
 
-    return {
-      result: data,
-      total: data.length,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(total / perPage)),
-    };
+    return paginatedResponse(data, { page, per_page: perPage, total });
   }
 
   async createManualJournalEntry(dto: {
@@ -6527,14 +6459,7 @@ export class FinanceService {
       this.prisma.financeItem.count({ where }),
     ]);
 
-    return {
-      result: data,
-      total: data.length,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(total / perPage)),
-    };
+    return paginatedResponse(data, { page, per_page: perPage, total });
   }
 
   async createItem(userId: string, dto: UpsertFinanceItemDto) {
@@ -6616,14 +6541,7 @@ export class FinanceService {
       this.prisma.financeExpense.count({ where }),
     ]);
 
-    return {
-      result: data,
-      total: data.length,
-      total_result: total,
-      per_page: perPage,
-      page,
-      pages: Math.max(1, Math.ceil(total / perPage)),
-    };
+    return paginatedResponse(data, { page, per_page: perPage, total });
   }
 
   async createExpense(userId: string, dto: CreateFinanceExpenseDto) {

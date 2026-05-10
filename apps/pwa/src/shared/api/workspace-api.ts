@@ -57,7 +57,8 @@ export type WorkspaceNotification = {
 };
 
 export async function getWorkspaceProfile() {
-  return httpRequest<WorkspaceProfile>("/profile");
+  const res = await httpRequest<any>("/profile");
+  return (res?.data ?? res) as WorkspaceProfile;
 }
 
 export async function updateWorkspaceProfile(payload: {
@@ -74,10 +75,11 @@ export async function updateWorkspaceProfile(payload: {
   lga?: string;
   marital_status?: string;
 }) {
-  return httpRequest<WorkspaceProfile>("/profile", {
+  const res = await httpRequest<any>("/profile", {
     method: "PATCH",
     body: payload,
   });
+  return (res?.data ?? res) as WorkspaceProfile;
 }
 
 export async function changeWorkspacePassword(payload: {
@@ -95,11 +97,14 @@ export async function listWorkspaceNotifications(status?: "read" | "unread") {
   const query = new URLSearchParams();
   if (status) query.set("status", status);
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return httpRequest<WorkspaceNotification[]>(`/notifications${suffix}`);
+  const res = await httpRequest<any>(`/notifications${suffix}`);
+  return (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []) as WorkspaceNotification[];
 }
 
 export async function getWorkspaceUnreadNotificationCount() {
-  return httpRequest<number>("/notifications/unread-count");
+  const res = await httpRequest<any>("/notifications/unread-count");
+  const val = res?.data ?? res;
+  return (typeof val === "number" ? val : 0) as number;
 }
 
 export async function markWorkspaceNotificationRead(id: string) {
