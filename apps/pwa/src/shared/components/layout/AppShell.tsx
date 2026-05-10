@@ -91,9 +91,10 @@ export function AppShell({
     );
   }, [sidebarCollapsed]);
 
+  const notificationItems = Array.isArray(notifications) ? notifications : [];
   const topNotifications = useMemo(
-    () => (notifications ?? []).slice(0, 6),
-    [notifications],
+    () => Array.isArray(notificationItems) ? notificationItems.slice(0, 6) : [],
+    [notificationItems],
   );
   const visibleNavigation = useMemo(
     () => {

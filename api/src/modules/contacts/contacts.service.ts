@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
 import { CreateContactDto } from './dto/create-contact.dto';
 import { UpdateContactDto } from './dto/update-contact.dto';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 
 @Injectable()
 export class ContactsService {
@@ -38,15 +39,7 @@ export class ContactsService {
       this.prisma.profile.count({ where })
     ]);
 
-    return {
-      data,
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
-    };
+    return paginatedResponse(data, { page, per_page: perPage, total });
   }
 
   async get(id: string) {

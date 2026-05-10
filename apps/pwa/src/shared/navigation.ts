@@ -78,6 +78,7 @@ export function buildAppNavigation(options?: {
       moduleKey: "finance",
       children: [
         { key: "finance-dashboard", label: "Dashboard", icon: "grid_view", path: "/finance" },
+        { key: "finance-payroll", label: "Payroll", icon: "account_balance", path: "/finance/payroll", permissions: ["payroll.approve"] },
         {
           key: "finance-group-operations",
           label: "Operations",
@@ -136,6 +137,8 @@ export function buildAppNavigation(options?: {
             { key: "finance-budgets", label: "Budgets", icon: "savings", path: "/finance/budgets" },
             { key: "finance-settings", label: "Settings", icon: "settings", path: "/finance/settings" },
             { key: "finance-deduction-types", label: "Deduction Types", icon: "percent", path: "/finance/deduction-types" },
+            { key: "finance-payroll-components", label: "Salary Components", icon: "account_balance", path: "/finance/payroll/components", permissions: ["finance.manage"] },
+            { key: "finance-payroll-tax-tables", label: "Tax Tables", icon: "percent", path: "/finance/payroll/tax-tables", permissions: ["finance.manage"] },
           ],
         },
       ],
@@ -152,7 +155,17 @@ export function buildAppNavigation(options?: {
         { key: "hr-employees", label: "Employees", icon: "group", path: "/hr/employees", permissions: ["hr.manage", "hr.employees"] },
         { key: "hr-attendance", label: "Attendance", icon: "pending_actions", path: "/hr/attendance", permissions: ["attendance.view", "attendance.manage", "attendance.approve"] },
         { key: "hr-leave", label: "Leave", icon: "event_available", path: "/hr/leave", permissions: ["leave.view", "leave.manage", "leave.approve"] },
-        { key: "hr-settings", label: "Settings", icon: "settings", path: "/hr/settings", permissions: ["hr.manage", "settings.manage"] },
+        {
+          key: "hr-payroll-group",
+          label: "Payroll",
+          icon: "payments",
+          permissions: ["payroll.manage"],
+          children: [
+            { key: "hr-payroll", label: "Payroll Runs", icon: "receipt_long", path: "/hr/payroll" },
+            { key: "hr-payroll-workers", label: "Workers", icon: "group", path: "/hr/payroll/workers" },
+          ],
+        },
+        { key: "hr-settings", label: "Settings", icon: "settings", path: "/hr/settings", permissions: ["hr.manage"] },
       ],
     },
 
@@ -169,6 +182,7 @@ export function buildAppNavigation(options?: {
         { key: "admin-projects", label: "Projects", icon: "assignment", path: "/admin/projects", permissions: ["projects.view", "projects.manage"] },
         { key: "admin-files", label: "Files", icon: "folder", path: "/admin/files", permissions: ["admin.view"] },
         { key: "admin-settings", label: "System Settings", icon: "settings", path: "/admin/settings", permissions: ["settings.manage"] },
+        { key: "admin-payroll-auth", label: "Payroll Authorization", icon: "verified", path: "/admin/payroll/authorization", permissions: ["payroll.authorize"] },
       ],
     },
   ];

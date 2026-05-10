@@ -66,11 +66,13 @@ export function createRequestApi(httpRequest: HttpRequest) {
       if (params?.group_id) query.set("group_id", params.group_id);
       const suffix = query.toString() ? `?${query.toString()}` : "";
       const res = await httpRequest<any>(`/requests/types${suffix}`);
-      const list: unknown[] = Array.isArray(res)
-        ? res
-        : Array.isArray(res?.value)
-          ? res.value
-          : [];
+      const list: unknown[] = Array.isArray(res?.data)
+        ? res.data
+        : Array.isArray(res)
+          ? res
+          : Array.isArray(res?.value)
+            ? res.value
+            : [];
       let allTypes: RequestType[] = list.map((entry) => normalizeType(entry));
 
       if (params?.category) {
@@ -84,7 +86,8 @@ export function createRequestApi(httpRequest: HttpRequest) {
       if (params?.type_id) query.set("type_id", params.type_id);
       if (params?.status) query.set("status", params.status);
       const suffix = query.toString() ? `?${query.toString()}` : "";
-      return httpRequest<ResourceRequest[]>(`/requests/me${suffix}`);
+      const res = await httpRequest<any>(`/requests/me${suffix}`);
+      return (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []) as ResourceRequest[];
     },
 
     async createRequest(dto: Partial<ResourceRequest>) {
@@ -163,7 +166,8 @@ export function createRequestApi(httpRequest: HttpRequest) {
     },
 
     async listGroups() {
-      return httpRequest<any[]>("/requests/groups");
+      const res = await httpRequest<any>("/requests/groups");
+      return (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []) as any[];
     }
   };
 }

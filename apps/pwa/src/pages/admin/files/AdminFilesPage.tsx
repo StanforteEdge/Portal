@@ -52,15 +52,15 @@ export default function AdminFilesPage() {
         page,
         per_page: perPage,
       });
-      setTotalCount(Array.isArray(result) ? result.length : 0);
+      setTotalCount((result as any)?.data?.meta?.total ?? (Array.isArray(result) ? result.length : 0));
       return result;
     },
     { ttlMs: 0, storage: "memory" },
   );
 
-  const files = Array.isArray(filesData) ? filesData : [];
+  const files = Array.isArray(filesData?.result) ? filesData.result : Array.isArray(filesData) ? filesData : [];
   const totalPages = Math.ceil(totalCount / perPage) || 1;
-  const attachedCount = files.filter((f) => f.usage?.attached).length;
+  const attachedCount = files.filter((f: any) => f.usage?.attached).length;
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
@@ -217,7 +217,7 @@ export default function AdminFilesPage() {
             </div>
           ) : viewMode === "grid" ? (
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 p-2">
-              {files.map((file) => (
+              {files.map((file: any) => (
                 <div
                   key={file.id}
                   className="group relative bg-white border border-slate-200 rounded-xl p-3 hover:shadow-md transition-shadow"
@@ -270,7 +270,7 @@ export default function AdminFilesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {files.map((file) => (
+{files.map((file: any) => (
                     <tr key={file.id} className="border-b border-slate-100 hover:bg-slate-50">
                       <td className="p-3">
                         <p className="font-medium text-slate-900 truncate max-w-[200px]">{file.file_name}</p>

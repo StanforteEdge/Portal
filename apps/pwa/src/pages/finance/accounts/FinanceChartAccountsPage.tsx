@@ -71,8 +71,8 @@ export default function FinanceChartAccountsPage() {
     { ttlMs: 0, storage: "memory" },
   );
 
-  const accounts = Array.isArray((accountsData as any)?.result) ? (accountsData as any).result : [];
-  const totalCount = Number((accountsData as any)?.total_result ?? accounts.length);
+  const accounts = (accountsData as any)?.data?.items ?? [];
+  const totalCount = (accountsData as any)?.data?.meta?.total ?? 0;
   const totalPages = Math.ceil(totalCount / perPage) || 1;
 
   const stats = {

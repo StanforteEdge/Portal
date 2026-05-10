@@ -77,20 +77,16 @@ export default function AdminUsersPage() {
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const isDataArray = Array.isArray(data);
-  const users: AdminUser[] = isDataArray 
-    ? data 
-    : (Array.isArray(data?.data) ? data.data : []);
+  const users: AdminUser[] = Array.isArray(data?.data) ? data.data : [];
   const { data: organizations } = useCachedQuery(
     "admin:users:organizations",
     () => resourceApi.listOrganizations(),
     { ttlMs: 1000 * 60, storage: "memory" },
   );
   const organizationNameById = new Map(
-    (organizations ?? []).map((org) => [String(org.id), org.name]),
+    (organizations as any)?.data?.items?.map((org: any) => [String(org.id), org.name]) ?? []
   );
-  const metaTotal = !isDataArray ? data?.meta?.total : undefined;
-  const total = metaTotal ?? users.length;
+  const total = (data as any)?.data?.meta?.total ?? users.length;
   const active = users.filter((u) => u.status === "active").length;
   const pending = users.filter((u) => u.status === "pending").length;
   const suspended = users.filter((u) => u.status === "suspended").length;
@@ -205,13 +201,14 @@ export default function AdminUsersPage() {
                   const primaryFromMembership = (u.organizations ?? []).find(
                     (org) => org.id === u.primary_organization_id || org.is_primary,
                   );
-                  const orgName =
+                  const orgName = String(
                     primaryFromMembership?.name ||
                     (u.primary_organization_id
-                      ? organizationNameById.get(String(u.primary_organization_id))
-                      : undefined) ||
+                      ? organizationNameById.get(String(u.primary_organization_id)) || ""
+                      : "") ||
                     u.primary_organization?.name ||
-                    null;
+                    ""
+                  );
                   return (
                     <TableRow key={u.id}>
                       <TableCell>

@@ -362,7 +362,7 @@ export function RequestFormPage() {
     { ttlMs: 1000 * 60 * 10, storage: "memory" },
   );
   const vendorOptions: Array<{ id: string; name: string }> =
-    (vendors as any)?.result ?? (vendors as any) ?? [];
+    (vendors as any)?.data?.items ?? [];
 
   useEffect(() => {
     if (!editId) return;

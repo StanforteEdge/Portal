@@ -11,6 +11,7 @@ import { UpdateUserDto } from './dto/update-user.dto';
 import { randomToken, sha256 } from '../../common/utils/crypto';
 import { MailService } from '../../common/mail/mail.service';
 import { generateUniqueUsername, makeUsernameSeed } from '../../common/utils/username';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 
 @Injectable()
 export class UsersService {
@@ -124,15 +125,7 @@ export class UsersService {
       this.prisma.profile.count({ where })
     ]);
 
-    return {
-      data: data.map((row) => this.serializeUserSummary(row)),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
-    };
+    return paginatedResponse(data.map((row) => this.serializeUserSummary(row)), { page, per_page: perPage, total });
   }
 
   async createUser(dto: CreateUserDto) {

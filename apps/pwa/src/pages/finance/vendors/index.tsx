@@ -62,9 +62,9 @@ export default function FinanceVendorsPage() {
     () => financeApi.listContacts(query),
     { ttlMs: 30_000, storage: "memory" },
   );
-  const contacts = Array.isArray((contactsData as any)?.result) ? (contactsData as any).result : [];
-  const totalContacts = Number((contactsData as any)?.total_result ?? contacts.length);
-  const totalPages = Number((contactsData as any)?.pages ?? 1);
+  const contacts = Array.isArray(contactsData?.result) ? contactsData.result : [];
+  const totalContacts = Number(contactsData?.total ?? 0);
+  const totalPages = Number(contactsData?.pages ?? 1);
 
   const stats = useMemo(() => {
     const totalOutstanding = contacts.reduce((sum: number, c: any) => sum + Number(c.outstanding_amount || 0), 0);

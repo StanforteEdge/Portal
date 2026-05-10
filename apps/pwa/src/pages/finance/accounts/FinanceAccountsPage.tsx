@@ -76,8 +76,8 @@ export default function FinanceAccountsPage() {
     { ttlMs: 0, storage: "memory" },
   );
 
-  const accounts = Array.isArray((accountsData as any)?.result) ? (accountsData as any).result : [];
-  const totalCount = Number((accountsData as any)?.total_result ?? accounts.length);
+  const accounts = Array.isArray(accountsData?.result) ? accountsData.result : [];
+  const totalCount = Number(accountsData?.total ?? 0);
   const totalPages = Math.ceil(totalCount / perPage) || 1;
 
   const totalOpening = accounts.reduce((sum: number, a: any) => sum + (a.opening_balance || 0), 0);
@@ -203,6 +203,10 @@ export default function FinanceAccountsPage() {
               <input type="search" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} placeholder="Search accounts..." className="rounded-2xl border border-slate-200 bg-white px-4 py-[0.6rem] text-sm font-semibold text-slate-700 focus:outline-none focus:ring-4 focus:ring-brand-900/10" />
             </label>
             <Button variant="secondary" size="sm" onClick={() => void refetch()}><Icon name="refresh" className="text-[16px]" />Refresh</Button>
+            <Button onClick={openCreate}>
+                <Icon name="add" className="text-[18px]" />
+                Add Account
+              </Button>
           </div>
         </section>
 
@@ -217,12 +221,7 @@ export default function FinanceAccountsPage() {
                 {Math.min(totalCount, page * perPage)} of {totalCount} account
                 {totalCount !== 1 ? "s" : ""}
               </Chip>
-            ) : (
-              <Button onClick={openCreate}>
-                <Icon name="add" className="text-[18px]" />
-                Add Account
-              </Button>
-            )
+            ) : undefined
           }
         >
           {loading ? (

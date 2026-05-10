@@ -73,7 +73,7 @@ export default function FinanceLedgerPage() {
   const rows = Array.isArray(ledgerPayload?.result) ? ledgerPayload.result : [];
   const ledgerPage = Number(ledgerPayload?.page || page);
   const ledgerPerPage = Number(ledgerPayload?.per_page || perPage);
-  const ledgerTotal = Number(ledgerPayload?.total_result || 0);
+  const ledgerTotal = Number(ledgerPayload?.total || 0);
   const ledgerPages = Number(ledgerPayload?.pages || 1);
   const ledgerRangeStart = ledgerTotal > 0 ? (ledgerPage - 1) * ledgerPerPage + 1 : 0;
   const ledgerRangeEnd = ledgerTotal > 0 ? ledgerRangeStart + rows.length - 1 : 0;
@@ -87,7 +87,7 @@ export default function FinanceLedgerPage() {
 
   const totals = useMemo(() => {
     return rows.reduce(
-      (acc, row) => {
+      (acc: any, row: any) => {
         const direction = String(row.direction || "").toLowerCase();
         const amount = Number(row.amount || 0);
         if (direction === "in") acc.inflow += amount;

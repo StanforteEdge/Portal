@@ -18,8 +18,10 @@ export function createPolicyApi(httpRequest: HttpRequest) {
   return {
     async listPolicies(module: string) {
       const response = await httpRequest<any>(`/policies?module=${module}`);
-      const data = Array.isArray(response) ? response : (response?.data || []);
-      return data as PolicyRecord[];
+      const inner = (response as any)?.data ?? response;
+      if (Array.isArray(inner)) return inner as PolicyRecord[];
+      if (Array.isArray((inner as any)?.items)) return (inner as any).items as PolicyRecord[];
+      return [] as PolicyRecord[];
     },
 
     async savePolicy(dto: Partial<PolicyRecord>, id?: string) {

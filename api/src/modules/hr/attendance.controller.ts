@@ -54,6 +54,12 @@ export class AttendanceController {
     return this.attendanceService.records(query);
   }
 
+  @Get('records/:userId/:workDate')
+  @Permissions('attendance.view_team')
+  getDailyRecord(@Param('userId') userId: string, @Param('workDate') workDate: string) {
+    return this.attendanceService.getDailyRecord(userId, workDate);
+  }
+
   @Get('office-locations')
   @Permissions('attendance.view_team')
   officeLocations(@Query() query: Record<string, any>) {

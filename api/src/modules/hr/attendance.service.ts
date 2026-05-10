@@ -358,6 +358,59 @@ export class AttendanceService {
     };
   }
 
+  async getDailyRecord(userId: string, workDate: string) {
+    const userIdBigInt = toBigInt(userId);
+
+    const daily = await this.prisma.attendanceDaily.findFirst({
+      where: {
+        userId: userIdBigInt,
+        workDate: workDate
+      }
+    });
+
+    if (!daily) {
+      return null;
+    }
+
+    const entries = await this.prisma.attendanceEntry.findMany({
+      where: {
+        userId: userIdBigInt,
+        workDate: workDate
+      },
+      orderBy: { entryAt: 'asc' }
+    });
+
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: userIdBigInt },
+      select: { id: true, email: true, username: true, firstName: true, lastName: true }
+    });
+
+    return {
+      daily: this.serializeDaily(daily),
+      profile: profile ? {
+        id: profile.id.toString(),
+        email: profile.email,
+        username: profile.username,
+        first_name: profile.firstName,
+        last_name: profile.lastName
+      } : null,
+      entries: entries.map(e => ({
+        id: e.id.toString(),
+        user_id: e.userId.toString(),
+        work_date: e.workDate,
+        type: e.entryType,
+        mode: e.attendanceMode,
+        timestamp: e.entryAt,
+        latitude: e.latitude ? Number(e.latitude) : null,
+        longitude: e.longitude ? Number(e.longitude) : null,
+        location: e.officeLocationId ? undefined : undefined,
+        source: e.source,
+        verified: e.geofenceStatus,
+        office_location_id: e.officeLocationId ? e.officeLocationId.toString() : null
+      }))
+    };
+  }
+
   async listOfficeLocations(query: Record<string, any>) {
     const organizationId = query.organization_id ? toBigInt(String(query.organization_id)) : null;
     const status = query.is_active === undefined ? null : String(query.is_active) === 'true';

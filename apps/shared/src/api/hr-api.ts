@@ -114,21 +114,24 @@ export function createHrApi(httpRequest: HttpRequest) {
       }
       const suffix = query.toString() ? `?${query.toString()}` : '';
       const response = await httpRequest<any>(`/hr/employees${suffix}`);
-      
-      const rawList = Array.isArray(response?.result) ? response.result : Array.isArray(response?.data) ? response.data : [];
+      const inner = response?.data ?? response;
+      const rawList = Array.isArray(inner?.result) ? inner.result
+        : Array.isArray(inner?.items) ? inner.items
+        : Array.isArray(inner) ? inner
+        : [];
       return {
         result: rawList.map(normalizeEmployee),
-        total: Number(response?.total ?? response?.total_result ?? rawList.length),
-        total_result: Number(response?.total_result ?? response?.total ?? rawList.length),
-        per_page: Number(response?.per_page ?? 20),
-        page: Number(response?.page ?? 1),
-        pages: Number(response?.pages ?? 1)
+        total: Number(inner?.total ?? inner?.meta?.total ?? rawList.length),
+        total_result: Number(inner?.total_result ?? inner?.total ?? inner?.meta?.total ?? rawList.length),
+        per_page: Number(inner?.per_page ?? inner?.meta?.per_page ?? 20),
+        page: Number(inner?.page ?? inner?.meta?.page ?? 1),
+        pages: Number(inner?.pages ?? inner?.meta?.pages ?? 1)
       };
     },
 
     async getEmployee(id: string) {
       const raw = await httpRequest<any>(`/hr/employees/${id}`);
-      return normalizeEmployeeDetail(raw);
+      return normalizeEmployeeDetail(raw?.data ?? raw);
     },
 
     async createEmployee(dto: any) {
@@ -136,7 +139,7 @@ export function createHrApi(httpRequest: HttpRequest) {
         method: 'POST',
         body: dto,
       });
-      return normalizeEmployeeDetail(raw);
+      return normalizeEmployeeDetail(raw?.data ?? raw);
     },
 
     async updateEmployee(id: string, dto: any) {
@@ -144,7 +147,7 @@ export function createHrApi(httpRequest: HttpRequest) {
         method: 'PATCH',
         body: dto,
       });
-      return normalizeEmployeeDetail(raw);
+      return normalizeEmployeeDetail(raw?.data ?? raw);
     },
 
     async runAction(id: string, dto: { action: EmployeeAction; effective_date?: string; notes?: string }) {
@@ -152,7 +155,7 @@ export function createHrApi(httpRequest: HttpRequest) {
         method: 'PATCH',
         body: dto,
       });
-      return normalizeEmployeeDetail(raw);
+      return normalizeEmployeeDetail(raw?.data ?? raw);
     },
 
     async addOrganization(id: string, dto: { organization_id: string; is_primary?: boolean }) {

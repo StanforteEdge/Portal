@@ -51,12 +51,12 @@ export default function FilesPage() {
         page,
         per_page: perPage,
       });
-      setTotalCount(result.total ?? result.total_result ?? 0);
+      setTotalCount((result as any)?.data?.meta?.total ?? 0);
       return result;
     },
     { ttlMs: 0, storage: "memory" },
   );
-  const files = filesData?.result ?? [];
+  const files = (filesData as any)?.data?.items ?? [];
   const totalPages = Math.ceil(totalCount / perPage) || 1;
 
   const userName =

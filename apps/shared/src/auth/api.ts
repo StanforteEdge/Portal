@@ -48,22 +48,24 @@ function normalizeUser(payload: any): AuthUser {
 
 export function createAuthApi(httpRequest: HttpRequest) {
   async function fetchCurrentUser(): Promise<AuthUser | null> {
+    // Primary: /me (standard "who am I with auth context" endpoint)
     try {
       const payload = await httpRequest<any>("/me");
       if (payload) {
-        return normalizeUser(payload?.user ?? payload?.profile ?? payload);
+        const inner = (payload as any)?.data ?? payload;
+        const user = normalizeUser(inner?.user ?? inner?.profile ?? inner);
+        if (user.id && user.id !== "undefined") return user;
       }
     } catch {
-      // Try profile endpoint as fallback for environments that expose /profile instead of /me.
+      // fall through
     }
 
+    // Fallback: re-use the status endpoint which always carries roles/permissions
     try {
-      const payload = await httpRequest<any>("/profile");
-      if (payload) {
-        return normalizeUser(payload?.user ?? payload?.profile ?? payload);
-      }
+      const result = await fetchStatus();
+      if (result.authenticated && result.user) return result.user;
     } catch {
-      return null;
+      // fall through
     }
 
     return null;
@@ -76,8 +78,9 @@ export function createAuthApi(httpRequest: HttpRequest) {
       auth: false,
     });
 
-    const tokens = normalizeTokens(payload);
-    const userPayload = payload?.user ?? payload?.profile ?? payload;
+    const inner = (payload as any)?.data ?? payload;
+    const tokens = normalizeTokens(inner);
+    const userPayload = inner?.user ?? inner?.profile ?? inner;
     const user = normalizeUser(userPayload);
     return { tokens, user };
   }
@@ -94,26 +97,28 @@ export function createAuthApi(httpRequest: HttpRequest) {
 
   async function fetchStatus(): Promise<AuthStatusResponse> {
     const payload = await httpRequest<any>("/auth/status");
+    // Unwrap { success, data } envelope if present
+    const inner = (payload as any)?.data ?? payload;
 
-    if (typeof payload?.authenticated === "boolean") {
+    if (typeof inner?.authenticated === "boolean") {
       return {
-        authenticated: payload.authenticated,
-        user: payload.user ? normalizeUser(payload.user) : null,
+        authenticated: inner.authenticated,
+        user: inner.user ? normalizeUser(inner.user) : null,
       };
     }
 
     // Some backends return user fields directly from /auth/status without an `authenticated` flag.
-    if (payload?.id && payload?.email) {
+    if (inner?.id && inner?.email) {
       return {
         authenticated: true,
-        user: normalizeUser(payload),
+        user: normalizeUser(inner),
       };
     }
 
-    if (payload?.user) {
+    if (inner?.user) {
       return {
         authenticated: true,
-        user: normalizeUser(payload.user),
+        user: normalizeUser(inner.user),
       };
     }
 

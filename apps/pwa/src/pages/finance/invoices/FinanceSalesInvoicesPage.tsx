@@ -64,11 +64,15 @@ export default function FinanceSalesInvoicesPage() {
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const customerOptions = Array.isArray((contacts as any)?.result) ? (contacts as any).result : [];
+  const customerOptions = Array.isArray(contacts?.result) ? contacts.result : [];
 
-  const invoices = Array.isArray((invoicesData as any)?.result) ? (invoicesData as any).result : [];
-  const pagination = (invoicesData as any) || {};
-  const totalInvoices = Number(pagination.total_result ?? invoices.length);
+  const invoices = Array.isArray(invoicesData?.result) ? invoicesData.result : [];
+  const totalInvoices = Number(invoicesData?.total ?? 0);
+  const pagination = {
+    page: invoicesData?.page ?? page,
+    pages: invoicesData?.pages ?? 1,
+    total_result: invoicesData?.total ?? 0,
+  };
 
   const totalAmount = invoices.reduce(
     (sum: number, inv: any) => sum + Number(inv.totalAmount ?? inv.total_amount ?? 0),

@@ -27,7 +27,7 @@ import {
   type AdminCorrectionRow,
   type StaffDailyRow,
 } from "@stanforte/shared";
-import StaffAttendanceSlideOver from "./StaffAttendanceSlideOver";
+import AttendanceRecordSlideOver from "./AttendanceRecordSlideOver";
 import CorrectionReviewSlideOver from "./CorrectionReviewSlideOver";
 import { formatDate, formatTime, formatDuration, humanize } from "@stanforte/shared";
 import { deriveAttendanceStatus, toneFromStatus } from "./attendance-data";
@@ -84,6 +84,7 @@ export default function HrAttendancePage() {
   const [slideOver, setSlideOver] = useState<{
     userId: string;
     userName: string;
+    workDate: string;
   } | null>(null);
   const [reviewingItem, setReviewingItem] = useState<AdminCorrectionRow | null>(null);
 
@@ -332,7 +333,7 @@ export default function HrAttendancePage() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => setSlideOver({ userId: row.user_id, userName: row.user_name })}
+                              onClick={() => setSlideOver({ userId: row.user_id, userName: row.user_name, workDate: row.work_date })}
                             >
                               Detail
                             </Button>
@@ -457,11 +458,10 @@ export default function HrAttendancePage() {
       </div>
 
       {slideOver ? (
-        <StaffAttendanceSlideOver
+        <AttendanceRecordSlideOver
           userId={slideOver.userId}
-          userName={slideOver.userName}
-          from={dateFrom}
-          to={dateTo}
+          workDate={slideOver.workDate}
+          employeeName={slideOver.userName}
           onClose={() => setSlideOver(null)}
         />
       ) : null}

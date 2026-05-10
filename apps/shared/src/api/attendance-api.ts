@@ -91,7 +91,8 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
   return {
     async getStats(date: string): Promise<AttendanceTodayStats> {
       const res = await httpRequest<any>(`/hr/attendance/summary?from=${date}&to=${date}`);
-      const stats = res?.by_status || {};
+      const inner = res?.data ?? res;
+      const stats = inner?.by_status || {};
       return {
         total_staff: (stats.present || 0) + (stats.late || 0) + (stats.absent || 0) + (stats.excused || 0),
         clocked_in: (stats.present || 0) + (stats.late || 0),
@@ -102,7 +103,8 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
 
     async getTrend(from: string, to: string): Promise<Array<{ date: string; present: number; late: number; absent: number }>> {
       const res = await httpRequest<any>(`/hr/attendance/summary?from=${from}&to=${to}`);
-      return res?.daily || [];
+      const inner = res?.data ?? res;
+      return inner?.daily || [];
     },
 
     async listRecords(params: { from: string; to: string; user_id?: string; org_id?: string; team_id?: string; status?: string }) {
@@ -151,6 +153,11 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
         method,
         body: data,
       });
+    },
+
+    async getDailyRecord(userId: string, workDate: string) {
+      const res = await httpRequest<any>(`/hr/attendance/records/${userId}/${workDate}`);
+      return res;
     }
   };
 }

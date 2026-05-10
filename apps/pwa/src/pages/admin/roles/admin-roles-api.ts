@@ -50,10 +50,11 @@ export async function createRole(payload: {
   description?: string;
   permission_ids?: string[];
 }): Promise<Role> {
-  return httpRequest<Role>("/admin/rbac/roles", {
+  const res = await httpRequest<any>("/admin/rbac/roles", {
     method: "POST",
     body: payload,
   });
+  return (res?.data ?? res) as Role;
 }
 
 export async function updateRole(
@@ -65,10 +66,11 @@ export async function updateRole(
     permission_ids?: string[];
   },
 ): Promise<Role> {
-  return httpRequest<Role>(`/admin/rbac/roles/${id}`, {
+  const res = await httpRequest<any>(`/admin/rbac/roles/${id}`, {
     method: "POST",
     body: payload,
   });
+  return (res?.data ?? res) as Role;
 }
 
 export async function deleteRole(id: string): Promise<void> {
@@ -81,10 +83,11 @@ export async function getRoleDeleteImpact(id: string): Promise<{
   affected_users: number;
   users: Array<{ profile_id: string; email: string; username: string }>;
 }> {
-  return httpRequest<{
+  const res = await httpRequest<any>(`/admin/rbac/roles/${id}/delete-impact`);
+  return (res?.data ?? res) as {
     affected_users: number;
     users: Array<{ profile_id: string; email: string; username: string }>;
-  }>(`/admin/rbac/roles/${id}/delete-impact`);
+  };
 }
 
 export async function listPermissions(): Promise<RolePermission[]> {
@@ -130,8 +133,9 @@ export async function getPermissionDeleteImpact(id: string): Promise<{
   affected_roles: number;
   roles: Array<{ id: string; name: string }>;
 }> {
-  return httpRequest<{
+  const res = await httpRequest<any>(`/admin/rbac/permissions/${id}/delete-impact`);
+  return (res?.data ?? res) as {
     affected_roles: number;
     roles: Array<{ id: string; name: string }>;
-  }>(`/admin/rbac/permissions/${id}/delete-impact`);
+  };
 }

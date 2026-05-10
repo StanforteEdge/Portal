@@ -182,9 +182,11 @@ export default function FinanceRequestsPage() {
 
   const queueData = Array.isArray(financeRequestsPayload?.result)
     ? (financeRequestsPayload.result as RequestRecord[])
-    : [];
+    : Array.isArray(financeRequestsPayload)
+      ? (financeRequestsPayload as RequestRecord[])
+      : [];
   const queue: RequestRecord[] = queueData.filter((entry) => !isLeaveRequest(entry));
-  const total = Number(financeRequestsPayload?.total_result ?? queue.length);
+  const total = Number(financeRequestsPayload?.total ?? 0);
   const lastPage = Math.max(1, Number(financeRequestsPayload?.pages ?? 1));
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||

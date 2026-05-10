@@ -133,7 +133,8 @@ export async function listRequests(params?: Record<string, unknown>) {
   }
 
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return httpRequest<RequestRecord[]>(`/requests${suffix}`);
+  const res = await httpRequest<any>(`/requests${suffix}`);
+  return (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []) as RequestRecord[];
 }
 
 export async function listApprovals(params?: Record<string, unknown>) {
@@ -146,11 +147,13 @@ export async function listApprovals(params?: Record<string, unknown>) {
   }
 
   const suffix = query.toString() ? `?${query.toString()}` : "";
-  return httpRequest<RequestRecord[]>(`/requests/approvals${suffix}`);
+  const res = await httpRequest<any>(`/requests/approvals${suffix}`);
+  return (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []) as RequestRecord[];
 }
 
 export async function listRequestTypes() {
-  return httpRequest<RequestTypeOption[]>("/requests/types");
+  const res = await httpRequest<any>("/requests/types");
+  return (res as any)?.data?.items ?? (Array.isArray(res) ? res : []);
 }
 
 export async function getRequest(id: string) {
@@ -158,7 +161,8 @@ export async function getRequest(id: string) {
 }
 
 export async function getRequestActions(id: string) {
-  return httpRequest<string[]>(`/requests/${id}/actions`);
+  const res = await httpRequest<any>(`/requests/${id}/actions`);
+  return Array.isArray(res) ? res : (res as any)?.data?.items ?? [];
 }
 
 export async function createRequest(payload: {
@@ -330,17 +334,20 @@ export async function disburseRequest(
 }
 
 export async function listProjects() {
-  return httpRequest<ProjectOption[]>("/projects?active_only=true");
+  const res = await httpRequest<any>("/projects?active_only=true");
+  return (res as any)?.data?.items ?? (Array.isArray(res) ? res : []);
 }
 
 export async function listMyOrganizations() {
-  return httpRequest<MyOrganization[]>("/organizations/my");
+  const res = await httpRequest<any>("/organizations/my");
+  return (res as any)?.data?.items ?? (Array.isArray(res) ? res : []);
 }
 
 export async function listGroups(params?: { active_only?: boolean }) {
   const query = new URLSearchParams();
   query.set("active_only", params?.active_only === false ? "false" : "true");
-  return httpRequest<TeamOption[]>(`/groups?${query.toString()}`);
+  const res = await httpRequest<any>(`/groups?${query.toString()}`);
+  return (res as any)?.data?.items ?? (Array.isArray(res) ? res : []);
 }
 
 export async function getMyLeaveBalance(params?: { year?: number; leave_type_key?: string }) {

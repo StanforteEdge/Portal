@@ -57,7 +57,9 @@ export function createHttpClient(config: {
         if (session) {
           session.updateSessionTokens(tokens.access_token, tokens.refresh_token, tokens.expires_in);
         }
-        return tokens.access_token;
+        // When using httpOnly cookies the token isn't in the body — return a
+        // sentinel so the caller knows the refresh succeeded and should retry.
+        return tokens.access_token || "cookie";
       })
       .catch(() => {
         session?.clearSession();
@@ -94,9 +96,11 @@ export function createHttpClient(config: {
       throw new Error(String(errorMessage));
     }
 
-    if (payload && typeof payload === "object" && "data" in payload && "meta" in payload) {
+    // Keep the new paginated format as-is: { success: true, data: { items: [], meta: {...} } }
+    if (payload && typeof payload === "object" && "success" in payload && "data" in payload) {
       return payload as T;
     }
+    // Legacy fallback for old format
     return ((payload as any)?.data ?? payload) as T;
   }
 

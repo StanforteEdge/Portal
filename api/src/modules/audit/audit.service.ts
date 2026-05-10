@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
 import { CreateAuditEventDto } from './dto/create-audit-event.dto';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 
 @Injectable()
 export class AuditService {
@@ -56,31 +57,23 @@ export class AuditService {
     });
     const total = await this.prisma.workflowHistory.count({ where });
 
-    return {
-      data: events.map((event) => ({
-        id: event.id,
-        instance_id: event.instanceId,
-        action: event.action,
-        comment: event.comment,
-        data: event.data,
-        performed_by: event.performedBy ? event.performedBy.toString() : null,
-        created_at: event.createdAt,
-        entity: {
-          type: event.instance.entityType,
-          id: event.instance.entityId
-        },
-        workflow: {
-          id: event.instance.workflow.id,
-          name: event.instance.workflow.name
-        }
-      })),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
+    return paginatedResponse(events.map((event) => ({
+      id: event.id,
+      instance_id: event.instanceId,
+      action: event.action,
+      comment: event.comment,
+      data: event.data,
+      performed_by: event.performedBy ? event.performedBy.toString() : null,
+      created_at: event.createdAt,
+      entity: {
+        type: event.instance.entityType,
+        id: event.instance.entityId
+      },
+      workflow: {
+        id: event.instance.workflow.id,
+        name: event.instance.workflow.name
       }
-    };
+    })), { page, per_page: perPage, total });
   }
 
   async createEvent(dto: CreateAuditEventDto, performedBy?: string) {
@@ -190,31 +183,23 @@ export class AuditService {
       this.prisma.emailLog.count({ where })
     ]);
 
-    return {
-      data: data.map((item) => ({
-        id: item.id.toString(),
-        user_id: item.userId ? item.userId.toString() : null,
-        user: item.user
-          ? { id: item.user.id.toString(), email: item.user.email, username: item.user.username }
-          : null,
-        to_email: item.toEmail,
-        subject: item.subject,
-        status: item.status,
-        provider: item.provider,
-        message_id: item.messageId,
-        error_message: item.errorMessage,
-        thread_key: item.threadKey,
-        notifiable_type: item.notifiableType,
-        notifiable_id: item.notifiableId ? item.notifiableId.toString() : null,
-        created_at: item.createdAt
-      })),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
-    };
+    return paginatedResponse(data.map((item) => ({
+      id: item.id.toString(),
+      user_id: item.userId ? item.userId.toString() : null,
+      user: item.user
+        ? { id: item.user.id.toString(), email: item.user.email, username: item.user.username }
+        : null,
+      to_email: item.toEmail,
+      subject: item.subject,
+      status: item.status,
+      provider: item.provider,
+      message_id: item.messageId,
+      error_message: item.errorMessage,
+      thread_key: item.threadKey,
+      notifiable_type: item.notifiableType,
+      notifiable_id: item.notifiableId ? item.notifiableId.toString() : null,
+      created_at: item.createdAt
+    })), { page, per_page: perPage, total });
   }
 
   private parseId(value: string, label: string): bigint {

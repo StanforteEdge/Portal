@@ -5,6 +5,7 @@ import { toBigInt } from '../../common/utils/ids';
 import { AcknowledgeDocumentDto } from './dto/acknowledge-document.dto';
 import { CreateDocumentDto } from './dto/create-document.dto';
 import { UpdateDocumentDto } from './dto/update-document.dto';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 
 @Injectable()
 export class DocumentsService {
@@ -51,15 +52,7 @@ export class DocumentsService {
       this.prisma.document.count({ where })
     ]);
 
-    return {
-      data: data.map((row) => this.serialize(row)),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
-    };
+    return paginatedResponse(data.map((row) => this.serialize(row)), { page, per_page: perPage, total });
   }
 
   async get(profileId: string, id: string) {
@@ -221,29 +214,21 @@ export class DocumentsService {
       this.prisma.documentAcknowledgement.count({ where })
     ]);
 
-    return {
-      data: rows.map((row) => ({
-        id: row.id,
-        user_id: row.userId.toString(),
-        user: {
-          id: row.user.id.toString(),
-          email: row.user.email,
-          username: row.user.username,
-          first_name: row.user.firstName,
-          last_name: row.user.lastName
-        },
-        version: row.version,
-        acknowledged_at: row.acknowledgedAt,
-        ip_address: row.ipAddress,
-        user_agent: row.userAgent
-      })),
-      meta: {
-        page,
-        per_page: perPage,
-        total,
-        last_page: Math.max(1, Math.ceil(total / perPage))
-      }
-    };
+    return paginatedResponse(rows.map((row) => ({
+      id: row.id,
+      user_id: row.userId.toString(),
+      user: {
+        id: row.user.id.toString(),
+        email: row.user.email,
+        username: row.user.username,
+        first_name: row.user.firstName,
+        last_name: row.user.lastName
+      },
+      version: row.version,
+      acknowledged_at: row.acknowledgedAt,
+      ip_address: row.ipAddress,
+      user_agent: row.userAgent
+    })), { page, per_page: perPage, total });
   }
 
   private serialize(row: any) {

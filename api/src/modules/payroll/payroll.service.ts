@@ -20,6 +20,7 @@ import { UpsertPayrollComponentDto } from './dto/upsert-payroll-component.dto';
 import { UpsertPayrollSettingDto } from './dto/upsert-payroll-setting.dto';
 import { UpsertPayrollTaxTableDto } from './dto/upsert-payroll-tax-table.dto';
 import { UpsertPayrollWorkerDto } from './dto/upsert-payroll-worker.dto';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 
 @Injectable()
 export class PayrollService {
@@ -57,7 +58,7 @@ export class PayrollService {
       select: { id: true }
     });
     if (!worker) {
-      return { data: [], meta: { page, per_page: perPage, total: 0, last_page: 1 } };
+      return paginatedResponse([], { page, per_page: perPage, total: 0 });
     }
 
     const [rows, total] = await this.prisma.$transaction([
@@ -74,30 +75,27 @@ export class PayrollService {
       this.prisma.payrollRunItem.count({ where: { workerId: worker.id } }),
     ]);
 
-    return {
-      data: rows.map((row) => ({
-        id: row.id,
-        run_id: row.runId,
-        run_name: row.run.name,
-        year: row.run.year,
-        month: row.run.month,
-        status: row.run.status,
-        gross_pay: Number(row.grossPay || 0),
-        total_deductions: Number(row.totalDeductions || 0),
-        net_pay: Number(row.netPay || 0),
-        payment_status: row.paymentStatus,
-        payment_reference: row.paymentReference,
-        latest_distribution: row.payslipDistributions?.[0]
-          ? {
-              id: row.payslipDistributions[0].id,
-              status: row.payslipDistributions[0].status,
-              sent_at: row.payslipDistributions[0].sentAt,
-              created_at: row.payslipDistributions[0].createdAt,
-            }
-          : null,
-      })),
-      meta: { page, per_page: perPage, total, last_page: Math.max(1, Math.ceil(total / perPage)) }
-    };
+    return paginatedResponse(rows.map((row) => ({
+      id: row.id,
+      run_id: row.runId,
+      run_name: row.run.name,
+      year: row.run.year,
+      month: row.run.month,
+      status: row.run.status,
+      gross_pay: Number(row.grossPay || 0),
+      total_deductions: Number(row.totalDeductions || 0),
+      net_pay: Number(row.netPay || 0),
+      payment_status: row.paymentStatus,
+      payment_reference: row.paymentReference,
+      latest_distribution: row.payslipDistributions?.[0]
+        ? {
+            id: row.payslipDistributions[0].id,
+            status: row.payslipDistributions[0].status,
+            sent_at: row.payslipDistributions[0].sentAt,
+            created_at: row.payslipDistributions[0].createdAt,
+          }
+        : null,
+    })), { page, per_page: perPage, total });
   }
 
   async getMyPayslipDetails(userId: string, runId: string, itemId: string) {
@@ -444,10 +442,7 @@ export class PayrollService {
       this.prisma.payrollWorker.count({ where })
     ]);
 
-    return {
-      data: rows.map((row) => this.serializeWorker(row)),
-      meta: { page, per_page: perPage, total, last_page: Math.max(1, Math.ceil(total / perPage)) }
-    };
+    return paginatedResponse(rows.map((row) => this.serializeWorker(row)), { page, per_page: perPage, total });
   }
 
   async getWorker(id: string) {
@@ -766,10 +761,7 @@ export class PayrollService {
       }),
       this.prisma.payrollRun.count({ where })
     ]);
-    return {
-      data: rows.map((row) => this.serializeRunSummary(row)),
-      meta: { page, per_page: perPage, total, last_page: Math.max(1, Math.ceil(total / perPage)) }
-    };
+    return paginatedResponse(rows.map((row) => this.serializeRunSummary(row)), { page, per_page: perPage, total });
   }
 
   async getRun(id: string) {
@@ -1268,6 +1260,35 @@ export class PayrollService {
     return this.getRun(id);
   }
 
+  async authorizeRun(id: string, dto: { notes?: string }, userId: string) {
+    const run = await this.prisma.payrollRun.findUnique({ where: { id } });
+    if (!run) throw new NotFoundException('Payroll run not found');
+    if (run.status !== 'approved') {
+      throw new BadRequestException(`Cannot authorize a run with status "${run.status}". Run must be approved first.`);
+    }
+    await this.prisma.payrollRun.update({
+      where: { id },
+      data: {
+        status: 'authorized',
+        // @ts-ignore prisma client types pending full migration
+        authorizedAt: new Date(),
+        // @ts-ignore
+        authorizedById: userId ? toBigInt(userId) : null,
+        notes: this.appendRunNote(run.notes, 'Authorized', dto.notes, userId),
+      }
+    });
+    await this.recordRunEvent(id, 'authorized', userId, dto.notes || 'Authorized payroll run');
+    await this.notifyRunStakeholders(id, {
+      actorId: userId,
+      category: 'approvals',
+      type: 'payroll.run.authorized',
+      title: `Payroll run authorized`,
+      message: `${run.name} has been authorized for payment.`,
+      onlyPreparedBy: true,
+    });
+    return this.getRun(id);
+  }
+
   async rejectRun(id: string, dto: { note?: string }, actorId?: string) {
     const run = await this.prisma.payrollRun.findUnique({ where: { id } });
     if (!run) throw new NotFoundException('Payroll run not found');
@@ -1335,7 +1356,9 @@ export class PayrollService {
   async payRun(id: string, dto: PayPayrollRunDto, actorId?: string) {
     const run = await this.prisma.payrollRun.findUnique({ where: { id }, include: this.runInclude() });
     if (!run) throw new NotFoundException('Payroll run not found');
-    if (!['approved', 'payment_processing'].includes(run.status)) throw new BadRequestException('Run must be approved before payment');
+    if (run.status !== 'authorized') {
+      throw new BadRequestException(`Cannot pay a run with status "${run.status}". Run must be authorized by ED/COO first.`);
+    }
 
     const paidFromAccountId = dto.paid_from_account_id || run.paidFromAccountId;
     if (!paidFromAccountId) throw new BadRequestException('Select the account to pay payroll from');
@@ -1483,6 +1506,76 @@ export class PayrollService {
       mime_type: 'text/csv',
       content_base64: Buffer.from(csv, 'utf8').toString('base64'),
     };
+  }
+
+  async monthlyBreakdown(id: string) {
+    const run = await this.prisma.payrollRun.findUnique({
+      where: { id },
+      include: {
+        items: {
+          include: {
+            lines: {
+              include: { component: true }
+            },
+            worker: true
+          }
+        }
+      }
+    });
+    if (!run) throw new NotFoundException('Payroll run not found');
+
+    const rows = (run.items ?? []).map((item) => {
+      const earnings: any[] = [];
+      const deductions: any[] = [];
+      const employerCosts: any[] = [];
+      for (const line of item.lines ?? []) {
+        const comp = line.component;
+        if (!comp) continue;
+        const entry = { label: comp.name, amount: Number(line.amount || 0) };
+        if (comp.componentType === 'earning') earnings.push(entry);
+        else if (comp.componentType === 'deduction') deductions.push(entry);
+        else if (comp.componentType === 'employer_cost') employerCosts.push(entry);
+      }
+      return {
+        worker_name: item.worker?.fullName ?? (item as any).workerName ?? '',
+        worker_type: item.workerType ?? '',
+        staff_code: item.worker?.staffCode ?? '',
+        gross_pay: Number(item.grossPay || 0),
+        total_deductions: Number(item.totalDeductions || 0),
+        net_pay: Number(item.netPay || 0),
+        earnings,
+        deductions,
+        employer_costs: employerCosts,
+      };
+    });
+
+    const earningLabels = [...new Set(rows.flatMap(r => r.earnings.map(e => e.label)))];
+    const deductionLabels = [...new Set(rows.flatMap(r => r.deductions.map(d => d.label)))];
+    const employerCostLabels = [...new Set(rows.flatMap(r => r.employer_costs.map(c => c.label)))];
+
+    const breakdown = rows.map(r => {
+      const row: Record<string, any> = {
+        name: r.worker_name,
+        type: r.worker_type,
+        staff_code: r.staff_code,
+        gross_pay: r.gross_pay,
+        total_deductions: r.total_deductions,
+        net_pay: r.net_pay,
+      };
+      for (const label of earningLabels) row[`earning_${label}`] = r.earnings.find(e => e.label === label)?.amount ?? 0;
+      for (const label of deductionLabels) row[`deduction_${label}`] = r.deductions.find(d => d.label === label)?.amount ?? 0;
+      for (const label of employerCostLabels) row[`employer_${label}`] = r.employer_costs.find(c => c.label === label)?.amount ?? 0;
+      return row;
+    });
+
+    const headers = Object.keys(breakdown[0] ?? {});
+    const csv = [
+      headers.join(','),
+      ...breakdown.map(row => headers.map(h => JSON.stringify(row[h] ?? '')).join(','))
+    ].join('\n');
+
+    const fileName = `payroll-breakdown-${run.year ?? ''}-${String(run.month ?? '').padStart(2, '0')}.csv`;
+    return { file_name: fileName, mime_type: 'text/csv', content_base64: Buffer.from(csv).toString('base64') };
   }
 
   async generateRunPayslipsPackage(runId: string) {
@@ -1906,10 +1999,7 @@ export class PayrollService {
       this.prisma.payrollImportJob.count({ where }),
     ]);
 
-    return {
-      data: rows.map((row) => this.serializeImportJobSummary(row)),
-      meta: { page, per_page: perPage, total, last_page: Math.max(1, Math.ceil(total / perPage)) },
-    };
+    return paginatedResponse(rows.map((row) => this.serializeImportJobSummary(row)), { page, per_page: perPage, total });
   }
 
   async getImportJob(id: string) {

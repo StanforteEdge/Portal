@@ -1,16 +1,16 @@
-import { Button } from "../ui/Button";
+import type { ReactNode } from "react";
 import { Icon } from "../ui/Icon";
 
 type EmptyStateProps = {
   title: string;
   description: string;
-  actionLabel?: string;
+  action?: ReactNode;
 };
 
 export function EmptyState({
   title,
   description,
-  actionLabel,
+  action,
 }: EmptyStateProps) {
   return (
     <div className="shell-panel flex flex-col items-center justify-center gap-4 px-6 py-10 text-center">
@@ -23,7 +23,7 @@ export function EmptyState({
         </h3>
         <p className="mt-2 text-sm leading-6 text-slate-500">{description}</p>
       </div>
-      {actionLabel ? <Button>{actionLabel}</Button> : null}
+      {action ? action : null}
     </div>
   );
 }

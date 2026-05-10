@@ -3,6 +3,7 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { AttachFileDto } from './dto/attach-file.dto';
 import { Prisma } from '@prisma/client';
 import { toBigInt } from '../../common/utils/ids';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { extname } from 'node:path';
 
 @Injectable()
@@ -103,17 +104,7 @@ export class FilesService {
         : withUsage;
 
     const totalFiltered = filteredByAttached.length;
-    const pages = Math.max(1, Math.ceil(totalFiltered / perPage));
-    const lastPage = Math.max(1, pages);
-
-    return {
-      result: filteredByAttached,
-      total: totalFiltered,
-      total_result: totalFiltered,
-      per_page: perPage,
-      page,
-      pages: lastPage
-    };
+    return paginatedResponse(filteredByAttached, { page, per_page: perPage, total: totalFiltered });
   }
 
   async attach(userId: string, dto: AttachFileDto) {

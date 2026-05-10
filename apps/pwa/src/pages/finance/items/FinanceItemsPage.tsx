@@ -71,9 +71,14 @@ export default function FinanceItemsPage() {
     { ttlMs: 60_000, storage: "memory" },
   );
 
-  const items = Array.isArray((itemsPayload as any)?.result) ? (itemsPayload as any).result : [];
-  const pagination = (itemsPayload as any) || {};
-  const totalItems = Number(pagination.total_result ?? items.length);
+  const items = Array.isArray(itemsPayload?.result) ? itemsPayload.result : [];
+  const totalItems = Number(itemsPayload?.total ?? 0);
+  const pagination = {
+    page: itemsPayload?.page ?? page,
+    pages: itemsPayload?.pages ?? 1,
+    total_result: itemsPayload?.total ?? 0,
+    per_page: itemsPayload?.per_page ?? perPage,
+  };
 
   const activeCount = useMemo(
     () => items.filter((item: any) => item.isActive ?? item.is_active).length,

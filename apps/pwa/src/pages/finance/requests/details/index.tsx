@@ -165,11 +165,7 @@ export function FinanceRequestDetailsPage() {
     () => financeApi.listAccounts({ is_active: true }),
     { ttlMs: 1000 * 60 * 10, storage: "memory" },
   );
-  const financeAccounts: any[] = Array.isArray(financeAccountsRaw)
-    ? financeAccountsRaw
-    : Array.isArray((financeAccountsRaw as any)?.result)
-      ? (financeAccountsRaw as any).result
-      : [];
+  const financeAccounts: any[] = Array.isArray(financeAccountsRaw) ? financeAccountsRaw : [];
   const { data: paymentVouchers, refetch: refetchPaymentVouchers } =
     useCachedQuery(
       `requests:detail:payment-vouchers:${id || "none"}`,

@@ -264,11 +264,28 @@ function asPaginatedResponse<T>(
   response: unknown,
   endpoint: string,
 ) {
-  if (!response || typeof response !== "object" || Array.isArray(response)) {
+  // Unwrap { success, data } envelope produced by parseResponse
+  const unwrapped = (response as any)?.data ?? response;
+
+  if (!unwrapped || typeof unwrapped !== "object" || Array.isArray(unwrapped)) {
     throw new Error(`${endpoint} must return a paginated response object.`);
   }
 
-  const payload = response as {
+  // Support new { items, meta } format from paginatedResponse()
+  if (Array.isArray((unwrapped as any).items)) {
+    const items = (unwrapped as any).items as T[];
+    const meta = (unwrapped as any).meta ?? {};
+    return {
+      result: items,
+      total: Number(meta.total ?? items.length),
+      total_result: Number(meta.total ?? items.length),
+      per_page: Number(meta.per_page ?? 20),
+      page: Number(meta.page ?? 1),
+      pages: Number(meta.pages ?? 1),
+    };
+  }
+
+  const payload = unwrapped as {
     result?: unknown;
     total?: unknown;
     total_result?: unknown;
@@ -342,9 +359,10 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       });
     },
 
-    listAccounts(params?: Record<string, unknown>) {
+    async listAccounts(params?: Record<string, unknown>) {
       const suffix = toQuery(params);
-      return httpRequest<FinanceAccountRecord[]>(`/finance/accounts${suffix}`);
+      const res = await httpRequest<any>(`/finance/accounts${suffix}`);
+      return (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []) as FinanceAccountRecord[];
     },
 
     getAccount(id: string) {
@@ -368,15 +386,16 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<DownloadedFile>(`/finance/ledger/export${toQuery(params)}`);
     },
 
-    listManualEntries(params?: Record<string, unknown>) {
-      return httpRequest<{
+    async listManualEntries(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/manual-entry${toQuery(params)}`);
+      return (res?.data ?? res) as {
         result: Record<string, unknown>[];
         total: number;
         total_result: number;
         per_page: number;
         page: number;
         pages: number;
-      }>(`/finance/manual-entry${toQuery(params)}`);
+      };
     },
 
     createManualEntry(payload: Record<string, unknown>) {
@@ -458,14 +477,15 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     listChartAccounts(params?: Record<string, unknown>) {
       return httpRequest<any>(`/finance/chart-accounts${toQuery(params)}`).then((response) => {
-        const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
+        const inner = (response as any)?.data ?? response;
+        const rows = Array.isArray(inner?.result) ? inner.result : Array.isArray(inner?.items) ? inner.items : Array.isArray(inner) ? inner : [];
         return {
           result: rows,
-          total: Number(response?.total ?? response?.total_result ?? rows.length),
-          total_result: Number(response?.total_result ?? response?.total ?? rows.length),
-          per_page: Number(response?.per_page ?? 20),
-          page: Number(response?.page ?? 1),
-          pages: Number(response?.pages ?? 1)
+          total: Number(inner?.total ?? inner?.meta?.total ?? rows.length),
+          total_result: Number(inner?.total_result ?? inner?.total ?? rows.length),
+          per_page: Number(inner?.per_page ?? inner?.meta?.per_page ?? 20),
+          page: Number(inner?.page ?? inner?.meta?.page ?? 1),
+          pages: Number(inner?.pages ?? inner?.meta?.pages ?? 1)
         };
       });
     },
@@ -476,14 +496,15 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     listCustomers(params?: Record<string, unknown>) {
       return httpRequest<any>(`/finance/customers${toQuery(params)}`).then((response) => {
-        const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
+        const inner = (response as any)?.data ?? response;
+        const rows = Array.isArray(inner?.result) ? inner.result : Array.isArray(inner?.items) ? inner.items : Array.isArray(inner) ? inner : [];
         return {
           result: rows,
-          total: Number(response?.total ?? response?.total_result ?? rows.length),
-          total_result: Number(response?.total_result ?? response?.total ?? rows.length),
-          per_page: Number(response?.per_page ?? 20),
-          page: Number(response?.page ?? 1),
-          pages: Number(response?.pages ?? 1)
+          total: Number(inner?.total ?? inner?.meta?.total ?? rows.length),
+          total_result: Number(inner?.total_result ?? inner?.total ?? rows.length),
+          per_page: Number(inner?.per_page ?? inner?.meta?.per_page ?? 20),
+          page: Number(inner?.page ?? inner?.meta?.page ?? 1),
+          pages: Number(inner?.pages ?? inner?.meta?.pages ?? 1)
         };
       });
     },
@@ -506,14 +527,15 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     listVendors(params?: Record<string, unknown>) {
       return httpRequest<any>(`/finance/vendors${toQuery(params)}`).then((response) => {
-        const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
+        const inner = (response as any)?.data ?? response;
+        const rows = Array.isArray(inner?.result) ? inner.result : Array.isArray(inner?.items) ? inner.items : Array.isArray(inner) ? inner : [];
         return {
           result: rows,
-          total: Number(response?.total ?? response?.total_result ?? rows.length),
-          total_result: Number(response?.total_result ?? response?.total ?? rows.length),
-          per_page: Number(response?.per_page ?? 20),
-          page: Number(response?.page ?? 1),
-          pages: Number(response?.pages ?? 1)
+          total: Number(inner?.total ?? inner?.meta?.total ?? rows.length),
+          total_result: Number(inner?.total_result ?? inner?.total ?? rows.length),
+          per_page: Number(inner?.per_page ?? inner?.meta?.per_page ?? 20),
+          page: Number(inner?.page ?? inner?.meta?.page ?? 1),
+          pages: Number(inner?.pages ?? inner?.meta?.pages ?? 1)
         };
       });
     },
@@ -536,14 +558,15 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     listContacts(params?: Record<string, unknown>) {
       return httpRequest<any>(`/finance/contacts${toQuery(params)}`).then((response) => {
-        const rows = Array.isArray(response?.result) ? response.result : Array.isArray(response) ? response : [];
+        const inner = (response as any)?.data ?? response;
+        const rows = Array.isArray(inner?.result) ? inner.result : Array.isArray(inner?.items) ? inner.items : Array.isArray(inner) ? inner : [];
         return {
           result: rows,
-          total: Number(response?.total ?? response?.total_result ?? rows.length),
-          total_result: Number(response?.total_result ?? response?.total ?? rows.length),
-          per_page: Number(response?.per_page ?? 20),
-          page: Number(response?.page ?? 1),
-          pages: Number(response?.pages ?? 1)
+          total: Number(inner?.total ?? inner?.meta?.total ?? rows.length),
+          total_result: Number(inner?.total_result ?? inner?.total ?? rows.length),
+          per_page: Number(inner?.per_page ?? inner?.meta?.per_page ?? 20),
+          page: Number(inner?.page ?? inner?.meta?.page ?? 1),
+          pages: Number(inner?.pages ?? inner?.meta?.pages ?? 1)
         };
       });
     },

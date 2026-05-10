@@ -77,7 +77,9 @@ export default function AdminGroupsPage() {
     { ttlMs: 0, storage: "memory" },
   );
 
-  const teams: TeamOption[] = Array.isArray(groupsData) ? groupsData : [];
+  const teams: TeamOption[] = Array.isArray((groupsData as any)?.data?.items) 
+    ? (groupsData as any).data.items 
+    : Array.isArray(groupsData) ? groupsData : [];
   const activeGroups = teams.filter((g) => g.isActive).length;
   const inactiveGroups = teams.length - activeGroups;
 
