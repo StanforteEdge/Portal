@@ -39,20 +39,6 @@ export function hasModuleAccess(user: Pick<AuthUser, "roles" | "permissions" | "
     );
   }
 
-  if (module === "hr") {
-    return Array.from(permissionSet).some(
-      (p) => p.startsWith("hr.") || p.startsWith("attendance.") || p.startsWith("leave.") || p.startsWith("work."),
-    );
-  }
-
-  if (module === "admin") {
-    return Array.from(permissionSet).some(
-      (p) => p.startsWith("users.") || p.startsWith("roles.") || p.startsWith("groups.") ||
-             p.startsWith("projects.") || p.startsWith("admin.") || p.startsWith("settings.") ||
-             p.startsWith("payroll.") || p.startsWith("workflow."),
-    );
-  }
-
   if (enabledModules.has("*") || enabledModules.has(module)) return true;
 
   if (STAFF_MODULES.has(module)) {
