@@ -481,6 +481,19 @@ export class PayrollService {
     const existing = await this.prisma.payrollWorker.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Payroll worker not found');
 
+    // Prevent removal if worker is in an active (non-draft/non-rejected) run
+    const activeRunItems = await this.prisma.payrollRunItem.count({
+      where: {
+        workerId: id,
+        run: { status: { notIn: ['draft', 'rejected'] } },
+      },
+    });
+    if (activeRunItems > 0) {
+      throw new BadRequestException(
+        'Cannot remove worker — they are included in an active payroll run. Deactivate them instead.'
+      );
+    }
+
     const usage = await this.prisma.$transaction([
       this.prisma.payrollRunItem.count({ where: { workerId: id } }),
       this.prisma.projectTimesheetEntry.count({ where: { workerId: id } }),
@@ -747,7 +760,11 @@ export class PayrollService {
     const page = Math.max(1, Number(query.page ?? 1));
     const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
     const where: Prisma.PayrollRunWhereInput = {};
-    if (query.status) where.status = String(query.status);
+    if (query.status_in) {
+      where.status = { in: String(query.status_in).split(',') };
+    } else if (query.status) {
+      where.status = String(query.status);
+    }
     if (query.year) where.year = Number(query.year);
     if (query.month) where.month = Number(query.month);
     if (query.organization_id) where.organizationId = toBigInt(String(query.organization_id));

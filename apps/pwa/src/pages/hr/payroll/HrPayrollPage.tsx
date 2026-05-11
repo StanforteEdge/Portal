@@ -60,7 +60,7 @@ export default function HrPayrollPage() {
 
   const { data: runsResp, loading } = useCachedQuery(
     "hr:payroll:runs",
-    () => listPayrollRuns({ per_page: 100 }),
+    () => listPayrollRuns({ per_page: 100, status_in: "draft,prepared,rejected" }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 

@@ -53,7 +53,7 @@ export default function FinancePayrollPage() {
 
   const { data: runsResp, loading } = useCachedQuery(
     "finance:payroll:runs",
-    () => listPayrollRuns({ per_page: 100 }),
+    () => listPayrollRuns({ per_page: 100, status_in: "under_review,approved" }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 

@@ -123,7 +123,7 @@ export class PayrollController {
   }
 
   @Delete('workers/:id')
-  @Permissions('finance.manage')
+  @Permissions('payroll.manage')
   deleteWorker(@Param('id') id: string) {
     return this.payrollService.deleteWorker(id);
   }
