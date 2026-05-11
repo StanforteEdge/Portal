@@ -28,6 +28,7 @@ import { useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { hrApi } from "@/shared/lib/core";
+import { resourceApi, financeApi } from "@/shared/lib/core";
 import {
   listPayrollWorkers,
   createPayrollWorker,
@@ -73,7 +74,7 @@ export default function HrPayrollWorkersPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [editorStep, setEditorStep] = useState<"identity" | "pay">("identity");
+  const [editorStep, setEditorStep] = useState<"identity" | "pay" | "allocation">("identity");
   const [components, setComponents] = useState<PayrollComponent[]>([]);
   const [baseAmount, setBaseAmount] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState("");
@@ -83,6 +84,18 @@ export default function HrPayrollWorkersPage() {
   const [profileComponents, setProfileComponents] = useState<
     Array<{ component_id: string; amount: string; rate: string; formula: string; _key: number }>
   >([]);
+  const [allocationMode, setAllocationMode] = useState("fixed");
+  const [hybridFixedPercent, setHybridFixedPercent] = useState("0");
+  const [defaultFundId, setDefaultFundId] = useState("");
+  const [defaultGrantId, setDefaultGrantId] = useState("");
+  const [allocations, setAllocations] = useState<Array<{ _key: number; org_id: string; team_id: string; project_id: string; fund_id: string; grant_id: string; percent: string }>>([
+    { _key: nextPcKey(), org_id: "", team_id: "", project_id: "", fund_id: "", grant_id: "", percent: "100" },
+  ]);
+  const [organizations, setOrganizations] = useState<any[]>([]);
+  const [teams, setTeams] = useState<any[]>([]);
+  const [projects, setProjects] = useState<any[]>([]);
+  const [funds, setFunds] = useState<any[]>([]);
+  const [grants, setGrants] = useState<any[]>([]);
 
   const { data: profile } = useCachedQuery(
     "hr:profile",
@@ -118,8 +131,26 @@ export default function HrPayrollWorkersPage() {
     setPaymentMode("bank_transfer");
     setStandardHours("8");
     setProfileComponents([]);
+    setAllocationMode("fixed");
+    setHybridFixedPercent("0");
+    setDefaultFundId("");
+    setDefaultGrantId("");
+    setAllocations([{ _key: nextPcKey(), org_id: "", team_id: "", project_id: "", fund_id: "", grant_id: "", percent: "100" }]);
     setShowSlideOver(true);
     listPayrollComponents().then((r) => setComponents(r.items)).catch(() => showToast({ tone: "danger", title: "Error", message: "Failed to load payroll components." }));
+    Promise.allSettled([
+      resourceApi.listOrganizations(),
+      resourceApi.listGroups({ active_only: true }),
+      resourceApi.listProjects({ active_only: true }),
+      financeApi.listFunds(),
+      financeApi.listGrants(),
+    ]).then(([orgs, tms, projs, fds, grnts]) => {
+      if (orgs.status === "fulfilled") setOrganizations(orgs.value);
+      if (tms.status === "fulfilled") setTeams(tms.value);
+      if (projs.status === "fulfilled") setProjects(projs.value);
+      if (fds.status === "fulfilled") setFunds(fds.value);
+      if (grnts.status === "fulfilled") setGrants(grnts.value);
+    });
   };
 
   const handleEmployeeSearch = async (query: string) => {
@@ -393,6 +424,7 @@ export default function HrPayrollWorkersPage() {
             {[
               { id: "identity" as const, label: "Identity" },
               { id: "pay" as const, label: "Pay Profile" },
+              { id: "allocation" as const, label: "Allocation" },
             ].map((s, i) => (
               <button
                 key={s.id}
@@ -635,18 +667,153 @@ export default function HrPayrollWorkersPage() {
               </div>
             </div>
           ) : null}
+          {/* Step 3: Allocation */}
+          {editorStep === "allocation" ? (
+            <div className="grid gap-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Cost Allocation</p>
+              <div className="rounded-lg border border-slate-200 p-4 grid gap-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <SelectField label="Allocation Mode" value={allocationMode} onChange={(e) => setAllocationMode(e.target.value)}>
+                      <option value="fixed">Fixed Allocation</option>
+                      <option value="timesheet">Timesheet Driven</option>
+                      <option value="hybrid">Hybrid Fixed + Timesheet</option>
+                    </SelectField>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {allocationMode === "fixed"
+                        ? "Uses the worker allocation rows directly."
+                        : allocationMode === "timesheet"
+                        ? "Reads approved project/fund/grant time splits from the payroll run."
+                        : "Blends fixed allocation with timesheet splits using the fixed share percentage."}
+                    </p>
+                  </div>
+                  {allocationMode === "hybrid" ? (
+                    <TextField
+                      label="Fixed Allocation Share %"
+                      type="number"
+                      value={hybridFixedPercent}
+                      onChange={(e) => setHybridFixedPercent(e.target.value)}
+                    />
+                  ) : null}
+                </div>
+              </div>
+
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Default Fund & Grant</p>
+              <div className="rounded-lg border border-slate-200 p-4 grid grid-cols-2 gap-4">
+                <SelectField label="Default Fund" value={defaultFundId} onChange={(e) => setDefaultFundId(e.target.value)}>
+                  <option value="">No default fund</option>
+                  {funds.map((f: any) => (
+                    <option key={f.id} value={f.id}>{f.name}</option>
+                  ))}
+                </SelectField>
+                <SelectField label="Default Grant" value={defaultGrantId} onChange={(e) => setDefaultGrantId(e.target.value)}>
+                  <option value="">No default grant</option>
+                  {grants.map((g: any) => (
+                    <option key={g.id} value={g.id}>{g.name}</option>
+                  ))}
+                </SelectField>
+              </div>
+
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Allocation Breakdown</p>
+              <div className="rounded-lg border border-slate-200 p-4 grid gap-3">
+                {allocations.map((row) => (
+                  <div key={row._key} className="grid grid-cols-12 gap-3 rounded border border-slate-100 bg-slate-50 p-3">
+                    <div className="col-span-12 md:col-span-2">
+                      <SelectField label="Organization" value={row.org_id} onChange={(e) => {
+                        const updated = [...allocations];
+                        const idx = allocations.findIndex((r) => r._key === row._key);
+                        updated[idx] = { ...updated[idx], org_id: e.target.value };
+                        setAllocations(updated);
+                      }}>
+                        <option value="">Select</option>
+                        {organizations.map((o: any) => <option key={o.id} value={o.id}>{o.name}</option>)}
+                      </SelectField>
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <SelectField label="Team" value={row.team_id} onChange={(e) => {
+                        const updated = [...allocations];
+                        const idx = allocations.findIndex((r) => r._key === row._key);
+                        updated[idx] = { ...updated[idx], team_id: e.target.value };
+                        setAllocations(updated);
+                      }}>
+                        <option value="">Select</option>
+                        {teams.map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                      </SelectField>
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <SelectField label="Project" value={row.project_id} onChange={(e) => {
+                        const updated = [...allocations];
+                        const idx = allocations.findIndex((r) => r._key === row._key);
+                        updated[idx] = { ...updated[idx], project_id: e.target.value };
+                        setAllocations(updated);
+                      }}>
+                        <option value="">Select</option>
+                        {projects.map((p: any) => <option key={p.id} value={p.id}>{p.name}</option>)}
+                      </SelectField>
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <SelectField label="Fund" value={row.fund_id} onChange={(e) => {
+                        const updated = [...allocations];
+                        const idx = allocations.findIndex((r) => r._key === row._key);
+                        updated[idx] = { ...updated[idx], fund_id: e.target.value };
+                        setAllocations(updated);
+                      }}>
+                        <option value="">Select</option>
+                        {funds.map((f: any) => <option key={f.id} value={f.id}>{f.name}</option>)}
+                      </SelectField>
+                    </div>
+                    <div className="col-span-12 md:col-span-2">
+                      <SelectField label="Grant" value={row.grant_id} onChange={(e) => {
+                        const updated = [...allocations];
+                        const idx = allocations.findIndex((r) => r._key === row._key);
+                        updated[idx] = { ...updated[idx], grant_id: e.target.value };
+                        setAllocations(updated);
+                      }}>
+                        <option value="">Select</option>
+                        {grants.map((g: any) => <option key={g.id} value={g.id}>{g.name}</option>)}
+                      </SelectField>
+                    </div>
+                    <div className="col-span-10 md:col-span-1">
+                      <TextField label="%" type="number" value={row.percent} onChange={(e) => {
+                        const updated = [...allocations];
+                        const idx = allocations.findIndex((r) => r._key === row._key);
+                        updated[idx] = { ...updated[idx], percent: e.target.value };
+                        setAllocations(updated);
+                      }} />
+                    </div>
+                    <div className="col-span-2 md:col-span-1 flex items-end justify-end">
+                      <Button variant="ghost" size="sm" onClick={() => setAllocations(allocations.filter((r) => r._key !== row._key))}>
+                        <Icon name="delete" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">
+                    Total: {allocations.reduce((sum, r) => sum + Number(r.percent || 0), 0)}%
+                  </span>
+                  <Button variant="secondary" size="sm" onClick={() =>
+                    setAllocations([...allocations, { _key: nextPcKey(), org_id: "", team_id: "", project_id: "", fund_id: "", grant_id: "", percent: "0" }])
+                  }>
+                    <Icon name="add" className="text-[18px]" />
+                    Add Row
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ) : null}
         </SlideOverContent>
         <SlideOverFooter>
           <div className="flex w-full items-center justify-between">
             <Button variant="secondary" onClick={() => setShowSlideOver(false)}>Cancel</Button>
             <div className="flex gap-2">
-              {editorStep === "pay" ? (
-                <Button variant="secondary" onClick={() => setEditorStep("identity")}>Previous</Button>
+              {editorStep !== "identity" ? (
+                <Button variant="secondary" onClick={() => setEditorStep(editorStep === "pay" ? "identity" : "pay")}>Previous</Button>
               ) : null}
-              {editorStep === "identity" ? (
-                <Button onClick={() => setEditorStep("pay")}>Next</Button>
+              {editorStep !== "allocation" ? (
+                <Button onClick={() => setEditorStep(editorStep === "identity" ? "pay" : "allocation")}>Next</Button>
               ) : null}
-              {editorStep === "pay" ? (
+              {editorStep === "allocation" ? (
                 <Button onClick={() => void handleSave()} disabled={saving}>
                   {saving ? "Saving..." : editingWorker ? "Update" : "Add Worker"}
                 </Button>
