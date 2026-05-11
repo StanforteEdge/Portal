@@ -472,7 +472,7 @@ export class HrService {
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }]
     });
 
-    return assignments.map((row) => ({
+    const items = assignments.map((row) => ({
       id: row.id,
       form_id: row.formId,
       form_name: row.form.name,
@@ -482,6 +482,7 @@ export class HrService {
       due_date: row.dueDate,
       created_at: row.createdAt
     }));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async assignOnboardingForm(dto: AssignOnboardingFormDto) {

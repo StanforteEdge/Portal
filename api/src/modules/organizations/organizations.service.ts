@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { OrganizationType, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { toBigInt } from '../../common/utils/ids';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
 import { UpdateOrganizationDto } from './dto/update-organization.dto';
@@ -20,11 +21,12 @@ export class OrganizationsService {
       ];
     }
 
-    return this.prisma.organization.findMany({
+    const items = await this.prisma.organization.findMany({
       where,
       include: { childOrganizations: true },
       orderBy: { createdAt: 'desc' }
     });
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async getMyOrganizations(profileId: string) {
@@ -33,12 +35,13 @@ export class OrganizationsService {
       include: { organization: true }
     });
 
-    return rows.map((row) => ({
+    const items = rows.map((row) => ({
       is_primary: row.isPrimary,
       start_date: row.startDate,
       end_date: row.endDate,
       organization: row.organization
     }));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createOrganization(dto: CreateOrganizationDto) {

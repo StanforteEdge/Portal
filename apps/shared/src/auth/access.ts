@@ -1,27 +1,5 @@
 import type { AuthUser } from "./types";
 
-const FINANCE_ROLES = new Set([
-  "finance_manager",
-  "finance_officer",
-  "finance_auditor",
-  "accountant",
-  "admin",
-  "administrator",
-]);
-
-const APPROVAL_ROLES = new Set([
-  "team_lead",
-  "manager",
-  "finance_manager",
-  "finance_officer",
-  "finance_auditor",
-  "accountant",
-  "admin",
-  "administrator",
-  "coo",
-  "ed",
-]);
-
 const STAFF_MODULES = new Set([
   "dashboard",
   "requests",
@@ -50,17 +28,15 @@ export function hasModuleAccess(user: Pick<AuthUser, "roles" | "permissions" | "
   const module = String(moduleKey || "").trim().toLowerCase();
   if (!module) return false;
 
-  const roleSet = new Set((user?.roles ?? []).map((entry) => String(entry).trim().toLowerCase()));
   const permissionSet = new Set((user?.permissions ?? []).map((entry) => String(entry).trim().toLowerCase()));
   const enabledModules = new Set((user?.enabled_modules ?? []).map((entry) => String(entry).trim().toLowerCase()));
 
   if (permissionSet.has("*")) return true;
 
   if (module === "finance") {
-    const hasFinancePermission = Array.from(permissionSet).some(
+    return Array.from(permissionSet).some(
       (permission) => permission === "finance.*" || permission.startsWith("finance."),
     );
-    return Array.from(roleSet).some((role) => FINANCE_ROLES.has(role)) || hasFinancePermission;
   }
 
   if (module === "hr") {
@@ -70,7 +46,11 @@ export function hasModuleAccess(user: Pick<AuthUser, "roles" | "permissions" | "
   }
 
   if (module === "admin") {
-    return roleSet.has("administrator") || roleSet.has("admin") || hasAnyPermission(user, ["users.manage", "roles.manage", "settings.manage"]);
+    return Array.from(permissionSet).some(
+      (p) => p.startsWith("users.") || p.startsWith("roles.") || p.startsWith("groups.") ||
+             p.startsWith("projects.") || p.startsWith("admin.") || p.startsWith("settings.") ||
+             p.startsWith("payroll.") || p.startsWith("workflow."),
+    );
   }
 
   if (enabledModules.has("*") || enabledModules.has(module)) return true;
@@ -86,8 +66,6 @@ export function hasModuleAccess(user: Pick<AuthUser, "roles" | "permissions" | "
   return enabledModules.has(module);
 }
 
-export function hasApprovalAccess(user: Pick<AuthUser, "roles" | "permissions"> | null | undefined) {
-  if (hasAnyPermission(user, ["requests.approve"])) return true;
-  const roleSet = new Set((user?.roles ?? []).map((entry) => String(entry).trim().toLowerCase()));
-  return Array.from(roleSet).some((role) => APPROVAL_ROLES.has(role));
+export function hasApprovalAccess(user: Pick<AuthUser, "permissions"> | null | undefined) {
+  return hasAnyPermission(user, ["requests.approve"]);
 }

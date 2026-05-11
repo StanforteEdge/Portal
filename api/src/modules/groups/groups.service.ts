@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { GroupUserRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { toBigInt } from '../../common/utils/ids';
 import { AddGroupMemberDto } from './dto/add-group-member.dto';
 import { CreateTeamDto } from './dto/create-team.dto';
@@ -41,7 +42,8 @@ export class GroupsService {
       orderBy: { name: 'asc' }
     });
 
-    return groups.map((group) => this.serializeGroup(group));
+    const items = groups.map((group) => this.serializeGroup(group));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async create(createdBy: string, dto: CreateTeamDto) {

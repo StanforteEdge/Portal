@@ -98,15 +98,14 @@ export function AppShell({
   );
   const visibleNavigation = useMemo(
     () => {
+      const leadRoles = new Set(["lead", "moderator", "manager", "admin"]);
       const teamLeadAssigned = Boolean(
         [
           ...(profile?.groups ?? []),
           ...(profile?.teams ?? []),
           ...(profile?.projects ?? []),
         ].some((group) =>
-          String(group?.role ?? "")
-            .toLowerCase()
-            .includes("lead"),
+          leadRoles.has(String(group?.role ?? "").toLowerCase()),
         ),
       );
 

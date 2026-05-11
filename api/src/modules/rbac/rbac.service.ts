@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { toBigInt } from '../../common/utils/ids';
 import { AssignUserRolesDto } from './dto/assign-user-roles.dto';
 import { CreatePermissionDto } from './dto/create-permission.dto';
@@ -41,7 +42,7 @@ export class RbacService {
       orderBy: { name: 'asc' }
     });
 
-    return roles.map((role) => ({
+    const items = roles.map((role) => ({
       id: role.id.toString(),
       name: role.name,
       slug: role.slug,
@@ -69,6 +70,7 @@ export class RbacService {
         is_primary_role: userRole.isPrimaryRole
       }))
     }));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createRole(dto: CreateRoleDto) {

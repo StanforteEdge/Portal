@@ -150,7 +150,7 @@ export function createWorkApi(httpRequest: HttpRequest) {
   return {
     async listTeamGoals(params?: Record<string, unknown>) {
       const res = await httpRequest<any>(`/work/goals${toQuery(params)}`);
-      return (res?.data ?? res ?? []) as WorkGoal[];
+      return ((res as any)?.data?.items ?? []) as WorkGoal[];
     },
 
     async createTeamGoal(dto: CreateWorkGoalDto) {
@@ -160,7 +160,7 @@ export function createWorkApi(httpRequest: HttpRequest) {
 
     async listTeamObjectives(params?: Record<string, unknown>) {
       const res = await httpRequest<any>(`/work/objectives${toQuery(params)}`);
-      return (res?.data ?? res ?? []) as WorkObjective[];
+      return ((res as any)?.data?.items ?? []) as WorkObjective[];
     },
 
     async createTeamObjective(dto: CreateWorkObjectiveDto) {
@@ -170,7 +170,7 @@ export function createWorkApi(httpRequest: HttpRequest) {
 
     async listTeamKpis(params?: Record<string, unknown>) {
       const res = await httpRequest<any>(`/work/kpis${toQuery(params)}`);
-      return (res?.data ?? res ?? []) as WorkKpi[];
+      return ((res as any)?.data?.items ?? []) as WorkKpi[];
     },
 
     async createTeamKpi(dto: CreateWorkKpiDto) {
@@ -180,7 +180,7 @@ export function createWorkApi(httpRequest: HttpRequest) {
 
     async listTeamWorkItems(params?: Record<string, unknown>) {
       const res = await httpRequest<any>(`/work/team/items${toQuery(params)}`);
-      return (res?.data ?? res ?? []) as WorkItem[];
+      return ((res as any)?.data?.items ?? []) as WorkItem[];
     },
 
     async createWorkItem(dto: CreateWorkItemDto) {
@@ -195,7 +195,7 @@ export function createWorkApi(httpRequest: HttpRequest) {
 
     async listTeamWorkLogs(params?: Record<string, unknown>) {
       const res = await httpRequest<any>(`/work/team/logs${toQuery(params)}`);
-      return (res?.data ?? res ?? []) as WorkLog[];
+      return ((res as any)?.data?.items ?? []) as WorkLog[];
     },
 
     async approveWorkLog(id: string) {
@@ -208,12 +208,12 @@ export function createWorkApi(httpRequest: HttpRequest) {
 
     async listMyWorkItems(params?: Record<string, unknown>) {
       const res = await httpRequest<any>(`/work/my/items${toQuery(params)}`);
-      return (res?.data ?? res ?? []) as WorkItem[];
+      return ((res as any)?.data?.items ?? []) as WorkItem[];
     },
 
     async listMyWorkLogs(params?: Record<string, unknown>) {
       const res = await httpRequest<any>(`/work/my/logs${toQuery(params)}`);
-      return (res?.data ?? res ?? []) as WorkLog[];
+      return ((res as any)?.data?.items ?? []) as WorkLog[];
     },
 
     async createWorkLog(dto: CreateWorkLogDto) {

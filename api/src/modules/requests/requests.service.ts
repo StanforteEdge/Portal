@@ -1,5 +1,6 @@
 import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { CreateTypeDto } from './dto/create-type.dto';
@@ -53,7 +54,8 @@ export class RequestsService {
   ) {}
 
   async listGroups() {
-    return this.prisma.requestGroup.findMany({ where: { isActive: true } });
+    const rows = await this.prisma.requestGroup.findMany({ where: { isActive: true } });
+    return paginatedResponse(rows, { page: 1, per_page: rows.length, total: rows.length });
   }
 
   async createGroup(dto: CreateGroupDto) {
@@ -84,12 +86,13 @@ export class RequestsService {
   }
 
   async listTypes(groupId?: string, includeInactive?: boolean) {
-    return this.prisma.requestType.findMany({
+    const rows = await this.prisma.requestType.findMany({
       where: {
         ...(groupId ? { groupId } : {}),
         ...(includeInactive ? {} : { isActive: true })
       }
     });
+    return paginatedResponse(rows, { page: 1, per_page: rows.length, total: rows.length });
   }
 
   async getType(id: string) {
@@ -1200,7 +1203,8 @@ export class RequestsService {
       where,
       include: this.getRequestInclude()
     });
-    return data.map((item) => this.serializeRequest(item));
+    const items = data.map((item) => this.serializeRequest(item));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async getRequest(id: string, _userId: string): Promise<RequestResponseDto> {

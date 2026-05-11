@@ -40,8 +40,8 @@ export async function listRoles(params?: {
   if (params?.search) query.set("search", params.search);
   const suffix = query.toString() ? `?${query.toString()}` : "";
 
-  const data = await httpRequest<RoleResponse | Role[]>(`/admin/rbac/roles${suffix}`);
-  return Array.isArray(data) ? data : (data?.data ?? []);
+  const data = await httpRequest<any>(`/admin/rbac/roles${suffix}`);
+  return (data as any)?.data?.items ?? [];
 }
 
 export async function createRole(payload: {
@@ -91,10 +91,8 @@ export async function getRoleDeleteImpact(id: string): Promise<{
 }
 
 export async function listPermissions(): Promise<RolePermission[]> {
-  const data = await httpRequest<RolePermission[] | { data: RolePermission[] }>(
-    "/admin/rbac/permissions",
-  );
-  return Array.isArray(data) ? data : (data?.data ?? []);
+  const data = await httpRequest<any>("/admin/rbac/permissions");
+  return (data as any)?.data?? [];
 }
 
 export async function createPermission(payload: {

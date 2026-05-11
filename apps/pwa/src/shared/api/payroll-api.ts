@@ -93,7 +93,7 @@ export async function listMyProjectTimesheets(params?: { page?: number; per_page
   if (params?.per_page) query.set("per_page", String(params.per_page));
   const suffix = query.toString() ? `?${query.toString()}` : "";
   const response = await httpRequest<any>(`/payroll/my/timesheets${suffix}`);
-  return Array.isArray(response) ? response : response?.data || [];
+  return (response as any)?.data?.items ?? [];
 }
 
 export async function createMyProjectTimesheet(payload: Record<string, unknown>) {
@@ -251,6 +251,11 @@ export async function createPayrollWorker(payload: UpsertWorkerPayload) {
 export async function updatePayrollWorker(id: string, payload: Partial<UpsertWorkerPayload>) {
   const res = await httpRequest<any>(`/payroll/workers/${id}`, { method: "POST", body: payload });
   return (res?.data ?? res) as PayrollWorker;
+}
+
+export async function deletePayrollWorker(id: string) {
+  const res = await httpRequest<any>(`/payroll/workers/${id}`, { method: "DELETE" });
+  return res?.data ?? res;
 }
 
 export async function authorizePayrollRun(id: string, payload?: { notes?: string }) {

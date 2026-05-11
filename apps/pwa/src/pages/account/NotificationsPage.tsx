@@ -75,7 +75,7 @@ export default function NotificationsPage() {
               <EmptyState title="No notifications yet" description="New updates from requests, attendance, and profile actions will show here." />
             ) : null}
             <div className="space-y-3">
-              {(notifications ?? []).map((item) => {
+              {(notifications ?? []).map((item: Record<string, any>) => {
                 const inner = (
                   <article className="flex items-start gap-4 rounded-[22px] border border-slate-100 bg-white px-5 py-4 shadow-sm">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-900/10 text-brand-900">

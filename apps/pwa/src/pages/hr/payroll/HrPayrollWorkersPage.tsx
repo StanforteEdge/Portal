@@ -32,6 +32,7 @@ import {
   listPayrollWorkers,
   createPayrollWorker,
   updatePayrollWorker,
+  deletePayrollWorker,
   type PayrollWorker,
   type UpsertWorkerPayload,
 } from "@/shared/api/payroll-api";
@@ -64,6 +65,7 @@ export default function HrPayrollWorkersPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const { data: profile } = useCachedQuery(
     "hr:profile",
@@ -180,6 +182,20 @@ export default function HrPayrollWorkersPage() {
     }
   };
 
+  const handleDelete = async (id: string, name: string) => {
+    if (!window.confirm(`Delete payroll worker "${name}"? This can only be done if they have no active run history.`)) return;
+    setDeletingId(id);
+    try {
+      await deletePayrollWorker(id);
+      showToast({ tone: "success", title: "Deleted", message: `${name} removed.` });
+      setListKey((k) => k + 1);
+    } catch (err) {
+      showToast({ tone: "danger", title: "Delete failed", message: err instanceof Error ? err.message : "Unable to delete worker." });
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
   const setField = (key: keyof UpsertWorkerPayload) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [key]: e.target.value }));
 
@@ -266,9 +282,19 @@ export default function HrPayrollWorkersPage() {
                       </Chip>
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(w)}>
-                        <Icon name="edit" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button variant="ghost" size="sm" onClick={() => openEdit(w)}>
+                          <Icon name="edit" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => void handleDelete(w.id, w.full_name ?? w.name)}
+                          disabled={deletingId === w.id}
+                        >
+                          <Icon name={deletingId === w.id ? "hourglass_top" : "delete"} />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}

@@ -348,8 +348,9 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       );
     },
 
-    listRequestPaymentVouchers(requestId: string) {
-      return httpRequest<FinancePaymentVoucherRecord[]>(`/finance/requests/${requestId}/payment-vouchers`);
+    async listRequestPaymentVouchers(requestId: string) {
+      const res = await httpRequest<any>(`/finance/requests/${requestId}/payment-vouchers`);
+      return ((res as any)?.data?.items ?? []) as FinancePaymentVoucherRecord[];
     },
 
     updatePaymentVoucher(requestId: string, voucherId: string, payload: Record<string, unknown>) {
@@ -362,7 +363,7 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     async listAccounts(params?: Record<string, unknown>) {
       const suffix = toQuery(params);
       const res = await httpRequest<any>(`/finance/accounts${suffix}`);
-      return (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []) as FinanceAccountRecord[];
+      return ((res as any)?.data?.items ?? []) as FinanceAccountRecord[];
     },
 
     getAccount(id: string) {
@@ -405,8 +406,9 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       });
     },
 
-    listBudgets(params?: Record<string, unknown>) {
-      return httpRequest<FinanceBudgetRecord[]>(`/finance/budgets${toQuery(params)}`);
+    async listBudgets(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/budgets${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as FinanceBudgetRecord[];
     },
 
     getBudget(id: string) {
@@ -435,16 +437,18 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<FinanceBillRecord>(`/finance/bills/${id}`);
     },
 
-    listAssets(params?: Record<string, unknown>) {
-      return httpRequest<FinanceAssetRecord[]>(`/finance/assets${toQuery(params)}`);
+    async listAssets(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/assets${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as FinanceAssetRecord[];
     },
 
     getAsset(id: string) {
       return httpRequest<FinanceAssetRecord>(`/finance/assets/${id}`);
     },
 
-    listAssetDisposals(params?: Record<string, unknown>) {
-      return httpRequest<FinanceAssetRecord[]>(`/finance/assets/disposals${toQuery(params)}`);
+    async listAssetDisposals(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/assets/disposals${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as FinanceAssetRecord[];
     },
 
     createAsset(payload: Record<string, unknown>) {
@@ -490,8 +494,9 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       });
     },
 
-    listReportingPeriods(params?: Record<string, unknown>) {
-      return httpRequest<FinanceReportingPeriodRecord[]>(`/finance/reporting-periods${toQuery(params)}`);
+    async listReportingPeriods(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/reporting-periods${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as FinanceReportingPeriodRecord[];
     },
 
     listCustomers(params?: Record<string, unknown>) {
@@ -587,16 +592,19 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<PartyTransaction[]>(`/finance/contacts/${id}/transactions`);
     },
 
-    listDonors(params?: Record<string, unknown>) {
-      return httpRequest<FinancePartyRecord[]>(`/finance/donors${toQuery(params)}`);
+    async listDonors(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/donors${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as FinancePartyRecord[];
     },
 
-    listFunds(params?: Record<string, unknown>) {
-      return httpRequest<FinancePartyRecord[]>(`/finance/funds${toQuery(params)}`);
+    async listFunds(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/funds${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as FinancePartyRecord[];
     },
 
-    listGrants(params?: Record<string, unknown>) {
-      return httpRequest<FinancePartyRecord[]>(`/finance/grants${toQuery(params)}`);
+    async listGrants(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/grants${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as FinancePartyRecord[];
     },
 
     getSettings() {
@@ -641,8 +649,9 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     // ── Deduction Types ────────────────────────────────────────────────────
 
-    listDeductionTypes(params?: Record<string, unknown>) {
-      return httpRequest<Record<string, unknown>[]>(`/finance/deduction-types${toQuery(params)}`);
+    async listDeductionTypes(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/deduction-types${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as Record<string, unknown>[];
     },
 
     createDeductionType(body: Record<string, unknown>) {
@@ -655,8 +664,9 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     // ── PV Deductions ──────────────────────────────────────────────────────
 
-    listPVDeductions(pvId: string) {
-      return httpRequest<Record<string, unknown>[]>(`/finance/payment-vouchers/${pvId}/deductions`);
+    async listPVDeductions(pvId: string) {
+      const res = await httpRequest<any>(`/finance/payment-vouchers/${pvId}/deductions`);
+      return ((res as any)?.data?.items ?? []) as Record<string, unknown>[];
     },
 
     applyPVDeductions(pvId: string, body: Record<string, unknown>) {
@@ -665,14 +675,16 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     // ── Vendor WHT Accruals ────────────────────────────────────────────────
 
-    listVendorWHTAccruals(vendorId: string, params?: Record<string, unknown>) {
-      return httpRequest<Record<string, unknown>[]>(`/finance/vendors/${vendorId}/wht-accruals${toQuery(params)}`);
+    async listVendorWHTAccruals(vendorId: string, params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/vendors/${vendorId}/wht-accruals${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as Record<string, unknown>[];
     },
 
     // ── WHT Remittances ────────────────────────────────────────────────────
 
-    listWHTRemittances(params?: Record<string, unknown>) {
-      return httpRequest<Record<string, unknown>[]>(`/finance/wht-remittances${toQuery(params)}`);
+    async listWHTRemittances(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/wht-remittances${toQuery(params)}`);
+      return ((res as any)?.data?.items ?? []) as Record<string, unknown>[];
     },
 
     getWHTRemittance(id: string) {

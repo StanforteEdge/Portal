@@ -161,8 +161,8 @@ export function buildAppNavigation(options?: {
           icon: "payments",
           permissions: ["payroll.manage"],
           children: [
-            { key: "hr-payroll", label: "Payroll Runs", icon: "receipt_long", path: "/hr/payroll" },
-            { key: "hr-payroll-workers", label: "Workers", icon: "group", path: "/hr/payroll/workers" },
+            { key: "hr-payroll", label: "Payroll Runs", icon: "receipt_long", path: "/hr/payroll", permissions: ["payroll.manage"] },
+            { key: "hr-payroll-workers", label: "Workers", icon: "group", path: "/hr/payroll/workers", permissions: ["payroll.manage"] },
           ],
         },
         { key: "hr-settings", label: "Settings", icon: "settings", path: "/hr/settings", permissions: ["hr.manage"] },

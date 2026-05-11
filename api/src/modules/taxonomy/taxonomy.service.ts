@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { CreateTaxonomyDto } from './dto/create-taxonomy.dto';
 import { SyncTaxonomyTermsDto } from './dto/sync-taxonomy-terms.dto';
 import { UpdateTaxonomyDto } from './dto/update-taxonomy.dto';
@@ -55,7 +56,7 @@ export class TaxonomyService {
     const includeInactive = query.include_inactive === 'true';
     const moduleFilter = query.module ? String(query.module) : undefined;
 
-    return this.prisma.taxonomy.findMany({
+    const items = await this.prisma.taxonomy.findMany({
       where: {
         ...(includeInactive ? {} : { isActive: true }),
         ...(moduleFilter ? { module: moduleFilter } : {})
@@ -68,6 +69,7 @@ export class TaxonomyService {
       },
       orderBy: { name: 'asc' }
     });
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createTaxonomy(dto: CreateTaxonomyDto) {
@@ -178,7 +180,7 @@ export class TaxonomyService {
     if (!taxonomy) throw new NotFoundException('Taxonomy not found');
 
     const termQuery = String(query ?? '').trim();
-    return this.prisma.taxonomyTerm.findMany({
+    const items = await this.prisma.taxonomyTerm.findMany({
       where: {
         taxonomyId: taxonomy.id,
         isActive: true,
@@ -194,6 +196,7 @@ export class TaxonomyService {
       orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }],
       take: 25,
     });
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async upsertTagTerm(taxonomyKey: string, dto: UpsertTagTermDto, module?: string) {
