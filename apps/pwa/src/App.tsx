@@ -327,7 +327,7 @@ export default function App() {
               <Route path="/hr/payroll/loans" element={<HrPayrollLoansPage />} />
             </Route>
 
-            <Route element={<PermissionRoute requiredPermissions={["hr.manage", "settings.manage"]} any />}>
+            <Route element={<PermissionRoute requiredPermissions={["hr.manage", "admin.manage"]} any />}>
               <Route path="/hr/settings" element={<HrSettingsPage />} />
             </Route>
           </Route>
@@ -366,7 +366,7 @@ export default function App() {
               <Route path="/admin/projects" element={<AdminProjectsPage />} />
             </Route>
 
-            <Route element={<PermissionRoute requiredPermissions={["settings.manage"]} any />}>
+            <Route element={<PermissionRoute requiredPermissions={["admin.manage"]} any />}>
               <Route path="/admin/settings" element={<AdminSettingsPage />} />
             </Route>
 

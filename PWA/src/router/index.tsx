@@ -954,7 +954,7 @@ function Router() {
           path: "admin/settings",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["admin.manage"]}>
                 {page(<AdminSettingsPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -964,7 +964,7 @@ function Router() {
           path: "admin/files",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["admin.manage"]}>
                 {page(<AdminFilesPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -994,7 +994,7 @@ function Router() {
           path: "admin/documents",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["admin.manage"]}>
                 {page(<AdminDocumentsPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -1004,7 +1004,7 @@ function Router() {
           path: "admin/documents/new",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["admin.manage"]}>
                 {page(<AdminDocumentEditorPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -1014,7 +1014,7 @@ function Router() {
           path: "admin/documents/:id",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["admin.manage"]}>
                 {page(<AdminDocumentEditorPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -1034,7 +1034,7 @@ function Router() {
           path: "admin/policies",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["admin.manage"]}>
                 {page(<AdminPoliciesPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -1044,7 +1044,7 @@ function Router() {
           path: "admin/forms",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["admin.manage"]}>
                 {page(<AdminFormsPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -1054,7 +1054,7 @@ function Router() {
           path: "admin/forms/new",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["admin.manage"]}>
                 {page(<AdminFormEditorPage />)}
               </PermissionRoute>
             </ModuleRoute>
@@ -1064,7 +1064,7 @@ function Router() {
           path: "admin/forms/:id",
           element: (
             <ModuleRoute moduleKey="admin">
-              <PermissionRoute requiredPermissions={["settings.manage"]}>
+              <PermissionRoute requiredPermissions={["admin.manage"]}>
                 {page(<AdminFormEditorPage />)}
               </PermissionRoute>
             </ModuleRoute>

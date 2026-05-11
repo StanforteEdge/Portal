@@ -79,7 +79,7 @@ const permissions = [
   { name: 'View Users', slug: 'users.view', module: 'users', description: 'Can view user list (read-only)' },
   { name: 'Manage Users', slug: 'users.manage', module: 'users', description: 'Can create, edit, and deactivate users' },
   { name: 'View Admin', slug: 'admin.view', module: 'admin', description: 'Can access the admin section' },
-  { name: 'Manage Settings', slug: 'settings.manage', module: 'admin', description: 'Manage system settings' },
+  { name: 'Manage Admin', slug: 'admin.manage', module: 'admin', description: 'Manage admin settings and system configuration' },
   { name: 'Manage Roles', slug: 'roles.manage', module: 'roles', description: 'Manage roles and assign permissions' },
   { name: 'View Audit', slug: 'audit.view', module: 'audit', description: 'Can view audit and email logs' },
   { name: 'Manage Audit', slug: 'audit.manage', module: 'audit', description: 'Can create audit events' },
@@ -87,7 +87,7 @@ const permissions = [
 
 const rolePermissionMap = {
   administrator: ['*'],
-  admin: ['admin.view', 'users.view', 'users.manage', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'roles.manage', 'settings.manage', 'audit.view', 'audit.manage', 'workflow.view', 'workflow.manage', 'send_notifications'],
+  admin: ['admin.view', 'users.view', 'users.manage', 'groups.view', 'groups.manage', 'projects.view', 'projects.manage', 'roles.manage', 'admin.manage', 'audit.view', 'audit.manage', 'workflow.view', 'workflow.manage', 'send_notifications'],
   hr_manager: ['hr.view', 'hr.manage', 'hr.employees', 'hr.approve', 'attendance.clock', 'attendance.view_self', 'attendance.view_team', 'attendance.manage', 'attendance.approve', 'attendance.correct', 'leave.view', 'leave.manage', 'leave.approve', 'payroll.manage', 'work.view', 'work.manage', 'work.approve', 'organizations.view', 'groups.view', 'projects.view', 'requests.view', 'requests.approve'],
   hr_officer: ['hr.view', 'hr.employees', 'attendance.clock', 'attendance.view_self', 'attendance.view_team', 'leave.view', 'work.view', 'organizations.view', 'groups.view', 'projects.view', 'requests.view'],
   finance_manager: ['requests.view', 'requests.manage', 'requests.approve', 'finance.manage', 'finance.correct_completed', 'finance.view', 'finance.approve', 'finance.vouchers', 'payroll.approve', 'groups.view', 'projects.view', 'workflow.view', 'work.view', 'work.manage', 'work.approve'],
