@@ -7,20 +7,6 @@ import sideMenu from "@/main/side-menu";
 import simpleMenu from "@/main/simple-menu";
 import topMenu from "@/main/top-menu";
 
-const MODULE_PREFIXES: Record<string, string[]> = {
-  requests: ["requests"],
-  attendance: ["attendance"],
-  leave: ["leave"],
-  work: ["work"],
-  hr: ["hr"],
-  admin: ["users", "groups", "projects", "admin", "settings", "roles", "audit", "workflow", "organizations"],
-  finance: ["finance"],
-};
-
-const MANAGE_ONLY_PREFIXES: Record<string, Set<string>> = {
-  admin: new Set(["groups", "projects", "workflow"]),
-};
-
 export interface Menu {
   icon: keyof typeof icons;
   title: string;
@@ -49,22 +35,6 @@ export const menuSlice = createSlice({
   reducers: {},
 });
 
-const hasPrefixAccess = (permissionSet: Set<string>, prefix: string, manageOnly: boolean): boolean => {
-  if (permissionSet.has(`${prefix}.*`)) return true;
-  if (manageOnly) {
-    return Array.from(permissionSet).some((p) => p === `${prefix}.manage`);
-  }
-  return Array.from(permissionSet).some((p) => p.startsWith(`${prefix}.`));
-};
-
-const hasModuleAccess = (permissionSet: Set<string>, moduleKey: string): boolean => {
-  const module = moduleKey.toLowerCase();
-  const prefixes = MODULE_PREFIXES[module];
-  if (!prefixes) return false;
-  const manageOnly = MANAGE_ONLY_PREFIXES[module] ?? new Set();
-  return prefixes.some((prefix) => hasPrefixAccess(permissionSet, prefix, manageOnly.has(prefix)));
-};
-
 const filterMenuByAccess = (
   menu: Array<Menu | "divider">,
   roleSet: Set<string>,
@@ -76,9 +46,6 @@ const filterMenuByAccess = (
   };
 
   const isAllowed = (item: Menu) => {
-    if (item.moduleKey && !permissionSet.has("*") && !hasModuleAccess(permissionSet, item.moduleKey)) {
-      return false;
-    }
     if (item.permissions && item.permissions.length > 0) {
       return hasAllPermissions(item.permissions);
     }

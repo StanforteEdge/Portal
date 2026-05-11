@@ -54,7 +54,7 @@ export type {
   FinancePaymentVoucherRecord,
   FinanceApi,
 } from "./api/finance-api";
-export { hasAnyPermission, hasApprovalAccess, hasModuleAccess, hasPermission } from "./auth/access";
+export { hasAnyPermission, hasApprovalAccess, hasPermission } from "./auth/access";
 export type { AuthSession, AuthStatusResponse, AuthTokens, AuthUser } from "./auth/types";
 export type { HttpRequest } from "./auth/http-client";
 export type { SessionStorageAdapter } from "./auth/storage";

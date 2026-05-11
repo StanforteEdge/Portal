@@ -3,7 +3,6 @@ import { useEffect, useMemo, useState } from "react";
 import {
   hasAnyPermission,
   hasApprovalAccess,
-  hasModuleAccess,
   roleLabel,
   sortRoles,
 } from "@stanforte/shared";
@@ -109,17 +108,16 @@ export function AppShell({
         ),
       );
 
-      function filterChildren(children: SidebarChildItem[] | undefined, moduleKey?: string): SidebarChildItem[] | undefined {
+      function filterChildren(children: SidebarChildItem[] | undefined): SidebarChildItem[] | undefined {
         if (!Array.isArray(children) || children.length === 0) return undefined;
         const filtered = children.reduce<SidebarChildItem[]>((childAcc, child) => {
           const canAccessChild =
             (!child.permissions?.length ||
               hasAnyPermission(authUser, child.permissions) ||
               (child.requiresTeamLeadAssignment && hasApprovalAccess(authUser))) &&
-            (!moduleKey || hasModuleAccess(authUser, moduleKey)) &&
             (!child.requiresTeamLeadAssignment || teamLeadAssigned || hasApprovalAccess(authUser));
 
-          const nestedChildren = filterChildren(child.children, moduleKey);
+          const nestedChildren = filterChildren(child.children);
           if (canAccessChild || (nestedChildren?.length ?? 0) > 0) {
             childAcc.push({ ...child, children: nestedChildren });
           }
@@ -130,7 +128,6 @@ export function AppShell({
 
       return navigation.reduce<SidebarItem[]>((acc, item) => {
         const canAccessItem =
-          (!item.moduleKey || hasModuleAccess(authUser, item.moduleKey)) &&
           (!item.permissions?.length ||
             hasAnyPermission(authUser, item.permissions) ||
             (item.requiresTeamLeadAssignment && hasApprovalAccess(authUser))) &&
@@ -138,7 +135,7 @@ export function AppShell({
             teamLeadAssigned ||
             hasApprovalAccess(authUser));
 
-        const children = filterChildren(item.children, item.moduleKey);
+        const children = filterChildren(item.children);
 
         if (canAccessItem || (children?.length ?? 0) > 0) {
           acc.push({ ...item, children });

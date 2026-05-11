@@ -10,7 +10,7 @@ export type MobileNavItem = {
 /**
  * Build the main application navigation sidebar.
  * All modules (Staff, Finance, HR) are registered here.
- * Permission-based filtering happens in AppShell using hasAnyPermission / hasModuleAccess.
+ * Permission-based filtering happens in AppShell using hasAnyPermission.
  */
 export function buildAppNavigation(options?: {
   includeRequestDetails?: boolean;
@@ -70,12 +70,12 @@ export function buildAppNavigation(options?: {
       ],
     },
 
-    // Finance section - filtered by AppShell using permissions/m-moduleKey
+    // Finance section - filtered by AppShell using permissions
     {
       label: "Financial",
       icon: "account_balance_wallet",
       section: "Admin",
-      moduleKey: "finance",
+      permissions: ["finance.view"],
       children: [
         { key: "finance-dashboard", label: "Dashboard", icon: "grid_view", path: "/finance" },
         { key: "finance-payroll", label: "Payroll", icon: "account_balance", path: "/finance/payroll", permissions: ["payroll.approve"] },
@@ -144,12 +144,12 @@ export function buildAppNavigation(options?: {
       ],
     },
 
-    // HR section - filtered by AppShell using moduleKey
+    // HR section - filtered by AppShell using permissions
     {
       label: "HR",
       icon: "people",
       section: "Admin",
-      moduleKey: "hr",
+      permissions: ["hr.view"],
       children: [
         { key: "hr-dashboard", label: "Overview", icon: "dashboard", path: "/hr", permissions: ["hr.view"] },
         { key: "hr-employees", label: "Employees", icon: "group", path: "/hr/employees", permissions: ["hr.manage", "hr.employees"] },
@@ -169,12 +169,12 @@ export function buildAppNavigation(options?: {
       ],
     },
 
-    // Administration section - filtered by AppShell using moduleKey/permissions
+    // Administration section - filtered by AppShell using permissions
     {
       label: "Administration",
       icon: "manage_accounts",
       section: "Admin",
-      moduleKey: "admin",
+      permissions: ["admin.view"],
       children: [
 { key: "admin-users", label: "Users", icon: "people", path: "/admin/users", permissions: ["users.view", "users.manage"] },
         { key: "admin-roles", label: "Roles", icon: "admin_panel_settings", path: "/admin/roles", permissions: ["roles.manage"] },
