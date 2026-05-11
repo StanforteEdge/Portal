@@ -17,6 +17,10 @@ const MODULE_PREFIXES: Record<string, string[]> = {
   finance: ["finance"],
 };
 
+const MANAGE_ONLY_PREFIXES: Record<string, Set<string>> = {
+  admin: new Set(["groups", "projects", "workflow"]),
+};
+
 export interface Menu {
   icon: keyof typeof icons;
   title: string;
@@ -45,13 +49,20 @@ export const menuSlice = createSlice({
   reducers: {},
 });
 
+const hasPrefixAccess = (permissionSet: Set<string>, prefix: string, manageOnly: boolean): boolean => {
+  if (permissionSet.has(`${prefix}.*`)) return true;
+  if (manageOnly) {
+    return Array.from(permissionSet).some((p) => p === `${prefix}.manage`);
+  }
+  return Array.from(permissionSet).some((p) => p.startsWith(`${prefix}.`));
+};
+
 const hasModuleAccess = (permissionSet: Set<string>, moduleKey: string): boolean => {
-  const prefixes = MODULE_PREFIXES[moduleKey.toLowerCase()];
+  const module = moduleKey.toLowerCase();
+  const prefixes = MODULE_PREFIXES[module];
   if (!prefixes) return false;
-  return prefixes.some((prefix) =>
-    permissionSet.has(`${prefix}.*`) ||
-    Array.from(permissionSet).some((p) => p.startsWith(`${prefix}.`)),
-  );
+  const manageOnly = MANAGE_ONLY_PREFIXES[module] ?? new Set();
+  return prefixes.some((prefix) => hasPrefixAccess(permissionSet, prefix, manageOnly.has(prefix)));
 };
 
 const filterMenuByAccess = (

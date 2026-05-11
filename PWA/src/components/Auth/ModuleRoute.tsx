@@ -18,19 +18,30 @@ const MODULE_PREFIXES: Record<string, string[]> = {
   finance: ["finance"],
 };
 
+const MANAGE_ONLY_PREFIXES: Record<string, Set<string>> = {
+  admin: new Set(["groups", "projects", "workflow"]),
+};
+
+function hasPrefixAccess(permissionSet: Set<string>, prefix: string, manageOnly: boolean): boolean {
+  if (permissionSet.has(`${prefix}.*`)) return true;
+  if (manageOnly) {
+    return Array.from(permissionSet).some((p) => p === `${prefix}.manage`);
+  }
+  return Array.from(permissionSet).some((p) => p.startsWith(`${prefix}.`));
+}
+
 function ModuleRoute({ children, moduleKey }: ModuleRouteProps) {
   const location = useLocation();
   const auth = useAppSelector(selectAuthState);
   const permissionSet = new Set((auth.permissions ?? []).map((permission) => String(permission).toLowerCase()));
   if (permissionSet.has("*")) return <>{children}</>;
 
-  const prefixes = MODULE_PREFIXES[String(moduleKey).toLowerCase()];
+  const module = String(moduleKey).toLowerCase();
+  const prefixes = MODULE_PREFIXES[module];
   if (!prefixes) return <Navigate to="/appOld/dashboard" replace state={{ from: location.pathname }} />;
 
-  const hasAccess = prefixes.some((prefix) =>
-    permissionSet.has(`${prefix}.*`) ||
-    Array.from(permissionSet).some((p) => p.startsWith(`${prefix}.`)),
-  );
+  const manageOnly = MANAGE_ONLY_PREFIXES[module] ?? new Set();
+  const hasAccess = prefixes.some((prefix) => hasPrefixAccess(permissionSet, prefix, manageOnly.has(prefix)));
 
   if (hasAccess) return <>{children}</>;
   return <Navigate to="/appOld/dashboard" replace state={{ from: location.pathname }} />;
