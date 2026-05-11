@@ -3,6 +3,17 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAppSelector } from "@/stores/hooks";
 import { selectAuthState } from "@/stores/authSlice";
 
+const MODULE_GATE: Record<string, string> = {
+  finance: "finance.view",
+  hr: "hr.view",
+  admin: "admin.view",
+  payroll: "payroll.manage",
+  attendance: "attendance.clock",
+  leave: "leave.view",
+  media: "admin.view",
+  documents: "admin.view",
+};
+
 type ModuleRouteProps = {
   children: ReactNode;
   moduleKey: string;
@@ -14,8 +25,8 @@ function ModuleRoute({ children, moduleKey }: ModuleRouteProps) {
   const permissionSet = new Set((auth.permissions ?? []).map((permission) => String(permission).toLowerCase()));
   if (permissionSet.has("*")) return <>{children}</>;
 
-  const enabledModules = new Set((auth.enabledModules ?? []).map((entry) => String(entry).toLowerCase()));
-  if (enabledModules.size === 0 || enabledModules.has(String(moduleKey).toLowerCase())) {
+  const gate = MODULE_GATE[String(moduleKey).toLowerCase()];
+  if (!gate || permissionSet.has(gate.toLowerCase())) {
     return <>{children}</>;
   }
 

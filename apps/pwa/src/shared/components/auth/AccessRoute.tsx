@@ -2,9 +2,16 @@ import { Navigate, Outlet, useLocation } from "react-router-dom";
 import {
   hasAnyPermission,
   hasApprovalAccess,
-  hasModuleAccess,
+  hasPermission,
 } from "@stanforte/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
+
+const MODULE_GATE: Record<string, string> = {
+  finance: "finance.view",
+  hr: "hr.view",
+  admin: "admin.view",
+  payroll: "payroll.manage",
+};
 
 type ModuleRouteProps = {
   moduleKey: string;
@@ -24,7 +31,8 @@ export function ModuleRoute({ moduleKey }: ModuleRouteProps) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
   }
 
-  if (hasModuleAccess(user, moduleKey)) {
+  const gate = MODULE_GATE[moduleKey];
+  if (!gate || hasPermission(user, gate)) {
     return <Outlet />;
   }
 

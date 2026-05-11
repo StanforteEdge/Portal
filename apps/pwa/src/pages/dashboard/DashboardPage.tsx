@@ -4,7 +4,7 @@ import {
   PageHeader,
   SectionCard,
 } from "@/shared";
-import { hasAnyPermission, hasModuleAccess, humanize, userFirstName } from "@stanforte/shared";
+import { hasAnyPermission, humanize, userFirstName } from "@stanforte/shared";
 import { Link } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -231,7 +231,7 @@ export default function DashboardPage() {
     nextShiftDetail = "No shift scheduled";
     nextShiftMode = "";
   }
-  const financeViewer = hasModuleAccess(user, "finance");
+  const financeViewer = hasAnyPermission(user, ["finance.view", "finance.manage"]);
 
   return (
     <AppShell

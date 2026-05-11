@@ -92,7 +92,7 @@ export async function getRoleDeleteImpact(id: string): Promise<{
 
 export async function listPermissions(): Promise<RolePermission[]> {
   const data = await httpRequest<any>("/admin/rbac/permissions");
-  return (data as any)?.data?? [];
+  return data ?? [];
 }
 
 export async function createPermission(payload: {
