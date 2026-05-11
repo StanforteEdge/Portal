@@ -78,7 +78,7 @@ export function buildAppNavigation(options?: {
       permissions: ["finance.view"],
       children: [
         { key: "finance-dashboard", label: "Dashboard", icon: "grid_view", path: "/finance" },
-        { key: "finance-payroll", label: "Payroll", icon: "account_balance", path: "/finance/payroll", permissions: ["payroll.approve"] },
+        { key: "finance-payroll", label: "Payroll", icon: "account_balance", path: "/finance/payroll", permissions: ["payroll.manage"] },
         {
           key: "finance-group-operations",
           label: "Operations",
@@ -87,7 +87,7 @@ export function buildAppNavigation(options?: {
             { key: "finance-requests", label: "Requests", icon: "receipt_long", path: "/finance/requests" },
             { key: "finance-ledger", label: "Ledger", icon: "book", path: "/finance/ledger" },
             { key: "finance-reports", label: "Reports", icon: "insights", path: "/finance/reports" },
-            { key: "finance-manual-entry", label: "Journal Entry", icon: "edit_note", path: "/finance/manual-entry" },
+            { key: "finance-manual-entry", label: "Journal Entry", icon: "edit_note", path: "/finance/manual-entry", permissions: ["finance.manage"] },
             ...(includeDetails && detailsParent === "finance"
               ? [financeRequestDetailsItem]
               : []),
@@ -98,10 +98,10 @@ export function buildAppNavigation(options?: {
           label: "Money In",
           icon: "trending_up",
           children: [
-            { key: "finance-sales-invoices", label: "Sales Invoices", icon: "request_quote", path: "/finance/sales-invoices" },
+            { key: "finance-sales-invoices", label: "Sales Invoices", icon: "request_quote", path: "/finance/sales-invoices", permissions: ["finance.manage"] },
             { key: "finance-income", label: "Income", icon: "payments", path: "/finance/income" },
             { key: "finance-receivables", label: "Receivables", icon: "request_quote", path: "/finance/receivables" },
-            { key: "finance-customers", label: "Customers", icon: "person", path: "/finance/customers" },
+            { key: "finance-customers", label: "Customers", icon: "person", path: "/finance/customers", permissions: ["finance.manage"] },
           ],
         },
         {
@@ -109,12 +109,12 @@ export function buildAppNavigation(options?: {
           label: "Money Out",
           icon: "trending_down",
           children: [
-            { key: "finance-bills", label: "Bills", icon: "receipt_long", path: "/finance/bills" },
+            { key: "finance-bills", label: "Bills", icon: "receipt_long", path: "/finance/bills", permissions: ["finance.manage"] },
             { key: "finance-expenses", label: "Expenses", icon: "receipt", path: "/finance/expenses" },
             { key: "finance-payables", label: "Payables", icon: "payments", path: "/finance/payables" },
-            { key: "finance-vendors", label: "Vendors", icon: "local_shipping", path: "/finance/vendors" },
-            { key: "finance-contacts", label: "All Contacts", icon: "contacts", path: "/finance/contacts" },
-            { key: "finance-vouchers", label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers" },
+            { key: "finance-vendors", label: "Vendors", icon: "local_shipping", path: "/finance/vendors", permissions: ["finance.manage"] },
+            { key: "finance-contacts", label: "All Contacts", icon: "contacts", path: "/finance/contacts", permissions: ["finance.manage"] },
+            { key: "finance-vouchers", label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers", permissions: ["finance.vouchers"] },
           ],
         },
         {
@@ -122,8 +122,8 @@ export function buildAppNavigation(options?: {
           label: "Fixed Assets",
           icon: "inventory_2",
           children: [
-            { key: "finance-assets", label: "Asset Register", icon: "inventory_2", path: "/finance/assets" },
-            { key: "finance-assets-disposals", label: "Disposals", icon: "delete_sweep", path: "/finance/assets/disposals" },
+            { key: "finance-assets", label: "Asset Register", icon: "inventory_2", path: "/finance/assets", permissions: ["finance.manage"] },
+            { key: "finance-assets-disposals", label: "Disposals", icon: "delete_sweep", path: "/finance/assets/disposals", permissions: ["finance.manage"] },
           ],
         },
         {
@@ -131,12 +131,12 @@ export function buildAppNavigation(options?: {
           label: "Setup",
           icon: "settings",
           children: [
-            { key: "finance-chart-accounts", label: "Chart of Accounts", icon: "account_balance", path: "/finance/chart-accounts" },
-            { key: "finance-accounts", label: "Bank & Cash", icon: "account_balance_wallet", path: "/finance/accounts" },
-            { key: "finance-items", label: "Products & Services", icon: "inventory", path: "/finance/items" },
-            { key: "finance-budgets", label: "Budgets", icon: "savings", path: "/finance/budgets" },
-            { key: "finance-settings", label: "Settings", icon: "settings", path: "/finance/settings" },
-            { key: "finance-deduction-types", label: "Deduction Types", icon: "percent", path: "/finance/deduction-types" },
+            { key: "finance-chart-accounts", label: "Chart of Accounts", icon: "account_balance", path: "/finance/chart-accounts", permissions: ["finance.manage"] },
+            { key: "finance-accounts", label: "Bank & Cash", icon: "account_balance_wallet", path: "/finance/accounts", permissions: ["finance.manage"] },
+            { key: "finance-items", label: "Products & Services", icon: "inventory", path: "/finance/items", permissions: ["finance.manage"] },
+            { key: "finance-budgets", label: "Budgets", icon: "savings", path: "/finance/budgets", permissions: ["finance.manage"] },
+            { key: "finance-settings", label: "Settings", icon: "settings", path: "/finance/settings", permissions: ["finance.manage"] },
+            { key: "finance-deduction-types", label: "Deduction Types", icon: "percent", path: "/finance/deduction-types", permissions: ["finance.manage"] },
             { key: "finance-payroll-components", label: "Salary Components", icon: "account_balance", path: "/finance/payroll/components", permissions: ["finance.manage"] },
             { key: "finance-payroll-tax-tables", label: "Tax Tables", icon: "percent", path: "/finance/payroll/tax-tables", permissions: ["finance.manage"] },
           ],
