@@ -39,6 +39,11 @@ import {
   type UpsertWorkerPayload,
 } from "@/shared/api/payroll-api";
 
+let _profileComponentKey = 0;
+function nextPcKey() {
+  return ++_profileComponentKey;
+}
+
 const EMPTY_FORM: UpsertWorkerPayload = {
   full_name: "",
   worker_type: "employee",
@@ -176,7 +181,7 @@ export default function HrPayrollWorkersPage() {
         amount: String(c.amount ?? ""),
         rate: c.rate != null ? String(c.rate) : "",
         formula: c.formula || "",
-        _key: Date.now() + i,
+        _key: nextPcKey(),
       })) || [],
     );
     setEditorStep("identity");
@@ -225,7 +230,7 @@ export default function HrPayrollWorkersPage() {
               profile: {
                 effective_from: effectiveFrom || new Date().toISOString().slice(0, 10),
                 ...(effectiveTo ? { effective_to: effectiveTo } : {}),
-                base_amount: baseAmount ? Number(baseAmount) : 0,
+                ...(baseAmount ? { base_amount: Number(baseAmount) } : {}),
                 payment_mode: paymentMode,
                 pay_frequency: "monthly",
                 ...(componentRows.length > 0 ? { components: componentRows } : {}),
@@ -621,7 +626,7 @@ export default function HrPayrollWorkersPage() {
                   variant="secondary"
                   size="sm"
                   onClick={() =>
-                    setProfileComponents([...profileComponents, { component_id: "", amount: "", rate: "", formula: "", _key: Date.now() }])
+                    setProfileComponents([...profileComponents, { component_id: "", amount: "", rate: "", formula: "", _key: nextPcKey() }])
                   }
                 >
                   <Icon name="add" className="text-[18px]" />
