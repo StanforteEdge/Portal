@@ -215,9 +215,39 @@ export default function HrPayrollWorkersPage() {
         _key: nextPcKey(),
       })) || [],
     );
+    setAllocationMode(w.allocation_mode || "fixed");
+    setHybridFixedPercent(w.hybrid_fixed_percent != null ? String(w.hybrid_fixed_percent) : "0");
+    setDefaultFundId(w.default_fund_id || "");
+    setDefaultGrantId(w.default_grant_id || "");
+    setAllocations(
+      w.allocations?.length > 0
+        ? w.allocations.map((a: any) => ({
+            _key: nextPcKey(),
+            org_id: a.organization_id || "",
+            team_id: a.team_id || "",
+            project_id: a.project_id || "",
+            fund_id: a.fund_id || "",
+            grant_id: a.grant_id || "",
+            percent: String(a.allocation_percent ?? "0"),
+          }))
+        : [{ _key: nextPcKey(), org_id: "", team_id: "", project_id: "", fund_id: "", grant_id: "", percent: "100" }],
+    );
     setEditorStep("identity");
     setShowSlideOver(true);
     listPayrollComponents().then((r) => setComponents(r.items)).catch(() => showToast({ tone: "danger", title: "Error", message: "Failed to load payroll components." }));
+    Promise.allSettled([
+      resourceApi.listOrganizations(),
+      resourceApi.listGroups({ active_only: true }),
+      resourceApi.listProjects({ active_only: true }),
+      financeApi.listFunds(),
+      financeApi.listGrants(),
+    ]).then(([orgs, tms, projs, fds, grnts]) => {
+      if (orgs.status === "fulfilled") setOrganizations(orgs.value);
+      if (tms.status === "fulfilled") setTeams(tms.value);
+      if (projs.status === "fulfilled") setProjects(projs.value);
+      if (fds.status === "fulfilled") setFunds(fds.value);
+      if (grnts.status === "fulfilled") setGrants(grnts.value);
+    });
   };
 
   const handleSave = async () => {
@@ -268,6 +298,20 @@ export default function HrPayrollWorkersPage() {
               },
             }
           : {}),
+        allocation_mode: allocationMode,
+        ...(allocationMode === "hybrid" ? { hybrid_fixed_percent: Number(hybridFixedPercent || 0) } : {}),
+        default_fund_id: defaultFundId || undefined,
+        default_grant_id: defaultGrantId || undefined,
+        allocations: allocations
+          .filter((a) => a.org_id || a.team_id || a.project_id || a.fund_id || a.grant_id)
+          .map((a) => ({
+            ...(a.org_id ? { organization_id: a.org_id } : {}),
+            ...(a.team_id ? { team_id: a.team_id } : {}),
+            ...(a.project_id ? { project_id: a.project_id } : {}),
+            ...(a.fund_id ? { fund_id: a.fund_id } : {}),
+            ...(a.grant_id ? { grant_id: a.grant_id } : {}),
+            allocation_percent: Number(a.percent || 0),
+          })),
       };
       if (editingWorker) {
         await updatePayrollWorker(String((editingWorker as any).id), payload);
