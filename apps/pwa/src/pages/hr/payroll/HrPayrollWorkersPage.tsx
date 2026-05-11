@@ -33,7 +33,9 @@ import {
   createPayrollWorker,
   updatePayrollWorker,
   deletePayrollWorker,
+  listPayrollComponents,
   type PayrollWorker,
+  type PayrollComponent,
   type UpsertWorkerPayload,
 } from "@/shared/api/payroll-api";
 
@@ -66,6 +68,16 @@ export default function HrPayrollWorkersPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [editorStep, setEditorStep] = useState<"identity" | "pay">("identity");
+  const [components, setComponents] = useState<PayrollComponent[]>([]);
+  const [baseAmount, setBaseAmount] = useState("");
+  const [effectiveFrom, setEffectiveFrom] = useState("");
+  const [effectiveTo, setEffectiveTo] = useState("");
+  const [paymentMode, setPaymentMode] = useState("bank_transfer");
+  const [standardHours, setStandardHours] = useState("8");
+  const [profileComponents, setProfileComponents] = useState<
+    Array<{ component_id: string; amount: string; rate: string; formula: string }>
+  >([]);
 
   const { data: profile } = useCachedQuery(
     "hr:profile",
@@ -94,7 +106,15 @@ export default function HrPayrollWorkersPage() {
     setForm(EMPTY_FORM);
     setSearchQuery("");
     setSearchResults([]);
+    setEditorStep("identity");
+    setBaseAmount("");
+    setEffectiveFrom("");
+    setEffectiveTo("");
+    setPaymentMode("bank_transfer");
+    setStandardHours("8");
+    setProfileComponents([]);
     setShowSlideOver(true);
+    listPayrollComponents().then((r) => setComponents(r.items)).catch(() => {});
   };
 
   const handleEmployeeSearch = async (query: string) => {
