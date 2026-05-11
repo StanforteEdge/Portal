@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import JSZip from 'jszip';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
@@ -30,14 +30,15 @@ export class PayrollService {
     private readonly mailService: MailService
   ) {}
 
-  async summary() {
+  async summary(query: Record<string, any> = {}) {
+    const orgFilter = query.organization_id ? { organizationId: toBigInt(String(query.organization_id)) } : {};
     const [workers, activeWorkers, consultants, components, runs, latestRun] = await this.prisma.$transaction([
-      this.prisma.payrollWorker.count(),
-      this.prisma.payrollWorker.count({ where: { status: 'active' } }),
-      this.prisma.payrollWorker.count({ where: { workerType: 'consultant' } }),
+      this.prisma.payrollWorker.count({ where: orgFilter }),
+      this.prisma.payrollWorker.count({ where: { status: 'active', ...orgFilter } }),
+      this.prisma.payrollWorker.count({ where: { workerType: 'consultant', ...orgFilter } }),
       this.prisma.payrollComponent.count({ where: { isActive: true } }),
-      this.prisma.payrollRun.count(),
-      this.prisma.payrollRun.findFirst({ orderBy: [{ year: 'desc' }, { month: 'desc' }] })
+      this.prisma.payrollRun.count({ where: orgFilter }),
+      this.prisma.payrollRun.findFirst({ where: orgFilter, orderBy: [{ year: 'desc' }, { month: 'desc' }] })
     ]);
 
     return {
@@ -202,7 +203,7 @@ export class PayrollService {
     return this.submitProjectTimesheet(id);
   }
 
-  async getInbox(userId: string, permissions: string[] = []) {
+  async getInbox(userId: string, permissions: string[] = [], query: Record<string, any> = {}) {
     const actorId = toBigInt(userId);
     const canManage =
       permissions.includes('finance.manage') ||
@@ -210,23 +211,25 @@ export class PayrollService {
       permissions.includes('requests.approve') ||
       permissions.includes('settings.manage');
 
+    const orgFilter = query.organization_id ? { organizationId: toBigInt(String(query.organization_id)) } : {};
+
     const [approvals, corrections, payments, importJobs, failedDistributions, notifications] = await this.prisma.$transaction([
       this.prisma.payrollRun.findMany({
-        where: canManage ? { status: 'under_review' } : { status: 'under_review', preparedById: actorId },
+        where: canManage ? { status: 'under_review', ...orgFilter } : { status: 'under_review', preparedById: actorId, ...orgFilter },
         orderBy: [{ year: 'desc' }, { month: 'desc' }],
         take: 10,
         include: { items: true, _count: { select: { items: true } } }
       }),
       this.prisma.payrollRun.findMany({
         where: canManage
-          ? { status: 'rejected' }
-          : { status: 'rejected', OR: [{ preparedById: actorId }, { reviewedById: actorId }, { approvedById: actorId }] },
+          ? { status: 'rejected', ...orgFilter }
+          : { status: 'rejected', OR: [{ preparedById: actorId }, { reviewedById: actorId }, { approvedById: actorId }], ...orgFilter },
         orderBy: [{ updatedAt: 'desc' }],
         take: 10,
         include: { items: true, _count: { select: { items: true } } }
       }),
       this.prisma.payrollRun.findMany({
-        where: canManage ? { status: 'approved' } : { status: 'approved', preparedById: actorId },
+        where: canManage ? { status: 'approved', ...orgFilter } : { status: 'approved', preparedById: actorId, ...orgFilter },
         orderBy: [{ updatedAt: 'desc' }],
         take: 10,
         include: { items: true, _count: { select: { items: true } } }
@@ -430,6 +433,7 @@ export class PayrollService {
     }
     if (query.worker_type) where.workerType = String(query.worker_type);
     if (query.status) where.status = String(query.status);
+    if (query.organization_id) where.organizationId = toBigInt(String(query.organization_id));
 
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.payrollWorker.findMany({
@@ -476,6 +480,19 @@ export class PayrollService {
   async deleteWorker(id: string) {
     const existing = await this.prisma.payrollWorker.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Payroll worker not found');
+
+    // Prevent removal if worker is in an active (non-draft/non-rejected) run
+    const activeRunItems = await this.prisma.payrollRunItem.count({
+      where: {
+        workerId: id,
+        run: { status: { notIn: ['draft', 'rejected'] } },
+      },
+    });
+    if (activeRunItems > 0) {
+      throw new BadRequestException(
+        'Cannot remove worker — they are included in an active payroll run. Deactivate them instead.'
+      );
+    }
 
     const usage = await this.prisma.$transaction([
       this.prisma.payrollRunItem.count({ where: { workerId: id } }),
@@ -743,9 +760,14 @@ export class PayrollService {
     const page = Math.max(1, Number(query.page ?? 1));
     const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
     const where: Prisma.PayrollRunWhereInput = {};
-    if (query.status) where.status = String(query.status);
+    if (query.status_in) {
+      where.status = { in: String(query.status_in).split(',') };
+    } else if (query.status) {
+      where.status = String(query.status);
+    }
     if (query.year) where.year = Number(query.year);
     if (query.month) where.month = Number(query.month);
+    if (query.organization_id) where.organizationId = toBigInt(String(query.organization_id));
     const [rows, total] = await this.prisma.$transaction([
       this.prisma.payrollRun.findMany({
         where,
@@ -799,19 +821,33 @@ export class PayrollService {
   }
 
   async createRun(dto: CreatePayrollRunDto, actorId?: string) {
-    const row = await this.prisma.payrollRun.create({
-      data: {
-        name: dto.name,
-        year: dto.year,
-        month: dto.month,
-        periodStart: new Date(dto.period_start),
-        periodEnd: new Date(dto.period_end),
-        currency: dto.currency || 'NGN',
-        notes: dto.notes || null,
-        paidFromAccountId: dto.paid_from_account_id || null,
-        preparedById: actorId ? toBigInt(actorId) : null,
+    let row: any;
+    try {
+      row = await this.prisma.payrollRun.create({
+        data: {
+          name: dto.name,
+          year: dto.year,
+          month: dto.month,
+          periodStart: new Date(dto.period_start),
+          periodEnd: new Date(dto.period_end),
+          currency: dto.currency || 'NGN',
+          notes: dto.notes || null,
+          organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
+          paidFromAccountId: dto.paid_from_account_id || null,
+          preparedById: actorId ? toBigInt(actorId) : null,
+        }
+      });
+    } catch (err: any) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError) {
+        if (err.code === 'P2002') {
+          throw new ConflictException('A payroll run already exists for this organization and period');
+        }
+        if (err.code === 'P2003') {
+          throw new BadRequestException('Referenced account or organization not found');
+        }
       }
-    });
+      throw err;
+    }
     await this.recordRunEvent(row.id, 'created', actorId, `Created payroll run ${dto.name}`);
     return this.getRun(row.id);
   }
@@ -832,6 +868,7 @@ export class PayrollService {
         periodEnd: new Date(dto.period_end),
         currency: dto.currency || existing.currency,
         notes: dto.notes || null,
+        organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
         paidFromAccountId: dto.paid_from_account_id || null,
         preparedById: actorId ? toBigInt(actorId) : existing.preparedById,
       }
@@ -849,7 +886,8 @@ export class PayrollService {
       where: {
         status: 'active',
         OR: [{ startDate: null }, { startDate: { lte: run.periodEnd } }],
-        AND: [{ OR: [{ endDate: null }, { endDate: { gte: run.periodStart } }] }]
+        AND: [{ OR: [{ endDate: null }, { endDate: { gte: run.periodStart } }] }],
+        ...(run.organizationId ? { organizationId: run.organizationId } : {}),
       },
       include: this.workerInclude()
     });
@@ -1762,9 +1800,10 @@ export class PayrollService {
 
   async reportsOverview(query: Record<string, any>) {
     const year = Number(query.year || new Date().getFullYear());
+    const orgFilter = query.organization_id ? { organizationId: toBigInt(String(query.organization_id)) } : {};
     const [runs, workers] = await this.prisma.$transaction([
       this.prisma.payrollRun.findMany({
-        where: { year },
+        where: { year, ...orgFilter },
         include: {
           items: {
             include: {
@@ -1778,7 +1817,7 @@ export class PayrollService {
         orderBy: [{ year: 'asc' }, { month: 'asc' }]
       }),
       this.prisma.payrollWorker.findMany({
-        where: { status: 'active' },
+        where: { status: 'active', ...orgFilter },
         select: { workerType: true, organizationId: true }
       })
     ]);
@@ -2629,6 +2668,7 @@ export class PayrollService {
 
   private runInclude() {
     return {
+      organization: { select: { id: true, name: true } },
       paidFromAccount: { select: { id: true, name: true, code: true } },
       preparedBy: { select: { id: true, firstName: true, lastName: true, email: true, username: true } },
       reviewedBy: { select: { id: true, firstName: true, lastName: true, email: true, username: true } },
@@ -2831,6 +2871,8 @@ export class PayrollService {
       period_end: row.periodEnd,
       status: row.status,
       currency: row.currency,
+      organization_id: row.organizationId?.toString() ?? null,
+      organization: row.organization ? { id: row.organization.id.toString(), name: row.organization.name } : null,
       paid_from_account: row.paidFromAccount || null,
       prepared_by: row.preparedBy
         ? { id: row.preparedBy.id.toString(), name: [row.preparedBy.firstName, row.preparedBy.lastName].filter(Boolean).join(' ') || row.preparedBy.email }

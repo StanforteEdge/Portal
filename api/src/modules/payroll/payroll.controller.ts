@@ -29,8 +29,8 @@ export class PayrollController {
 
   @Get('summary')
   @Permissions('finance.view')
-  summary() {
-    return this.payrollService.summary();
+  summary(@Query() query: Record<string, any>) {
+    return this.payrollService.summary(query);
   }
 
   @Get('my/payslips')
@@ -70,8 +70,8 @@ export class PayrollController {
 
   @Get('inbox')
   @Permissions('finance.view')
-  inbox(@Req() req: any) {
-    return this.payrollService.getInbox(req.user?.id, req.user?.permissions ?? []);
+  inbox(@Req() req: any, @Query() query: Record<string, any>) {
+    return this.payrollService.getInbox(req.user?.id, req.user?.permissions ?? [], query);
   }
 
   @Get('settings')
@@ -123,7 +123,7 @@ export class PayrollController {
   }
 
   @Delete('workers/:id')
-  @Permissions('finance.manage')
+  @Permissions('payroll.manage')
   deleteWorker(@Param('id') id: string) {
     return this.payrollService.deleteWorker(id);
   }

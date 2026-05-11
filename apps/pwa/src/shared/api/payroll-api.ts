@@ -154,10 +154,12 @@ export type PayrollWorker = {
   organization?: { name: string } | null;
 };
 
-export async function listPayrollRuns(params?: { page?: number; per_page?: number }) {
+export async function listPayrollRuns(params?: { page?: number; per_page?: number; organization_id?: string; status_in?: string }) {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
+  if (params?.organization_id) query.set("organization_id", params.organization_id);
+  if (params?.status_in) query.set("status_in", params.status_in);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   const res = await httpRequest<any>(`/payroll/runs${suffix}`);
   const items: PayrollRunSummary[] = res?.data?.items ?? res?.data ?? (Array.isArray(res) ? res : []);
@@ -169,7 +171,7 @@ export async function getPayrollRun(id: string) {
   return (res?.data ?? res) as PayrollRunDetail;
 }
 
-export async function createPayrollRun(payload: { name: string; year: number; month: number; period_start: string; period_end: string; currency?: string; notes?: string; paid_from_account_id?: string }) {
+export async function createPayrollRun(payload: { name: string; year: number; month: number; period_start: string; period_end: string; currency?: string; notes?: string; organization_id?: string; paid_from_account_id?: string }) {
   const res = await httpRequest<any>("/payroll/runs", { method: "POST", body: payload });
   return (res?.data ?? res) as any;
 }
