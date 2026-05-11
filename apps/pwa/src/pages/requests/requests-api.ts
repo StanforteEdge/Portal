@@ -176,7 +176,7 @@ export async function createRequest(payload: {
     method: "POST",
     body: payload,
   });
-  return (res?.data ?? res) as RequestRecord;
+  return res as RequestRecord;
 }
 
 export async function updateRequest(
@@ -193,7 +193,7 @@ export async function updateRequest(
     method: "POST",
     body: payload,
   });
-  return (res?.data ?? res) as RequestRecord;
+  return res as RequestRecord;
 }
 
 export async function submitRequest(id: string, comment?: string) {
