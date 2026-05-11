@@ -300,10 +300,10 @@ export default function HrPayrollWorkersPage() {
           : {}),
         allocation_mode: allocationMode,
         ...(allocationMode === "hybrid" ? { hybrid_fixed_percent: Number(hybridFixedPercent || 0) } : {}),
-        default_fund_id: defaultFundId || undefined,
-        default_grant_id: defaultGrantId || undefined,
+        ...(defaultFundId ? { default_fund_id: defaultFundId } : {}),
+        ...(defaultGrantId ? { default_grant_id: defaultGrantId } : {}),
         allocations: allocations
-          .filter((a) => a.org_id || a.team_id || a.project_id || a.fund_id || a.grant_id)
+          .filter((a) => (a.org_id || a.team_id || a.project_id || a.fund_id || a.grant_id) && Number(a.percent || 0) > 0)
           .map((a) => ({
             ...(a.org_id ? { organization_id: a.org_id } : {}),
             ...(a.team_id ? { team_id: a.team_id } : {}),
