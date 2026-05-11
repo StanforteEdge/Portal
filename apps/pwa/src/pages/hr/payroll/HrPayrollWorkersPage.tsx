@@ -35,6 +35,7 @@ import {
   updatePayrollWorker,
   deletePayrollWorker,
   listPayrollComponents,
+  listPayrollTaxTables,
   type PayrollWorker,
   type PayrollComponent,
   type UpsertWorkerPayload,
@@ -74,7 +75,7 @@ export default function HrPayrollWorkersPage() {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [searching, setSearching] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
-  const [editorStep, setEditorStep] = useState<"identity" | "pay" | "allocation">("identity");
+  const [editorStep, setEditorStep] = useState<"identity" | "pay" | "allocation" | "compliance">("identity");
   const [components, setComponents] = useState<PayrollComponent[]>([]);
   const [baseAmount, setBaseAmount] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState("");
@@ -91,6 +92,14 @@ export default function HrPayrollWorkersPage() {
   const [allocations, setAllocations] = useState<Array<{ _key: number; org_id: string; team_id: string; project_id: string; fund_id: string; grant_id: string; percent: string }>>([
     { _key: nextPcKey(), org_id: "", team_id: "", project_id: "", fund_id: "", grant_id: "", percent: "100" },
   ]);
+  const [applyTax, setApplyTax] = useState(true);
+  const [applyPension, setApplyPension] = useState(true);
+  const [employerCoversPaye, setEmployerCoversPaye] = useState(false);
+  const [taxTableId, setTaxTableId] = useState("");
+  const [taxTables, setTaxTables] = useState<any[]>([]);
+  const [pensionRate, setPensionRate] = useState("");
+  const [withholdingRate, setWithholdingRate] = useState("");
+  const [consultantPensionRate, setConsultantPensionRate] = useState("");
   const [organizations, setOrganizations] = useState<any[]>([]);
   const [teams, setTeams] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
@@ -136,8 +145,16 @@ export default function HrPayrollWorkersPage() {
     setDefaultFundId("");
     setDefaultGrantId("");
     setAllocations([{ _key: nextPcKey(), org_id: "", team_id: "", project_id: "", fund_id: "", grant_id: "", percent: "100" }]);
+    setApplyTax(true);
+    setApplyPension(true);
+    setEmployerCoversPaye(false);
+    setTaxTableId("");
+    setPensionRate("");
+    setWithholdingRate("");
+    setConsultantPensionRate("");
     setShowSlideOver(true);
     listPayrollComponents().then((r) => setComponents(r.items)).catch(() => showToast({ tone: "danger", title: "Error", message: "Failed to load payroll components." }));
+    listPayrollTaxTables().then((r) => setTaxTables(r.items)).catch(() => {});
     Promise.allSettled([
       resourceApi.listOrganizations(),
       resourceApi.listGroups({ active_only: true }),
@@ -232,9 +249,17 @@ export default function HrPayrollWorkersPage() {
           }))
         : [{ _key: nextPcKey(), org_id: "", team_id: "", project_id: "", fund_id: "", grant_id: "", percent: "100" }],
     );
+    setApplyTax(w.metadata?.apply_tax !== false);
+    setApplyPension(w.metadata?.apply_pension !== false);
+    setEmployerCoversPaye(w.metadata?.employer_covers_paye === true);
+    setTaxTableId(w.tax_table_id || "");
+    setPensionRate(w.metadata?.pension_rate != null ? String(w.metadata.pension_rate) : "");
+    setWithholdingRate(w.metadata?.withholding_rate != null ? String(w.metadata.withholding_rate) : "");
+    setConsultantPensionRate(w.metadata?.consultant_pension_rate != null ? String(w.metadata.consultant_pension_rate) : "");
     setEditorStep("identity");
     setShowSlideOver(true);
     listPayrollComponents().then((r) => setComponents(r.items)).catch(() => showToast({ tone: "danger", title: "Error", message: "Failed to load payroll components." }));
+    listPayrollTaxTables().then((r) => setTaxTables(r.items)).catch(() => {});
     Promise.allSettled([
       resourceApi.listOrganizations(),
       resourceApi.listGroups({ active_only: true }),
@@ -312,6 +337,15 @@ export default function HrPayrollWorkersPage() {
             ...(a.grant_id ? { grant_id: a.grant_id } : {}),
             allocation_percent: Number(a.percent || 0),
           })),
+        tax_table_id: taxTableId || undefined,
+        metadata: {
+          apply_tax: applyTax,
+          apply_pension: applyPension,
+          employer_covers_paye: employerCoversPaye,
+          ...(pensionRate ? { pension_rate: Number(pensionRate) } : {}),
+          ...(withholdingRate ? { withholding_rate: Number(withholdingRate) } : {}),
+          ...(consultantPensionRate ? { consultant_pension_rate: Number(consultantPensionRate) } : {}),
+        },
       };
       if (editingWorker) {
         await updatePayrollWorker(String((editingWorker as any).id), payload);
@@ -469,6 +503,7 @@ export default function HrPayrollWorkersPage() {
               { id: "identity" as const, label: "Identity" },
               { id: "pay" as const, label: "Pay Profile" },
               { id: "allocation" as const, label: "Allocation" },
+              { id: "compliance" as const, label: "Compliance" },
             ].map((s, i) => (
               <button
                 key={s.id}
@@ -846,18 +881,60 @@ export default function HrPayrollWorkersPage() {
               </div>
             </div>
           ) : null}
+          {/* Step 4: Compliance */}
+          {editorStep === "compliance" ? (
+            <div className="grid gap-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Statutory Overrides</p>
+              <p className="text-xs text-slate-500">Only change these when a worker should not use the global payroll settings.</p>
+              <div className="rounded-lg border border-slate-200 p-4 grid gap-4">
+                <div className="flex flex-wrap gap-6">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={applyTax} onChange={(e) => setApplyTax(e.target.checked)} />
+                    Apply Tax
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={applyPension} onChange={(e) => setApplyPension(e.target.checked)} />
+                    Apply Pension
+                  </label>
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" checked={employerCoversPaye} onChange={(e) => setEmployerCoversPaye(e.target.checked)} />
+                    Employer Covers PAYE
+                  </label>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <SelectField label="PAYE Tax Table Override" value={taxTableId} onChange={(e) => setTaxTableId(e.target.value)}>
+                    <option value="">Use payroll default</option>
+                    {taxTables.filter((t: any) => ["employee", "all"].includes(t.worker_type ?? "employee")).map((t: any) => (
+                      <option key={t.id} value={t.id}>{t.name}</option>
+                    ))}
+                  </SelectField>
+                  <TextField label="Pension Rate Override" type="number" value={pensionRate} onChange={(e) => setPensionRate(e.target.value)} placeholder="e.g. 0.08" />
+                </div>
+                {(form.worker_type ?? "employee") === "consultant" ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    <TextField label="Withholding Rate Override" type="number" value={withholdingRate} onChange={(e) => setWithholdingRate(e.target.value)} placeholder="e.g. 0.05" />
+                    <TextField label="Consultant Pension Override" type="number" value={consultantPensionRate} onChange={(e) => setConsultantPensionRate(e.target.value)} placeholder="e.g. 0.00" />
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </SlideOverContent>
         <SlideOverFooter>
           <div className="flex w-full items-center justify-between">
             <Button variant="secondary" onClick={() => setShowSlideOver(false)}>Cancel</Button>
             <div className="flex gap-2">
               {editorStep !== "identity" ? (
-                <Button variant="secondary" onClick={() => setEditorStep(editorStep === "pay" ? "identity" : "pay")}>Previous</Button>
+                <Button variant="secondary" onClick={() => setEditorStep(
+                  editorStep === "pay" ? "identity" : editorStep === "allocation" ? "pay" : "allocation"
+                )}>Previous</Button>
               ) : null}
-              {editorStep !== "allocation" ? (
-                <Button onClick={() => setEditorStep(editorStep === "identity" ? "pay" : "allocation")}>Next</Button>
+              {editorStep !== "compliance" ? (
+                <Button onClick={() => setEditorStep(
+                  editorStep === "identity" ? "pay" : editorStep === "pay" ? "allocation" : "compliance"
+                )}>Next</Button>
               ) : null}
-              {editorStep === "allocation" ? (
+              {editorStep === "compliance" ? (
                 <Button onClick={() => void handleSave()} disabled={saving}>
                   {saving ? "Saving..." : editingWorker ? "Update" : "Add Worker"}
                 </Button>
