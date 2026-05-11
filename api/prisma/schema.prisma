@@ -531,6 +531,7 @@ model Organization {
   payrollRunTimesheetAllocations PayrollRunTimesheetAllocation[]
   projectTimesheetEntries        ProjectTimesheetEntry[]
   payrollSettings                PayrollSetting[]
+  payrollRuns                    PayrollRun[]
   workItems                      WorkItem[]
   workLogs                       WorkLog[]
   teamGoals                      TeamGoal[]
@@ -1910,6 +1911,7 @@ model PayrollWorkerAllocation {
 
 model PayrollRun {
   id                 String    @id @default(uuid()) @db.Uuid
+  organizationId     BigInt?   @map("organization_id")
   paidFromAccountId  String?   @map("paid_from_account_id") @db.Uuid
   workflowInstanceId String?   @map("workflow_instance_id") @db.Uuid
   name               String    @db.VarChar(180)
@@ -1930,6 +1932,7 @@ model PayrollRun {
   createdAt          DateTime  @default(now()) @map("created_at")
   updatedAt          DateTime  @updatedAt @map("updated_at")
 
+  organization            Organization?                   @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   paidFromAccount         FinanceAccount?                 @relation(fields: [paidFromAccountId], references: [id], onDelete: SetNull)
   preparedBy              Profile?                        @relation("PayrollRunPreparedBy", fields: [preparedById], references: [id], onDelete: SetNull)
   reviewedBy              Profile?                        @relation("PayrollRunReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
@@ -1943,10 +1946,11 @@ model PayrollRun {
   syncedProjectTimesheets ProjectTimesheetEntry[]         @relation("ProjectTimesheetSyncedRun")
   payslipDistributions    PayrollPayslipDistribution[]
 
-  @@unique([year, month], name: "unique_payroll_run_period")
+  @@unique([organizationId, year, month], name: "unique_payroll_run_period")
   @@index([status])
   @@index([workflowInstanceId])
   @@index([paidFromAccountId])
+  @@index([organizationId])
   @@map("sta_payroll_runs")
 }
 

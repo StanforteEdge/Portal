@@ -37,5 +37,10 @@ export class CreatePayrollRunDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  organization_id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
   paid_from_account_id?: string;
 }
