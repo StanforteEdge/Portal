@@ -76,7 +76,7 @@ export default function HrPayrollWorkersPage() {
   const [paymentMode, setPaymentMode] = useState("bank_transfer");
   const [standardHours, setStandardHours] = useState("8");
   const [profileComponents, setProfileComponents] = useState<
-    Array<{ component_id: string; amount: string; rate: string; formula: string }>
+    Array<{ component_id: string; amount: string; rate: string; formula: string; _key: number }>
   >([]);
 
   const { data: profile } = useCachedQuery(
@@ -163,7 +163,25 @@ export default function HrPayrollWorkersPage() {
       start_date: w.start_date ?? "",
       end_date: w.end_date ?? "",
     });
+    // Populate pay profile from first active profile
+    const profile = w.profiles?.[0] || null;
+    setBaseAmount(profile?.base_amount != null ? String(profile.base_amount) : "");
+    setEffectiveFrom(profile?.effective_from ? String(profile.effective_from).slice(0, 10) : "");
+    setEffectiveTo(profile?.effective_to ? String(profile.effective_to).slice(0, 10) : "");
+    setPaymentMode(profile?.payment_mode || "bank_transfer");
+    setStandardHours(w.standard_hours_per_day != null ? String(w.standard_hours_per_day) : "8");
+    setProfileComponents(
+      profile?.components?.map((c: any, i: number) => ({
+        component_id: c.component_id,
+        amount: String(c.amount ?? ""),
+        rate: c.rate != null ? String(c.rate) : "",
+        formula: c.formula || "",
+        _key: Date.now() + i,
+      })) || [],
+    );
+    setEditorStep("identity");
     setShowSlideOver(true);
+    listPayrollComponents().then((r) => setComponents(r.items)).catch(() => showToast({ tone: "danger", title: "Error", message: "Failed to load payroll components." }));
   };
 
   const handleSave = async () => {
@@ -173,6 +191,22 @@ export default function HrPayrollWorkersPage() {
     }
     setSaving(true);
     try {
+      const componentRows = profileComponents
+        .filter((pc) => pc.component_id)
+        .map((pc) => {
+          const c = components.find((x) => x.id === pc.component_id);
+          const calcType = c?.calculation_type ?? "fixed";
+          return {
+            component_id: pc.component_id,
+            amount: calcType === "fixed" && pc.amount !== "" ? Number(pc.amount) : undefined,
+            rate: calcType === "percentage" && pc.rate !== "" ? Number(pc.rate) : undefined,
+            formula: calcType === "formula" && pc.formula?.trim() ? pc.formula.trim() : undefined,
+          };
+        })
+        .filter((pc) => pc.amount !== undefined || pc.rate !== undefined || pc.formula);
+
+      const hasProfileFields = baseAmount || effectiveFrom || componentRows.length > 0;
+
       const payload: UpsertWorkerPayload = {
         ...form,
         full_name: form.full_name.trim(),
@@ -185,6 +219,19 @@ export default function HrPayrollWorkersPage() {
         pension_identifier: form.pension_identifier?.trim() || undefined,
         start_date: form.start_date || undefined,
         end_date: form.end_date || undefined,
+        standard_hours_per_day: standardHours ? Number(standardHours) : undefined,
+        ...(hasProfileFields
+          ? {
+              profile: {
+                effective_from: effectiveFrom || new Date().toISOString().slice(0, 10),
+                ...(effectiveTo ? { effective_to: effectiveTo } : {}),
+                base_amount: baseAmount ? Number(baseAmount) : 0,
+                payment_mode: paymentMode,
+                pay_frequency: "monthly",
+                ...(componentRows.length > 0 ? { components: componentRows } : {}),
+              },
+            }
+          : {}),
       };
       if (editingWorker) {
         await updatePayrollWorker(String((editingWorker as any).id), payload);
@@ -484,7 +531,7 @@ export default function HrPayrollWorkersPage() {
                   <p className="text-sm text-slate-500">No recurring components yet.</p>
                 ) : (
                   profileComponents.map((pc, idx) => (
-                    <div key={idx} className="grid grid-cols-12 gap-3 rounded border border-slate-100 bg-slate-50 p-3">
+                    <div key={pc._key} className="grid grid-cols-12 gap-3 rounded border border-slate-100 bg-slate-50 p-3">
                       <div className="col-span-12 md:col-span-5">
                         <SelectField
                           label="Component"
@@ -574,7 +621,7 @@ export default function HrPayrollWorkersPage() {
                   variant="secondary"
                   size="sm"
                   onClick={() =>
-                    setProfileComponents([...profileComponents, { component_id: "", amount: "", rate: "", formula: "" }])
+                    setProfileComponents([...profileComponents, { component_id: "", amount: "", rate: "", formula: "", _key: Date.now() }])
                   }
                 >
                   <Icon name="add" className="text-[18px]" />
