@@ -1,13 +1,14 @@
 import type { AuthUser } from "./types";
 
-const STAFF_MODULES = new Set([
-  "dashboard",
-  "requests",
-  "attendance",
-  "profile",
-  "leave",
-  "work",
-]);
+const MODULE_PREFIXES: Record<string, string[]> = {
+  requests: ["requests"],
+  attendance: ["attendance"],
+  leave: ["leave"],
+  work: ["work"],
+  hr: ["hr"],
+  admin: ["users", "groups", "projects", "admin", "settings", "roles", "audit", "workflow", "organizations"],
+  finance: ["finance"],
+};
 
 export function hasPermission(user: Pick<AuthUser, "permissions"> | null | undefined, permission: string) {
   const permissionSet = new Set((user?.permissions ?? []).map((entry) => String(entry).trim().toLowerCase()));
@@ -24,26 +25,20 @@ export function hasAnyPermission(
   return permissions.some((permission) => permissionSet.has(String(permission).trim().toLowerCase()));
 }
 
-export function hasModuleAccess(user: Pick<AuthUser, "roles" | "permissions" | "enabled_modules"> | null | undefined, moduleKey: string) {
+export function hasModuleAccess(user: Pick<AuthUser, "permissions"> | null | undefined, moduleKey: string) {
   const module = String(moduleKey || "").trim().toLowerCase();
   if (!module) return false;
 
   const permissionSet = new Set((user?.permissions ?? []).map((entry) => String(entry).trim().toLowerCase()));
-  const enabledModules = new Set((user?.enabled_modules ?? []).map((entry) => String(entry).trim().toLowerCase()));
-
   if (permissionSet.has("*")) return true;
 
-  if (enabledModules.has("*") || enabledModules.has(module)) return true;
+  const prefixes = MODULE_PREFIXES[module];
+  if (!prefixes) return false;
 
-  if (STAFF_MODULES.has(module)) {
-    return true;
-  }
-
-  if (enabledModules.size === 0) {
-    return true;
-  }
-
-  return false;
+  return prefixes.some((prefix) =>
+    permissionSet.has(`${prefix}.*`) ||
+    Array.from(permissionSet).some((p) => p.startsWith(`${prefix}.`)),
+  );
 }
 
 export function hasApprovalAccess(user: Pick<AuthUser, "permissions"> | null | undefined) {

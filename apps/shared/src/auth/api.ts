@@ -31,7 +31,6 @@ function normalizeUser(payload: any): AuthUser {
     last_name: payload?.last_name ? String(payload.last_name) : undefined,
     roles: normalizeStringArray(payload?.roles),
     permissions: normalizeStringArray(payload?.permissions),
-    enabled_modules: normalizeStringArray(payload?.enabled_modules),
     onboarding_status: payload?.onboarding_status ? String(payload.onboarding_status) : null,
     organization_id:
       payload?.organization_id !== undefined && payload?.organization_id !== null

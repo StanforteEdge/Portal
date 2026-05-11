@@ -7,6 +7,16 @@ import sideMenu from "@/main/side-menu";
 import simpleMenu from "@/main/simple-menu";
 import topMenu from "@/main/top-menu";
 
+const MODULE_PREFIXES: Record<string, string[]> = {
+  requests: ["requests"],
+  attendance: ["attendance"],
+  leave: ["leave"],
+  work: ["work"],
+  hr: ["hr"],
+  admin: ["users", "groups", "projects", "admin", "settings", "roles", "audit", "workflow", "organizations"],
+  finance: ["finance"],
+};
+
 export interface Menu {
   icon: keyof typeof icons;
   title: string;
@@ -35,11 +45,19 @@ export const menuSlice = createSlice({
   reducers: {},
 });
 
+const hasModuleAccess = (permissionSet: Set<string>, moduleKey: string): boolean => {
+  const prefixes = MODULE_PREFIXES[moduleKey.toLowerCase()];
+  if (!prefixes) return false;
+  return prefixes.some((prefix) =>
+    permissionSet.has(`${prefix}.*`) ||
+    Array.from(permissionSet).some((p) => p.startsWith(`${prefix}.`)),
+  );
+};
+
 const filterMenuByAccess = (
   menu: Array<Menu | "divider">,
   roleSet: Set<string>,
   permissionSet: Set<string>,
-  enabledModuleSet: Set<string>
 ): Array<Menu | "divider"> => {
   const hasAllPermissions = (required: string[]) => {
     if (permissionSet.has("*")) return true;
@@ -47,7 +65,7 @@ const filterMenuByAccess = (
   };
 
   const isAllowed = (item: Menu) => {
-    if (item.moduleKey && !permissionSet.has("*") && enabledModuleSet.size > 0 && !enabledModuleSet.has(item.moduleKey)) {
+    if (item.moduleKey && !permissionSet.has("*") && !hasModuleAccess(permissionSet, item.moduleKey)) {
       return false;
     }
     if (item.permissions && item.permissions.length > 0) {
@@ -69,7 +87,7 @@ const filterMenuByAccess = (
 
     const next: Menu = { ...item };
     if (item.subMenu) {
-      const subMenu = filterMenuByAccess(item.subMenu, roleSet, permissionSet, enabledModuleSet).filter(
+      const subMenu = filterMenuByAccess(item.subMenu, roleSet, permissionSet).filter(
         (x): x is Menu => typeof x !== "string"
       );
       if (subMenu.length === 0 && !item.pathname) continue;
@@ -111,13 +129,11 @@ const makeMenuSelector = (layout: Themes["layout"]) =>
     [
       (state: RootState) => state.auth.roles,
       (state: RootState) => state.auth.permissions,
-      (state: RootState) => state.auth.enabledModules
     ],
-    (roles, permissions, enabledModules) => {
+    (roles, permissions) => {
       const roleSet = new Set((roles ?? []).map((role) => String(role).toLowerCase()));
       const permissionSet = new Set((permissions ?? []).map((permission) => String(permission).toLowerCase()));
-      const enabledModuleSet = new Set((enabledModules ?? []).map((moduleName) => String(moduleName).toLowerCase()));
-      return filterMenuByAccess(getMenuByLayout(layout), roleSet, permissionSet, enabledModuleSet);
+      return filterMenuByAccess(getMenuByLayout(layout), roleSet, permissionSet);
     }
   );
 

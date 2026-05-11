@@ -15,7 +15,6 @@ export interface AuthUser {
   id: number;
   roles: string[];
   permissions?: string[];
-  enabled_modules?: string[];
   [key: string]: unknown;
 }
 
@@ -24,7 +23,6 @@ interface AuthState {
   user: AuthUser | null;
   roles: string[];
   permissions: string[];
-  enabledModules: string[];
   loading: boolean;
   error: string | null;
   initialized: boolean;
@@ -35,7 +33,6 @@ const initialState: AuthState = {
   user: null,
   roles: [],
   permissions: [],
-  enabledModules: [],
   loading: false,
   error: null,
   initialized: false,
@@ -130,7 +127,6 @@ const authSlice = createSlice({
       state.user = action.payload;
       state.roles = action.payload?.roles ?? [];
       state.permissions = (action.payload?.permissions as string[]) ?? [];
-      state.enabledModules = (action.payload?.enabled_modules as string[]) ?? [];
     },
   },
   extraReducers: (builder) => {
@@ -149,14 +145,11 @@ const authSlice = createSlice({
       state.roles = action.payload.user.roles ?? [];
       state.permissions =
         (action.payload.user.permissions as string[]) ?? [];
-      state.enabledModules =
-        (action.payload.user.enabled_modules as string[]) ?? [];
         } else {
           state.status = "unauthenticated";
           state.user = null;
           state.roles = [];
           state.permissions = [];
-          state.enabledModules = [];
         }
       })
       .addCase(initializeAuth.rejected, (state, action) => {
@@ -166,7 +159,6 @@ const authSlice = createSlice({
         state.user = null;
         state.roles = [];
         state.permissions = [];
-        state.enabledModules = [];
         state.error = action.payload as string | null;
       })
       .addCase(loginThunk.pending, (state) => {
@@ -178,11 +170,9 @@ const authSlice = createSlice({
         state.initialized = true;
         state.status = "authenticated";
         state.user = action.payload.user;
-        state.roles = action.payload.user.roles ?? [];
-        state.permissions =
-          (action.payload.user.permissions as string[]) ?? [];
-        state.enabledModules =
-          (action.payload.user.enabled_modules as string[]) ?? [];
+      state.roles = action.payload.user.roles ?? [];
+      state.permissions =
+        (action.payload.user.permissions as string[]) ?? [];
       })
       .addCase(loginThunk.rejected, (state, action) => {
         state.loading = false;
@@ -195,7 +185,6 @@ const authSlice = createSlice({
         state.user = null;
         state.roles = [];
         state.permissions = [];
-        state.enabledModules = [];
         state.loading = false;
         state.error = null;
       })

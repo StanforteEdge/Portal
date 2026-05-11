@@ -13,8 +13,6 @@ export class AuthUserDto {
   roles!: string[];
   @ApiProperty({ example: ['*'] })
   permissions!: string[];
-  @ApiProperty({ required: false, example: ['finance'] })
-  enabled_modules?: string[];
   @ApiProperty({ required: false, example: { id: '1', name: 'Stanforte Edge', code: 'STE' } })
   organization?: {
     id: string;
@@ -52,8 +50,6 @@ export class AuthStatusResponseDto {
   roles!: string[];
   @ApiProperty({ example: ['*'] })
   permissions!: string[];
-  @ApiProperty({ required: false, example: ['finance'] })
-  enabled_modules?: string[];
   @ApiProperty({ required: false, example: 'profile_pending' })
   onboarding_status?: string;
 }
