@@ -114,7 +114,7 @@ export default function HrPayrollWorkersPage() {
     setStandardHours("8");
     setProfileComponents([]);
     setShowSlideOver(true);
-    listPayrollComponents().then((r) => setComponents(r.items)).catch(() => {});
+    listPayrollComponents().then((r) => setComponents(r.items)).catch(() => showToast({ tone: "danger", title: "Error", message: "Failed to load payroll components." }));
   };
 
   const handleEmployeeSearch = async (query: string) => {
