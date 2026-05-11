@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, WorkLogApprovalStatus, WorkItemStatus } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { toBigInt } from '../../common/utils/ids';
 import { UpsertTeamGoalDto, UpsertTeamKpiDto, UpsertTeamObjectiveDto } from './dto/upsert-team-goal.dto';
 import { UpsertWorkItemDto } from './dto/upsert-work-item.dto';
@@ -20,7 +21,8 @@ export class WorkService {
       include: { organization: true, team: true, owner: { select: { id: true, firstName: true, lastName: true, email: true } } },
       orderBy: [{ periodYear: 'desc' }, { createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeGoal(row));
+    const items = rows.map((row) => this.serializeGoal(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async upsertGoal(actorId: string, dto: UpsertTeamGoalDto, id?: string) {
@@ -66,7 +68,8 @@ export class WorkService {
       include: { goal: true, team: true, owner: { select: { id: true, firstName: true, lastName: true, email: true } } },
       orderBy: [{ createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeObjective(row));
+    const items = rows.map((row) => this.serializeObjective(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async upsertObjective(actorId: string, dto: UpsertTeamObjectiveDto, id?: string) {
@@ -111,7 +114,8 @@ export class WorkService {
       include: { goal: true, objective: true, team: true, owner: { select: { id: true, firstName: true, lastName: true, email: true } } },
       orderBy: [{ periodYear: 'desc' }, { createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeKpi(row));
+    const items = rows.map((row) => this.serializeKpi(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async upsertKpi(actorId: string, dto: UpsertTeamKpiDto, id?: string) {
@@ -169,7 +173,8 @@ export class WorkService {
       include: this.workItemInclude(),
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeWorkItem(row));
+    const items = rows.map((row) => this.serializeWorkItem(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async listTeamItems(actorId: string, query: Record<string, any>) {
@@ -196,7 +201,8 @@ export class WorkService {
       include: this.workItemInclude(),
       orderBy: [{ weekStartDate: 'desc' }, { dueDate: 'asc' }, { createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeWorkItem(row));
+    const items = rows.map((row) => this.serializeWorkItem(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async upsertItem(actorId: string, dto: UpsertWorkItemDto, id?: string) {
@@ -243,7 +249,8 @@ export class WorkService {
       include: this.workLogInclude(),
       orderBy: [{ logDate: 'desc' }, { createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeWorkLog(row));
+    const items = rows.map((row) => this.serializeWorkLog(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async listTeamLogs(actorId: string, query: Record<string, any>) {
@@ -273,7 +280,8 @@ export class WorkService {
       include: this.workLogInclude(),
       orderBy: [{ logDate: 'desc' }, { createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeWorkLog(row));
+    const items = rows.map((row) => this.serializeWorkLog(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async upsertLog(actorId: string, dto: UpsertWorkLogDto, id?: string) {

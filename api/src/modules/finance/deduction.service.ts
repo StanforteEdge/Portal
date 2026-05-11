@@ -4,6 +4,7 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
 import { UpsertDeductionTypeDto } from './dto/upsert-deduction-type.dto';
@@ -24,11 +25,12 @@ export class DeductionService {
     if (query.is_active !== undefined) where.isActive = query.is_active === 'true' || query.is_active === true;
     if (query.applies_to) where.appliesTo = String(query.applies_to);
 
-    return this.prisma.financeDeductionType.findMany({
+    const rows = await this.prisma.financeDeductionType.findMany({
       where,
       orderBy: { name: 'asc' },
       include: { glAccount: { select: { id: true, name: true, code: true } } },
     });
+    return paginatedResponse(rows, { page: 1, per_page: rows.length, total: rows.length });
   }
 
   async upsertDeductionType(
@@ -148,11 +150,12 @@ export class DeductionService {
   }
 
   async listPVDeductions(pvId: string) {
-    return this.prisma.financePVDeduction.findMany({
+    const rows = await this.prisma.financePVDeduction.findMany({
       where: { paymentVoucherId: pvId },
       include: { deductionType: true },
       orderBy: { createdAt: 'asc' },
     });
+    return paginatedResponse(rows, { page: 1, per_page: rows.length, total: rows.length });
   }
 
   // ── Vendor WHT Accruals ──────────────────────────────────────────────────
@@ -164,7 +167,7 @@ export class DeductionService {
     if (query.unremitted === 'true') where.remittanceId = null;
     if (query.deduction_type_id) where.deductionTypeId = String(query.deduction_type_id);
 
-    return this.prisma.financeVendorWHTAccrual.findMany({
+    const rows = await this.prisma.financeVendorWHTAccrual.findMany({
       where,
       include: {
         deductionType: true,
@@ -172,6 +175,7 @@ export class DeductionService {
       },
       orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
     });
+    return paginatedResponse(rows, { page: 1, per_page: rows.length, total: rows.length });
   }
 
   // ── WHT Remittances ──────────────────────────────────────────────────────
@@ -237,7 +241,7 @@ export class DeductionService {
     if (query.status) where.status = String(query.status);
     if (query.organization_id) where.organizationId = toBigInt(query.organization_id);
 
-    return this.prisma.financeWHTRemittance.findMany({
+    const rows = await this.prisma.financeWHTRemittance.findMany({
       where,
       include: {
         deductionType: true,
@@ -246,6 +250,7 @@ export class DeductionService {
       },
       orderBy: [{ periodYear: 'desc' }, { periodMonth: 'desc' }],
     });
+    return paginatedResponse(rows, { page: 1, per_page: rows.length, total: rows.length });
   }
 
   async getWHTRemittance(id: string) {

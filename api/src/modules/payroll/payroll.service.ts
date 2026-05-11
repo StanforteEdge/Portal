@@ -384,7 +384,8 @@ export class PayrollService {
       },
       orderBy: [{ status: 'asc' }, { effectiveFrom: 'desc' }, { name: 'asc' }],
     });
-    return rows.map((row) => this.serializeTaxTable(row));
+    const items = rows.map((row) => this.serializeTaxTable(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createTaxTable(dto: UpsertPayrollTaxTableDto) {
@@ -529,7 +530,8 @@ export class PayrollService {
       },
       orderBy: [{ status: 'asc' }, { issuedDate: 'desc' }]
     });
-    return rows.map((row) => this.serializeLoan(row));
+    const items = rows.map((row) => this.serializeLoan(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createLoan(dto: any) {
@@ -601,7 +603,8 @@ export class PayrollService {
       },
       orderBy: [{ workDate: 'desc' }, { createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeProjectTimesheet(row));
+    const items = rows.map((row) => this.serializeProjectTimesheet(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createProjectTimesheet(dto: any, actorId?: string) {
@@ -709,7 +712,8 @@ export class PayrollService {
       include: { chartAccount: { select: { id: true, code: true, name: true } } },
       orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }]
     });
-    return rows.map((row) => this.serializeComponent(row));
+    const items = rows.map((row) => this.serializeComponent(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createComponent(dto: UpsertPayrollComponentDto) {

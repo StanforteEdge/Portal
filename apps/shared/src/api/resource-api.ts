@@ -111,7 +111,7 @@ export function createResourceApi(httpRequest: HttpRequest) {
   return {
     async listOrganizations() {
       const response = await httpRequest<any>("/organizations");
-      const data = Array.isArray(response) ? response : (response?.data || []);
+      const data = (response as any)?.data?.items ?? [];
       return data.map((row: any) => ({
         id: String(row.id),
         name: String(row.name),
@@ -136,7 +136,7 @@ export function createResourceApi(httpRequest: HttpRequest) {
       const qs = query.toString();
       const path = qs ? `/groups?${qs}` : "/groups";
       const response = await httpRequest<any>(path);
-      const data = Array.isArray(response) ? response : (response?.data ?? []) as Array<any>;
+      const data = (response as any)?.data?.items ?? [];
       return data.map(mapTeam) as TeamOption[];
     },
 
@@ -232,7 +232,7 @@ export function createResourceApi(httpRequest: HttpRequest) {
       const qs = query.toString();
       const path = qs ? `/projects?${qs}` : "/projects";
       const response = await httpRequest<any>(path);
-      const data = Array.isArray(response) ? response : (response?.data ?? []) as Array<any>;
+      const data = (response as any)?.data?.items ?? [];
       return data.map((item: any) => ({
         id: String(item.id),
         name: String(item.name ?? ""),
@@ -390,7 +390,7 @@ export function createResourceApi(httpRequest: HttpRequest) {
       const qs = query.toString();
       const path = qs ? `/finance/chart-accounts?${qs}` : "/finance/chart-accounts";
       const response = await httpRequest<any>(path);
-      const rows = Array.isArray(response) ? response : (response?.data ?? []);
+      const rows = (response as any)?.data?.items ?? [];
       return rows.map((row: any) => ({
         id: String(row.id),
         code: String(row.code ?? ""),
@@ -633,7 +633,7 @@ export function createResourceApi(httpRequest: HttpRequest) {
       if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
       const qs = query.toString();
       const response = await httpRequest<any>(qs ? `/finance/vendors?${qs}` : "/finance/vendors");
-      const rows = Array.isArray(response) ? response : (response?.data ?? []);
+      const rows = (response as any)?.data?.items ?? [];
       return rows;
     },
 

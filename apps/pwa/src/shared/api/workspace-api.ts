@@ -98,7 +98,7 @@ export async function listWorkspaceNotifications(status?: "read" | "unread") {
   if (status) query.set("status", status);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   const res = await httpRequest<any>(`/notifications${suffix}`);
-  return (Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : []) as WorkspaceNotification[];
+  return (res as any)?.data?.items ?? [];
 }
 
 export async function getWorkspaceUnreadNotificationCount() {

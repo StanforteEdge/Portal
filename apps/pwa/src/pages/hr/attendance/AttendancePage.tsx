@@ -194,9 +194,18 @@ export function AttendancePage() {
   const [submittingCorrection, setSubmittingCorrection] = useState(false);
   const [correctionForm, setCorrectionForm] = useState(defaultCorrectionForm);
 
+  const attendanceRange = useMemo(() => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth();
+    const from = `${year}-${String(month + 1).padStart(2, "0")}-01`;
+    const to = new Date(year, month + 1, 0).toISOString().slice(0, 10);
+    return { from, to };
+  }, []);
+
   const { data, loading, error, refetch } = useCachedQuery(
-    "attendance:me",
-    () => getMyAttendance(),
+    `attendance:me:${attendanceRange.from}:${attendanceRange.to}`,
+    () => getMyAttendance({ from: attendanceRange.from, to: attendanceRange.to }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 

@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { GroupUserRole, Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { toBigInt } from '../../common/utils/ids';
 import { AddProjectMemberDto } from './dto/add-project-member.dto';
 import { CreateProjectDto } from './dto/create-project.dto';
@@ -39,7 +40,8 @@ export class ProjectsService {
       },
       orderBy: { createdAt: 'desc' }
     });
-    return rows.map((row) => this.serializeProject(row));
+    const items = rows.map((row) => this.serializeProject(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async get(id: string) {

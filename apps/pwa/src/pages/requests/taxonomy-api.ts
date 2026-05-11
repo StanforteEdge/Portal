@@ -31,7 +31,7 @@ export async function listManagedTaxonomies(params?: { include_inactive?: boolea
   if (params?.module) query.set("module", params.module);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   const res = await httpRequest<any>(`/taxonomy/taxonomies${suffix}`);
-  const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+  const rows = (res as any)?.data?.items ?? [];
   return rows.map((row: any) => ({
     id: String(row.id),
     key: String(row.key),
@@ -50,7 +50,7 @@ export async function listManagedTaxonomies(params?: { include_inactive?: boolea
 export async function suggestTagTerms(taxonomyKey: string, query?: string) {
   const suffix = query ? `?q=${encodeURIComponent(query)}` : "";
   const res = await httpRequest<any>(`/taxonomy/tags/${taxonomyKey}/suggest${suffix}`);
-  const rows = Array.isArray(res?.data) ? res.data : Array.isArray(res) ? res : [];
+  const rows = (res as any)?.data?.items ?? [];
   return rows.map(mapTagTerm);
 }
 

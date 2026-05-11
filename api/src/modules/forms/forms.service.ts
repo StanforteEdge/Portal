@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import {
   CreateFormAssignmentDto,
   CreateFormDto,
@@ -17,10 +18,11 @@ export class FormsService {
   async list(query?: Record<string, any>) {
     const where: Prisma.FormWhereInput = { isActive: true };
     if (query?.module) where.module = String(query.module);
-    return this.prisma.form.findMany({
+    const items = await this.prisma.form.findMany({
       where,
       orderBy: { createdAt: 'desc' }
     });
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async getFormById(id: string) {
@@ -44,7 +46,7 @@ export class FormsService {
       ];
     }
 
-    return this.prisma.form.findMany({
+    const items = await this.prisma.form.findMany({
       where,
       include: {
         fields: { orderBy: { displayOrder: 'asc' } },
@@ -52,6 +54,7 @@ export class FormsService {
       },
       orderBy: [{ module: 'asc' }, { createdAt: 'desc' }]
     });
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createForm(actorId: string, dto: CreateFormDto) {
@@ -137,13 +140,14 @@ export class FormsService {
     const where: Prisma.FormAssignmentWhereInput = {};
     if (query.form_id) where.formId = String(query.form_id);
 
-    return this.prisma.formAssignment.findMany({
+    const items = await this.prisma.formAssignment.findMany({
       where,
       include: {
         form: { select: { id: true, name: true, module: true } }
       },
       orderBy: [{ dueDate: 'asc' }, { createdAt: 'desc' }]
     });
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createAssignment(dto: CreateFormAssignmentDto) {

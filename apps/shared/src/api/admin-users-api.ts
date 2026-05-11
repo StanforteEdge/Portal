@@ -143,8 +143,8 @@ export function createAdminUsersApi(httpRequest: HttpRequest) {
 
     async listRoleOptions(): Promise<RoleOption[]> {
       try {
-        const data = await httpRequest<{ data: RoleOption[] }>("/admin/rbac/roles");
-        return Array.isArray(data) ? data : (data as any).data ?? [];
+        const data = await httpRequest<any>("/admin/rbac/roles");
+        return (data as any)?.data?.items ?? [];
       } catch {
         return [
           { id: "staff", slug: "staff", name: "Staff" },

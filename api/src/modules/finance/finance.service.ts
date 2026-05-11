@@ -734,7 +734,7 @@ export class FinanceService {
 
     const requestTotal = Number(request.totalAmount ?? 0);
     let cumulativeDisbursed = 0;
-    return vouchers.map((voucher) => {
+    const items = vouchers.map((voucher) => {
       const amount = Number(voucher.amount);
       const retiredAmount = Number(voucher.retiredAmount);
       cumulativeDisbursed += amount;
@@ -801,6 +801,7 @@ export class FinanceService {
         })()
       };
     });
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async updatePaymentVoucher(
@@ -833,7 +834,7 @@ export class FinanceService {
     if (voucher.request.status === 'completed' && !canCorrectCompleted) {
       const correction = await this.submitPaymentVoucherCorrection(voucher, prepared, dto.correction_reason, actorId);
       const updated = await this.listPaymentVouchers(requestId);
-      const matched = updated.find((row) => row.id === voucherId);
+      const matched = (updated as any).data.items.find((row: any) => row.id === voucherId);
       if (!matched) throw new NotFoundException('Payment voucher not found after correction request');
       return {
         mode: 'pending_approval' as const,
@@ -844,7 +845,7 @@ export class FinanceService {
 
     await this.applyPaymentVoucherUpdate(voucher, prepared, actorId);
     const updated = await this.listPaymentVouchers(requestId);
-    const matched = updated.find((row) => row.id === voucherId);
+    const matched = (updated as any).data.items.find((row: any) => row.id === voucherId);
     if (!matched) throw new NotFoundException('Payment voucher not found after update');
     return {
       mode: 'updated' as const,
@@ -899,7 +900,7 @@ export class FinanceService {
     const updated = await this.listPaymentVouchers(requestId);
     return {
       mode: 'approved' as const,
-      voucher: updated.find((row) => row.id === voucherId) ?? null,
+      voucher: (updated as any).data.items.find((row: any) => row.id === voucherId) ?? null,
       correction_id: correction.id
     };
   }
@@ -936,7 +937,7 @@ export class FinanceService {
     const updated = await this.listPaymentVouchers(requestId);
     return {
       mode: 'rejected' as const,
-      voucher: updated.find((row) => row.id === voucherId) ?? null,
+      voucher: (updated as any).data.items.find((row: any) => row.id === voucherId) ?? null,
       correction_id: correction.id
     };
   }
@@ -2109,7 +2110,7 @@ export class FinanceService {
       orderBy: [{ disposalDate: 'desc' }, { createdAt: 'desc' }]
     });
 
-    return rows.map((row) => ({
+    const items = rows.map((row) => ({
       id: row.id,
       asset_id: row.asset.assetId,
       asset_record_id: row.assetRecordId,
@@ -2126,6 +2127,7 @@ export class FinanceService {
       created_by: this.serializeSimpleProfile(row.createdByUser),
       notes: row.notes
     }));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async getAsset(id: string) {
@@ -2419,7 +2421,8 @@ export class FinanceService {
       where,
       orderBy: [{ year: 'desc' }, { month: 'desc' }]
     });
-    return rows.map((row) => this.serializeReportingPeriod(row));
+    const items = rows.map((row) => this.serializeReportingPeriod(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createReportingPeriod(dto: UpsertFinanceReportingPeriodDto, actorId?: string) {
@@ -2767,7 +2770,8 @@ export class FinanceService {
       },
       orderBy: [{ name: 'asc' }]
     });
-    return rows.map((row) => this.serializeDonor(row));
+    const items = rows.map((row) => this.serializeDonor(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createDonor(dto: any, actorId?: string) {
@@ -2816,7 +2820,8 @@ export class FinanceService {
       include: { donor: true, grants: { select: { id: true, code: true, name: true, status: true } } },
       orderBy: [{ code: 'asc' }]
     });
-    return rows.map((row) => this.serializeFund(row));
+    const items = rows.map((row) => this.serializeFund(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createFund(dto: any, actorId?: string) {
@@ -2876,7 +2881,8 @@ export class FinanceService {
       include: { donor: true, fund: true },
       orderBy: [{ code: 'asc' }]
     });
-    return rows.map((row) => this.serializeGrant(row));
+    const items = rows.map((row) => this.serializeGrant(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async createGrant(dto: any, actorId?: string) {
@@ -2967,7 +2973,8 @@ export class FinanceService {
       },
       orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }]
     });
-    return rows.map((row) => this.serializeBudget(row));
+    const items = rows.map((row) => this.serializeBudget(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async getBudget(id: string) {
@@ -4144,7 +4151,8 @@ export class FinanceService {
       include: { period: true },
       orderBy: [{ reportKey: 'asc' }, { severity: 'desc' }, { createdAt: 'asc' }]
     });
-    return rows.map((row) => this.serializeReportNote(row));
+    const items = rows.map((row) => this.serializeReportNote(row));
+    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
   }
 
   async budgetVsActual(query: Record<string, any>) {

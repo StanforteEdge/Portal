@@ -12,7 +12,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { hrApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
-import { type EmploymentType, type EmployeeDetail } from "@stanforte/shared";
+import { type EmploymentType, type EmploymentStatus, type EmployeeDetail } from "@stanforte/shared";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 
@@ -51,6 +51,7 @@ export default function HrEmployeeEditPage() {
     const [jobTitle, setJobTitle] = useState("");
     const [jobDescription, setJobDescription] = useState("");
     const [employmentType, setEmploymentType] = useState<EmploymentType>("full_time");
+    const [employmentStatus, setEmploymentStatus] = useState<EmploymentStatus>("active");
     const [workMode, setWorkMode] = useState<string>("onsite");
     const [hireDate, setHireDate] = useState("");
     const [confirmationDate, setConfirmationDate] = useState("");
@@ -72,6 +73,7 @@ export default function HrEmployeeEditPage() {
             setJobTitle(employee.job_title || "");
             setJobDescription(employee.job_description || "");
             setEmploymentType((employee.employment_type || "full_time") as EmploymentType);
+            setEmploymentStatus((employee.employment_status || "active") as EmploymentStatus);
             setWorkMode(employee.work_mode || "onsite");
             setHireDate(employee.hire_date || "");
             setConfirmationDate(employee.confirmation_date || "");
@@ -106,6 +108,7 @@ export default function HrEmployeeEditPage() {
                 job_title: jobTitle.trim(),
                 job_description: jobDescription.trim() || undefined,
                 employment_type: employmentType,
+                employment_status: employmentStatus,
                 work_mode: workMode,
                 hire_date: hireDate || undefined,
                 confirmation_date: confirmationDate || undefined,
@@ -264,6 +267,16 @@ export default function HrEmployeeEditPage() {
                                 <option value="onsite">Onsite</option>
                                 <option value="hybrid">Hybrid</option>
                                 <option value="remote">Remote</option>
+                            </SelectField>
+
+                            <SelectField
+                                label="Employment Status"
+                                value={employmentStatus}
+                                onChange={(e) => setEmploymentStatus(e.target.value as EmploymentStatus)}
+                            >
+                                <option value="active">Active</option>
+                                <option value="suspended">Suspended</option>
+                                <option value="exited">Exited</option>
                             </SelectField>
 
                             <TextField
