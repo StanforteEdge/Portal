@@ -71,8 +71,9 @@ export async function uploadFileAsset(
   if (payload?.organization_id) form.append("organization_id", payload.organization_id);
   if (payload?.metadata) form.append("metadata_json", JSON.stringify(payload.metadata));
 
-  return httpRequest<FileAssetRecord>("/files/upload", {
+  const res = await httpRequest<any>("/files/upload", {
     method: "POST",
     body: form,
   });
+  return (res?.data ?? res) as FileAssetRecord;
 }

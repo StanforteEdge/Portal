@@ -172,10 +172,11 @@ export async function createRequest(payload: {
   data?: Record<string, unknown>;
   items: RequestItemInput[];
 }) {
-  return httpRequest<RequestRecord>("/requests", {
+  const res = await httpRequest<any>("/requests", {
     method: "POST",
     body: payload,
   });
+  return (res?.data ?? res) as RequestRecord;
 }
 
 export async function updateRequest(
@@ -188,10 +189,11 @@ export async function updateRequest(
     items?: RequestItemInput[];
   }
 ) {
-  return httpRequest<RequestRecord>(`/requests/${id}`, {
+  const res = await httpRequest<any>(`/requests/${id}`, {
     method: "POST",
     body: payload,
   });
+  return (res?.data ?? res) as RequestRecord;
 }
 
 export async function submitRequest(id: string, comment?: string) {

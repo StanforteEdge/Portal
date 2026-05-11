@@ -96,11 +96,14 @@ export function createHttpClient(config: {
       throw new Error(String(errorMessage));
     }
 
-    // Keep the new paginated format as-is: { success: true, data: { items: [], meta: {...} } }
+    // Only preserve envelope for paginated responses: { success, data: { items, meta } }
     if (payload && typeof payload === "object" && "success" in payload && "data" in payload) {
-      return payload as T;
+      const data = (payload as any).data;
+      if (data && typeof data === "object" && Array.isArray(data.items) && data.meta) {
+        return payload as T;
+      }
     }
-    // Legacy fallback for old format
+    // All other responses: unwrap the data payload
     return ((payload as any)?.data ?? payload) as T;
   }
 
