@@ -262,6 +262,8 @@ export type UpsertWorkerPayload = {
   default_fund_id?: string;
   default_grant_id?: string;
   allocation_mode?: string;
+  tax_table_id?: string;
+  metadata?: Record<string, unknown>;
   hybrid_fixed_percent?: number;
   allocations?: Array<{
     organization_id?: string;
