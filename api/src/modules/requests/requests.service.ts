@@ -1328,6 +1328,9 @@ export class RequestsService {
   }
 
   async getApprovals(userId: string, filters: Record<string, any>) {
+    const page = Math.max(1, Number(filters.page) || 1);
+    const perPage = Math.min(100, Math.max(1, Number(filters.per_page) || 20));
+
     const data = await this.prisma.requestInstance.findMany({
       where: {
         workflowInstanceId: { not: null }
@@ -1386,7 +1389,11 @@ export class RequestsService {
       filtered = filtered.filter((item) => String(item.approval_view_status).toLowerCase() === status);
     }
 
-    return filtered;
+    const total = filtered.length;
+    const start = (page - 1) * perPage;
+    const items = filtered.slice(start, start + perPage);
+
+    return paginatedResponse(items, { page, per_page: perPage, total });
   }
 
   async getMyLeaveBalance(userId: string, query: Record<string, any>) {

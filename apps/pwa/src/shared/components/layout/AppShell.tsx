@@ -111,6 +111,7 @@ export function AppShell({
       function filterChildren(children: SidebarChildItem[] | undefined): SidebarChildItem[] | undefined {
         if (!Array.isArray(children) || children.length === 0) return undefined;
         const filtered = children.reduce<SidebarChildItem[]>((childAcc, child) => {
+          const hasExplicitGate = (child.permissions?.length ?? 0) > 0;
           const canAccessChild =
             (!child.permissions?.length ||
               hasAnyPermission(authUser, child.permissions) ||
@@ -118,7 +119,7 @@ export function AppShell({
             (!child.requiresTeamLeadAssignment || teamLeadAssigned || hasApprovalAccess(authUser));
 
           const nestedChildren = filterChildren(child.children);
-          if (canAccessChild || (nestedChildren?.length ?? 0) > 0) {
+          if (canAccessChild || (!hasExplicitGate && (nestedChildren?.length ?? 0) > 0)) {
             childAcc.push({ ...child, children: nestedChildren });
           }
           return childAcc;
@@ -127,6 +128,7 @@ export function AppShell({
       }
 
       return navigation.reduce<SidebarItem[]>((acc, item) => {
+        const hasExplicitGate = (item.permissions?.length ?? 0) > 0;
         const canAccessItem =
           (!item.permissions?.length ||
             hasAnyPermission(authUser, item.permissions) ||
@@ -137,7 +139,7 @@ export function AppShell({
 
         const children = filterChildren(item.children);
 
-        if (canAccessItem || (children?.length ?? 0) > 0) {
+        if (canAccessItem || (!hasExplicitGate && (children?.length ?? 0) > 0)) {
           acc.push({ ...item, children });
         }
         return acc;

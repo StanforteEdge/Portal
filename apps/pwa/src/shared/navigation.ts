@@ -178,8 +178,8 @@ export function buildAppNavigation(options?: {
       children: [
 { key: "admin-users", label: "Users", icon: "people", path: "/admin/users", permissions: ["users.view", "users.manage"] },
         { key: "admin-roles", label: "Roles", icon: "admin_panel_settings", path: "/admin/roles", permissions: ["roles.manage"] },
-        { key: "admin-groups", label: "Groups", icon: "groups", path: "/admin/groups", permissions: ["groups.view", "groups.manage"] },
-        { key: "admin-projects", label: "Projects", icon: "assignment", path: "/admin/projects", permissions: ["projects.view", "projects.manage"] },
+        { key: "admin-groups", label: "Groups", icon: "groups", path: "/admin/groups", permissions: ["groups.manage"] },
+        { key: "admin-projects", label: "Projects", icon: "assignment", path: "/admin/projects", permissions: ["projects.manage"] },
         { key: "admin-files", label: "Files", icon: "folder", path: "/admin/files", permissions: ["admin.view"] },
         { key: "admin-settings", label: "System Settings", icon: "settings", path: "/admin/settings", permissions: ["settings.manage"] },
         { key: "admin-payroll-auth", label: "Payroll Authorization", icon: "verified", path: "/admin/payroll/authorization", permissions: ["payroll.authorize"] },
