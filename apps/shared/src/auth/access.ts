@@ -33,12 +33,6 @@ export function hasModuleAccess(user: Pick<AuthUser, "roles" | "permissions" | "
 
   if (permissionSet.has("*")) return true;
 
-  if (module === "finance") {
-    return Array.from(permissionSet).some(
-      (permission) => permission === "finance.*" || permission.startsWith("finance."),
-    );
-  }
-
   if (enabledModules.has("*") || enabledModules.has(module)) return true;
 
   if (STAFF_MODULES.has(module)) {
@@ -49,7 +43,7 @@ export function hasModuleAccess(user: Pick<AuthUser, "roles" | "permissions" | "
     return true;
   }
 
-  return enabledModules.has(module);
+  return false;
 }
 
 export function hasApprovalAccess(user: Pick<AuthUser, "permissions"> | null | undefined) {
