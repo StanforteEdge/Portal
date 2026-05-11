@@ -439,6 +439,7 @@ function AdminRolesPage() {
                       >
                         Edit
                       </Button>
+                      {role.slug !== "administrator" && role.slug !== "staff" && (
                       <Button
                         size="sm"
                         variant="outline-danger"
@@ -450,6 +451,7 @@ function AdminRolesPage() {
                       >
                         {deletingRoleId === role.id ? "Deleting..." : "Delete"}
                       </Button>
+                      )}
                     </div>
                   </Table.Td>
                 </Table.Tr>

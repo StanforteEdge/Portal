@@ -218,7 +218,7 @@ export default function AdminRolesPage() {
                               >
                                 <Icon name="edit" />
                               </Button>
-                              {role.slug !== "admin" && role.slug !== "staff" && (
+                              {role.slug !== "administrator" && role.slug !== "staff" && (
                                 <Button
                                   variant="ghost"
                                   size="sm"

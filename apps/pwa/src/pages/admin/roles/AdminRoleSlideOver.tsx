@@ -244,7 +244,7 @@ export default function AdminRoleSlideOver({ role, onClose, onSaved }: Props) {
         )}
       </SlideOverContent>
       <SlideOverFooter>
-        {role?.id && (!deleteImpact || deleteImpact.affected_users === 0) && (
+        {role?.id && role.slug !== "administrator" && role.slug !== "staff" && (!deleteImpact || deleteImpact.affected_users === 0) && (
           <Button
             variant="danger"
             onClick={() => void handleDelete()}
