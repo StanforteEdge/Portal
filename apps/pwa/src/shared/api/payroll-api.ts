@@ -256,6 +256,22 @@ export type UpsertWorkerPayload = {
   start_date?: string;
   end_date?: string;
   notes?: string;
+  organization_id?: string;
+  team_id?: string;
+  project_id?: string;
+  default_fund_id?: string;
+  default_grant_id?: string;
+  allocation_mode?: string;
+  hybrid_fixed_percent?: number;
+  allocations?: Array<{
+    organization_id?: string;
+    team_id?: string;
+    project_id?: string;
+    fund_id?: string;
+    grant_id?: string;
+    allocation_percent?: number;
+    allocation_amount?: number;
+  }>;
   standard_hours_per_day?: number;
   profile?: WorkerProfileInput;
 };
