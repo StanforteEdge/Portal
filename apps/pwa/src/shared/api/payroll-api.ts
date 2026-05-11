@@ -224,6 +224,22 @@ export async function listPayrollWorkers(params?: { page?: number; per_page?: nu
   return { items, meta };
 }
 
+export type ProfileComponentInput = {
+  component_id: string;
+  amount?: number;
+  rate?: number;
+  formula?: string;
+};
+
+export type WorkerProfileInput = {
+  effective_from: string;
+  effective_to?: string;
+  base_amount?: number;
+  payment_mode?: string;
+  pay_frequency?: string;
+  components?: ProfileComponentInput[];
+};
+
 export type UpsertWorkerPayload = {
   full_name: string;
   worker_type: "employee" | "consultant";
@@ -239,8 +255,9 @@ export type UpsertWorkerPayload = {
   pension_identifier?: string;
   start_date?: string;
   end_date?: string;
-  profile_id?: string;
   notes?: string;
+  standard_hours_per_day?: number;
+  profile?: WorkerProfileInput;
 };
 
 export async function createPayrollWorker(payload: UpsertWorkerPayload) {
