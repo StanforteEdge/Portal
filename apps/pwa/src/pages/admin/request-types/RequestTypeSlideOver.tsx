@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Button,
   SectionCard,
@@ -40,10 +40,18 @@ function formatCategoryLabel(value: string) {
 export default function RequestTypeSlideOver({ requestType, onClose, onSaved }: Props) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
+
+  useEffect(() => {
+    if (!requestType) {
+      void requestApi.listGroups().then(setGroups);
+    }
+  }, [requestType]);
 
   const [name, setName] = useState(requestType?.name || "");
   const [slug, setSlug] = useState(requestType?.slug || "");
   const [category, setCategory] = useState(requestType?.category || "");
+  const [groupId, setGroupId] = useState(requestType?.group_id || requestType?.groupId || "");
   const [isActive, setIsActive] = useState(requestType?.is_active ?? true);
   const [approvalSteps, setApprovalSteps] = useState<ApprovalFlowEditorStep[]>(() =>
     parseApprovalFlowSteps(requestType?.approval_flow_json || requestType?.approvalFlowJson, [
@@ -81,6 +89,10 @@ export default function RequestTypeSlideOver({ requestType, onClose, onSaved }: 
       showToast({ tone: "warning", title: "Slug required", message: "Please enter a type slug." });
       return;
     }
+    if (!requestType && !groupId) {
+      showToast({ tone: "warning", title: "Group required", message: "Select a request group/module." });
+      return;
+    }
     if (approvalSteps.length === 0) {
       showToast({
         tone: "warning",
@@ -114,6 +126,7 @@ export default function RequestTypeSlideOver({ requestType, onClose, onSaved }: 
       await requestApi.saveType(
         payload,
         requestType?.id,
+        requestType ? undefined : groupId,
       );
       showToast({
         tone: "success",
@@ -162,6 +175,18 @@ export default function RequestTypeSlideOver({ requestType, onClose, onSaved }: 
                 <p className="text-xs text-slate-400 mt-1">Auto-generated from name if left empty</p>
               )}
             </div>
+            {!requestType ? (
+              <SelectField
+                label="Group / Module"
+                value={groupId}
+                onChange={(e) => setGroupId(e.target.value)}
+              >
+                <option value="">Select group...</option>
+                {groups.map((g) => (
+                  <option key={g.id} value={g.id}>{g.name}</option>
+                ))}
+              </SelectField>
+            ) : null}
             <SelectField
               label="Category"
               value={category}

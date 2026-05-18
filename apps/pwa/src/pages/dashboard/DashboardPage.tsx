@@ -17,7 +17,7 @@ import { listApprovals, listRequests } from "@/pages/requests/requests-api";
 import {
   formatDisplayDate,
   formatRequestStatus,
-  requestFamilyFromType,
+  requestFamilyFromRecord,
   requestStatusTone,
 } from "@/pages/requests/request-helpers";
 import {
@@ -400,7 +400,7 @@ export default function DashboardPage() {
               <div className="divide-y divide-slate-100">
                 {/* Pending approvals first — only for users with requests.approve */}
                 {canApprove && pendingApprovalItems.map((row) => {
-                  const family = requestFamilyFromType(row.request_type);
+                  const family = requestFamilyFromRecord(row);
                   const hint = attentionHint(row.status, true);
                   return (
                     <Link
@@ -432,7 +432,7 @@ export default function DashboardPage() {
 
                 {/* Own requests needing action */}
                 {attentionRequests.map((row) => {
-                  const family = requestFamilyFromType(row.request_type);
+                  const family = requestFamilyFromRecord(row);
                   const hint = attentionHint(row.status);
                   return (
                     <Link

@@ -1176,55 +1176,59 @@ export function FinanceRequestDetailsPage() {
         user={{ name: "Alex Sterling", role: "Fleet Operations" }}
         mobileNav={detailMobileNav}
       >
-        <div className="hidden lg:block">
-          <PageHeader
-            breadcrumbs={
-              detailView === "finance"
-                ? [
-                  { label: "Finance", path: "/finance" },
-                  { label: parentLabel, path: parentPath },
-                  { label: request?.request_number || "Details" },
-                ]
-                : [
-                  { label: "Requests", path: parentPath },
-                  { label: parentLabel, path: parentPath },
-                  { label: request?.request_number || "Details" },
-                ]
-            }
-            title={
-              request?.request_number ||
-              (loading ? "Loading request..." : "Request details")
-            }
-            description={
-              request
-                ? `${request?.request_type?.name || requestFamilyFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
-                : "Review the request details, activity, and next step."
-            }
-            actions={
-              <div className="flex flex-wrap items-center gap-3">
-                <Link
-                  to={parentPath}
-                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-                >
-                  <Icon name="arrow_back" className="text-[18px]" />
-                  Back to {parentLabel}
-                </Link>
-                {canEditDraft ? (
+        <div
+          aria-hidden={showRetireDialog || showDisburseDialog || showVoucherPreviewDialog || undefined}
+        >
+          <div className="hidden lg:block">
+            <PageHeader
+              breadcrumbs={
+                detailView === "finance"
+                  ? [
+                    { label: "Finance", path: "/finance" },
+                    { label: parentLabel, path: parentPath },
+                    { label: request?.request_number || "Details" },
+                  ]
+                  : [
+                    { label: "Requests", path: parentPath },
+                    { label: parentLabel, path: parentPath },
+                    { label: request?.request_number || "Details" },
+                  ]
+              }
+              title={
+                request?.request_number ||
+                (loading ? "Loading request..." : "Request details")
+              }
+              description={
+                request
+                  ? `${request?.request_type?.name || requestFamilyFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
+                  : "Review the request details, activity, and next step."
+              }
+              actions={
+                <div className="flex flex-wrap items-center gap-3">
                   <Link
-                    to={`/requests/new/form?edit=${id}&typeId=${request?.request_type?.id || ""}`}
-                    className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                    to={parentPath}
+                    className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                   >
-                    <Icon name="edit" className="text-[18px]" />
-                    Edit Draft
+                    <Icon name="arrow_back" className="text-[18px]" />
+                    Back to {parentLabel}
                   </Link>
-                ) : null}
-              </div>
-            }
-          />
-          <DesktopLayout />
-        </div>
+                  {canEditDraft ? (
+                    <Link
+                      to={`/requests/new/form?edit=${id}&typeId=${request?.request_type?.id || ""}`}
+                      className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                    >
+                      <Icon name="edit" className="text-[18px]" />
+                      Edit Draft
+                    </Link>
+                  ) : null}
+                </div>
+              }
+            />
+            <DesktopLayout />
+          </div>
 
-        <MobileLayout />
+          <MobileLayout />
+        </div>
 
         {showDisburseDialog ? <DisburseDialog /> : null}
         {showVoucherPreviewDialog && previewVoucher ? (

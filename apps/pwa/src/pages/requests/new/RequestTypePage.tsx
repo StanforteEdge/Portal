@@ -16,11 +16,13 @@ import {
 } from "@/pages/requests/requests-data";
 import {
   listRequestTypes,
+  listRequestGroups,
   type RequestTypeOption,
 } from "@/pages/requests/requests-api";
 import {
   requestFamilyFromType,
   requestFamilyLabel,
+  buildGroupMap,
   type RequestFamily,
 } from "@/pages/requests/request-helpers";
 
@@ -104,6 +106,14 @@ export function RequestTypePage() {
     storage: "local",
   });
 
+  const { data: requestGroups } = useCachedQuery(
+    "requests:groups",
+    () => listRequestGroups(),
+    { ttlMs: 1000 * 60 * 10, storage: "local" },
+  );
+
+  const groupMap = useMemo(() => buildGroupMap(requestGroups ?? []), [requestGroups]);
+
   const groupedTypes = useMemo(() => {
     const grouped: Record<RequestFamily, RequestTypeOption[]> = {
       financial: [],
@@ -112,11 +122,11 @@ export function RequestTypePage() {
     };
 
     (requestTypes ?? []).forEach((type: RequestTypeOption) => {
-      grouped[requestFamilyFromType(type)].push(type);
+      grouped[requestFamilyFromType(type, groupMap)].push(type);
     });
 
     return grouped;
-  }, [requestTypes]);
+  }, [requestTypes, groupMap]);
 
   const selectedTypes = activeFamily ? (groupedTypes[activeFamily] ?? []) : [];
 
@@ -209,7 +219,7 @@ export function RequestTypePage() {
                           </p>
                         </div>
                         <Chip variant="neutral">
-                          {requestFamilyLabel(requestFamilyFromType(type))}
+                          {requestFamilyLabel(requestFamilyFromType(type, groupMap))}
                         </Chip>
                       </div>
                       <div className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-brand-900">

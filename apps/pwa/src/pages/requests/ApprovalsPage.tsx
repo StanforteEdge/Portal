@@ -89,12 +89,9 @@ function formatPersonName(creator?: RequestRecord["creator"]) {
   return name || creator.email || creator.username || "-";
 }
 
-function categoryLabel(categoryKey: string, typeName: string): string {
-  const c = categoryKey.toLowerCase();
-  const t = typeName.toLowerCase();
-  if (c.includes("leave") || t.includes("leave")) return "Leave";
-  if (c.includes("finance") || c.includes("payment") || t.includes("cash") || t.includes("expense") || t.includes("financial") || t.includes("reimbursement")) return "Financial";
-  return toTitleCase(categoryKey.replaceAll("_", " ")) || "General";
+function groupLabel(groupName?: string | null): string {
+  if (!groupName) return "";
+  return groupName;
 }
 
 function toRow(request: RequestRecord, teamsMap?: Map<string, string>): UiApprovalRow {
@@ -103,7 +100,6 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>): UiApprov
   const pendingStep = pendingSteps.length > 0 ? toTitleCase(pendingSteps[0].step || "Review") : "";
   const data = request.data && typeof request.data === "object" ? request.data as Record<string, unknown> : {};
   const typeName = request.request_type?.name || "General Request";
-  const catKey = String(request.request_type?.category_key || "");
   const teamId = String((request as any).team_id ?? data.team_id ?? "").trim();
   const teamName = (teamId && teamsMap?.get(teamId)) || String(data.team_name ?? data.team ?? "").trim();
   const organizationName = String((request as any).organization?.name ?? data.organization_name ?? "").trim();
@@ -115,7 +111,7 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>): UiApprov
     requestNo: request.request_number || `REQ-${request.id}`,
     type: typeName,
     requestTypeId: String(request.request_type?.id ?? ""),
-    categoryLabel: categoryLabel(catKey, typeName),
+    categoryLabel: groupLabel(request.group?.name),
     staff: formatPersonName(request.creator),
     teamName,
     organizationName,
@@ -382,7 +378,7 @@ export function ApprovalsPage() {
                   <TableHeaderRow>
                     <TableHeaderCell>Request No</TableHeaderCell>
                     <TableHeaderCell>Staff</TableHeaderCell>
-                    <TableHeaderCell>Category</TableHeaderCell>
+                    <TableHeaderCell>Group</TableHeaderCell>
                     <TableHeaderCell>Team</TableHeaderCell>
                     <TableHeaderCell>Amount</TableHeaderCell>
                     <TableHeaderCell>Due Date</TableHeaderCell>

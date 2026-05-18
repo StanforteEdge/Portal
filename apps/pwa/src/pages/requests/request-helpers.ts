@@ -1,10 +1,39 @@
 import { formatCurrency } from "@stanforte/shared";
-import type { RequestRecord, RequestTypeOption } from "@/pages/requests/requests-api";
+import type { RequestGroupOption, RequestRecord, RequestTypeOption } from "@/pages/requests/requests-api";
 import type { WorkflowStep, WorkflowStepStatus } from "@/shared";
 
 export type RequestFamily = "financial" | "leave" | "other";
 
-export function classifyRequestFamily(categoryKey?: string | null, requestTypeName?: string | null): RequestFamily {
+export type RequestGroupMap = Record<string, { name: string; code: string }>;
+
+export function buildGroupMap(groups: RequestGroupOption[]): RequestGroupMap {
+  const map: RequestGroupMap = {};
+  for (const g of groups) {
+    map[g.id] = { name: g.name, code: g.code };
+  }
+  return map;
+}
+
+export function classifyRequestFamily(
+  categoryKey?: string | null,
+  requestTypeName?: string | null,
+  groupName?: string | null,
+): RequestFamily {
+  if (groupName) {
+    const g = groupName.toLowerCase();
+    if (g.includes("leave") || g.includes("hr") || g === "personnel") return "leave";
+    if (
+      g.includes("finance") ||
+      g.includes("payment") ||
+      g.includes("expense") ||
+      g.includes("procurement") ||
+      g.includes("reimbursement")
+    ) {
+      return "financial";
+    }
+    return "other";
+  }
+
   const category = String(categoryKey || "").toLowerCase();
   const name = String(requestTypeName || "").toLowerCase();
 
@@ -37,12 +66,26 @@ export function requestFamilyLabel(family: RequestFamily) {
   return "Other";
 }
 
-export function requestFamilyFromType(type?: RequestTypeOption | null): RequestFamily {
-  return classifyRequestFamily(type?.categoryKey ?? type?.category_key, type?.name);
+export function requestFamilyFromType(
+  type?: RequestTypeOption | null,
+  groups?: RequestGroupMap,
+): RequestFamily {
+  const groupName = type?.groupId && groups?.[type.groupId]
+    ? groups[type.groupId].name
+    : null;
+  return classifyRequestFamily(
+    type?.categoryKey ?? type?.category_key,
+    type?.name,
+    groupName,
+  );
 }
 
 export function requestFamilyFromRecord(request?: RequestRecord | null): RequestFamily {
-  return classifyRequestFamily(request?.request_type?.category_key, request?.request_type?.name);
+  return classifyRequestFamily(
+    request?.request_type?.category_key,
+    request?.request_type?.name,
+    request?.group?.name,
+  );
 }
 
 export function formatRequestStatus(status?: string | null) {

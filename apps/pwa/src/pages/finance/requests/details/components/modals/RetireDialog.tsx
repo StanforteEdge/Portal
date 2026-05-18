@@ -13,8 +13,10 @@ import { listFileAssets, uploadFileAsset } from "@/pages/files/files-api";
 import { formatCertificateCurrency, buildCertificateOfHonorPdf } from "../../utils/certificate-pdf";
 import { useRequestDetails } from "../../context";
 import { useAuth } from "@/shared/context/AuthProvider";
+import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 
 export function RetireDialog() {
+  const trapRef = useFocusTrap(true, () => setShowRetireDialog(false));
   const {
     request,
     id,
@@ -42,7 +44,7 @@ export function RetireDialog() {
 
   return (
     <>
-      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-6">
+      <div ref={trapRef} className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-6">
         <button
           type="button"
           aria-label="Close retirement dialog"

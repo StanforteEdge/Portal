@@ -2,7 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import JSZip from 'jszip';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
-import puppeteer from 'puppeteer-core';
+import { PdfService } from '../../common/pdf/pdf.service';
 import { existsSync, readFileSync } from 'node:fs';
 import { extname, resolve } from 'node:path';
 import { MailService } from '../../common/mail/mail.service';
@@ -27,7 +27,8 @@ export class PayrollService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
-    private readonly mailService: MailService
+    private readonly mailService: MailService,
+    private readonly pdfService: PdfService
   ) {}
 
   async summary(query: Record<string, any> = {}) {
@@ -2209,7 +2210,7 @@ export class PayrollService {
       ${dto.note ? `<div class="card"><div class="rowpad"><strong>Note:</strong> ${this.escapeHtml(dto.note)}</div></div>` : ''}
       </body></html>`;
 
-    const content = await this.renderPdfFromHtml(html);
+    const content = await this.pdfService.renderPdfFromHtml(html);
     return {
       file_name: `${this.safeFileName(dto.worker_name || 'manual')}-payslip-template.pdf`,
       mime_type: 'application/pdf',
@@ -2305,49 +2306,6 @@ export class PayrollService {
     return null;
   }
 
-  private resolveBrowserExecutablePath(): string {
-    const explicit = process.env.PDF_BROWSER_PATH;
-    if (explicit && existsSync(explicit)) return explicit;
-
-    const candidates = [
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Chromium.app/Contents/MacOS/Chromium',
-      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-      '/usr/bin/google-chrome',
-      '/usr/bin/chromium-browser',
-      '/usr/bin/chromium'
-    ];
-
-    for (const path of candidates) {
-      if (existsSync(path)) return path;
-    }
-
-    throw new BadRequestException(
-      'PDF browser executable not found. Set PDF_BROWSER_PATH in api/.env (e.g. /Applications/Google Chrome.app/Contents/MacOS/Google Chrome).'
-    );
-  }
-
-  private async renderPdfFromHtml(html: string): Promise<Buffer> {
-    const executablePath = this.resolveBrowserExecutablePath();
-    const browser = await puppeteer.launch({
-      executablePath,
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox']
-    });
-
-    try {
-      const page = await browser.newPage();
-      await page.setContent(html, { waitUntil: 'networkidle0' });
-      const pdf = await page.pdf({
-        format: 'A4',
-        printBackground: true,
-        margin: { top: '10mm', right: '10mm', bottom: '10mm', left: '10mm' }
-      });
-      return Buffer.from(pdf);
-    } finally {
-      await browser.close();
-    }
-  }
 
   private async executeImportAnalysis(
     analysis: Awaited<ReturnType<PayrollService['analyzeImport']>>,

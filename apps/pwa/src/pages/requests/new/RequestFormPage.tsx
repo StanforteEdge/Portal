@@ -23,25 +23,24 @@ import {
   requestsMobileNav,
 } from "@/pages/requests/requests-data";
 import {
-  createRequest,
-  getMyLeaveBalance,
-  getRequest,
-  listMyOrganizations,
-  listProjects,
   listRequestTypes,
-  listGroups,
-  submitRequest,
-  updateRequest,
-  type MyOrganization,
-  type ProjectOption,
-  type RequestItemInput,
-  type RequestRecord,
+  listRequestGroups,
   type RequestTypeOption,
+  createRequest,
+  updateRequest,
+  submitRequest,
+  listProjects,
+  listMyOrganizations,
+  listGroups,
+  type ProjectOption,
+  type MyOrganization,
   type TeamOption,
+  type RequestItemInput,
 } from "@/pages/requests/requests-api";
 import {
   requestFamilyFromType,
   requestFamilyLabel,
+  buildGroupMap,
   type RequestFamily,
 } from "@/pages/requests/request-helpers";
 import {
@@ -325,6 +324,12 @@ export function RequestFormPage() {
       storage: "local",
     },
   );
+  const { data: requestGroups } = useCachedQuery(
+    "requests:groups",
+    () => listRequestGroups(),
+    { ttlMs: 1000 * 60 * 10, storage: "local" },
+  );
+  const groupMap = useMemo(() => buildGroupMap(requestGroups ?? []), [requestGroups]);
   const { data: projects } = useCachedQuery(
     "requests:projects",
     () => listProjects(),
@@ -457,7 +462,7 @@ export function RequestFormPage() {
       ),
     [form.request_type_id, requestTypes, typeId],
   );
-  const family = requestFamilyFromType(selectedType);
+  const family = requestFamilyFromType(selectedType, groupMap);
   const handoverOptions = useMemo(
     () => buildHandoverOptions(teams ?? []),
     [teams],
@@ -766,7 +771,7 @@ export function RequestFormPage() {
                   <option value="">Select request type</option>
                     {(["financial", "leave", "other"] as const).map((fam) => {
                     const famTypes = (requestTypes ?? []).filter(
-                      (t: RequestTypeOption) => requestFamilyFromType(t) === fam,
+                      (t: RequestTypeOption) => requestFamilyFromType(t, groupMap) === fam,
                     );
                     if (!famTypes.length) return null;
                     return (
