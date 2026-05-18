@@ -2,7 +2,7 @@ import { formatCurrency } from "@stanforte/shared";
 import type { RequestGroupOption, RequestRecord, RequestTypeOption } from "@/pages/requests/requests-api";
 import type { WorkflowStep, WorkflowStepStatus } from "@/shared";
 
-export type RequestFamily = "financial" | "leave" | "other";
+export type RequestFamily = "financial" | "hr" | "other";
 
 export type RequestGroupMap = Record<string, { name: string; code: string }>;
 
@@ -21,7 +21,7 @@ export function classifyRequestFamily(
 ): RequestFamily {
   if (groupName) {
     const g = groupName.toLowerCase();
-    if (g.includes("leave") || g.includes("hr") || g === "personnel") return "leave";
+    if (g.includes("leave") || g.includes("hr") || g === "personnel") return "hr";
     if (
       g.includes("finance") ||
       g.includes("payment") ||
@@ -38,7 +38,7 @@ export function classifyRequestFamily(
   const name = String(requestTypeName || "").toLowerCase();
 
   if (category) {
-    if (category.includes("leave")) return "leave";
+    if (category.includes("leave")) return "hr";
     if (
       category.includes("finance") ||
       category.includes("payment") ||
@@ -51,7 +51,7 @@ export function classifyRequestFamily(
     return "other";
   }
 
-  if (name.includes("leave")) return "leave";
+  if (name.includes("leave")) return "hr";
 
   if (name.includes("cash") || name.includes("expense") || name.includes("financial") || name.includes("reimbursement") || name.includes("procurement")) {
     return "financial";
@@ -61,7 +61,7 @@ export function classifyRequestFamily(
 }
 
 export function requestFamilyLabel(family: RequestFamily) {
-  if (family === "leave") return "Leave";
+  if (family === "hr") return "HR";
   if (family === "financial") return "Financial";
   return "Other";
 }

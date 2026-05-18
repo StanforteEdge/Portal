@@ -42,13 +42,13 @@ export async function listHrLeaveRequests(params?: {
   if (params?.from) query.from = params.from;
   if (params?.to) query.to = params.to;
   const requests = await listRequests(query);
-  return requests.filter((record) => requestFamilyFromRecord(record) === "leave");
+  return requests.filter((record) => requestFamilyFromRecord(record) === "hr");
 }
 
 // Leave requests pending HR approval
 export async function listHrLeaveApprovals(): Promise<RequestRecord[]> {
   const approvals = await listApprovals({ family: "leave" });
-  return approvals.filter((record) => requestFamilyFromRecord(record) === "leave");
+  return approvals.filter((record) => requestFamilyFromRecord(record) === "hr");
 }
 
 // Per-staff leave balances — HR-specific endpoint

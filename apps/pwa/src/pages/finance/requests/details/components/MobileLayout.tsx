@@ -136,7 +136,7 @@ export function MobileLayout() {
             </div>
           </SectionCard>
 
-          {family !== "leave" ? (
+          {family !== "hr" ? (
             <SectionCard title="Request Items">
               {lineItems.length ? (
                 <div className="rounded-[22px] border border-slate-200 bg-white">

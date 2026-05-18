@@ -119,7 +119,7 @@ function itemTotal(item: ItemState) {
 }
 
 function familyDescription(family: RequestFamily) {
-  if (family === "leave")
+  if (family === "hr")
     return "Complete the leave request details and coverage plan before submission.";
   if (family === "financial")
     return "Capture the funding purpose, work context, and itemized costs.";
@@ -176,7 +176,7 @@ function buildPayload(
   family: RequestFamily,
 ) {
   const items: RequestItemInput[] =
-    family === "leave"
+    family === "hr"
       ? []
       : form.items.map((item) => ({
           description: item.description.trim(),
@@ -193,22 +193,22 @@ function buildPayload(
       purpose: form.purpose.trim(),
       reimbursement: form.reimbursement,
       category_id:
-        family === "leave" ? undefined : form.category_id || undefined,
-      project_id: family === "leave" ? undefined : form.project_id || undefined,
+        family === "hr" ? undefined : form.category_id || undefined,
+      project_id: family === "hr" ? undefined : form.project_id || undefined,
       team_id: form.team_id || undefined,
       organization_id: form.organization_id || undefined,
       vendor_id: form.vendor_id || undefined,
       due_date: form.due_date || undefined,
       start_date:
-        family === "leave" ? form.leave_start_date || undefined : undefined,
+        family === "hr" ? form.leave_start_date || undefined : undefined,
       end_date:
-        family === "leave" ? form.leave_end_date || undefined : undefined,
+        family === "hr" ? form.leave_end_date || undefined : undefined,
       days_requested:
-        family === "leave" && form.leave_days_requested
+        family === "hr" && form.leave_days_requested
           ? Number(form.leave_days_requested)
           : undefined,
       leave_type_key:
-        family === "leave"
+        family === "hr"
           ? String(
               selectedType?.form_schema?.leave_type_key ||
                 selectedType?.name ||
@@ -220,11 +220,11 @@ function buildPayload(
               .replace(/^_+|_+$/g, "")
           : undefined,
       handover_user_id:
-        family === "leave"
+        family === "hr"
           ? form.leave_handover_user_id || undefined
           : undefined,
       handover_notes:
-        family === "leave"
+        family === "hr"
           ? form.leave_handover_notes.trim() || undefined
           : undefined,
     },
@@ -241,9 +241,9 @@ function validateForm(
 ) {
   if (!form.request_type_id) return "Select a request type.";
   if (!form.purpose.trim())
-    return family === "leave" ? "Reason is required." : "Purpose is required.";
+    return family === "hr" ? "Reason is required." : "Purpose is required.";
 
-  if (family === "leave") {
+  if (family === "hr") {
     if (!form.leave_start_date || !form.leave_end_date)
       return "Leave start and end dates are required.";
     if (new Date(form.leave_end_date) < new Date(form.leave_start_date)) {
@@ -508,7 +508,7 @@ export function RequestFormPage() {
   );
 
   useEffect(() => {
-    if (family === "leave") return;
+    if (family === "hr") return;
     if (categoryOptions.length === 1 && !form.category_id) {
       setForm((prev) => ({ ...prev, category_id: categoryOptions[0].value }));
       return;
@@ -523,7 +523,7 @@ export function RequestFormPage() {
   }, [categoryOptions, family, form.category_id]);
 
   useEffect(() => {
-    if (family === "leave" && form.leave_start_date && form.leave_end_date) {
+    if (family === "hr" && form.leave_start_date && form.leave_end_date) {
       const start = new Date(form.leave_start_date);
       const end = new Date(form.leave_end_date);
       if (
@@ -564,7 +564,7 @@ export function RequestFormPage() {
   );
 
   const leaveBalance = useMemo(() => {
-    if (family !== "leave") return null;
+    if (family !== "hr") return null;
     return leaveBalanceData?.summary?.[0]?.available_days ?? null;
   }, [family, leaveBalanceData]);
 
@@ -580,7 +580,7 @@ export function RequestFormPage() {
   );
 
   const minStartDate = useMemo(() => {
-    if (family !== "leave" || minNoticeDays <= 0) return "";
+    if (family !== "hr" || minNoticeDays <= 0) return "";
     const date = new Date();
     date.setDate(date.getDate() + minNoticeDays);
     return date.toISOString().slice(0, 10);
@@ -616,7 +616,7 @@ export function RequestFormPage() {
             ...payload,
           });
 
-      if (family !== "leave") {
+      if (family !== "hr") {
         await replaceEntityTags("request", String(created.id), "request_tags", {
           term_ids: tags
             .filter((tag) => !tag.id.startsWith("new:"))
@@ -772,7 +772,7 @@ export function RequestFormPage() {
                   disabled={Boolean(editId)}
                 >
                   <option value="">Select request type</option>
-                    {(["financial", "leave", "other"] as const).map((fam) => {
+                    {(["financial", "hr", "other"] as const).map((fam) => {
                     const famTypes = (requestTypes ?? []).filter(
                       (t: RequestTypeOption) => requestFamilyFromType(t, groupMap) === fam,
                     );
@@ -789,7 +789,7 @@ export function RequestFormPage() {
                   })}
                 </SelectField>
 
-                {family === "leave" ? (
+                {family === "hr" ? (
                   <TextField
                     label="Leave Days"
                     value={form.leave_days_requested}
@@ -810,7 +810,7 @@ export function RequestFormPage() {
                 )}
               </div>
 
-              {family !== "leave" ? (
+              {family !== "hr" ? (
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   <SelectField
                     label="Category"
@@ -859,24 +859,24 @@ export function RequestFormPage() {
               ) : null}
             </SectionCard>
             <SectionCard
-              title={family === "leave" ? "Reason" : "Purpose"}
+              title={family === "hr" ? "Reason" : "Purpose"}
               description="Provide the narrative context for this request."
             >
               <TextAreaField
-                label={family === "leave" ? "Reason for Request" : "Purpose"}
+                label={family === "hr" ? "Reason for Request" : "Purpose"}
                 value={form.purpose}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, purpose: event.target.value }))
                 }
                 placeholder={
-                  family === "leave"
+                  family === "hr"
                     ? "Explain the leave reason and any planning context."
                     : "Explain why this request is needed and what outcome it supports."
                 }
               />
             </SectionCard>
 
-            {family === "leave" ? (
+            {family === "hr" ? (
               <>
                 <SectionCard
                   title="Leave Schedule"
@@ -1288,21 +1288,21 @@ export function RequestFormPage() {
           <RightRail className="self-start lg:col-span-4 lg:sticky lg:top-28">
             <section className="section-card bg-brand-900 p-5 text-white">
               <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-                {family === "leave" ? "Leave Request" : "Current Total"}
+                {family === "hr" ? "Leave Request" : "Current Total"}
               </p>
               <p className="mt-3 text-4xl font-semibold tracking-tight">
-                {family === "leave"
+                {family === "hr"
                   ? form.leave_days_requested
                     ? `${form.leave_days_requested} day${Number(form.leave_days_requested) === 1 ? "" : "s"}`
                     : "— days"
                   : formatCurrency(totalAmount || 0)}
               </p>
               <p className="mt-2 text-sm leading-6 text-white/70">
-                {family === "leave"
+                {family === "hr"
                   ? selectedType?.name || "Leave request"
                   : "The request total updates from the line items you add below."}
               </p>
-              {family === "leave" ? (
+              {family === "hr" ? (
                 <div className="mt-4 space-y-2">
                   {leaveBalance !== null ? (
                     <div className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-3">
@@ -1390,16 +1390,16 @@ export function RequestFormPage() {
 
         <section className="section-card bg-brand-900 p-5 text-white">
           <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-            {family === "leave" ? "Leave Request" : "Current Total"}
+            {family === "hr" ? "Leave Request" : "Current Total"}
           </p>
           <p className="mt-3 text-4xl font-semibold tracking-tight">
-            {family === "leave"
+            {family === "hr"
               ? form.leave_days_requested
                 ? `${form.leave_days_requested} day${Number(form.leave_days_requested) === 1 ? "" : "s"}`
                 : "— days"
               : formatCurrency(totalAmount || 0)}
           </p>
-          {family === "leave" ? (
+          {family === "hr" ? (
             <div className="mt-3 space-y-2">
               {leaveBalance !== null ? (
                 <p className="text-sm leading-6 text-white/85">
@@ -1442,7 +1442,7 @@ export function RequestFormPage() {
                 </option>
               ))}
             </SelectField>
-            {family === "leave" ? (
+            {family === "hr" ? (
               <TextField
                 label="Leave Days"
                 value={form.leave_days_requested}
@@ -1459,7 +1459,7 @@ export function RequestFormPage() {
               />
             )}
           </div>
-          {family !== "leave" ? (
+          {family !== "hr" ? (
             <div className="mt-4 grid gap-4">
               <SelectField
                 label="Category"
@@ -1489,9 +1489,9 @@ export function RequestFormPage() {
           ) : null}
         </SectionCard>
 
-        <SectionCard title={family === "leave" ? "Reason" : "Purpose"}>
+        <SectionCard title={family === "hr" ? "Reason" : "Purpose"}>
           <TextAreaField
-            label={family === "leave" ? "Reason for Request" : "Purpose"}
+            label={family === "hr" ? "Reason for Request" : "Purpose"}
             value={form.purpose}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, purpose: event.target.value }))

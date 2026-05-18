@@ -40,7 +40,7 @@ const familyCards: FamilyCard[] = [
       "Expenses, reimbursements, procurement, and other money-related requests.",
   },
   {
-    family: "leave",
+    family: "hr",
     icon: "event_available",
     description:
       "Annual leave, sick leave, and other time-off requests with approval routing.",
@@ -92,7 +92,7 @@ export function RequestTypePage() {
   const familyParam = searchParams.get("family");
   const activeFamily: RequestFamily | null =
     familyParam === "financial" ||
-    familyParam === "leave" ||
+    familyParam === "hr" ||
     familyParam === "other"
       ? familyParam
       : null;
@@ -117,7 +117,7 @@ export function RequestTypePage() {
   const groupedTypes = useMemo(() => {
     const grouped: Record<RequestFamily, RequestTypeOption[]> = {
       financial: [],
-      leave: [],
+      hr: [],
       other: [],
     };
 

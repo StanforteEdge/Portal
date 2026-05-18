@@ -506,7 +506,7 @@ export function FinanceRequestDetailsPage() {
 
   const summaryCards = useMemo(() => {
     if (!request) return [];
-    if (family === "leave") {
+    if (family === "hr") {
       return [
         {
           label: "Leave Dates",

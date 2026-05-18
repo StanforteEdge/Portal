@@ -289,7 +289,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   const pendingApprovals = request?.approvals?.pending ?? [];
   const completedApprovals = request?.approvals?.done ?? [];
   const workflow =
-    family === "leave"
+    family === "hr"
       ? buildLeaveWorkflow(request, pendingApprovals, {
         showDraftStep:
           detailView === "mine" &&
@@ -310,7 +310,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   const parentPath =
     detailView === "hr"
       ? "/hr/leave"
-      : detailView === "mine" && family === "leave"
+      : detailView === "mine" && family === "hr"
       ? "/leave"
       : detailView === "approvals"
         ? "/requests/approvals"
@@ -320,7 +320,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   const parentLabel =
     detailView === "hr"
       ? "HR Requests"
-      : detailView === "mine" && family === "leave"
+      : detailView === "mine" && family === "hr"
       ? "Leave Tracker"
       : detailView === "approvals"
         ? "Approvals"
@@ -370,7 +370,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
       return { label: "Loading", hint: "", tone: "neutral" as const };
     }
     const pendingStep = pendingApprovals[0]?.step;
-    if (family === "leave") {
+    if (family === "hr") {
       return buildLeaveViewerStatus({
         approvalActionsVisible,
         ownerActionsVisible,
@@ -409,7 +409,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   ]);
 
   const financeProgress = useMemo(() => {
-    if (!request || family === "leave") return { label: "", hint: "" };
+    if (!request || family === "hr") return { label: "", hint: "" };
     return buildFinanceProgress({
       requestStatus,
       requestTotal,
@@ -532,7 +532,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
 
   const summaryCards = useMemo(() => {
     if (!request) return [];
-    if (family === "leave") {
+    if (family === "hr") {
       return [
         {
           label: "Leave Dates",
@@ -1058,7 +1058,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
               </Link>
               {canEditRequest ? (
                 <Link
-                  to={`${family === "leave" ? "/leave/new/form" : "/requests/new/form"}?edit=${id}&typeId=${request?.request_type?.id || ""}`}
+                  to={`${family === "hr" ? "/leave/new/form" : "/requests/new/form"}?edit=${id}&typeId=${request?.request_type?.id || ""}`}
                   className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                 >
                   <Icon name="edit" className="text-[18px]" />
@@ -1093,7 +1093,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
                     "No summary provided.",
                   )}
                 </p>
-                {family !== "leave" ? (
+                {family !== "hr" ? (
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     {categoryName && categoryName !== "-" ? (
                       <Chip variant="neutral">Category: {categoryName}</Chip>
@@ -1118,7 +1118,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
                 </div>
               </SectionCard>
 
-              {family === "leave" ? (
+              {family === "hr" ? (
                 <LeaveRequestBody
                   requestData={requestData}
                   handoverColleagueName={handoverColleagueName}
@@ -1201,9 +1201,9 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
             <RightRail className="lg:col-span-4">
               <section className="section-card bg-brand-900 p-5 text-white">
                 <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-                  {family === "leave" ? "Request Type" : "Current Total"}
+                  {family === "hr" ? "Request Type" : "Current Total"}
                 </p>
-                {family === "leave" ? (
+                {family === "hr" ? (
                   <h3 className="mt-3 text-[1.65rem] font-semibold tracking-tight">
                     {request.request_type?.name || requestFamilyFromRecord(request)}
                   </h3>
@@ -1220,7 +1220,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
                   </div>
                 )}
                 <p className="mt-3 text-sm leading-6 text-white/85">
-                  {family === "leave"
+                  {family === "hr"
                     ? "This request follows the leave workflow and approval sequence."
                     : "This total is calculated from the submitted request items and their supporting attachments."}
                 </p>
@@ -1391,7 +1391,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
                     onDownloadFullDocument={() =>
                       void handleDownloadArtifact("full_document")
                     }
-                    includeFullDocument={family !== "leave"}
+                    includeFullDocument={family !== "hr"}
                   />
                   {workflowStatus === "draft" ? (
                     <Button
@@ -1504,7 +1504,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
               </div>
             </SectionCard>
 
-            {family === "leave" ? (
+            {family === "hr" ? (
               <LeaveRequestBody
                 requestData={requestData}
                 handoverColleagueName={handoverColleagueName}
@@ -1546,7 +1546,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
                 onDownloadFullDocument={() =>
                   void handleDownloadArtifact("full_document")
                 }
-                includeFullDocument={family !== "leave"}
+                includeFullDocument={family !== "hr"}
               />
               {workflowStatus === "draft" ? (
                 <Button

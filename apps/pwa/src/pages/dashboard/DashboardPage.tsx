@@ -54,7 +54,7 @@ function formatTime(value?: string | null) {
 
 function requestIcon(typeName?: string | null, family?: string) {
   const name = String(typeName || "").toLowerCase();
-  if (family === "leave" || name.includes("leave")) return "beach_access";
+  if (family === "hr" || name.includes("leave")) return "beach_access";
   if (
     name.includes("petty") ||
     name.includes("cash") ||
