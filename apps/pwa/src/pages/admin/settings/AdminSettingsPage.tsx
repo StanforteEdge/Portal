@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   AppShell,
   PageHeader,
@@ -29,16 +29,29 @@ export default function AdminSettingsPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [types, setTypes] = useState<RequestType[]>([]);
+  const [groups, setGroups] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<ActiveTab>("request-types");
   const [editingType, setEditingType] = useState<RequestType | null | boolean>(false);
   const [listKey, setListKey] = useState(0);
 
+  const groupMap = useMemo(() => {
+    const map: Record<string, string> = {};
+    for (const g of groups) {
+      map[g.id] = g.name;
+    }
+    return map;
+  }, [groups]);
+
   const load = async () => {
     try {
       setLoading(true);
-      const res = await requestApi.listTypes();
+      const [res, groupsRes] = await Promise.all([
+        requestApi.listTypes(),
+        requestApi.listGroups(),
+      ]);
       setTypes(res);
+      setGroups(groupsRes as { id: string; name: string }[]);
     } catch (err) {
       showToast({ tone: "danger", title: "Error", message: "Failed to load request types." });
     } finally {
@@ -144,6 +157,7 @@ export default function AdminSettingsPage() {
                       <TableHeaderRow>
                         <TableHeaderCell>Name</TableHeaderCell>
                         <TableHeaderCell>Slug/Prefix</TableHeaderCell>
+                        <TableHeaderCell>Group</TableHeaderCell>
                         <TableHeaderCell>Category</TableHeaderCell>
                         <TableHeaderCell>Status</TableHeaderCell>
                         <TableHeaderCell className="text-right">Actions</TableHeaderCell>
@@ -154,6 +168,9 @@ export default function AdminSettingsPage() {
                         <TableRow key={t.id}>
                           <TableCell className="font-bold text-slate-900">{t.name}</TableCell>
                           <TableCell className="font-mono text-xs">{t.slug}</TableCell>
+                          <TableCell className="text-xs text-slate-500">
+                            {groupMap[t.group_id || t.groupId || ""] || t.group_id || t.groupId || "-"}
+                          </TableCell>
                           <TableCell className="capitalize">{t.category || "General"}</TableCell>
                           <TableCell>
                             <Chip variant={t.is_active ? "success" : "neutral"}>

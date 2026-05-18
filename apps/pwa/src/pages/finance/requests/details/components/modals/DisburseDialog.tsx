@@ -12,8 +12,10 @@ import { financeApi, useCachedQuery } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { useRequestDetails } from "../../context";
 import type { DeductionLine } from "../../context";
+import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 
 export function DisburseDialog() {
+  const trapRef = useFocusTrap(true, () => closeDisburseDialog());
   const {
     request,
     requestData,
@@ -117,7 +119,7 @@ export function DisburseDialog() {
 
   return (
     <>
-      <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4">
+      <div ref={trapRef} className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4">
         <button
           type="button"
           aria-label="Close disbursement dialog"

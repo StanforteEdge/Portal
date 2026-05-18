@@ -78,6 +78,14 @@ export type RequestTypeOption = {
   approval_flow_json?: Record<string, unknown> | null;
 };
 
+export type RequestGroupOption = {
+  id: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  isActive?: boolean;
+};
+
 export type RequestItemInput = {
   description: string;
   amount: number;
@@ -153,6 +161,11 @@ export async function listApprovals(params?: Record<string, unknown>) {
 
 export async function listRequestTypes() {
   const res = await httpRequest<any>("/requests/types");
+  return (res as any)?.data?.items ?? [];
+}
+
+export async function listRequestGroups(): Promise<RequestGroupOption[]> {
+  const res = await httpRequest<any>("/requests/groups");
   return (res as any)?.data?.items ?? [];
 }
 

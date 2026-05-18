@@ -3,8 +3,10 @@ import { formatCurrency } from "@stanforte/shared";
 import { formatDisplayDate } from "@stanforte/shared";
 import { formatRequestStatus } from "@/pages/requests/request-helpers";
 import { useRequestDetails } from "../../context";
+import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
 
 export function VoucherPreviewDialog() {
+  const trapRef = useFocusTrap(true, () => setShowVoucherPreviewDialog(false));
   const {
     request,
     previewVoucher,
@@ -16,7 +18,7 @@ export function VoucherPreviewDialog() {
   if (!previewVoucher) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-6">
+    <div ref={trapRef} className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/45 px-4 py-6">
       <button
         type="button"
         aria-label="Close payment voucher preview"

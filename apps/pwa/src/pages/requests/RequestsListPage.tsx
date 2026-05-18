@@ -102,7 +102,13 @@ function toTone(
 function classifyFamily(
   categoryKey: string,
   requestType: string,
+  groupName?: string | null,
 ): RequestFamily {
+  if (groupName) {
+    const g = groupName.toLowerCase();
+    if (g.includes("leave") || g.includes("hr")) return "leave";
+    if (g.includes("finance") || g.includes("payment") || g.includes("procurement") || g.includes("expense")) return "financial";
+  }
   const category = categoryKey.toLowerCase();
   const type = requestType.toLowerCase();
   if (category.includes("leave") || type.includes("leave")) return "leave";
@@ -175,7 +181,7 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
   const category = String(
     request.request_type?.category_key || "",
   ).toLowerCase();
-  const family = classifyFamily(category, requestType);
+  const family = classifyFamily(category, requestType, request.group?.name);
   const icon = category.includes("leave")
     ? "event_note"
     : category.includes("finance")
