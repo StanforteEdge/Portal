@@ -800,6 +800,8 @@ model RequestType {
   approvalLimit    Decimal? @map("approval_limit") @db.Decimal(15, 2)
   sequenceCounter  Int      @default(0) @map("sequence_counter")
   isActive         Boolean  @default(true) @map("is_active")
+  workflowType     String?  @map("workflow_type") @db.VarChar(20)
+  handlerRoleLabel String?  @map("handler_role_label") @db.VarChar(100)
   formId           String?  @map("form_id") @db.Uuid
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")

@@ -65,4 +65,14 @@ export class UpdateTypeDto {
   @IsOptional()
   @IsBoolean()
   is_active?: boolean;
+
+  @ApiPropertyOptional({ enum: ['payment', 'leave', 'loan', 'other'], example: 'payment' })
+  @IsOptional()
+  @IsString()
+  workflow_type?: string;
+
+  @ApiPropertyOptional({ example: 'Accountant' })
+  @IsOptional()
+  @IsString()
+  handler_role_label?: string;
 }

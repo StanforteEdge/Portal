@@ -133,7 +133,9 @@ export class RequestsService {
         formId: dto.form_id,
         approvalFlowJson: approvalFlowJson as Prisma.InputJsonValue | undefined,
         approvalLimit: dto.approval_limit,
-        isActive: dto.is_active ?? true
+        isActive: dto.is_active ?? true,
+        workflowType: dto.workflow_type ?? null,
+        handlerRoleLabel: dto.handler_role_label ?? null
       }
     });
   }
@@ -194,7 +196,9 @@ export class RequestsService {
             ? (normalizedApprovalFlow as Prisma.InputJsonValue)
             : undefined,
         approvalLimit: dto.approval_limit,
-        isActive: dto.is_active
+        isActive: dto.is_active,
+        ...(dto.workflow_type !== undefined && { workflowType: dto.workflow_type }),
+        ...(dto.handler_role_label !== undefined && { handlerRoleLabel: dto.handler_role_label })
       }
     });
   }
