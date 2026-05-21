@@ -76,6 +76,8 @@ export type RequestTypeOption = {
   form_schema?: Record<string, unknown> | null;
   approvalFlowJson?: Record<string, unknown> | null;
   approval_flow_json?: Record<string, unknown> | null;
+  workflow_type?: string | null;
+  handler_role_label?: string | null;
 };
 
 export type RequestGroupOption = {

@@ -2,7 +2,10 @@ import { formatCurrency } from "@stanforte/shared";
 import type { RequestGroupOption, RequestRecord, RequestTypeOption } from "@/pages/requests/requests-api";
 import type { WorkflowStep, WorkflowStepStatus } from "@/shared";
 
-export type RequestFamily = "financial" | "hr" | "other";
+export type WorkflowType = "payment" | "leave" | "loan" | "other";
+
+/** @deprecated Use WorkflowType */
+export type RequestFamily = WorkflowType;
 
 export type RequestGroupMap = Record<string, { name: string; code: string }>;
 
@@ -14,14 +17,15 @@ export function buildGroupMap(groups: RequestGroupOption[]): RequestGroupMap {
   return map;
 }
 
-export function classifyRequestFamily(
+export function classifyRequestCategory(
   categoryKey?: string | null,
   requestTypeName?: string | null,
   groupName?: string | null,
-): RequestFamily {
+): WorkflowType {
   if (groupName) {
     const g = groupName.toLowerCase();
-    if (g.includes("leave") || g.includes("hr") || g === "personnel") return "hr";
+    if (g.includes("leave") || g === "personnel") return "leave";
+    if (g.includes("loan") || g.includes("salary") || g.includes("advance")) return "loan";
     if (
       g.includes("finance") ||
       g.includes("payment") ||
@@ -29,7 +33,7 @@ export function classifyRequestFamily(
       g.includes("procurement") ||
       g.includes("reimbursement")
     ) {
-      return "financial";
+      return "payment";
     }
     return "other";
   }
@@ -38,7 +42,8 @@ export function classifyRequestFamily(
   const name = String(requestTypeName || "").toLowerCase();
 
   if (category) {
-    if (category.includes("leave")) return "hr";
+    if (category.includes("leave")) return "leave";
+    if (category.includes("loan") || category.includes("salary") || category.includes("advance")) return "loan";
     if (
       category.includes("finance") ||
       category.includes("payment") ||
@@ -46,47 +51,66 @@ export function classifyRequestFamily(
       category.includes("reimbursement") ||
       category.includes("procurement")
     ) {
-      return "financial";
+      return "payment";
     }
     return "other";
   }
 
-  if (name.includes("leave")) return "hr";
-
-  if (name.includes("cash") || name.includes("expense") || name.includes("financial") || name.includes("reimbursement") || name.includes("procurement")) {
-    return "financial";
+  if (name.includes("leave")) return "leave";
+  if (name.includes("loan") || name.includes("salary advance") || name.includes("advance")) return "loan";
+  if (name.includes("cash") || name.includes("expense") || name.includes("financial") || name.includes("payment") || name.includes("reimbursement") || name.includes("procurement")) {
+    return "payment";
   }
 
   return "other";
 }
 
-export function requestFamilyLabel(family: RequestFamily) {
-  if (family === "hr") return "HR";
-  if (family === "financial") return "Financial";
+/** @deprecated Use classifyRequestCategory */
+export const classifyRequestFamily = classifyRequestCategory;
+
+export function workflowTypeLabel(type: WorkflowType) {
+  if (type === "leave") return "Leave";
+  if (type === "payment") return "Payment";
+  if (type === "loan") return "Loan";
   return "Other";
 }
 
-export function requestFamilyFromType(
+/** @deprecated Use workflowTypeLabel */
+export function requestFamilyLabel(family: WorkflowType) {
+  return workflowTypeLabel(family);
+}
+
+export function workflowTypeFromType(
   type?: RequestTypeOption | null,
   groups?: RequestGroupMap,
-): RequestFamily {
+): WorkflowType {
+  if (type?.workflow_type) return type.workflow_type as WorkflowType;
   const groupName = type?.groupId && groups?.[type.groupId]
     ? groups[type.groupId].name
     : null;
-  return classifyRequestFamily(
+  return classifyRequestCategory(
     type?.categoryKey ?? type?.category_key,
     type?.name,
     groupName,
   );
 }
 
-export function requestFamilyFromRecord(request?: RequestRecord | null): RequestFamily {
-  return classifyRequestFamily(
+export function workflowTypeFromRecord(request?: RequestRecord | null): WorkflowType {
+  if (request?.request_type?.workflow_type) {
+    return request.request_type.workflow_type as WorkflowType;
+  }
+  return classifyRequestCategory(
     request?.request_type?.category_key,
     request?.request_type?.name,
     request?.group?.name,
   );
 }
+
+/** @deprecated Use workflowTypeFromType */
+export const requestFamilyFromType = workflowTypeFromType;
+
+/** @deprecated Use workflowTypeFromRecord */
+export const requestFamilyFromRecord = workflowTypeFromRecord;
 
 export function formatRequestStatus(status?: string | null) {
   return String(status || "draft").replaceAll("_", " ");
@@ -95,7 +119,8 @@ export function formatRequestStatus(status?: string | null) {
 export function formatViewerRequestStatus(
   status?: string | null,
   actions: string[] = [],
-  pendingStep?: string | null
+  pendingStep?: string | null,
+  workflowType?: string | null,
 ) {
   const normalizedActions = actions.map((entry) => entry.toLowerCase());
   if (normalizedActions.includes("approve") || normalizedActions.includes("reject")) {
@@ -108,7 +133,7 @@ export function formatViewerRequestStatus(
     return "Awaiting Your Confirmation";
   }
   if (normalizedActions.includes("retire")) {
-    return "Retirement Required";
+    return workflowType === "loan" ? "Loan Disbursed" : "Retirement Required";
   }
   if (normalizedActions.includes("complete")) {
     return "Ready to Close";
