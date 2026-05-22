@@ -84,10 +84,4 @@ export class CreateTypeDto {
   @IsOptional()
   @IsString()
   handler_role_label?: string;
-
-  @ApiPropertyOptional({ example: ['admin', 'finance.approve'] })
-  @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  visible_to_roles?: string[];
 }

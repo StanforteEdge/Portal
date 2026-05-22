@@ -77,6 +77,9 @@ export class RequestResponseDto {
     taxonomy_keys?: string[] | null;
     approval_flow_json?: unknown;
     form_schema?: unknown;
+    category_code?: string | null;
+    workflow_type?: string | null;
+    handler_role_label?: string | null;
   };
   @ApiProperty({ required: false })
   group?: {

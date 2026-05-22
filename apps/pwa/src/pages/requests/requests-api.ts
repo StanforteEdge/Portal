@@ -87,6 +87,7 @@ export type RequestTypeOption = {
   group_id?: string | null;
   categoryKey?: string | null;
   category_key?: string | null;
+  category_code?: string | null;
 };
 
 export type RequestGroupOption = {

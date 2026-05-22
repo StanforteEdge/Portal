@@ -49,7 +49,7 @@ function itemTotal(item: ItemState) {
   return parsePositiveNumber(item.quantity) * parsePositiveNumber(item.unit_price);
 }
 
-export const FinancialRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
+export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
   selectedType,
   selectedCategory,
   organizationOptions,
@@ -399,4 +399,4 @@ export const FinancialRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
   );
 });
 
-FinancialRequestFormPage.displayName = "FinancialRequestFormPage";
+PaymentRequestFormPage.displayName = "PaymentRequestFormPage";

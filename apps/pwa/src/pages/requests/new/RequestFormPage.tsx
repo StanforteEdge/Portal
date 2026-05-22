@@ -38,11 +38,11 @@ import {
   type RequestRecord,
 } from "@/pages/requests/requests-api";
 import {
-  classifyRequestFamily,
-  type RequestFamily,
+  classifyRequestCategory,
+  type WorkflowType,
 } from "@/pages/requests/request-helpers";
 import { LeaveRequestFormPage } from "@/pages/requests/new/forms/LeaveRequestFormPage";
-import { FinancialRequestFormPage } from "@/pages/requests/new/forms/FinancialRequestFormPage";
+import { PaymentRequestFormPage } from "@/pages/requests/new/forms/PaymentRequestFormPage";
 import { LoanRequestFormPage } from "@/pages/requests/new/forms/LoanRequestFormPage";
 import { OtherRequestFormPage } from "@/pages/requests/new/forms/OtherRequestFormPage";
 import type { FamilyFormHandle } from "@/pages/requests/new/forms/family-form-types";
@@ -247,9 +247,9 @@ export function RequestFormPage() {
     return catId ? categoryMap.get(catId) ?? null : null;
   }, [selectedType, categoryMap]);
 
-  const family: RequestFamily = useMemo(() => {
+  const workflowType: WorkflowType = useMemo(() => {
     if (!selectedType) return "other";
-    return classifyRequestFamily(
+    return classifyRequestCategory(
       selectedType.taxonomyKeys?.[0] ?? selectedType.taxonomy_keys?.[0],
       selectedType.name,
       selectedCategory?.code ?? null,
@@ -287,7 +287,7 @@ export function RequestFormPage() {
     try {
       let payload: { team_id?: string; total_amount?: number; data: Record<string, unknown>; items?: RequestItemInput[] };
 
-      if (family === "leave" || family === "loan") {
+      if (workflowType === "leave" || workflowType === "loan") {
         const result = familyFormRef.current?.validateAndBuild();
         if (!result) return;
         if ("error" in result) {
@@ -428,7 +428,7 @@ export function RequestFormPage() {
 
         <div className="grid gap-6 lg:grid-cols-12">
           <div className="space-y-6 lg:col-span-8">
-            {family === "leave" ? (
+            {workflowType === "leave" ? (
               <LeaveRequestFormPage
                 ref={familyFormRef}
                 selectedType={selectedType}
@@ -444,7 +444,7 @@ export function RequestFormPage() {
                 taxonomyKey={taxonomyKey}
                 isTagTaxonomy={isTagTaxonomy}
               />
-            ) : family === "loan" ? (
+            ) : workflowType === "loan" ? (
               <LoanRequestFormPage
                 ref={familyFormRef}
                 selectedType={selectedType}
@@ -461,7 +461,7 @@ export function RequestFormPage() {
                   title="Request Setup"
                   description="Configure the request details and timing."
                 >
-                  {family === "payment" ? (
+                  {workflowType === "payment" ? (
                     <div className="grid gap-4 lg:grid-cols-2">
                       <TextField
                         label="Due Date"
@@ -490,7 +490,7 @@ export function RequestFormPage() {
                     </div>
                   ) : null}
                   {isTagTaxonomy ? (
-                    <div className={family === "payment" ? "mt-5 border-t border-slate-100 pt-5" : ""}>
+                    <div className={workflowType === "payment" ? "mt-5 border-t border-slate-100 pt-5" : ""}>
                       <TagPicker
                         taxonomyKey={taxonomyKey}
                         value={tags}
@@ -511,8 +511,8 @@ export function RequestFormPage() {
                     />
                   </div>
                 </SectionCard>
-                {family === "payment" ? (
-                  <FinancialRequestFormPage
+                {workflowType === "payment" ? (
+                  <PaymentRequestFormPage
                     ref={familyFormRef}
                     selectedType={selectedType}
                     selectedCategory={selectedCategory}
@@ -591,10 +591,10 @@ export function RequestFormPage() {
 
         {summaryContent}
 
-        {family !== "leave" && family !== "loan" ? (
+        {workflowType !== "leave" && workflowType !== "loan" ? (
           <>
             <SectionCard title="Request Setup">
-              {family === "payment" ? (
+              {workflowType === "payment" ? (
                 <div className="grid gap-4">
                   <TextField
                     label="Due Date"
@@ -623,7 +623,7 @@ export function RequestFormPage() {
                 </div>
               ) : null}
               {isTagTaxonomy ? (
-                <div className={family === "payment" ? "mt-5 border-t border-slate-100 pt-5" : ""}>
+                <div className={workflowType === "payment" ? "mt-5 border-t border-slate-100 pt-5" : ""}>
                   <TagPicker
                     taxonomyKey={taxonomyKey}
                     value={tags}
@@ -646,7 +646,7 @@ export function RequestFormPage() {
           </>
         ) : null}
 
-        {family === "leave" ? (
+        {workflowType === "leave" ? (
           <LeaveRequestFormPage
             ref={familyFormRef}
             selectedType={selectedType}
@@ -662,7 +662,7 @@ export function RequestFormPage() {
             taxonomyKey={taxonomyKey}
             isTagTaxonomy={isTagTaxonomy}
           />
-        ) : family === "loan" ? (
+        ) : workflowType === "loan" ? (
           <LoanRequestFormPage
             ref={familyFormRef}
             selectedType={selectedType}
@@ -673,8 +673,8 @@ export function RequestFormPage() {
             loadingEdit={loadingEdit}
             onSummary={setSummaryContent}
           />
-        ) : family === "payment" ? (
-          <FinancialRequestFormPage
+        ) : workflowType === "payment" ? (
+          <PaymentRequestFormPage
             ref={familyFormRef}
             selectedType={selectedType}
             selectedCategory={selectedCategory}

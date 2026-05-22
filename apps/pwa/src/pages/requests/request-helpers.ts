@@ -91,10 +91,6 @@ export function classifyRequestCategory(
 
   return "other";
 }
-
-/** @deprecated Use classifyRequestCategory */
-export const classifyRequestFamily = classifyRequestCategory;
-
 export function workflowTypeLabel(type: WorkflowType) {
   if (type === "leave") return "Leave";
   if (type === "payment") return "Payment";

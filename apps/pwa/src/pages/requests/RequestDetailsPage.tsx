@@ -410,7 +410,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
       roles,
       permissions,
       statusTone,
-      family: workflowType,
+      workflowType,
     });
   }, [
     approvalActionsVisible,
