@@ -12,6 +12,11 @@ export class UpsertPayrollLoanDto {
   @IsString()
   component_id?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  request_id?: string;
+
   @ApiProperty({ enum: ['loan', 'salary_advance'] })
   @IsIn(['loan', 'salary_advance'])
   loan_type!: 'loan' | 'salary_advance';

@@ -1,6 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
+import { PayrollService } from '../payroll/payroll.service';
 import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { DisburseRequestDto } from './dto/disburse-request.dto';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -35,7 +36,8 @@ export class FinanceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
-    private readonly mailService: MailService
+    private readonly mailService: MailService,
+    private readonly payrollService: PayrollService
   ) {}
 
   async summary(query: Record<string, any>) {
@@ -45,8 +47,8 @@ export class FinanceService {
       },
       requestType: {
         OR: [
-          { categoryKey: null },
-          { categoryKey: { not: { contains: 'leave', mode: 'insensitive' } } }
+          { taxonomyKeys: null },
+          { taxonomyKeys: { not: { path: ['0'], string_contains: 'leave', mode: 'insensitive' } } }
         ]
       }
     };
@@ -185,7 +187,7 @@ export class FinanceService {
       const isLeaveRequest =
         this.isLeaveRequestType(
           row.requestType?.name ?? null,
-          row.requestType?.categoryKey ?? null,
+          (row.requestType?.taxonomyKeys as string[] | null) ?? null,
           row.requestType?.formSchema ?? null
         );
       if (isLeaveRequest) return false;
@@ -340,7 +342,7 @@ export class FinanceService {
           id: entry.row.requestType.id,
           name: entry.row.requestType.name,
           code_prefix: entry.row.requestType.codePrefix,
-          category_key: entry.row.requestType.categoryKey ?? null,
+          category_key: entry.row.requestType.taxonomyKeys ?? null,
         },
         request_creator_name: entry.creatorName,
         request_total_amount: Number(entry.row.totalAmount ?? 0),
@@ -379,11 +381,11 @@ export class FinanceService {
 
   private isLeaveRequestType(
     name: string | null,
-    categoryKey: string | null,
+    taxonomyKeys: string[] | null,
     formSchema: unknown
   ) {
     const normalizedName = String(name ?? '').toLowerCase();
-    const normalizedCategory = String(categoryKey ?? '').toLowerCase();
+    const normalizedCategory = String(taxonomyKeys?.[0] ?? '').toLowerCase();
     const schema =
       formSchema && typeof formSchema === 'object' && !Array.isArray(formSchema)
         ? (formSchema as Record<string, unknown>)
@@ -407,7 +409,10 @@ export class FinanceService {
     );
 
     try {
-      const request = await this.prisma.requestInstance.findUnique({ where: { id } });
+      const request = await this.prisma.requestInstance.findUnique({
+        where: { id },
+        include: { requestType: true }
+      });
       if (!request) {
         traceWarn(`disburseRequest:blocked requestId=${id.toString()} reason=request_not_found`);
         throw new NotFoundException('Request not found');
@@ -594,11 +599,15 @@ export class FinanceService {
         );
       }
 
-      traceLog(`disburseRequest:request-update-start requestId=${id.toString()} statusFrom=${request.status} statusTo=disbursed`);
+      const isLoan = request.requestType?.codePrefix === 'LN' || request.requestType?.name.toLowerCase().includes('loan');
+      const isSalaryAdvance = request.requestType?.codePrefix === 'SA' || request.requestType?.name.toLowerCase().includes('salary advance');
+      const nextStatus = (isLoan || isSalaryAdvance) ? 'completed' : 'disbursed';
+
+      traceLog(`disburseRequest:request-update-start requestId=${id.toString()} statusFrom=${request.status} statusTo=${nextStatus}`);
       const updated = await this.prisma.requestInstance.update({
         where: { id },
         data: {
-          status: 'disbursed',
+          status: nextStatus,
           data: {
             ...existingData,
             voucher_number: voucherNumber,
@@ -608,7 +617,7 @@ export class FinanceService {
               ...stateEvents,
               {
                 from: request.status,
-                to: 'disbursed',
+                to: nextStatus,
                 action: 'disburse',
                 by: 'finance',
                 comment: dto.note ?? null,
@@ -621,6 +630,81 @@ export class FinanceService {
       traceLog(
         `disburseRequest:request-update-complete requestId=${id.toString()} updatedStatus=${updated.status} updatedId=${updated.id.toString()}`,
       );
+
+      if (isLoan || isSalaryAdvance) {
+        try {
+          traceLog(`disburseRequest:processing-payroll-loan requestId=${id.toString()}`);
+          
+          // 1. Resolve payroll worker
+          const profile = await this.prisma.profile.findUnique({ where: { id: request.createdBy } });
+          let payrollWorker = await this.prisma.payrollWorker.findFirst({
+            where: {
+              profileId: request.createdBy,
+              status: 'active'
+            }
+          });
+
+          if (!payrollWorker && profile) {
+            payrollWorker = await this.prisma.payrollWorker.findFirst({
+              where: {
+                email: { equals: profile.email, mode: 'insensitive' },
+                status: 'active'
+              }
+            });
+            // Auto link the profile if matched by email
+            if (payrollWorker) {
+              await this.prisma.payrollWorker.update({
+                where: { id: payrollWorker.id },
+                data: { profileId: profile.id }
+              });
+            }
+          }
+
+          if (!payrollWorker) {
+            traceWarn(`disburseRequest:payroll-loan-failed requestId=${id.toString()} reason=payroll_worker_not_found profileId=${request.createdBy.toString()}`);
+          } else {
+            // 2. Resolve parameters from request data
+            const principalAmount = request.totalAmount !== null ? Number(request.totalAmount) : 0;
+            const repaymentMonths = existingData.repayment_months ? Number(existingData.repayment_months) : 1;
+            const monthlyRecoveryAmount = principalAmount / repaymentMonths;
+
+            let startRecoveryDate = new Date();
+            if (existingData.start_recovery_date) {
+              startRecoveryDate = new Date(String(existingData.start_recovery_date));
+            } else {
+              // Default to 1st of next month
+              startRecoveryDate.setMonth(startRecoveryDate.getMonth() + 1);
+              startRecoveryDate.setDate(1);
+            }
+
+            const title = isLoan
+              ? `Loan: ${String(existingData.title || existingData.purpose || 'Staff Loan')}`
+              : `Salary Advance: ${String(existingData.title || existingData.purpose || 'Staff Advance')}`;
+
+            traceLog(`disburseRequest:creating-loan-record workerId=${payrollWorker.id} amount=${principalAmount} months=${repaymentMonths}`);
+            
+            await this.payrollService.createLoan({
+              worker_id: payrollWorker.id,
+              request_id: request.id.toString(),
+              loan_type: isLoan ? 'loan' : 'salary_advance',
+              title,
+              principal_amount: principalAmount,
+              issued_date: now.toISOString(),
+              start_recovery_date: startRecoveryDate.toISOString(),
+              monthly_recovery_amount: monthlyRecoveryAmount,
+              status: 'active',
+              notes: `Automatically created from disbursed request #${request.id.toString()}. ${existingData.purpose || existingData.notes || ''}`
+            });
+
+            traceLog(`disburseRequest:payroll-loan-created-successfully requestId=${id.toString()}`);
+          }
+        } catch (loanError) {
+          traceError(
+            `disburseRequest:payroll-loan-failed requestId=${id.toString()} error=${loanError instanceof Error ? loanError.message : String(loanError)}`,
+            loanError instanceof Error ? loanError.stack : undefined
+          );
+        }
+      }
 
       try {
         traceLog(

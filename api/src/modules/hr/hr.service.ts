@@ -897,7 +897,7 @@ export class HrService {
       where: { isActive: true },
       select: {
         name: true,
-        categoryKey: true,
+        taxonomyKeys: true,
         formSchema: true
       }
     });
@@ -905,7 +905,7 @@ export class HrService {
     const defaults: Record<string, number> = {};
     const carryoverCaps: Record<string, number> = {};
     for (const type of types) {
-      if (!this.isLeaveRequestType(type.name, type.categoryKey, type.formSchema)) continue;
+      if (!this.isLeaveRequestType(type.name, type.taxonomyKeys as string[] | null, type.formSchema)) continue;
       const schema =
         type.formSchema && typeof type.formSchema === 'object' && !Array.isArray(type.formSchema)
           ? (type.formSchema as Record<string, unknown>)
@@ -924,9 +924,9 @@ export class HrService {
     };
   }
 
-  private isLeaveRequestType(name: string | null, categoryKey: string | null, formSchema: unknown) {
+  private isLeaveRequestType(name: string | null, taxonomyKeys: string[] | null, formSchema: unknown) {
     const normalizedName = String(name ?? '').toLowerCase();
-    const normalizedCategory = String(categoryKey ?? '').toLowerCase();
+    const normalizedCategory = String(taxonomyKeys?.[0] ?? '').toLowerCase();
     const schema =
       formSchema && typeof formSchema === 'object' && !Array.isArray(formSchema)
         ? (formSchema as Record<string, unknown>)

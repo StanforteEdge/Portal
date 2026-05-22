@@ -4,7 +4,10 @@ export type ManagedTaxonomy = {
   id: string;
   key: string;
   name: string;
+  description?: string | null;
   module: string | null;
+  render_type: string;
+  renderType: string;
   is_active: boolean;
   terms: Array<{ id: string; value: string; label: string; is_active: boolean }>;
 };
@@ -25,6 +28,37 @@ function mapTagTerm(row: any): TagTerm {
   };
 }
 
+export async function createTaxonomy(payload: { key: string; name: string; description?: string; module?: string; render_type?: string }) {
+  const res = await httpRequest<any>("/taxonomy/taxonomies", {
+    method: "POST",
+    body: payload,
+  });
+  return res;
+}
+
+export async function updateTaxonomy(id: string, payload: { key?: string; name?: string; description?: string; module?: string; render_type?: string; is_active?: boolean }) {
+  const res = await httpRequest<any>(`/taxonomy/taxonomies/${id}`, {
+    method: "POST",
+    body: payload,
+  });
+  return res;
+}
+
+export async function deleteTaxonomy(id: string) {
+  const res = await httpRequest<any>(`/taxonomy/taxonomies/${id}`, {
+    method: "DELETE",
+  });
+  return res;
+}
+
+export async function syncTaxonomyTerms(id: string, terms: string[]) {
+  const res = await httpRequest<any>(`/taxonomy/taxonomies/${id}/terms/sync`, {
+    method: "POST",
+    body: { terms },
+  });
+  return res;
+}
+
 export async function listManagedTaxonomies(params?: { include_inactive?: boolean; module?: string }) {
   const query = new URLSearchParams();
   if (params?.include_inactive) query.set("include_inactive", "true");
@@ -36,7 +70,10 @@ export async function listManagedTaxonomies(params?: { include_inactive?: boolea
     id: String(row.id),
     key: String(row.key),
     name: String(row.name),
+    description: row.description ?? null,
     module: row.module ?? null,
+    render_type: row.render_type ?? row.renderType ?? "select",
+    renderType: row.renderType ?? row.render_type ?? "select",
     is_active: Boolean(row.is_active ?? row.isActive ?? true),
     terms: (row.terms ?? []).map((term: any) => ({
       id: String(term.id),

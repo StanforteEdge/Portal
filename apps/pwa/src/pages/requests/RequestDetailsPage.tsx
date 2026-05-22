@@ -57,20 +57,28 @@ import { downloadBase64File } from "@/shared/lib/download";
 import { formatDisplayDate } from "@stanforte/shared";
 import {
   buildLeaveWorkflow,
+  buildLoanWorkflow,
   buildWorkflow,
   deriveRequestWorkflowStatus,
   formatPersonName,
   formatRequestStatus,
   formatViewerRequestStatus,
   requestHasDraftHistory,
-  requestFamilyFromRecord,
+  workflowTypeFromRecord,
   requestStatusTone,
 } from "@/pages/requests/request-helpers";
-import { useFinanceRequest } from "./hooks/useFinanceRequest";
-import { LeaveRequestBody } from "./bodies/LeaveRequestBody";
-import { FinanceRequestBody } from "./bodies/FinanceRequestBody";
-import { buildFinanceProgress, buildFinanceViewerStatus } from "./status/financeStatus";
+import { usePaymentRequest } from "./hooks/usePaymentRequest";
+import { buildPaymentProgress, buildPaymentViewerStatus } from "./status/paymentStatus";
 import { buildLeaveViewerStatus } from "./status/leaveStatus";
+import { buildLoanViewerStatus, buildLoanProgress } from "./status/loanStatus";
+import {
+  RequestDetailsContext,
+  type RequestDetailsContextValue,
+} from "./details/context";
+import { LeaveRequestDetail } from "./details/LeaveRequestDetail";
+import { LoanRequestDetail } from "./details/LoanRequestDetail";
+import { OtherRequestDetail } from "./details/OtherRequestDetail";
+import { PaymentRequestDetail } from "./details/PaymentRequestDetail";
 
 function DownloadDropdown(props: {
   actionBusy: string;
@@ -236,12 +244,12 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
-  const family = requestFamilyFromRecord(request || undefined);
+  const workflowType = workflowTypeFromRecord(request || undefined);
   const workflowStatus = deriveRequestWorkflowStatus(request);
   const statusTone = requestStatusTone(workflowStatus);
   const requestData =
     request?.data && typeof request.data === "object" ? request.data : {};
-  const categoryTaxonomyKey = String(request?.request_type?.category_key || "");
+  const categoryTaxonomyKey = String(request?.request_type?.taxonomy_keys?.[0] || "");
   const categoryTaxonomy = managedTaxonomies?.find(
     (taxonomy) => taxonomy.key === categoryTaxonomyKey,
   );
@@ -285,32 +293,27 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   const documents = lineItems.flatMap((item) => item.files ?? []);
   const requestTotal = Number(request?.total_amount || 0);
   const availableActions = requestActions ?? [];
-  const finance = useFinanceRequest(id, requestTotal, availableActions);
+  const finance = usePaymentRequest(id, requestTotal, availableActions, {
+    skip: workflowType !== "payment",
+  });
   const pendingApprovals = request?.approvals?.pending ?? [];
   const completedApprovals = request?.approvals?.done ?? [];
+  const showDraftStep =
+    detailView === "mine" &&
+    workflowStatus === "draft" &&
+    requestHasDraftHistory(request);
   const workflow =
-    family === "hr"
-      ? buildLeaveWorkflow(request, pendingApprovals, {
-        showDraftStep:
-          detailView === "mine" &&
-          workflowStatus === "draft" &&
-          requestHasDraftHistory(request),
-      })
-      : buildWorkflow(
-        request,
-        pendingApprovals,
-        finance.paymentVouchers ?? [],
-        {
-          showDraftStep:
-            detailView === "mine" &&
-            workflowStatus === "draft" &&
-            requestHasDraftHistory(request),
-        },
-      );
+    workflowType === "leave"
+      ? buildLeaveWorkflow(request, pendingApprovals, { showDraftStep })
+      : workflowType === "loan"
+        ? buildLoanWorkflow(request, pendingApprovals, { showDraftStep })
+        : buildWorkflow(request, pendingApprovals, finance.paymentVouchers ?? [], {
+            showDraftStep,
+          });
   const parentPath =
     detailView === "hr"
       ? "/hr/leave"
-      : detailView === "mine" && family === "hr"
+      : detailView === "mine" && workflowType === "leave"
       ? "/leave"
       : detailView === "approvals"
         ? "/requests/approvals"
@@ -320,7 +323,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   const parentLabel =
     detailView === "hr"
       ? "HR Requests"
-      : detailView === "mine" && family === "hr"
+      : detailView === "mine" && workflowType === "leave"
       ? "Leave Tracker"
       : detailView === "approvals"
         ? "Approvals"
@@ -363,14 +366,14 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
     (p: any) =>
       p?.approver_id === "finance.approve" || p?.approver_id === "accountant",
   );
-  const financeActionsVisible = detailView === "finance";
+  const handlerActionsVisible = detailView === "finance";
   const ownerActionsVisible = detailView === "mine";
   const viewerStatus = useMemo(() => {
     if (!request) {
       return { label: "Loading", hint: "", tone: "neutral" as const };
     }
     const pendingStep = pendingApprovals[0]?.step;
-    if (family === "hr") {
+    if (workflowType === "leave") {
       return buildLeaveViewerStatus({
         approvalActionsVisible,
         ownerActionsVisible,
@@ -381,10 +384,25 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
         statusTone,
       });
     }
-    return buildFinanceViewerStatus({
+    if (workflowType === "loan") {
+      return buildLoanViewerStatus({
+        approvalActionsVisible,
+        ownerActionsVisible,
+        handlerActionsVisible,
+        requestStatus,
+        workflowStatus,
+        availableActions,
+        pendingStep,
+        roles,
+        permissions,
+        statusTone,
+        handlerRoleLabel: request?.request_type?.handler_role_label,
+      });
+    }
+    return buildPaymentViewerStatus({
       approvalActionsVisible,
       ownerActionsVisible,
-      financeActionsVisible,
+      handlerActionsVisible,
       requestStatus,
       workflowStatus,
       availableActions,
@@ -396,8 +414,8 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   }, [
     approvalActionsVisible,
     availableActions,
-    family,
-    financeActionsVisible,
+    workflowType,
+    handlerActionsVisible,
     ownerActionsVisible,
     pendingApprovals,
     permissions,
@@ -409,8 +427,8 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   ]);
 
   const financeProgress = useMemo(() => {
-    if (!request || family === "hr") return { label: "", hint: "" };
-    return buildFinanceProgress({
+    if (!request || workflowType !== "payment") return { label: "", hint: "" };
+    return buildPaymentProgress({
       requestStatus,
       requestTotal,
       disbursedTotal: finance.disbursedTotal,
@@ -420,11 +438,22 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   }, [
     finance.disbursedTotal,
     finance.remainingDisbursement,
-    family,
+    workflowType,
     request,
     requestStatus,
     requestTotal,
   ]);
+
+  const loanProgress = useMemo(() => {
+    if (!request || workflowType !== "loan") return { label: "", hint: "" };
+    return buildLoanProgress({
+      requestStatus,
+      requestTotal,
+      disbursedTotal: 0,
+      repaidTotal: 0,
+      currency: request.currency,
+    });
+  }, [workflowType, request, requestStatus, requestTotal]);
 
   const disbursementButtonLabel =
     requestStatus === "disbursed" &&
@@ -532,7 +561,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
 
   const summaryCards = useMemo(() => {
     if (!request) return [];
-    if (family === "hr") {
+    if (workflowType === "leave") {
       return [
         {
           label: "Leave Dates",
@@ -573,7 +602,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
     ];
   }, [
     availableActions,
-    family,
+    workflowType,
     organizationName,
     pendingApprovals,
     request,
@@ -901,7 +930,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
           action === "submit"
             ? "The request has been submitted into workflow."
             : action === "approve"
-              ? financeActionsVisible
+              ? handlerActionsVisible
                 ? "The request has been cleared for disbursement or the next finance step."
                 : "Your approval has been recorded."
               : action === "reject"
@@ -981,6 +1010,54 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
     }
   }
 
+  const contextValue: RequestDetailsContextValue = {
+    request: request ?? null,
+    requestData: requestData as Record<string, unknown>,
+    requestTotal,
+    workflowType,
+    workflowStatus,
+    requestStatus,
+    handlerRoleLabel: request?.request_type?.handler_role_label ?? null,
+    detailView,
+    parentPath,
+    parentLabel,
+    currentUserId,
+    availableActions,
+    approvalActionsVisible,
+    ownerActionsVisible,
+    handlerActionsVisible,
+    isFinancePendingStep,
+    canSubmit,
+    canEditRequest,
+    viewerStatus,
+    financeProgress,
+    loanProgress,
+    workflow,
+    pendingApprovals,
+    completedApprovals,
+    finance,
+    disbursementButtonLabel,
+    categoryName,
+    projectName,
+    teamName,
+    organizationName,
+    handoverColleagueName,
+    lineItems,
+    documents,
+    requestTags: requestTags as Array<{ id: string; label: string }>,
+    canShowNudge,
+    nudgeHeadline,
+    nudgeMessage,
+    activityItems,
+    actionBusy,
+    actionComment,
+    setActionComment,
+    handleWorkflowAction,
+    handleDownloadArtifact,
+    handleDeleteDraft,
+    copyNudge,
+  };
+
   if (!id) {
     return (
       <AppShell
@@ -1006,727 +1083,149 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
   }
 
   return (
-    <AppShell
-      navigation={buildRequestsNavigation({
-        includeRequestDetails:
-          detailView === "mine" || detailView === "approvals",
-        requestDetailsPath: detailPathForView(detailView, id),
-        requestDetailsParent: detailView === "finance" ? "finance" : "requests",
-      })}
-      activeLabel={detailActiveLabel}
-      user={{ name: "Alex Sterling", role: "Fleet Operations" }}
-      mobileNav={detailMobileNav}
-    >
-      <div className="hidden lg:block">
-        <PageHeader
-          breadcrumbs={
-            detailView === "finance"
-              ? [
-                { label: "Finance", path: "/finance" },
-                { label: parentLabel, path: parentPath },
-                { label: request?.request_number || "Details" },
-              ]
-              : detailView === "hr"
+    <RequestDetailsContext.Provider value={contextValue}>
+      <AppShell
+        navigation={buildRequestsNavigation({
+          includeRequestDetails:
+            detailView === "mine" || detailView === "approvals",
+          requestDetailsPath: detailPathForView(detailView, id),
+          requestDetailsParent: detailView === "finance" ? "finance" : "requests",
+        })}
+        activeLabel={detailActiveLabel}
+        user={{ name: "Alex Sterling", role: "Fleet Operations" }}
+        mobileNav={detailMobileNav}
+      >
+        <div className="hidden lg:block">
+          <PageHeader
+            breadcrumbs={
+              detailView === "finance"
                 ? [
-                  { label: "HR", path: "/hr" },
-                  { label: parentLabel, path: parentPath },
-                  { label: request?.request_number || "Details" },
-                ]
-              : [
-                { label: "Requests", path: parentPath },
-                { label: parentLabel, path: parentPath },
-                { label: request?.request_number || "Details" },
-              ]
-          }
-          title={
-            request?.request_number ||
-            (loading ? "Loading request..." : "Request details")
-          }
-          description={
-            request
-              ? `${request?.request_type?.name || requestFamilyFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
-              : "Review the request details, activity, and next step."
-          }
-          actions={
-            <div className="flex flex-wrap items-center gap-3">
-              <Link
-                to={parentPath}
-                className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-              >
-                <Icon name="arrow_back" className="text-[18px]" />
-                Back to {parentLabel}
-              </Link>
-              {canEditRequest ? (
+                    { label: "Finance", path: "/finance" },
+                    { label: parentLabel, path: parentPath },
+                    { label: request?.request_number || "Details" },
+                  ]
+                : detailView === "hr"
+                  ? [
+                      { label: "HR", path: "/hr" },
+                      { label: parentLabel, path: parentPath },
+                      { label: request?.request_number || "Details" },
+                    ]
+                  : [
+                      { label: "Requests", path: parentPath },
+                      { label: parentLabel, path: parentPath },
+                      { label: request?.request_number || "Details" },
+                    ]
+            }
+            title={
+              request?.request_number ||
+              (loading ? "Loading request..." : "Request details")
+            }
+            description={
+              request
+                ? `${request?.request_type?.name || workflowTypeFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
+                : "Review the request details, activity, and next step."
+            }
+            actions={
+              <div className="flex flex-wrap items-center gap-3">
                 <Link
-                  to={`${family === "hr" ? "/leave/new/form" : "/requests/new/form"}?edit=${id}&typeId=${request?.request_type?.id || ""}`}
-                  className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                  to={parentPath}
+                  className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                 >
-                  <Icon name="edit" className="text-[18px]" />
-                  {workflowStatus === "returned" ? "Edit Returned Request" : "Edit Draft"}
+                  <Icon name="arrow_back" className="text-[18px]" />
+                  Back to {parentLabel}
                 </Link>
-              ) : null}
-            </div>
-          }
-        />
-
-        {loading ? (
-          <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-            Loading request details...
-          </div>
-        ) : error ? (
-          <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
-            {error}
-          </div>
-        ) : request ? (
-          <div className="grid gap-6 lg:grid-cols-12">
-            <div className="space-y-6 lg:col-span-8">
-              <SectionCard
-                title="Request Summary"
-                action={
-                  <Chip variant={viewerStatus.tone}>{viewerStatus.label}</Chip>
-                }
-              >
-                <p className="max-w-3xl text-sm leading-7 text-slate-600">
-                  {String(
-                    requestData.purpose ||
-                    requestData.leave_reason ||
-                    "No summary provided.",
-                  )}
-                </p>
-                {family !== "hr" ? (
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    {categoryName && categoryName !== "-" ? (
-                      <Chip variant="neutral">Category: {categoryName}</Chip>
-                    ) : null}
-                    {requestTags.map((tag) => (
-                      <Chip key={tag.id} variant="pending">
-                        #{tag.label}
-                      </Chip>
-                    ))}
-                  </div>
+                {canEditRequest ? (
+                  <Link
+                    to={`${workflowType === "leave" ? "/leave/new/form" : "/requests/new/form"}?edit=${id}&typeId=${request?.request_type?.id || ""}`}
+                    className="inline-flex items-center gap-2 rounded-full bg-brand-900 px-5 py-3 text-sm font-semibold text-white transition hover:bg-brand-700 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                  >
+                    <Icon name="edit" className="text-[18px]" />
+                    {workflowStatus === "returned" ? "Edit Returned Request" : "Edit Draft"}
+                  </Link>
                 ) : null}
+              </div>
+            }
+          />
 
-                <div className="mt-5 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-                  {summaryCards.map((card) => (
-                    <StatCard
-                      key={card.label}
-                      label={card.label}
-                      value={card.value}
-                      tone={card.tone}
-                    />
-                  ))}
-                </div>
-              </SectionCard>
-
-              {family === "hr" ? (
-                <LeaveRequestBody
-                  requestData={requestData}
-                  handoverColleagueName={handoverColleagueName}
-                />
+          {loading ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              Loading request details...
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
+              {error}
+            </div>
+          ) : request ? (
+            <>
+              <div className="rounded-lg border border-yellow-400 bg-yellow-50 px-3 py-2 text-xs font-mono mb-2">
+                <strong>DEBUG</strong> | workflowType: <strong>{workflowType}</strong> | rt.workflow_type: <strong>{String(request.request_type?.workflow_type ?? "undefined")}</strong> | rt.taxonomy_keys: <strong>{JSON.stringify(request.request_type?.taxonomy_keys)}</strong>
+              </div>
+              {workflowType === "leave" ? (
+                <LeaveRequestDetail isMobile={false} />
+              ) : workflowType === "loan" ? (
+                <LoanRequestDetail isMobile={false} />
+              ) : workflowType === "payment" ? (
+                <PaymentRequestDetail isMobile={false} />
               ) : (
-                <FinanceRequestBody
-                  request={request}
-                  requestData={requestData}
-                  categoryName={categoryName}
-                  projectName={projectName}
-                  teamName={teamName}
-                  organizationName={organizationName}
-                  requestTags={requestTags}
-                  lineItems={lineItems}
-                  currentUserId={currentUserId}
-                  ownerActionsVisible={ownerActionsVisible}
-                  availableActions={availableActions}
-                  actionBusy={actionBusy}
-                  finance={finance}
-                  financeProgress={financeProgress}
-                  onHandleDisburse={() => handleWorkflowAction("disburse")}
-                  onHandleRetire={() => handleWorkflowAction("retire")}
-                  onHandleDownloadArtifact={async (action, voucherId) => {
-                    await handleDownloadArtifact(action, voucherId);
-                  }}
-                />
+                <OtherRequestDetail isMobile={false} />
               )}
-
-              <SectionCard title="Supporting Documents">
-                {documents.length ? (
-                  <div className="grid gap-3 md:grid-cols-2">
-                    {documents.map((doc) => (
-                      <article
-                        key={doc.id}
-                        className="flex items-start gap-3 rounded-[18px] border border-slate-100 bg-slate-50 px-4 py-4"
-                      >
-                        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-900/10 text-brand-900">
-                          <Icon name="description" className="text-[20px]" />
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-semibold text-slate-950">
-                            {doc.file_name}
-                          </p>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {doc.mime_type || "Document"}
-                          </p>
-                        </div>
-                        {doc.public_url ? (
-                          <a
-                            href={doc.public_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex"
-                          >
-                            <Button variant="secondary" size="sm">
-                              Open
-                            </Button>
-                          </a>
-                        ) : null}
-                      </article>
-                    ))}
-                  </div>
-                ) : (
-                  <EmptyState
-                    title="No supporting documents"
-                    description="No files are attached to this request yet."
-                  />
-                )}
-              </SectionCard>
-
-              <SectionCard title="Activity">
-                <ActivityFeed
-                  items={activityItems}
-                  emptyState="No activity recorded for this request yet."
-                  limit={3}
-                />
-              </SectionCard>
-            </div>
-
-            <RightRail className="lg:col-span-4">
-              <section className="section-card bg-brand-900 p-5 text-white">
-                <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-                  {family === "hr" ? "Request Type" : "Current Total"}
-                </p>
-                {family === "hr" ? (
-                  <h3 className="mt-3 text-[1.65rem] font-semibold tracking-tight">
-                    {request.request_type?.name || requestFamilyFromRecord(request)}
-                  </h3>
-                ) : (
-                  <div className="mt-3 flex items-baseline gap-2">
-                    <h3 className="text-[1.65rem] font-semibold tracking-tight">
-                      {formatCurrency(request.total_amount, request.currency)}
-                    </h3>
-                    {finance.disbursedTotal > 0 ? (
-                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-white/60">
-                        / {formatCurrency(finance.disbursedTotal, request.currency)} disbursed
-                      </span>
-                    ) : null}
-                  </div>
-                )}
-                <p className="mt-3 text-sm leading-6 text-white/85">
-                  {family === "hr"
-                    ? "This request follows the leave workflow and approval sequence."
-                    : "This total is calculated from the submitted request items and their supporting attachments."}
-                </p>
-              </section>
-
-              <section className="section-card bg-brand-900 p-5 text-white">
-                <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-                  Status For You
-                </p>
-                <h3 className="mt-3 text-sm font-semibold uppercase tracking-[0.08em] text-white/70">
-                  {viewerStatus.label}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-white/85">
-                  {viewerStatus.hint}
-                </p>
-                {financeActionsVisible && financeProgress.label ? (
-                  <div className="mt-4 rounded-[18px] bg-white/10 px-4 py-3">
-                    <div className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/60">
-                      Finance Progress
-                    </div>
-                    <div className="mt-1 text-sm font-semibold text-white">
-                      {financeProgress.label}
-                    </div>
-                    <div className="mt-1 text-sm leading-6 text-white/75">
-                      {financeProgress.hint}
-                    </div>
-                  </div>
-                ) : null}
-                {!isFinancePendingStep && approvalActionsVisible &&
-                  availableActions.some((action: string) =>
-                    ["approve", "reject", "return"].includes(action),
-                  ) ? (
-                  <div className="mt-4 space-y-3">
-                    <TextAreaField
-                      label="Decision note"
-                      helpText={
-                        availableActions.includes("return")
-                          ? "Required for Return. Optional for Approve/Reject."
-                          : "Optional context for the requester and audit trail."
-                      }
-                      value={actionComment}
-                      onChange={(event) => setActionComment(event.target.value)}
-                      rows={3}
-                      className="border-white/20 bg-white/10 text-white placeholder:text-white/50"
-                    />
-                    <div className="grid gap-3 sm:grid-cols-3">
-                      <Button
-                        variant="secondary"
-                        className="w-full justify-center"
-                        onClick={() => void handleWorkflowAction("approve")}
-                        disabled={actionBusy !== ""}
-                      >
-                        {actionBusy === "approve"
-                          ? financeActionsVisible
-                            ? "Clearing..."
-                            : "Approving..."
-                          : financeActionsVisible
-                            ? "Clear Request"
-                            : "Approve "}
-                      </Button>
-                      <Button
-                        variant="danger"
-                        className="w-full justify-center"
-                        onClick={() => void handleWorkflowAction("reject")}
-                        disabled={actionBusy !== ""}
-                      >
-                        {actionBusy === "reject" ? "Rejecting..." : "Reject "}
-                      </Button>
-                      {availableActions.includes("return") ? (
-                        <Button
-                          variant="secondary"
-                          className="w-full justify-center"
-                          onClick={() => void handleWorkflowAction("return")}
-                          disabled={actionBusy !== ""}
-                        >
-                          {actionBusy === "return"
-                            ? "Returning..."
-                            : "Return for Edit"}
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
-                ) : null}
-                {isFinancePendingStep && approvalActionsVisible ? (
-                  <p className="mt-4 text-sm text-white/75">
-                    This step requires Finance clearance.{" "}
-                    <Link
-                      to={`/finance/requests/${id}`}
-                      className="font-medium text-white underline"
-                    >
-                      Open in Finance
-                    </Link>
-                  </p>
-                ) : null}
-                {ownerActionsVisible && canSubmit ? (
-                  <Button
-                    variant="secondary"
-                    className="mt-4 w-full justify-center"
-                    onClick={() => void handleWorkflowAction("submit")}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "submit"
-                      ? "Submitting..."
-                      : workflowStatus === "returned"
-                        ? "Resubmit Request"
-                        : "Submit Request"}
-                  </Button>
-                ) : null}
-                {financeActionsVisible &&
-                  (requestStatus === "cleared" ||
-                    (requestStatus === "disbursed" &&
-                      requestTotal > finance.disbursedTotal)) ? (
-                  <Button
-                    variant="secondary"
-                    className="mt-4 w-full justify-center"
-                    onClick={() => finance.openDisburseDialog()}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "disburse"
-                      ? "Disbursing..."
-                      : disbursementButtonLabel}
-                  </Button>
-                ) : null}
-                {ownerActionsVisible && availableActions.includes("confirm") ? (
-                  <Button
-                    variant="secondary"
-                    className="mt-4 w-full justify-center"
-                    onClick={() => void handleWorkflowAction("confirm")}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "confirm"
-                      ? "Confirming..."
-                      : "Confirm Receipt"}
-                  </Button>
-                ) : null}
-                {ownerActionsVisible && availableActions.includes("retire") ? (
-                  <Button
-                    variant="secondary"
-                    className="mt-4 w-full justify-center"
-                    onClick={() => finance.openRetireDialog()}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "retire" ? "Preparing..." : "Retire"}
-                  </Button>
-                ) : null}
-                {financeActionsVisible &&
-                  availableActions.includes("complete") ? (
-                  <Button
-                    variant="secondary"
-                    className="mt-4 w-full justify-center"
-                    onClick={() => void handleWorkflowAction("complete")}
-                    disabled={actionBusy !== ""}
-                  >
-                    {actionBusy === "complete"
-                      ? "Completing..."
-                      : "Complete Request"}
-                  </Button>
-                ) : null}
-              </section>
-
-              <SectionCard title="Downloads & Draft">
-                <div className="space-y-3">
-                  <DownloadDropdown
-                    actionBusy={actionBusy}
-                    onDownloadRequestPdf={() =>
-                      void handleDownloadArtifact("request_pdf")
-                    }
-                    onDownloadFullDocument={() =>
-                      void handleDownloadArtifact("full_document")
-                    }
-                    includeFullDocument={family !== "hr"}
-                  />
-                  {workflowStatus === "draft" ? (
-                    <Button
-                      variant="danger"
-                      className="w-full justify-center"
-                      onClick={() => void handleDeleteDraft()}
-                      disabled={actionBusy !== ""}
-                    >
-                      {actionBusy === "delete" ? "Deleting..." : "Delete Draft"}
-                    </Button>
-                  ) : null}
-                </div>
-              </SectionCard>
-
-              {canShowNudge ? (
-                <section className="section-card p-5">
-                  <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                    Need a nudge?
-                  </p>
-                  <h3 className="mt-3 text-sm font-semibold text-slate-950">
-                    {nudgeHeadline}
-                  </h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-500">
-                    You do not have an action right now, but you can still
-                    remind the next reviewer to move this forward.
-                  </p>
-                  <div className="mt-4 rounded-[18px] bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                    {viewerStatus.hint}
-                  </div>
-                  <Button
-                    className="mt-4 w-full justify-center"
-                    variant="secondary"
-                    onClick={() => void copyNudge()}
-                  >
-                    Copy reminder
-                  </Button>
-                </section>
-              ) : null}
-
-              <SectionCard title="Approval Workflow">
-                <WorkflowStepper steps={workflow} />
-              </SectionCard>
-            </RightRail>
-          </div>
-        ) : null}
-      </div>
-
-      <div className="space-y-4 lg:hidden">
-        <div className="pt-1">
-          <button
-            type="button"
-            onClick={() => navigate(parentPath)}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-          >
-            <Icon name="arrow_back" className="text-[16px]" />
-            Back to {parentLabel}
-          </button>
-
-          <div className="mt-3 flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                {parentLabel}
-              </p>
-              <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">
-                {request?.request_number || "Request details"}
-              </h1>
-              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                {request
-                  ? `${request.request_type?.name || requestFamilyFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
-                  : "Loading..."}
-              </p>
-            </div>
-            {request ? (
-              <Chip variant={viewerStatus.tone}>{viewerStatus.label}</Chip>
-            ) : null}
-          </div>
+            </>
+          ) : null}
         </div>
 
-        {request ? (
-          <>
-            <section className="section-card bg-brand-900 p-5 text-white">
-              <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-                Status For You
-              </p>
-              <h2 className="mt-3 text-base font-semibold uppercase tracking-[0.08em] text-white/70">
-                {viewerStatus.label}
-              </h2>
-              <p className="mt-2 text-sm leading-6 text-white/85">
-                {viewerStatus.hint}
-              </p>
-            </section>
+        <div className="space-y-4 lg:hidden">
+          <div className="pt-1">
+            <button
+              type="button"
+              onClick={() => navigate(parentPath)}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+            >
+              <Icon name="arrow_back" className="text-[16px]" />
+              Back to {parentLabel}
+            </button>
 
-            <SectionCard title="Summary">
-              <p className="text-sm leading-6 text-slate-600">
-                {String(
-                  requestData.purpose ||
-                  requestData.leave_reason ||
-                  "No summary provided.",
-                )}
-              </p>
-              <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                {summaryCards.map((card) => (
-                  <StatCard
-                    key={card.label}
-                    label={card.label}
-                    value={card.value}
-                    tone={card.tone}
-                  />
-                ))}
+            <div className="mt-3 flex items-start justify-between gap-4">
+              <div>
+                <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+                  {parentLabel}
+                </p>
+                <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">
+                  {request?.request_number || "Request details"}
+                </h1>
+                <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                  {request
+                    ? `${request.request_type?.name || workflowTypeFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
+                    : "Loading..."}
+                </p>
               </div>
-            </SectionCard>
+              {request ? (
+                <Chip variant={viewerStatus.tone}>{viewerStatus.label}</Chip>
+              ) : null}
+            </div>
+          </div>
 
-            {family === "hr" ? (
-              <LeaveRequestBody
-                requestData={requestData}
-                handoverColleagueName={handoverColleagueName}
-              />
+          {loading ? (
+            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
+              Loading request details...
+            </div>
+          ) : error ? (
+            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
+              {error}
+            </div>
+          ) : request ? (
+            workflowType === "leave" ? (
+              <LeaveRequestDetail isMobile={true} />
+            ) : workflowType === "loan" ? (
+              <LoanRequestDetail isMobile={true} />
+            ) : workflowType === "payment" ? (
+              <PaymentRequestDetail isMobile={true} />
             ) : (
-              <FinanceRequestBody
-                request={request}
-                requestData={requestData}
-                categoryName={categoryName}
-                projectName={projectName}
-                teamName={teamName}
-                organizationName={organizationName}
-                requestTags={requestTags}
-                lineItems={lineItems}
-                currentUserId={currentUserId}
-                ownerActionsVisible={ownerActionsVisible}
-                availableActions={availableActions}
-                actionBusy={actionBusy}
-                finance={finance}
-                financeProgress={financeProgress}
-                onHandleDisburse={() => handleWorkflowAction("disburse")}
-                onHandleRetire={() => handleWorkflowAction("retire")}
-                onHandleDownloadArtifact={async (action, voucherId) => {
-                  await handleDownloadArtifact(action, voucherId);
-                }}
-              />
-            )}
-
-            <SectionCard title="Approval Workflow">
-              <WorkflowStepper steps={workflow} />
-            </SectionCard>
-
-            <SectionCard title="Actions">
-              <DownloadDropdown
-                actionBusy={actionBusy}
-                onDownloadRequestPdf={() =>
-                  void handleDownloadArtifact("request_pdf")
-                }
-                onDownloadFullDocument={() =>
-                  void handleDownloadArtifact("full_document")
-                }
-                includeFullDocument={family !== "hr"}
-              />
-              {workflowStatus === "draft" ? (
-                <Button
-                  variant="danger"
-                  className="mb-4 w-full justify-center"
-                  onClick={() => void handleDeleteDraft()}
-                  disabled={actionBusy !== ""}
-                >
-                  {actionBusy === "delete" ? "Deleting..." : "Delete Draft"}
-                </Button>
-              ) : null}
-              {!isFinancePendingStep && approvalActionsVisible &&
-                availableActions.some(
-                  (action: string) =>
-                    action === "approve" ||
-                    action === "reject" ||
-                    action === "return",
-                ) ? (
-                <>
-                  <TextAreaField
-                    label="Decision note"
-                    helpText={
-                      availableActions.includes("return")
-                        ? "Required for Return. Optional for Approve/Reject."
-                        : "Optional context for the requester and audit trail."
-                    }
-                    value={actionComment}
-                    onChange={(event) => setActionComment(event.target.value)}
-                    rows={3}
-                  />
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <Button
-                      variant="secondary"
-                      className="w-full justify-center"
-                      onClick={() => void handleWorkflowAction("approve")}
-                      disabled={actionBusy !== ""}
-                    >
-                      {actionBusy === "approve"
-                        ? financeActionsVisible
-                          ? "Clearing..."
-                          : "Approving..."
-                        : financeActionsVisible
-                          ? "Clear Request"
-                          : "Approve Request"}
-                    </Button>
-                    <Button
-                      variant="danger"
-                      className="w-full justify-center"
-                      onClick={() => void handleWorkflowAction("reject")}
-                      disabled={actionBusy !== ""}
-                    >
-                      {actionBusy === "reject"
-                        ? "Rejecting..."
-                        : "Reject Request"}
-                    </Button>
-                    {availableActions.includes("return") ? (
-                      <Button
-                        variant="secondary"
-                        className="w-full justify-center"
-                        onClick={() => void handleWorkflowAction("return")}
-                        disabled={actionBusy !== ""}
-                      >
-                        {actionBusy === "return"
-                          ? "Returning..."
-                          : "Return for Edit"}
-                      </Button>
-                    ) : null}
-                  </div>
-                </>
-              ) : null}
-              {isFinancePendingStep && approvalActionsVisible ? (
-                <p className="mt-4 text-sm text-slate-600">
-                  This step requires Finance clearance.{" "}
-                  <Link
-                    to={`/finance/requests/${id}`}
-                    className="font-medium text-brand-700 underline"
-                  >
-                    Open in Finance
-                  </Link>
-                </p>
-              ) : null}
-              {ownerActionsVisible && availableActions.includes("submit") ? (
-                <Button
-                  className="mt-4 w-full justify-center"
-                  onClick={() => void handleWorkflowAction("submit")}
-                  disabled={actionBusy !== ""}
-                >
-                  {actionBusy === "submit"
-                    ? "Submitting..."
-                    : workflowStatus === "returned"
-                      ? "Resubmit Request"
-                      : "Submit Request"}
-                </Button>
-              ) : null}
-              {financeActionsVisible &&
-                (requestStatus === "cleared" ||
-                  (requestStatus === "disbursed" &&
-                    requestTotal > finance.disbursedTotal)) ? (
-                <Button
-                  variant="secondary"
-                  className="mt-4 w-full justify-center"
-                  onClick={() => finance.openDisburseDialog()}
-                  disabled={actionBusy !== ""}
-                >
-                  {actionBusy === "disburse"
-                    ? "Disbursing..."
-                    : disbursementButtonLabel}
-                </Button>
-              ) : null}
-              {ownerActionsVisible && availableActions.includes("confirm") ? (
-                <Button
-                  variant="secondary"
-                  className="mt-4 w-full justify-center"
-                  onClick={() => void handleWorkflowAction("confirm")}
-                  disabled={actionBusy !== ""}
-                >
-                  {actionBusy === "confirm"
-                    ? "Confirming..."
-                    : "Confirm Receipt"}
-                </Button>
-              ) : null}
-              {ownerActionsVisible && availableActions.includes("retire") ? (
-                <Button
-                  variant="secondary"
-                  className="mt-4 w-full justify-center"
-                  onClick={() => finance.openRetireDialog()}
-                  disabled={actionBusy !== ""}
-                >
-                  {actionBusy === "retire" ? "Preparing..." : "Retire PV"}
-                </Button>
-              ) : null}
-              {financeActionsVisible &&
-                availableActions.includes("complete") ? (
-                <Button
-                  variant="secondary"
-                  className="mt-4 w-full justify-center"
-                  onClick={() => void handleWorkflowAction("complete")}
-                  disabled={actionBusy !== ""}
-                >
-                  {actionBusy === "complete"
-                    ? "Completing..."
-                    : "Complete Request"}
-                </Button>
-              ) : null}
-            </SectionCard>
-
-            {canShowNudge ? (
-              <SectionCard title="Need a nudge?">
-                <p className="text-sm leading-6 text-slate-600">
-                  {nudgeHeadline}
-                </p>
-                <p className="mt-2 text-sm leading-6 text-slate-500">
-                  You do not have an action right now, but you can still remind
-                  the next reviewer to move this forward.
-                </p>
-                <div className="mt-4 rounded-[18px] bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                  {viewerStatus.hint}
-                </div>
-                <Button
-                  className="mt-4 w-full justify-center"
-                  variant="secondary"
-                  onClick={() => void copyNudge()}
-                >
-                  Copy reminder
-                </Button>
-              </SectionCard>
-            ) : null}
-
-            <SectionCard title="Activity">
-              <ActivityFeed
-                items={activityItems}
-                emptyState="No activity recorded yet."
-                limit={3}
-              />
-            </SectionCard>
-          </>
-        ) : null}
-      </div>
-
-    </AppShell>
+              <OtherRequestDetail isMobile={true} />
+            )
+          ) : null}
+        </div>
+      </AppShell>
+    </RequestDetailsContext.Provider>
   );
 }
 

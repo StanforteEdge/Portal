@@ -41,10 +41,10 @@ import {
   type RequestRecord,
 } from "@/pages/requests/requests-api";
 import {
-  requestFamilyFromType,
-  requestFamilyLabel,
+  workflowTypeFromType,
+  workflowTypeLabel,
   buildGroupMap,
-  type RequestFamily,
+  type WorkflowType,
 } from "@/pages/requests/request-helpers";
 import {
   listEntityTags,
@@ -118,10 +118,10 @@ function itemTotal(item: ItemState) {
   );
 }
 
-function familyDescription(family: RequestFamily) {
-  if (family === "hr")
+function workflowDescription(workflowType: WorkflowType) {
+  if (workflowType === "leave")
     return "Complete the leave request details and coverage plan before submission.";
-  if (family === "financial")
+  if (workflowType === "payment")
     return "Capture the funding purpose, work context, and itemized costs.";
   return "Complete the shared request details for this workflow.";
 }
@@ -173,10 +173,10 @@ function mapRequestToForm(request: RequestRecord): FormState {
 function buildPayload(
   form: FormState,
   selectedType: RequestTypeOption | undefined,
-  family: RequestFamily,
+  workflowType: WorkflowType,
 ) {
   const items: RequestItemInput[] =
-    family === "hr"
+    workflowType === "leave"
       ? []
       : form.items.map((item) => ({
           description: item.description.trim(),
@@ -193,22 +193,22 @@ function buildPayload(
       purpose: form.purpose.trim(),
       reimbursement: form.reimbursement,
       category_id:
-        family === "hr" ? undefined : form.category_id || undefined,
-      project_id: family === "hr" ? undefined : form.project_id || undefined,
+        workflowType === "leave" ? undefined : form.category_id || undefined,
+      project_id: workflowType === "leave" ? undefined : form.project_id || undefined,
       team_id: form.team_id || undefined,
       organization_id: form.organization_id || undefined,
       vendor_id: form.vendor_id || undefined,
       due_date: form.due_date || undefined,
       start_date:
-        family === "hr" ? form.leave_start_date || undefined : undefined,
+        workflowType === "leave" ? form.leave_start_date || undefined : undefined,
       end_date:
-        family === "hr" ? form.leave_end_date || undefined : undefined,
+        workflowType === "leave" ? form.leave_end_date || undefined : undefined,
       days_requested:
-        family === "hr" && form.leave_days_requested
+        workflowType === "leave" && form.leave_days_requested
           ? Number(form.leave_days_requested)
           : undefined,
       leave_type_key:
-        family === "hr"
+        workflowType === "leave"
           ? String(
               selectedType?.form_schema?.leave_type_key ||
                 selectedType?.name ||
@@ -220,11 +220,11 @@ function buildPayload(
               .replace(/^_+|_+$/g, "")
           : undefined,
       handover_user_id:
-        family === "hr"
+        workflowType === "leave"
           ? form.leave_handover_user_id || undefined
           : undefined,
       handover_notes:
-        family === "hr"
+        workflowType === "leave"
           ? form.leave_handover_notes.trim() || undefined
           : undefined,
     },
@@ -236,14 +236,14 @@ function buildPayload(
 
 function validateForm(
   form: FormState,
-  family: RequestFamily,
+  workflowType: WorkflowType,
   options?: { minNoticeDays?: number; maxDaysPerRequest?: number },
 ) {
   if (!form.request_type_id) return "Select a request type.";
   if (!form.purpose.trim())
-    return family === "hr" ? "Reason is required." : "Purpose is required.";
+    return workflowType === "leave" ? "Reason is required." : "Purpose is required.";
 
-  if (family === "hr") {
+  if (workflowType === "leave") {
     if (!form.leave_start_date || !form.leave_end_date)
       return "Leave start and end dates are required.";
     if (new Date(form.leave_end_date) < new Date(form.leave_start_date)) {
@@ -465,7 +465,7 @@ export function RequestFormPage() {
       ),
     [form.request_type_id, requestTypes, typeId],
   );
-  const family = requestFamilyFromType(selectedType, groupMap);
+  const workflowType = workflowTypeFromType(selectedType, groupMap);
   const handoverOptions = useMemo(
     () => buildHandoverOptions(teams ?? []),
     [teams],
@@ -508,7 +508,7 @@ export function RequestFormPage() {
   );
 
   useEffect(() => {
-    if (family === "hr") return;
+    if (workflowType === "leave") return;
     if (categoryOptions.length === 1 && !form.category_id) {
       setForm((prev) => ({ ...prev, category_id: categoryOptions[0].value }));
       return;
@@ -520,10 +520,10 @@ export function RequestFormPage() {
     ) {
       setForm((prev) => ({ ...prev, category_id: "" }));
     }
-  }, [categoryOptions, family, form.category_id]);
+  }, [categoryOptions, workflowType, form.category_id]);
 
   useEffect(() => {
-    if (family === "hr" && form.leave_start_date && form.leave_end_date) {
+    if (workflowType === "leave" && form.leave_start_date && form.leave_end_date) {
       const start = new Date(form.leave_start_date);
       const end = new Date(form.leave_end_date);
       if (
@@ -539,7 +539,7 @@ export function RequestFormPage() {
         }));
       }
     }
-  }, [family, form.leave_end_date, form.leave_start_date]);
+  }, [workflowType, form.leave_end_date, form.leave_start_date]);
 
   const { data: leaveBalanceData } = useCachedQuery(
     [
@@ -564,9 +564,9 @@ export function RequestFormPage() {
   );
 
   const leaveBalance = useMemo(() => {
-    if (family !== "hr") return null;
+    if (workflowType !== "leave") return null;
     return leaveBalanceData?.summary?.[0]?.available_days ?? null;
-  }, [family, leaveBalanceData]);
+  }, [workflowType, leaveBalanceData]);
 
   const minNoticeDays = Number(
     (selectedType?.form_schema as Record<string, unknown> | null)
@@ -580,11 +580,11 @@ export function RequestFormPage() {
   );
 
   const minStartDate = useMemo(() => {
-    if (family !== "hr" || minNoticeDays <= 0) return "";
+    if (workflowType !== "leave" || minNoticeDays <= 0) return "";
     const date = new Date();
     date.setDate(date.getDate() + minNoticeDays);
     return date.toISOString().slice(0, 10);
-  }, [family, minNoticeDays]);
+  }, [workflowType, minNoticeDays]);
 
   const organizationOptions = (organizations ?? []).map(
     (entry: MyOrganization) => entry.organization,
@@ -592,7 +592,7 @@ export function RequestFormPage() {
   const projectOptions = projects ?? [];
 
   async function handleSave(submitAfterSave: boolean) {
-    const error = validateForm(form, family, {
+    const error = validateForm(form, workflowType, {
       minNoticeDays,
       maxDaysPerRequest,
     });
@@ -608,7 +608,7 @@ export function RequestFormPage() {
     try {
       submitAfterSave ? setSubmitting(true) : setSavingDraft(true);
 
-      const payload = buildPayload(form, selectedType, family);
+      const payload = buildPayload(form, selectedType, workflowType);
       const created = editId
         ? await updateRequest(editId, payload)
         : await createRequest({
@@ -616,7 +616,7 @@ export function RequestFormPage() {
             ...payload,
           });
 
-      if (family !== "hr") {
+      if (workflowType !== "leave") {
         await replaceEntityTags("request", String(created.id), "request_tags", {
           term_ids: tags
             .filter((tag) => !tag.id.startsWith("new:"))
@@ -739,7 +739,7 @@ export function RequestFormPage() {
             selectedType?.name ||
             (loadingEdit ? "Loading request..." : "Request form")
           }
-          description={familyDescription(family)}
+          description={workflowDescription(workflowType)}
           actions={
             <Link
               to="/requests/new"
@@ -772,13 +772,13 @@ export function RequestFormPage() {
                   disabled={Boolean(editId)}
                 >
                   <option value="">Select request type</option>
-                    {(["financial", "hr", "other"] as const).map((fam) => {
+                    {(["payment", "leave", "loan", "other"] as const).map((fam) => {
                     const famTypes = (requestTypes ?? []).filter(
-                      (t: RequestTypeOption) => requestFamilyFromType(t, groupMap) === fam,
+                      (t: RequestTypeOption) => workflowTypeFromType(t, groupMap) === fam,
                     );
                     if (!famTypes.length) return null;
                     return (
-                      <optgroup key={fam} label={requestFamilyLabel(fam)}>
+                      <optgroup key={fam} label={workflowTypeLabel(fam)}>
                         {famTypes.map((type: RequestTypeOption) => (
                           <option key={type.id} value={type.id}>
                             {type.name}
@@ -789,7 +789,7 @@ export function RequestFormPage() {
                   })}
                 </SelectField>
 
-                {family === "hr" ? (
+                {workflowType === "leave" ? (
                   <TextField
                     label="Leave Days"
                     value={form.leave_days_requested}
@@ -810,7 +810,7 @@ export function RequestFormPage() {
                 )}
               </div>
 
-              {family !== "hr" ? (
+              {workflowType !== "leave" ? (
                 <div className="mt-4 grid gap-4 lg:grid-cols-2">
                   <SelectField
                     label="Category"
@@ -859,24 +859,24 @@ export function RequestFormPage() {
               ) : null}
             </SectionCard>
             <SectionCard
-              title={family === "hr" ? "Reason" : "Purpose"}
+              title={workflowType === "leave" ? "Reason" : "Purpose"}
               description="Provide the narrative context for this request."
             >
               <TextAreaField
-                label={family === "hr" ? "Reason for Request" : "Purpose"}
+                label={workflowType === "leave" ? "Reason for Request" : "Purpose"}
                 value={form.purpose}
                 onChange={(event) =>
                   setForm((prev) => ({ ...prev, purpose: event.target.value }))
                 }
                 placeholder={
-                  family === "hr"
+                  workflowType === "leave"
                     ? "Explain the leave reason and any planning context."
                     : "Explain why this request is needed and what outcome it supports."
                 }
               />
             </SectionCard>
 
-            {family === "hr" ? (
+            {workflowType === "leave" ? (
               <>
                 <SectionCard
                   title="Leave Schedule"
@@ -1288,21 +1288,21 @@ export function RequestFormPage() {
           <RightRail className="self-start lg:col-span-4 lg:sticky lg:top-28">
             <section className="section-card bg-brand-900 p-5 text-white">
               <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-                {family === "hr" ? "Leave Request" : "Current Total"}
+                {workflowType === "leave" ? "Leave Request" : "Current Total"}
               </p>
               <p className="mt-3 text-4xl font-semibold tracking-tight">
-                {family === "hr"
+                {workflowType === "leave"
                   ? form.leave_days_requested
                     ? `${form.leave_days_requested} day${Number(form.leave_days_requested) === 1 ? "" : "s"}`
                     : "— days"
                   : formatCurrency(totalAmount || 0)}
               </p>
               <p className="mt-2 text-sm leading-6 text-white/70">
-                {family === "hr"
+                {workflowType === "leave"
                   ? selectedType?.name || "Leave request"
                   : "The request total updates from the line items you add below."}
               </p>
-              {family === "hr" ? (
+              {workflowType === "leave" ? (
                 <div className="mt-4 space-y-2">
                   {leaveBalance !== null ? (
                     <div className="rounded-[18px] border border-white/10 bg-white/10 px-4 py-3">
@@ -1384,22 +1384,22 @@ export function RequestFormPage() {
             {selectedType?.name || "Request form"}
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
-            {familyDescription(family)}
+            {workflowDescription(workflowType)}
           </p>
         </div>
 
         <section className="section-card bg-brand-900 p-5 text-white">
           <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-            {family === "hr" ? "Leave Request" : "Current Total"}
+            {workflowType === "leave" ? "Leave Request" : "Current Total"}
           </p>
           <p className="mt-3 text-4xl font-semibold tracking-tight">
-            {family === "hr"
+            {workflowType === "leave"
               ? form.leave_days_requested
                 ? `${form.leave_days_requested} day${Number(form.leave_days_requested) === 1 ? "" : "s"}`
                 : "— days"
               : formatCurrency(totalAmount || 0)}
           </p>
-          {family === "hr" ? (
+          {workflowType === "leave" ? (
             <div className="mt-3 space-y-2">
               {leaveBalance !== null ? (
                 <p className="text-sm leading-6 text-white/85">
@@ -1442,7 +1442,7 @@ export function RequestFormPage() {
                 </option>
               ))}
             </SelectField>
-            {family === "hr" ? (
+            {workflowType === "leave" ? (
               <TextField
                 label="Leave Days"
                 value={form.leave_days_requested}
@@ -1459,7 +1459,7 @@ export function RequestFormPage() {
               />
             )}
           </div>
-          {family !== "hr" ? (
+          {workflowType !== "leave" ? (
             <div className="mt-4 grid gap-4">
               <SelectField
                 label="Category"
@@ -1489,9 +1489,9 @@ export function RequestFormPage() {
           ) : null}
         </SectionCard>
 
-        <SectionCard title={family === "hr" ? "Reason" : "Purpose"}>
+        <SectionCard title={workflowType === "leave" ? "Reason" : "Purpose"}>
           <TextAreaField
-            label={family === "hr" ? "Reason for Request" : "Purpose"}
+            label={workflowType === "leave" ? "Reason for Request" : "Purpose"}
             value={form.purpose}
             onChange={(event) =>
               setForm((prev) => ({ ...prev, purpose: event.target.value }))

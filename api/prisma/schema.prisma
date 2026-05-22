@@ -780,24 +780,42 @@ model RequestGroup {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  organization Organization?     @relation(fields: [organizationId], references: [id])
-  requestTypes RequestType[]
+  organization Organization?       @relation(fields: [organizationId], references: [id])
+  categories   RequestCategory[]
   requests     RequestInstance[]
 
   @@map("sta_request_groups")
 }
 
+model RequestCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  groupId     String   @map("group_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  code        String   @unique @db.VarChar(20)
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  group        RequestGroup  @relation(fields: [groupId], references: [id])
+  requestTypes RequestType[]
+
+  @@map("sta_request_categories")
+}
+
 model RequestType {
   id               String   @id @default(uuid()) @db.Uuid
-  groupId          String   @map("group_id") @db.Uuid
+  categoryId       String   @map("category_id") @db.Uuid
   name             String   @db.VarChar(100)
   codePrefix       String   @map("code_prefix") @db.VarChar(10)
-  categoryKey      String?  @map("category_key") @db.VarChar(100)
+  taxonomyKeys     Json?    @map("taxonomy_keys")
   description      String?
   storageType      String?  @map("storage_type") @db.VarChar(20)
   formSchema       Json?    @map("form_schema")
   approvalFlowJson Json?    @map("approval_flow_json")
   approvalLimit    Decimal? @map("approval_limit") @db.Decimal(15, 2)
+  visibleToRoles   Json?    @map("visible_to_roles")
   sequenceCounter  Int      @default(0) @map("sequence_counter")
   isActive         Boolean  @default(true) @map("is_active")
   workflowType     String?  @map("workflow_type") @db.VarChar(20)
@@ -806,10 +824,10 @@ model RequestType {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  group    RequestGroup      @relation(fields: [groupId], references: [id])
+  category RequestCategory   @relation(fields: [categoryId], references: [id])
   requests RequestInstance[]
 
-  @@unique([groupId, codePrefix], name: "unique_group_code_prefix")
+  @@unique([categoryId, codePrefix], name: "unique_category_code_prefix")
   @@map("sta_request_types")
 }
 

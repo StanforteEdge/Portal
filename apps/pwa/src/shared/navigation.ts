@@ -163,6 +163,7 @@ export function buildAppNavigation(options?: {
           children: [
             { key: "hr-payroll", label: "Payroll Runs", icon: "receipt_long", path: "/hr/payroll", permissions: ["payroll.manage"] },
             { key: "hr-payroll-workers", label: "Workers", icon: "group", path: "/hr/payroll/workers", permissions: ["payroll.manage"] },
+            { key: "hr-payroll-loans", label: "Loans", icon: "credit_score", path: "/hr/payroll/loans", permissions: ["payroll.manage"] },
           ],
         },
         { key: "hr-settings", label: "Settings", icon: "settings", path: "/hr/settings", permissions: ["hr.manage"] },

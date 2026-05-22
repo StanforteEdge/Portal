@@ -129,21 +129,30 @@ export class PayrollController {
   }
 
   @Get('loans')
-  @Permissions('finance.view')
+  @Permissions('finance.view', 'payroll.manage')
   listLoans(@Query() query: Record<string, any>) {
     return this.payrollService.listLoans(query);
   }
 
   @Post('loans')
-  @Permissions('finance.manage')
+  @Permissions('finance.manage', 'payroll.manage')
   createLoan(@Body() dto: UpsertPayrollLoanDto) {
     return this.payrollService.createLoan(dto);
   }
 
   @Post('loans/:id')
-  @Permissions('finance.manage')
+  @Permissions('finance.manage', 'payroll.manage')
   updateLoan(@Param('id') id: string, @Body() dto: UpsertPayrollLoanDto) {
     return this.payrollService.updateLoan(id, dto);
+  }
+
+  @Post('loans/:id/repayments')
+  @Permissions('finance.manage', 'payroll.manage')
+  logManualRepayment(
+    @Param('id') id: string,
+    @Body() body: { amount: number; notes?: string }
+  ) {
+    return this.payrollService.logManualRepayment(id, body.amount, body.notes);
   }
 
   @Get('timesheets')
@@ -267,19 +276,19 @@ export class PayrollController {
   }
 
   @Post('runs/:id/review')
-  @Permissions('finance.manage')
+  @Permissions('payroll.approve')
   reviewRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
     return this.payrollService.reviewRun(id, dto, req.user?.id);
   }
 
   @Post('runs/:id/approve')
-  @Permissions('finance.manage')
+  @Permissions('payroll.approve')
   approveRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
     return this.payrollService.approveRun(id, dto, req.user?.id);
   }
 
   @Post('runs/:id/reject')
-  @Permissions('finance.manage')
+  @Permissions('payroll.approve')
   rejectRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
     return this.payrollService.rejectRun(id, dto, req.user?.id);
   }
@@ -297,13 +306,13 @@ export class PayrollController {
   }
 
   @Post('runs/:id/close')
-  @Permissions('finance.manage')
+  @Permissions('payroll.approve')
   closeRun(@Req() req: any, @Param('id') id: string, @Body() dto: ReviewPayrollRunDto) {
     return this.payrollService.closeRun(id, dto, req.user?.id);
   }
 
   @Post('runs/:id/pay')
-  @Permissions('finance.manage')
+  @Permissions('payroll.approve')
   payRun(@Req() req: any, @Param('id') id: string, @Body() dto: PayPayrollRunDto) {
     return this.payrollService.payRun(id, dto, req.user?.id);
   }

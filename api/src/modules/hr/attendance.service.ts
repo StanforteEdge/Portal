@@ -1239,7 +1239,7 @@ export class AttendanceService {
       select: {
         id: true,
         data: true,
-        requestType: { select: { categoryKey: true, name: true } }
+        requestType: { select: { taxonomyKeys: true, name: true } }
       },
       orderBy: { createdAt: 'desc' },
       take: 250
@@ -1250,7 +1250,7 @@ export class AttendanceService {
       const leaveType = String(data.leave_type_key ?? data.leave_type ?? '').trim().toLowerCase();
       const startDateRaw = String(data.start_date ?? '').trim();
       const endDateRaw = String(data.end_date ?? '').trim();
-      const typeCategory = String(row.requestType?.categoryKey ?? '').trim().toLowerCase();
+      const typeCategory = String(row.requestType?.taxonomyKeys ?? '').trim().toLowerCase();
       const typeName = String(row.requestType?.name ?? '').trim().toLowerCase();
       if (!startDateRaw || !endDateRaw) continue;
       if (!leaveType && typeCategory !== 'leave' && !typeName.includes('leave')) continue;

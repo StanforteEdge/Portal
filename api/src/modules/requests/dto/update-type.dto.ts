@@ -1,4 +1,4 @@
-import { IsBoolean, IsNumber, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsBoolean, IsNumber, IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UpdateTypeDto {
@@ -17,10 +17,11 @@ export class UpdateTypeDto {
   @IsString()
   description?: string;
 
-  @ApiPropertyOptional({ example: 'finance_operational' })
+  @ApiPropertyOptional({ example: ['finance_operational'] })
   @IsOptional()
-  @IsString()
-  category_key?: string;
+  @IsArray()
+  @IsString({ each: true })
+  taxonomy_keys?: string[];
 
   @ApiPropertyOptional({ enum: ['json', 'form', 'special', 'bypass'], example: 'json' })
   @IsOptional()
@@ -60,6 +61,12 @@ export class UpdateTypeDto {
   @IsOptional()
   @IsNumber()
   approval_limit?: number;
+
+  @ApiPropertyOptional({ example: ['admin', 'finance.approve'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  visible_to_roles?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

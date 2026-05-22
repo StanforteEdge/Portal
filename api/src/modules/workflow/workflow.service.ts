@@ -24,7 +24,7 @@ export class WorkflowService {
       select: {
         workflowInstanceId: true,
         teamId: true,
-        requestType: { select: { name: true, categoryKey: true, approvalFlowJson: true } }
+        requestType: { select: { name: true, taxonomyKeys: true, approvalFlowJson: true } }
       }
     });
 
@@ -45,7 +45,7 @@ export class WorkflowService {
     }
 
     const baseSteps = this.extractApprovalSteps(existing.requestType.approvalFlowJson, params.amount ?? undefined);
-    const steps = this.normalizeStepsForLeave(existing.requestType.categoryKey, baseSteps);
+    const steps = this.normalizeStepsForLeave(existing.requestType.taxonomyKeys as string[] | null, baseSteps);
     if (steps.length === 0) {
       return { instanceId: null, workflowStatus: 'none' as const };
     }
@@ -344,8 +344,8 @@ export class WorkflowService {
     });
   }
 
-  private normalizeStepsForLeave(categoryKey: string | null, steps: WorkflowStepConfig[]) {
-    const key = String(categoryKey ?? '').trim().toLowerCase();
+  private normalizeStepsForLeave(taxonomyKeys: string[] | null, steps: WorkflowStepConfig[]) {
+    const key = String(taxonomyKeys?.[0] ?? '').trim().toLowerCase();
     if (!key.includes('leave')) return steps;
 
     const next = [...steps];

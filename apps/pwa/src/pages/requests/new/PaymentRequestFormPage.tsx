@@ -196,7 +196,7 @@ function Tags() {
   );
 }
 
-export function FinancialRequestFormPage() {
+export function PaymentRequestFormPage() {
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
@@ -346,4 +346,4 @@ export function FinancialRequestFormPage() {
   );
 }
 
-export default FinancialRequestFormPage;
+export default PaymentRequestFormPage;

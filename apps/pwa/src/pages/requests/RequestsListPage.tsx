@@ -179,7 +179,7 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
     Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : undefined;
 
   const category = String(
-    request.request_type?.category_key || "",
+    request.request_type?.taxonomy_keys?.[0] || "",
   ).toLowerCase();
   const family = classifyFamily(category, requestType, request.group?.name);
   const icon = category.includes("leave")
@@ -822,7 +822,7 @@ export function RequestsListPage() {
             value: String(item.id),
             label: String(item.name),
             family: classifyFamily(
-              String(item.category_key || "").toLowerCase(),
+              String(item.taxonomy_keys?.[0] || "").toLowerCase(),
               String(item.name),
             ),
           }))
@@ -1069,6 +1069,7 @@ export function RequestsListPage() {
             { key: "all" as const, label: "All" },
             { key: "financial" as const, label: "Financial" },
             { key: "hr" as const, label: "HR" },
+            { key: "other" as const, label: "Other" },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -1172,6 +1173,7 @@ export function RequestsListPage() {
               { key: "all" as const, label: "All" },
               { key: "financial" as const, label: "Financial" },
               { key: "hr" as const, label: "HR" },
+              { key: "other" as const, label: "Other" },
             ].map((item) => (
               <button
                 key={item.key}
