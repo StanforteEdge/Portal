@@ -116,7 +116,7 @@ export function workflowTypeFromType(
     ? groups[type.groupId].name
     : null;
   return classifyRequestCategory(
-    type?.taxonomyKeys?.[0] ?? type?.taxonomy_keys?.[0] ?? type?.categoryKey ?? type?.category_key,
+    type?.taxonomyKeys?.[0] ?? type?.taxonomy_keys?.[0] ?? type?.categoryKey ?? type?.category_key ?? type?.category_code,
     type?.name,
     groupName,
   );
@@ -124,7 +124,7 @@ export function workflowTypeFromType(
 
 export function requestFamilyFromTypeSimple(type?: RequestTypeOption | null): RequestFamily {
   return classifyRequestCategory(
-    type?.taxonomyKeys?.[0] ?? type?.taxonomy_keys?.[0] ?? type?.categoryKey ?? type?.category_key,
+    type?.taxonomyKeys?.[0] ?? type?.taxonomy_keys?.[0] ?? type?.categoryKey ?? type?.category_key ?? type?.category_code,
     type?.name,
     null,
   );
@@ -134,11 +134,10 @@ export function workflowTypeFromRecord(request?: RequestRecord | null): Workflow
   if (request?.request_type?.workflow_type) {
     return request.request_type.workflow_type as WorkflowType;
   }
-  return classifyRequestCategory(
-    request?.request_type?.taxonomy_keys?.[0] ?? request?.request_type?.category_key,
-    request?.request_type?.name,
-    request?.group?.name,
-  );
+  const groupName = request?.group?.name ?? null;
+  const taxonomyKey = request?.request_type?.taxonomy_keys?.[0];
+  const categoryKey = taxonomyKey ?? request?.request_type?.category_key ?? request?.request_type?.category_code ?? null;
+  return classifyRequestCategory(categoryKey, request?.request_type?.name, groupName);
 }
 
 /** @deprecated Use workflowTypeFromType */
@@ -474,6 +473,120 @@ export function buildLeaveWorkflow(
   };
 
   return [...draftStep, ...approvalSteps, finalStep];
+}
+
+export function buildLoanWorkflow(
+  request: any,
+  pendingSteps: Array<{ step: string }>,
+  options?: { showDraftStep?: boolean },
+): WorkflowStep[] {
+  const status = deriveRequestWorkflowStatus(request);
+  const doneEntries = Array.isArray(request?.approvals?.done)
+    ? request.approvals.done
+    : [];
+  const requestTypeSteps = Array.isArray(
+    request?.request_type?.approval_flow_json?.steps,
+  )
+    ? request.request_type.approval_flow_json.steps
+    : [];
+  const approvalStepsSource = requestTypeSteps.length
+    ? requestTypeSteps
+    : [{ role: "team_lead" }, { role: "hr" }];
+  const approvalLabels = approvalStepsSource.map(
+    (step: Record<string, any>, index: number) =>
+      normalizeWorkflowLabel(step, index),
+  );
+  const approvalDoneCount = Math.min(doneEntries.length, approvalLabels.length);
+  const approvalCurrentIndex =
+    pendingSteps.length > 0
+      ? Math.min(approvalDoneCount, Math.max(0, approvalLabels.length - 1))
+      : -1;
+  const requestComplete = status === "completed";
+  const disbursedOrBeyond = ["disbursed", "active", "completed"].includes(
+    String(status),
+  );
+  const activeOrBeyond = ["active", "completed"].includes(String(status));
+  const showDraftStep = options?.showDraftStep ?? true;
+
+  const draftStep: WorkflowStep[] = showDraftStep
+    ? [
+        {
+          label: "Drafted",
+          detail: "Loan request initialized and saved.",
+          status:
+            status === "draft" && approvalDoneCount === 0
+              ? "current"
+              : "complete",
+        },
+      ]
+    : [];
+
+  const approvalSteps: WorkflowStep[] = approvalLabels.map(
+    (label: string, index: number) => {
+      const done =
+        index < approvalDoneCount ||
+        disbursedOrBeyond ||
+        status === "cleared" ||
+        requestComplete;
+      const isCurrent =
+        approvalCurrentIndex === index &&
+        ["approval", "sent", "under_review", "review"].includes(String(status));
+      return {
+        label,
+        detail: isCurrent
+          ? `Waiting on ${label}.`
+          : done
+            ? `${label} completed.`
+            : `Awaiting ${label}.`,
+        status:
+          done && !isCurrent ? "complete" : isCurrent ? "current" : "upcoming",
+      } satisfies WorkflowStep;
+    },
+  );
+
+  const disbursedStep: WorkflowStep = {
+    label: "Disbursed",
+    detail: "Loan amount disbursed to the requester.",
+    status: activeOrBeyond
+      ? "complete"
+      : status === "disbursed" || status === "cleared"
+        ? "current"
+        : "upcoming",
+  };
+
+  const activeStep: WorkflowStep = {
+    label: "Active",
+    detail: "Repayment in progress.",
+    status: requestComplete
+      ? "complete"
+      : status === "active"
+        ? "current"
+        : "upcoming",
+  };
+
+  const completedStep: WorkflowStep = {
+    label: "Completed",
+    detail: "Loan fully repaid and closed.",
+    status: requestComplete ? "complete" : "upcoming",
+  };
+
+  const steps: WorkflowStep[] = [
+    ...draftStep,
+    ...approvalSteps,
+    disbursedStep,
+    activeStep,
+    completedStep,
+  ];
+
+  let currentMarked = steps.some((s) => s.status === "current");
+  return steps.map((step) => {
+    if (step.status !== "upcoming") return step;
+    if (!currentMarked && !requestComplete) {
+      currentMarked = true;
+      return { ...step, status: "current" as const };
+    }
+    return step;
+  });
 }
 
 export function deriveRequestWorkflowStatus(request: any) {

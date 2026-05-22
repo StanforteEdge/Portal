@@ -3728,7 +3728,7 @@ export class RequestsService {
           }
         }
       },
-      requestType: true,
+      requestType: { include: { category: true } },
       group: true,
       creator: {
         select: { id: true, username: true, email: true, firstName: true, lastName: true }
@@ -3763,7 +3763,10 @@ export class RequestsService {
             id: request.requestType.id,
             name: request.requestType.name,
             code_prefix: request.requestType.codePrefix,
+            category_code: request.requestType.category?.code ?? null,
             taxonomy_keys: request.requestType.taxonomyKeys ?? null,
+            workflow_type: request.requestType.workflowType ?? null,
+            handler_role_label: request.requestType.handlerRoleLabel ?? null,
             approval_flow_json: request.requestType.approvalFlowJson ?? null,
             form_schema: request.requestType.formSchema ?? null
           }

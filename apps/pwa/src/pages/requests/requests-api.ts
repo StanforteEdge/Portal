@@ -21,10 +21,12 @@ export type RequestRecord = {
     id: string;
     name: string;
     code_prefix?: string | null;
+    category_code?: string | null;
     taxonomy_keys?: string[] | null;
+    workflow_type?: string | null;
+    handler_role_label?: string | null;
     form_schema?: Record<string, unknown> | null;
     approval_flow_json?: Record<string, unknown> | null;
-    workflow_type?: string | null;
     category_key?: string | null;
   } | null;
   group?: {
@@ -75,12 +77,12 @@ export type RequestTypeOption = {
   category_id?: string | null;
   taxonomyKeys?: string[] | null;
   taxonomy_keys?: string[] | null;
+  workflow_type?: string | null;
+  handler_role_label?: string | null;
   formSchema?: Record<string, unknown> | null;
   form_schema?: Record<string, unknown> | null;
   approvalFlowJson?: Record<string, unknown> | null;
   approval_flow_json?: Record<string, unknown> | null;
-  workflow_type?: string | null;
-  handler_role_label?: string | null;
   groupId?: string | null;
   group_id?: string | null;
   categoryKey?: string | null;

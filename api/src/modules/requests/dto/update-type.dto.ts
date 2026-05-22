@@ -67,6 +67,12 @@ export class UpdateTypeDto {
   @IsNumber()
   approval_limit?: number;
 
+  @ApiPropertyOptional({ example: ['admin', 'finance.approve'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  visible_to_roles?: string[];
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsBoolean()

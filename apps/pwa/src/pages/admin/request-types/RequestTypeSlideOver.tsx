@@ -40,6 +40,8 @@ export default function RequestTypeSlideOver({ requestType, onClose, onSaved }: 
   );
   const [isActive, setIsActive] = useState(requestType?.is_active ?? true);
   const [visibleToRoles, setVisibleToRoles] = useState<string[]>(requestType?.visible_to_roles ?? []);
+  const [workflowType, setWorkflowType] = useState(requestType?.workflow_type || "");
+  const [handlerRoleLabel, setHandlerRoleLabel] = useState(requestType?.handler_role_label || "");
 
 
 
@@ -113,9 +115,16 @@ export default function RequestTypeSlideOver({ requestType, onClose, onSaved }: 
       if (taxonomyKeys.length > 0) {
         payload.taxonomy_keys = taxonomyKeys;
       }
+      if (workflowType) {
+        payload.workflow_type = workflowType;
+      }
+      if (handlerRoleLabel.trim()) {
+        payload.handler_role_label = handlerRoleLabel.trim();
+      }
       await requestApi.saveType(
         payload,
         requestType?.id,
+        categoryId || undefined,
       );
       showToast({
         tone: "success",
@@ -265,6 +274,28 @@ export default function RequestTypeSlideOver({ requestType, onClose, onSaved }: 
                 ))}
               </div>
             </div>
+          </div>
+        </SectionCard>
+
+        <SectionCard title="Workflow">
+          <div className="space-y-4">
+            <SelectField
+              label="Workflow Type"
+              value={workflowType}
+              onChange={(e) => setWorkflowType(e.target.value)}
+            >
+              <option value="">— Auto-detect —</option>
+              <option value="payment">Payment</option>
+              <option value="leave">Leave</option>
+              <option value="loan">Loan</option>
+              <option value="other">Other</option>
+            </SelectField>
+            <TextField
+              label="Handler Role Label"
+              value={handlerRoleLabel}
+              onChange={(e) => setHandlerRoleLabel(e.target.value)}
+              placeholder="e.g. Accountant, HR Officer"
+            />
           </div>
         </SectionCard>
 

@@ -297,7 +297,7 @@ export default function HrPayrollLoansPage() {
       activeLabel="hr-payroll-loans"
       user={{
         name: userName,
-        role: profile?.employee_profile?.job_title || "HR Staff",
+        role: profile?.employee_profile?.job_title ?? "HR Staff",
       }}
       mobileNav={buildAppMobileNav("HR")}
     >
@@ -318,6 +318,9 @@ export default function HrPayrollLoansPage() {
             <Button onClick={openCreate}>
               <Icon name="add" className="text-[18px]" />
               New Loan
+            </Button>
+            <Button onClick={() => window.location.assign("/requests/new/form?category=loan")}>
+              New Loan Request
             </Button>
           </div>
         }
