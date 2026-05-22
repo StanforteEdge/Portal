@@ -9,12 +9,34 @@ export type RequestFamily = WorkflowType;
 
 export type RequestGroupMap = Record<string, { name: string; code: string }>;
 
+export type RequestModule = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export const REQUEST_MODULES: RequestModule[] = [
+  { id: "module-hr", name: "Human Resources", code: "HR" },
+  { id: "module-financial", name: "Financial", code: "FIN" },
+];
+
+const MODULE_BY_CODE: Record<string, RequestModule> = {
+  HR: REQUEST_MODULES[0],
+  FIN: REQUEST_MODULES[1],
+};
+
 export function buildGroupMap(groups: RequestGroupOption[]): RequestGroupMap {
   const map: RequestGroupMap = {};
   for (const g of groups) {
     map[g.id] = { name: g.name, code: g.code };
   }
   return map;
+}
+
+export function moduleFromFamily(family: WorkflowType): RequestModule | undefined {
+  if (family === "leave" || family === "loan") return REQUEST_MODULES[0];
+  if (family === "payment") return REQUEST_MODULES[1];
+  return undefined;
 }
 
 export function classifyRequestCategory(
@@ -35,7 +57,6 @@ export function classifyRequestCategory(
     ) {
       return "payment";
     }
-    return "other";
   }
 
   const category = String(categoryKey || "").toLowerCase();
@@ -53,12 +74,18 @@ export function classifyRequestCategory(
     ) {
       return "payment";
     }
-    return "other";
   }
 
   if (name.includes("leave")) return "leave";
   if (name.includes("loan") || name.includes("salary advance") || name.includes("advance")) return "loan";
-  if (name.includes("cash") || name.includes("expense") || name.includes("financial") || name.includes("payment") || name.includes("reimbursement") || name.includes("procurement")) {
+  if (
+    name.includes("cash") ||
+    name.includes("expense") ||
+    name.includes("financial") ||
+    name.includes("payment") ||
+    name.includes("reimbursement") ||
+    name.includes("procurement")
+  ) {
     return "payment";
   }
 
@@ -89,9 +116,17 @@ export function workflowTypeFromType(
     ? groups[type.groupId].name
     : null;
   return classifyRequestCategory(
-    type?.categoryKey ?? type?.category_key,
+    type?.taxonomyKeys?.[0] ?? type?.taxonomy_keys?.[0] ?? type?.categoryKey ?? type?.category_key,
     type?.name,
     groupName,
+  );
+}
+
+export function requestFamilyFromTypeSimple(type?: RequestTypeOption | null): RequestFamily {
+  return classifyRequestCategory(
+    type?.taxonomyKeys?.[0] ?? type?.taxonomy_keys?.[0] ?? type?.categoryKey ?? type?.category_key,
+    type?.name,
+    null,
   );
 }
 
@@ -100,7 +135,7 @@ export function workflowTypeFromRecord(request?: RequestRecord | null): Workflow
     return request.request_type.workflow_type as WorkflowType;
   }
   return classifyRequestCategory(
-    request?.request_type?.category_key,
+    request?.request_type?.taxonomy_keys?.[0] ?? request?.request_type?.category_key,
     request?.request_type?.name,
     request?.group?.name,
   );

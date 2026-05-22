@@ -378,7 +378,7 @@ export function ApprovalsPage() {
                   <TableHeaderRow>
                     <TableHeaderCell>Request No</TableHeaderCell>
                     <TableHeaderCell>Staff</TableHeaderCell>
-                    <TableHeaderCell>Group</TableHeaderCell>
+                    <TableHeaderCell>Module</TableHeaderCell>
                     <TableHeaderCell>Team</TableHeaderCell>
                     <TableHeaderCell>Amount</TableHeaderCell>
                     <TableHeaderCell>Due Date</TableHeaderCell>

@@ -104,3 +104,13 @@
     @apply rounded-[24px] border border-white/70 bg-white/80 p-5 shadow-card backdrop-blur-xl;
   }
 }
+
+@layer utilities {
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}

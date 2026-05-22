@@ -13,6 +13,7 @@ type BuildFinanceViewerStatusInput = {
   roles: string[];
   permissions: string[];
   statusTone: StatusTone;
+  family?: string;
 };
 
 type BuildFinanceProgressInput = {
@@ -37,6 +38,7 @@ export function buildFinanceViewerStatus(
     roles,
     permissions,
     statusTone,
+    family,
   } = input;
 
   if (approvalActionsVisible) {
@@ -86,6 +88,13 @@ export function buildFinanceViewerStatus(
   }
 
   if (ownerActionsVisible && availableActions.includes("retire")) {
+    if (family === "loan") {
+      return {
+        label: "Loan Disbursed",
+        hint: "Your loan has been disbursed. No further action is required from you at this stage.",
+        tone: "success",
+      };
+    }
     return {
       label: formatViewerRequestStatus(
         workflowStatus,

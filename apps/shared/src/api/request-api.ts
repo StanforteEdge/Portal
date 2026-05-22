@@ -3,17 +3,27 @@ import type { HttpRequest } from "../auth/http-client";
 
 export type RequestType = {
   id: string;
-  group_id?: string | null;
-  groupId?: string | null;
   name: string;
   slug: string;
   category?: string;
+  category_id?: string | null;
+  categoryId?: string | null;
+  taxonomy_keys?: string[] | null;
+  taxonomyKeys?: string[] | null;
+  /** Explicit workflow type: 'payment' | 'leave' | 'loan' | 'other'. Overrides auto-detection. */
+  workflow_type?: string | null;
+  /** Label shown instead of generic 'Finance/Handler' text on action buttons and approval steps. */
+  handler_role_label?: string | null;
+  /** group / module this type belongs to */
+  group_id?: string | null;
+  groupId?: string | null;
   is_active: boolean;
   description?: string | null;
   form_schema?: Record<string, unknown> | null;
   formSchema?: Record<string, unknown> | null;
   approval_flow_json?: Record<string, unknown> | null;
   approvalFlowJson?: Record<string, unknown> | null;
+  visible_to_roles?: string[];
   metadata?: any;
 };
 
@@ -41,19 +51,31 @@ export function createRequestApi(httpRequest: HttpRequest) {
         ? raw.approvalFlowJson
         : null);
 
+    const categoryRelation =
+      raw?.category && typeof raw.category === 'object' && raw.category !== null
+        ? raw.category
+        : null;
+
     return {
       id: String(raw?.id ?? ''),
-      group_id: raw?.group_id ?? raw?.groupId ?? null,
-      groupId: raw?.groupId ?? raw?.group_id ?? null,
       name: String(raw?.name ?? ''),
       slug: String(raw?.slug ?? raw?.code_prefix ?? raw?.codePrefix ?? ''),
-      category: raw?.category ?? raw?.category_key ?? raw?.categoryKey ?? undefined,
+      category: categoryRelation?.name ?? raw?.category ?? raw?.taxonomy_keys?.[0] ?? raw?.taxonomyKeys?.[0] ?? undefined,
+      category_id: raw?.category_id ?? raw?.categoryId ?? categoryRelation?.id ?? null,
+      categoryId: raw?.categoryId ?? raw?.category_id ?? categoryRelation?.id ?? null,
+      taxonomy_keys: raw?.taxonomy_keys ?? raw?.taxonomyKeys ?? null,
+      taxonomyKeys: raw?.taxonomyKeys ?? raw?.taxonomy_keys ?? null,
+      workflow_type: raw?.workflow_type ?? null,
+      handler_role_label: raw?.handler_role_label ?? null,
+      group_id: raw?.group_id ?? raw?.groupId ?? null,
+      groupId: raw?.groupId ?? raw?.group_id ?? null,
       is_active: Boolean(raw?.is_active ?? raw?.isActive ?? true),
       description: raw?.description ?? null,
       form_schema: formSchema,
       formSchema,
       approval_flow_json: approvalFlow,
       approvalFlowJson: approvalFlow,
+      visible_to_roles: raw?.visible_to_roles ?? raw?.visibleToRoles ?? undefined,
       metadata:
         (formSchema && typeof formSchema.metadata === 'object' ? formSchema.metadata : null) ||
         {},
@@ -91,14 +113,16 @@ export function createRequestApi(httpRequest: HttpRequest) {
       });
     },
 
-    async saveType(dto: Partial<RequestType>, id?: string, groupId?: string) {
+    async saveType(dto: Partial<RequestType>, id?: string, categoryId?: string) {
       const method = id ? "PATCH" : "POST";
       const path = id ? `/requests/types/${id}` : "/requests/types";
       const dtoAliases = dto as Partial<{
         code_prefix: string;
         codePrefix: string;
-        category_key: string;
-        categoryKey: string;
+        taxonomy_keys: string[];
+        taxonomyKeys: string[];
+        category_id: string;
+        categoryId: string;
         formSchema: Record<string, unknown> | null;
         approvalFlowJson: Record<string, unknown> | null;
       }>;
@@ -119,14 +143,18 @@ export function createRequestApi(httpRequest: HttpRequest) {
         payload.code_prefix = codePrefix.substring(0, 10).toUpperCase();
       }
 
-      const explicitCategoryKey =
-        (typeof dtoAliases.category_key === "string" ? dtoAliases.category_key : "") ||
-        (typeof dtoAliases.categoryKey === "string" ? dtoAliases.categoryKey : "");
-      const categoryKey =
-        explicitCategoryKey.trim() ||
-        (!id && dto.category ? String(dto.category).trim() : "");
-      if (categoryKey) {
-        payload.category_key = categoryKey;
+      const taxonomyKeysArr =
+        (Array.isArray(dtoAliases.taxonomy_keys) ? dtoAliases.taxonomy_keys : undefined) ||
+        (Array.isArray(dtoAliases.taxonomyKeys) ? dtoAliases.taxonomyKeys : undefined);
+      if (taxonomyKeysArr && taxonomyKeysArr.length > 0) {
+        payload.taxonomy_keys = taxonomyKeysArr;
+      }
+
+      const resolvedCategoryId =
+        (typeof dtoAliases.category_id === "string" ? dtoAliases.category_id : "") ||
+        (typeof dtoAliases.categoryId === "string" ? dtoAliases.categoryId : "");
+      if (resolvedCategoryId) {
+        payload.category_id = resolvedCategoryId;
       }
 
       if (dto.metadata && typeof dto.metadata === "object") {
@@ -143,8 +171,20 @@ export function createRequestApi(httpRequest: HttpRequest) {
         payload.approval_flow_json = dtoAliases.approvalFlowJson;
       }
 
-      if (!id && groupId) {
-        payload.group_id = groupId;
+      if (dto.visible_to_roles !== undefined) {
+        payload.visible_to_roles = dto.visible_to_roles;
+      }
+
+      // workflow_type and handler_role_label are always writable (even on edit)
+      if ((dto as any).workflow_type !== undefined) {
+        payload.workflow_type = (dto as any).workflow_type || null;
+      }
+      if ((dto as any).handler_role_label !== undefined) {
+        payload.handler_role_label = (dto as any).handler_role_label || null;
+      }
+
+      if (!id && categoryId) {
+        payload.category_id = categoryId;
       }
 
       return httpRequest<RequestType>(path, {

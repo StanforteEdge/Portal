@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequestsService } from './requests.service';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
 import { CreateTypeDto } from './dto/create-type.dto';
@@ -49,10 +51,34 @@ export class RequestsController {
     return this.requestsService.deleteGroup(id);
   }
 
+  @Get('categories')
+  @Permissions('requests.view')
+  listCategories(@Query('group_id') groupId?: string) {
+    return this.requestsService.listCategories(groupId);
+  }
+
+  @Post('categories')
+  @Permissions('requests.manage')
+  createCategory(@Body() dto: CreateCategoryDto) {
+    return this.requestsService.createCategory(dto);
+  }
+
+  @Patch('categories/:id')
+  @Permissions('requests.manage')
+  updateCategory(@Param('id') id: string, @Body() dto: UpdateCategoryDto) {
+    return this.requestsService.updateCategory(id, dto);
+  }
+
+  @Delete('categories/:id')
+  @Permissions('requests.manage')
+  deleteCategory(@Param('id') id: string) {
+    return this.requestsService.deleteCategory(id);
+  }
+
   @Get('types')
   @Permissions('requests.view')
-  listTypes(@Query('group_id') groupId?: string, @Query('include_inactive') includeInactive?: string) {
-    return this.requestsService.listTypes(groupId, includeInactive === 'true');
+  listTypes(@Req() req: any, @Query('group_id') groupId?: string, @Query('category_id') categoryId?: string, @Query('include_inactive') includeInactive?: string) {
+    return this.requestsService.listTypes(groupId, categoryId, includeInactive === 'true', this.currentUserId(req));
   }
 
   @Get('types/:id')
@@ -68,7 +94,7 @@ export class RequestsController {
     examples: {
       financeType: {
         value: {
-          group_id: 'replace-group-id',
+          category_id: 'replace-category-id',
           name: 'Operational Request',
           code_prefix: 'OP',
           storage_type: 'json',

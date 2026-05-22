@@ -7,7 +7,7 @@ import {
   SectionCard,
 } from "@/shared";
 import { Link, useSearchParams } from "react-router-dom";
-import { useMemo } from "react";
+import { useMemo, useRef, useState, useCallback, useEffect } from "react";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useCachedQuery } from "@/shared/lib/core";
 import {
@@ -16,54 +16,43 @@ import {
 } from "@/pages/requests/requests-data";
 import {
   listRequestTypes,
-  listRequestGroups,
+  listCategories,
   type RequestTypeOption,
+  type RequestCategoryOption,
 } from "@/pages/requests/requests-api";
-import {
-  requestFamilyFromType,
-  requestFamilyLabel,
-  buildGroupMap,
-  type RequestFamily,
-} from "@/pages/requests/request-helpers";
 
-type FamilyCard = {
-  family: RequestFamily;
-  icon: string;
-  description: string;
+/* ------------------------------------------------------------------ */
+/* Category icon mapping (by code)                                     */
+/* ------------------------------------------------------------------ */
+const CATEGORY_ICON: Record<string, string> = {
+  PAYMENT: "payments",
+  LEAVE: "event_available",
+  LOAN: "account_balance",
 };
 
-const familyCards: FamilyCard[] = [
-  {
-    family: "financial",
-    icon: "account_balance_wallet",
-    description:
-      "Expenses, reimbursements, procurement, and other money-related requests.",
-  },
-  {
-    family: "hr",
-    icon: "event_available",
-    description:
-      "Annual leave, sick leave, and other time-off requests with approval routing.",
-  },
-  {
-    family: "other",
-    icon: "assignment",
-    description:
-      "Other request workflows as the platform expands across teams and organizations.",
-  },
-];
-
-function FamilyCardButton({
-  family,
+/* ------------------------------------------------------------------ */
+/* CategoryCard                                                        */
+/* ------------------------------------------------------------------ */
+function CategoryCard({
+  category,
   icon,
-  description,
   count,
   active,
-}: FamilyCard & { count: number; active: boolean }) {
+}: {
+  category: RequestCategoryOption | null;
+  icon: string;
+  count: number;
+  active: boolean;
+}) {
+  const name = category ? category.name : "Others";
+  const description = category
+    ? category.description
+    : "Miscellaneous request types without a specific category.";
+
   return (
     <div
       className={[
-        "group flex h-full flex-col rounded-[24px] border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-card focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+        "group flex h-full w-[240px] flex-shrink-0 flex-col rounded-[24px] border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-card focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
         active
           ? "border-brand-900 ring-2 ring-brand-900/10"
           : "border-slate-200",
@@ -75,27 +64,107 @@ function FamilyCardButton({
         </div>
         <Chip variant={active ? "pending" : "neutral"}>{count} types</Chip>
       </div>
-      <h2 className="mt-5 text-lg font-semibold text-slate-950">
-        {requestFamilyLabel(family)} Requests
-      </h2>
-      <p className="mt-3 text-sm leading-6 text-slate-500">{description}</p>
-      <span className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-brand-900">
-        {active ? "Family selected" : "Choose family"}
+      <h2 className="mt-5 text-lg font-semibold text-slate-950">{name}</h2>
+      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
+        {description}
+      </p>
+      <span className="mt-4 inline-flex items-center gap-2 text-sm font-semibold text-brand-900">
+        {active ? "Category selected" : "Choose category"}
         <Icon name="arrow_forward" className="text-[18px]" />
       </span>
     </div>
   );
 }
 
+type CategoryCardDef = {
+  category: RequestCategoryOption | null;
+  icon: string;
+  key: string;
+};
+
+/* ------------------------------------------------------------------ */
+/* Carousel arrow button                                               */
+/* ------------------------------------------------------------------ */
+function CarouselArrow({
+  direction,
+  onClick,
+  disabled,
+}: {
+  direction: "left" | "right";
+  onClick: () => void;
+  disabled: boolean;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={direction === "left" ? "Scroll left" : "Scroll right"}
+      className={[
+        "flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-slate-200 bg-white shadow-sm transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+        disabled ? "cursor-not-allowed opacity-30" : "cursor-pointer",
+      ].join(" ")}
+    >
+      <Icon
+        name={direction === "left" ? "chevron_left" : "chevron_right"}
+        className="text-[20px] text-slate-700"
+      />
+    </button>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* useCarouselScroll                                                    */
+/* ------------------------------------------------------------------ */
+function useCarouselScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScroll = useCallback(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanScrollLeft(el.scrollLeft > 4);
+    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  }, [scrollRef]);
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    checkScroll();
+    el.addEventListener("scroll", checkScroll, { passive: true });
+    const observer = new ResizeObserver(checkScroll);
+    observer.observe(el);
+    return () => {
+      el.removeEventListener("scroll", checkScroll);
+      observer.disconnect();
+    };
+  }, [checkScroll, scrollRef]);
+
+  const scroll = useCallback(
+    (direction: "left" | "right") => {
+      const el = scrollRef.current;
+      if (!el) return;
+      const distance = el.clientWidth * 0.65;
+      el.scrollBy({
+        left: direction === "left" ? -distance : distance,
+        behavior: "smooth",
+      });
+    },
+    [scrollRef],
+  );
+
+  return { canScrollLeft, canScrollRight, scroll, checkScroll };
+}
+
+/* ------------------------------------------------------------------ */
+/* RequestTypePage                                                      */
+/* ------------------------------------------------------------------ */
 export function RequestTypePage() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const familyParam = searchParams.get("family");
-  const activeFamily: RequestFamily | null =
-    familyParam === "financial" ||
-    familyParam === "hr" ||
-    familyParam === "other"
-      ? familyParam
-      : null;
+  const categoryIdParam = searchParams.get("categoryId");
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const { canScrollLeft, canScrollRight, scroll, checkScroll } =
+    useCarouselScroll(scrollRef);
 
   const {
     data: requestTypes,
@@ -106,29 +175,154 @@ export function RequestTypePage() {
     storage: "local",
   });
 
-  const { data: requestGroups } = useCachedQuery(
-    "requests:groups",
-    () => listRequestGroups(),
+  const { data: categories } = useCachedQuery(
+    "requests:categories",
+    () => listCategories(),
     { ttlMs: 1000 * 60 * 10, storage: "local" },
   );
 
-  const groupMap = useMemo(() => buildGroupMap(requestGroups ?? []), [requestGroups]);
-
-  const groupedTypes = useMemo(() => {
-    const grouped: Record<RequestFamily, RequestTypeOption[]> = {
-      financial: [],
-      hr: [],
-      other: [],
-    };
-
-    (requestTypes ?? []).forEach((type: RequestTypeOption) => {
-      grouped[requestFamilyFromType(type, groupMap)].push(type);
+  const categoryCards: CategoryCardDef[] = useMemo(() => {
+    const sorted = [...(categories ?? [])].sort(
+      (a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0),
+    );
+    const cards: CategoryCardDef[] = sorted.map((cat) => ({
+      category: cat,
+      icon: CATEGORY_ICON[cat.code] ?? "category",
+      key: cat.id,
+    }));
+    cards.push({
+      category: null,
+      icon: "assignment",
+      key: "others",
     });
+    return cards;
+  }, [categories]);
 
-    return grouped;
-  }, [requestTypes, groupMap]);
+  // Trigger carousel scroll check once cards are rendered
+  useEffect(() => {
+    checkScroll();
+  }, [categoryCards, checkScroll]);
 
-  const selectedTypes = activeFamily ? (groupedTypes[activeFamily] ?? []) : [];
+  const selectedTypes = useMemo(() => {
+    if (!categoryIdParam || !requestTypes) return [];
+    if (categoryIdParam === "others") {
+      return (requestTypes as RequestTypeOption[]).filter(
+        (t) => !t.categoryId && !t.category_id,
+      );
+    }
+    return (requestTypes as RequestTypeOption[]).filter(
+      (t) =>
+        t.categoryId === categoryIdParam || t.category_id === categoryIdParam,
+    );
+  }, [categoryIdParam, requestTypes]);
+
+  const typeCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    (requestTypes ?? []).forEach((t: RequestTypeOption) => {
+      const catId = t.categoryId ?? t.category_id ?? "others";
+      counts[catId] = (counts[catId] ?? 0) + 1;
+    });
+    return counts;
+  }, [requestTypes]);
+
+  const selectedCategory: RequestCategoryOption | null = useMemo(() => {
+    if (!categoryIdParam || categoryIdParam === "others") return null;
+    return categories?.find((c) => c.id === categoryIdParam) ?? null;
+  }, [categoryIdParam, categories]);
+
+  const selectedCategoryLabel = selectedCategory?.name ?? "Others";
+
+  const handleCategoryClick = useCallback(
+    (key: string) => {
+      const next = new URLSearchParams(searchParams);
+      if (next.get("categoryId") === key) {
+        next.delete("categoryId");
+      } else {
+        next.set("categoryId", key);
+      }
+      setSearchParams(next);
+    },
+    [searchParams, setSearchParams],
+  );
+
+  /* ---------------------------------------------------------------- */
+  /* Desktop carousel                                                  */
+  /* ---------------------------------------------------------------- */
+  const renderDesktopCarousel = () => (
+    <section className="relative">
+      {/* Arrow controls row */}
+      <div className="mb-3 flex items-center justify-between">
+        <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-400">
+          Request Categories
+        </p>
+        <div className="flex items-center gap-2">
+          <CarouselArrow
+            direction="left"
+            onClick={() => scroll("left")}
+            disabled={!canScrollLeft}
+          />
+          <CarouselArrow
+            direction="right"
+            onClick={() => scroll("right")}
+            disabled={!canScrollRight}
+          />
+        </div>
+      </div>
+
+      {/* Scrollable track */}
+      <div
+        ref={scrollRef}
+        className="no-scrollbar -mx-1 flex gap-4 overflow-x-auto px-1 pb-2"
+      >
+        {categoryCards.map((card) => (
+          <button
+            key={card.key}
+            type="button"
+            onClick={() => handleCategoryClick(card.key)}
+            className="block flex-shrink-0"
+          >
+            <CategoryCard
+              category={card.category}
+              icon={card.icon}
+              active={categoryIdParam === card.key}
+              count={typeCounts[card.key] ?? 0}
+            />
+          </button>
+        ))}
+      </div>
+
+      {/* Fade edges */}
+      {canScrollLeft && (
+        <div className="pointer-events-none absolute bottom-2 left-0 top-10 w-8 bg-gradient-to-r from-white to-transparent" />
+      )}
+      {canScrollRight && (
+        <div className="pointer-events-none absolute bottom-2 right-0 top-10 w-8 bg-gradient-to-l from-white to-transparent" />
+      )}
+    </section>
+  );
+
+  /* ---------------------------------------------------------------- */
+  /* Mobile category list (horizontal scroll)                          */
+  /* ---------------------------------------------------------------- */
+  const renderMobileCategories = () => (
+    <div className="no-scrollbar -mx-4 flex gap-3 overflow-x-auto px-4 pb-2">
+      {categoryCards.map((card) => (
+        <button
+          key={card.key}
+          type="button"
+          onClick={() => handleCategoryClick(card.key)}
+          className="block flex-shrink-0"
+        >
+          <CategoryCard
+            category={card.category}
+            icon={card.icon}
+            active={categoryIdParam === card.key}
+            count={typeCounts[card.key] ?? 0}
+          />
+        </button>
+      ))}
+    </div>
+  );
 
   return (
     <AppShell
@@ -144,48 +338,29 @@ export function RequestTypePage() {
             { label: "New Request" },
           ]}
           title="Create a new request"
-          description="Start by choosing a request family, then select the exact subtype you want to submit."
+          description="Start by choosing a request category, then select the exact subtype you want to submit."
         />
 
         <div className="grid gap-6 lg:grid-cols-12">
           <div className="space-y-6 lg:col-span-8">
-            <section className="grid gap-5 md:grid-cols-3">
-              {familyCards.map((card) => (
-                <button
-                  key={card.family}
-                  type="button"
-                  onClick={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.set("family", card.family);
-                    setSearchParams(next);
-                  }}
-                  className="block"
-                >
-                  <FamilyCardButton
-                    {...card}
-                    active={activeFamily === card.family}
-                    count={groupedTypes[card.family]?.length ?? 0}
-                  />
-                </button>
-              ))}
-            </section>
+            {renderDesktopCarousel()}
 
             <SectionCard
               title={
-                activeFamily
-                  ? `${requestFamilyLabel(activeFamily)} request types`
-                  : "Choose a family first"
+                categoryIdParam
+                  ? `${selectedCategoryLabel} request types`
+                  : "Choose a category first"
               }
               description={
-                activeFamily
+                categoryIdParam
                   ? "Select the exact request subtype to open the right form structure."
-                  : "Each request family has its own subtypes, fields, and approval flow."
+                  : "Each request category has its own subtypes, fields, and approval flow."
               }
             >
-              {!activeFamily ? (
+              {!categoryIdParam ? (
                 <EmptyState
-                  title="Choose a request family"
-                  description="We’ll then show the relevant request subtypes for that family."
+                  title="Choose a request category"
+                  description="We'll then show the relevant request subtypes for that category."
                 />
               ) : loading ? (
                 <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
@@ -198,7 +373,7 @@ export function RequestTypePage() {
               ) : selectedTypes.length === 0 ? (
                 <EmptyState
                   title="No request subtypes available"
-                  description="This family doesn’t have active request types yet."
+                  description="This category doesn't have active request types yet."
                 />
               ) : (
                 <div className="grid gap-4 md:grid-cols-2">
@@ -218,9 +393,6 @@ export function RequestTypePage() {
                               "Open this workflow with the right fields and approval path."}
                           </p>
                         </div>
-                        <Chip variant="neutral">
-                          {requestFamilyLabel(requestFamilyFromType(type, groupMap))}
-                        </Chip>
                       </div>
                       <div className="mt-6 inline-flex items-center gap-2 text-sm font-semibold text-brand-900">
                         Open form
@@ -236,7 +408,7 @@ export function RequestTypePage() {
           <div className="space-y-6 lg:col-span-4">
             <SectionCard title="How this works">
               <div className="space-y-3 text-sm leading-6 text-slate-600">
-                <p>1. Choose the request family.</p>
+                <p>1. Choose the request category.</p>
                 <p>2. Pick the exact subtype.</p>
                 <p>3. Complete the right form for that workflow.</p>
               </div>
@@ -245,8 +417,7 @@ export function RequestTypePage() {
             <SectionCard title="Need help choosing?">
               <p className="text-sm leading-6 text-slate-600">
                 If you are not sure which request subtype to use, start with the
-                family that best matches the outcome you need: funds, leave, or
-                another internal workflow.
+                category that best matches the outcome you need.
               </p>
               <Button
                 variant="secondary"
@@ -268,36 +439,17 @@ export function RequestTypePage() {
             Create a new request
           </h1>
           <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
-            Choose a request family first, then select the subtype to open the
+            Choose a request category first, then select the subtype to open the
             right form.
           </p>
         </div>
 
-        <div className="grid gap-4">
-          {familyCards.map((card) => (
-            <button
-              key={card.family}
-              type="button"
-              onClick={() => {
-                const next = new URLSearchParams(searchParams);
-                next.set("family", card.family);
-                setSearchParams(next);
-              }}
-              className="block w-full"
-            >
-              <FamilyCardButton
-                {...card}
-                active={activeFamily === card.family}
-                count={groupedTypes[card.family]?.length ?? 0}
-              />
-            </button>
-          ))}
-        </div>
+        {renderMobileCategories()}
 
-        {activeFamily ? (
+        {categoryIdParam ? (
           <section className="section-card p-4">
             <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-              {requestFamilyLabel(activeFamily)} Request Types
+              {selectedCategoryLabel} Request Types
             </p>
             <div className="mt-4 grid gap-3">
               {selectedTypes.map((type) => (

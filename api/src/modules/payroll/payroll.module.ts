@@ -8,6 +8,7 @@ import { PayrollService } from './payroll.service';
 @Module({
   imports: [NotificationsModule, MailModule, PdfModule],
   controllers: [PayrollController],
-  providers: [PayrollService]
+  providers: [PayrollService],
+  exports: [PayrollService]
 })
 export class PayrollModule {}

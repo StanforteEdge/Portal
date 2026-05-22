@@ -106,7 +106,7 @@ export default function LeavePage() {
   );
 
   const leaveRequests = (allRequests ?? []).filter(
-    (record) => requestFamilyFromRecord(record) === "hr",
+    (record) => requestFamilyFromRecord(record) === "leave",
   );
   const leaveRows = leaveRequests.map(toLeaveRow);
   const recentRows = leaveRows.slice(0, 8);

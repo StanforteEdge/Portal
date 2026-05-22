@@ -74,7 +74,7 @@ export class RequestResponseDto {
     id: string;
     name: string;
     code_prefix: string;
-    category_key?: string | null;
+    taxonomy_keys?: string[] | null;
     approval_flow_json?: unknown;
     form_schema?: unknown;
   };
