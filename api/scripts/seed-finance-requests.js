@@ -107,11 +107,18 @@ async function main() {
       }
     });
 
+    const paymentCategory = await prisma.requestCategory.findFirst({
+      where: { groupId: group.id, code: 'PAYMENT' }
+    });
+    if (!paymentCategory) {
+      throw new Error('PAYMENT category not found under FIN group. Run migrations first.');
+    }
+
     for (const type of requestTypes) {
       await prisma.requestType.upsert({
         where: {
-          unique_group_code_prefix: {
-            groupId: group.id,
+          unique_category_code_prefix: {
+            categoryId: paymentCategory.id,
             codePrefix: type.codePrefix
           }
         },
@@ -125,7 +132,7 @@ async function main() {
           updatedAt: now
         },
         create: {
-          groupId: group.id,
+          categoryId: paymentCategory.id,
           name: type.name,
           codePrefix: type.codePrefix,
           description: type.description,
