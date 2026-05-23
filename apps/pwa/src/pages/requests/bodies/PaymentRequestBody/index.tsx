@@ -147,6 +147,8 @@ export function PaymentRequestBody() {
   const { showToast } = useToast();
   const [certificateBusy, setCertificateBusy] = useState(false);
 
+  if (!request) return null;
+
   const paymentVouchers = finance.paymentVouchers ?? [];
   const requestId = String(request?.id || "");
 
