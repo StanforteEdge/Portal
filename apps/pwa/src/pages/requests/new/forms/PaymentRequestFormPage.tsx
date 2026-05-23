@@ -18,26 +18,18 @@ type ItemState = {
 };
 
 type FinancialFormState = {
-  organization_id: string;
-  team_id: string;
-  project_id: string;
-  category_id: string;
+  due_date: string;
+  reimbursement: boolean;
   items: ItemState[];
 };
 
 type Props = {
   selectedType: RequestTypeOption;
   selectedCategory: RequestCategoryOption | null;
-  organizationOptions: Array<{ id: string; name: string; code: string }>;
-  groupOptions: Array<{ id: string; name: string; type: string; role: string }>;
-  projectOptions: ProjectOption[];
   vendorOptions: Array<{ id: string; name: string }>;
-  categoryOptions: Array<{ value: string; label: string }>;
   editRequest?: RequestRecord | null;
   loadingEdit: boolean;
   onSummary: (node: React.ReactNode) => void;
-  tags: TagTerm[];
-  setTags: (tags: TagTerm[]) => void;
 };
 
 function parsePositiveNumber(value: string) {
@@ -52,45 +44,26 @@ function itemTotal(item: ItemState) {
 export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
   selectedType,
   selectedCategory,
-  organizationOptions,
-  groupOptions,
-  projectOptions,
   vendorOptions,
-  categoryOptions,
   editRequest,
   loadingEdit,
   onSummary,
-  tags,
-  setTags,
 }, ref) => {
   const [form, setForm] = useState<FinancialFormState>({
-    organization_id: "",
-    team_id: "",
-    project_id: "",
-    category_id: "",
+    due_date: "",
+    reimbursement: false,
     items: [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "" }],
   });
 
   useEffect(() => {
-    if (organizationOptions.length === 1) {
-      setForm((prev) => ({ ...prev, organization_id: prev.organization_id || organizationOptions[0].id }));
-    }
-  }, [organizationOptions]);
-
-  useEffect(() => {
-    if (groupOptions.length === 1) {
-      setForm((prev) => ({ ...prev, team_id: prev.team_id || groupOptions[0].id }));
-    }
-  }, [groupOptions]);
-
-  useEffect(() => {
-    if (categoryOptions.length === 1 && !form.category_id) {
-      setForm((prev) => ({ ...prev, category_id: categoryOptions[0].value }));
-    }
-    if (form.category_id && categoryOptions.length > 0 && !categoryOptions.some((o) => o.value === form.category_id)) {
-      setForm((prev) => ({ ...prev, category_id: "" }));
-    }
-  }, [categoryOptions, form.category_id]);
+    if (!editRequest?.data) return;
+    const data = editRequest.data as Record<string, unknown>;
+    setForm((prev) => ({
+      ...prev,
+      due_date: String(data.due_date || ""),
+      reimbursement: Boolean(data.reimbursement),
+    }));
+  }, [editRequest]);
 
   const totalAmount = useMemo(
     () => form.items.reduce((sum, item) => sum + parsePositiveNumber(item.quantity) * parsePositiveNumber(item.unit_price), 0),
@@ -127,11 +100,9 @@ export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
 
       return {
         payload: {
-          team_id: form.team_id || undefined,
           data: {
-            organization_id: form.organization_id || undefined,
-            project_id: form.project_id || undefined,
-            category_id: form.category_id || undefined,
+            due_date: form.due_date || undefined,
+            reimbursement: form.reimbursement,
           },
           items: form.items.map((item) => ({
             description: item.description.trim(),
@@ -153,7 +124,6 @@ export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
       const uploaded = await Promise.all(
         Array.from(files).map((file) =>
           uploadFileAsset(file, {
-            organization_id: form.organization_id || undefined,
             metadata: { source: "request_item" },
           }),
         ),
@@ -176,58 +146,30 @@ export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
   return (
     <>
       <SectionCard
-        title="Work Context"
-        description="Assign the request to the right workstream and organization."
+        title="Request Setup"
+        description="Configure the request details and timing."
       >
-        <div className="grid gap-4 lg:grid-cols-3">
-          <SelectField
-            label="Project"
-            value={form.project_id}
-            onChange={(event) => setForm((prev) => ({ ...prev, project_id: event.target.value }))}
-            disabled={projectOptions.length <= 1}
-          >
-            <option value="">Select project</option>
-            {projectOptions.map((project) => (
-              <option key={project.id} value={project.id}>{project.name}</option>
-            ))}
-          </SelectField>
-          <SelectField
-            label="Group"
-            value={form.team_id}
-            onChange={(event) => setForm((prev) => ({ ...prev, team_id: event.target.value }))}
-            disabled={groupOptions.length <= 1}
-          >
-            <option value="">Select group</option>
-            {groupOptions.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name} ({humanize(group.type)})
-              </option>
-            ))}
-          </SelectField>
-          <SelectField
-            label="Organization"
-            value={form.organization_id}
-            onChange={(event) => setForm((prev) => ({ ...prev, organization_id: event.target.value }))}
-            disabled={organizationOptions.length <= 1}
-          >
-            <option value="">Select organization</option>
-            {organizationOptions.map((org) => (
-              <option key={org.id} value={org.id}>{org.name}</option>
-            ))}
-          </SelectField>
-        </div>
-
-        <div className="mt-4">
-          <SelectField
-            label="Category"
-            value={form.category_id}
-            onChange={(event) => setForm((prev) => ({ ...prev, category_id: event.target.value }))}
-          >
-            <option value="">Select category</option>
-            {categoryOptions.map((opt) => (
-              <option key={opt.value} value={opt.value}>{opt.label}</option>
-            ))}
-          </SelectField>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <TextField
+            label="Due Date"
+            type="date"
+            value={form.due_date}
+            onChange={(event) => setForm((prev) => ({ ...prev, due_date: event.target.value }))}
+          />
+          <label className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3">
+            <span>
+              <span className="field-label">Reimbursement Needed</span>
+              <span className="block text-sm text-slate-500">
+                Mark this if the request is a reimbursement flow.
+              </span>
+            </span>
+            <input
+              type="checkbox"
+              checked={form.reimbursement}
+              onChange={(event) => setForm((prev) => ({ ...prev, reimbursement: event.target.checked }))}
+              className="h-5 w-5 rounded border-slate-300 text-brand-900 focus:ring-brand-900"
+            />
+          </label>
         </div>
       </SectionCard>
 

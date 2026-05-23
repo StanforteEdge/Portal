@@ -4,7 +4,7 @@ type SlideOverProps = {
   open: boolean;
   onClose: () => void;
   children: ReactNode;
-  size?: "sm" | "md" | "lg" | "xl";
+  size?: "sm" | "md" | "lg" | "xl" | "xxl";
 };
 
 export function SlideOver({
@@ -20,6 +20,7 @@ export function SlideOver({
     md: "md:max-w-md",
     lg: "md:max-w-lg",
     xl: "lg:max-w-2xl",
+    xxl: "lg:max-w-4xl",  
   }[size];
 
   return (

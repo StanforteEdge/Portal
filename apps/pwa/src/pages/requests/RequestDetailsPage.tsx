@@ -5,7 +5,6 @@ import {
   EmptyState,
   Icon,
   PageHeader,
-  RightRail,
   SelectField,
   SectionCard,
   Table,
@@ -79,6 +78,13 @@ import { LeaveRequestDetail } from "./details/LeaveRequestDetail";
 import { LoanRequestDetail } from "./details/LoanRequestDetail";
 import { OtherRequestDetail } from "./details/OtherRequestDetail";
 import { PaymentRequestDetail } from "./details/PaymentRequestDetail";
+import { RequestActionCard } from "./details/shared/RequestActionCard";
+import { RequestHeaderCard } from "./details/shared/RequestHeaderCard";
+import { SupportingDocsSection } from "./details/shared/SupportingDocsSection";
+import { ActivitySection } from "./details/shared/ActivitySection";
+import { WorkflowStepperCard } from "./details/shared/WorkflowStepperCard";
+import { NudgeSection } from "./details/shared/NudgeSection";
+import { DownloadsSection } from "./details/shared/DownloadsSection";
 
 function DownloadDropdown(props: {
   actionBusy: string;
@@ -1046,6 +1052,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
         user={{ name: "Alex Sterling", role: "Fleet Operations" }}
         mobileNav={detailMobileNav}
       >
+        {/* Desktop header */}
         <div className="hidden lg:block">
           <PageHeader
             breadcrumbs={
@@ -1097,84 +1104,69 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
               </div>
             }
           />
-
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              Loading request details...
-            </div>
-          ) : error ? (
-            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
-              {error}
-            </div>
-          ) : request ? (
-            <>
-              <div className="rounded-lg border border-yellow-400 bg-yellow-50 px-3 py-2 text-xs font-mono mb-2">
-                <strong>DEBUG</strong> | workflowType: <strong>{workflowType}</strong> | rt.workflow_type: <strong>{String(request.request_type?.workflow_type ?? "undefined")}</strong> | rt.taxonomy_keys: <strong>{JSON.stringify(request.request_type?.taxonomy_keys)}</strong>
-              </div>
-              {workflowType === "leave" ? (
-                <LeaveRequestDetail isMobile={false} />
-              ) : workflowType === "loan" ? (
-                <LoanRequestDetail isMobile={false} />
-              ) : workflowType === "payment" ? (
-                <PaymentRequestDetail isMobile={false} />
-              ) : (
-                <OtherRequestDetail isMobile={false} />
-              )}
-            </>
-          ) : null}
         </div>
 
-        <div className="space-y-4 lg:hidden">
-          <div className="pt-1">
-            <button
-              type="button"
-              onClick={() => navigate(parentPath)}
-              className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
-            >
-              <Icon name="arrow_back" className="text-[16px]" />
-              Back to {parentLabel}
-            </button>
+        {/* Mobile header */}
+        <div className="pt-1 lg:hidden">
+          <button
+            type="button"
+            onClick={() => navigate(parentPath)}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-slate-500 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+          >
+            <Icon name="arrow_back" className="text-[16px]" />
+            Back to {parentLabel}
+          </button>
 
-            <div className="mt-3 flex items-start justify-between gap-4">
-              <div>
-                <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-                  {parentLabel}
-                </p>
-                <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">
-                  {request?.request_number || "Request details"}
-                </h1>
-                <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-                  {request
-                    ? `${request.request_type?.name || workflowTypeFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
-                    : "Loading..."}
-                </p>
-              </div>
-              {request ? (
-                <Chip variant={viewerStatus.tone}>{viewerStatus.label}</Chip>
-              ) : null}
+          <div className="mt-3 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+                {parentLabel}
+              </p>
+              <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">
+                {request?.request_number || "Request details"}
+              </h1>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
+                {request
+                  ? `${request.request_type?.name || workflowTypeFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
+                  : "Loading..."}
+              </p>
+            </div>
+            {request ? (
+              <Chip variant={viewerStatus.tone}>{viewerStatus.label}</Chip>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Shared content — responsive single layout */}
+        {loading ? (
+          <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
+            Loading request details...
+          </div>
+        ) : error ? (
+          <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
+            {error}
+          </div>
+        ) : request ? (
+          <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
+            {/* Right rail — first in DOM so action card appears top on mobile */}
+            <div className="space-y-4 lg:order-2 lg:col-span-4">
+              <RequestHeaderCard />
+              <RequestActionCard />
+              <DownloadsSection />
+              <NudgeSection />
+              <WorkflowStepperCard />
+            </div>
+            {/* Main content — visually left on desktop */}
+            <div className="space-y-6 lg:order-1 lg:col-span-8">
+              {workflowType === "leave" ? <LeaveRequestDetail /> :
+               workflowType === "loan" ? <LoanRequestDetail /> :
+               workflowType === "payment" ? <PaymentRequestDetail /> :
+               <OtherRequestDetail />}
+              <SupportingDocsSection />
+              <ActivitySection />
             </div>
           </div>
-
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              Loading request details...
-            </div>
-          ) : error ? (
-            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
-              {error}
-            </div>
-          ) : request ? (
-            workflowType === "leave" ? (
-              <LeaveRequestDetail isMobile={true} />
-            ) : workflowType === "loan" ? (
-              <LoanRequestDetail isMobile={true} />
-            ) : workflowType === "payment" ? (
-              <PaymentRequestDetail isMobile={true} />
-            ) : (
-              <OtherRequestDetail isMobile={true} />
-            )
-          ) : null}
-        </div>
+        ) : null}
       </AppShell>
     </RequestDetailsContext.Provider>
   );

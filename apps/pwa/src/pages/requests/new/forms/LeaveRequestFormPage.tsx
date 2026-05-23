@@ -1,22 +1,16 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
-import { SectionCard, SelectField, TextAreaField, TextField } from "@/shared";
-import { humanize } from "@stanforte/shared";
+import { SectionCard, TextAreaField, TextField, SelectField } from "@/shared";
 import type { RequestTypeOption, RequestCategoryOption, RequestRecord } from "@/pages/requests/requests-api";
 import type { FamilyFormHandle } from "./family-form-types";
 import { getMyLeaveBalance } from "@/pages/requests/requests-api";
 import { useCachedQuery } from "@/shared/lib/core";
-import { TagPicker } from "@/pages/requests/TagPicker";
-import type { TagTerm } from "@/pages/requests/taxonomy-api";
 
 type LeaveFormState = {
-  organization_id: string;
-  team_id: string;
   leave_start_date: string;
   leave_end_date: string;
   leave_days_requested: string;
   leave_handover_user_id: string;
   leave_handover_notes: string;
-  purpose: string;
   is_special_request: boolean;
   special_request_justification: string;
 };
@@ -24,16 +18,10 @@ type LeaveFormState = {
 type Props = {
   selectedType: RequestTypeOption;
   selectedCategory: RequestCategoryOption | null;
-  organizationOptions: Array<{ id: string; name: string; code: string }>;
-  groupOptions: Array<{ id: string; name: string; type: string; role: string }>;
   handoverOptions: Array<{ value: string; label: string }>;
   editRequest?: RequestRecord | null;
   loadingEdit: boolean;
   onSummary: (node: React.ReactNode) => void;
-  tags?: TagTerm[];
-  setTags?: (tags: TagTerm[]) => void;
-  taxonomyKey?: string;
-  isTagTaxonomy?: boolean;
 };
 
 function parseDateOnly(value: string) {
@@ -46,26 +34,17 @@ function parseDateOnly(value: string) {
 export const LeaveRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
   selectedType,
   selectedCategory,
-  organizationOptions,
-  groupOptions,
   handoverOptions,
   editRequest,
   loadingEdit,
   onSummary,
-  tags = [],
-  setTags,
-  taxonomyKey = "",
-  isTagTaxonomy = false,
 }, ref) => {
   const [form, setForm] = useState<LeaveFormState>({
-    organization_id: "",
-    team_id: "",
     leave_start_date: "",
     leave_end_date: "",
     leave_days_requested: "",
     leave_handover_user_id: "",
     leave_handover_notes: "",
-    purpose: "",
     is_special_request: false,
     special_request_justification: "",
   });
@@ -74,32 +53,15 @@ export const LeaveRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
     if (!editRequest) return;
     const data = editRequest.data && typeof editRequest.data === "object" ? editRequest.data : {};
     setForm({
-      organization_id: String(data.organization_id || editRequest.organization_id || ""),
-      team_id: String(data.team_id || editRequest.team_id || ""),
       leave_start_date: String(data.start_date || ""),
       leave_end_date: String(data.end_date || ""),
       leave_days_requested: data.days_requested !== undefined && data.days_requested !== null ? String(data.days_requested) : "",
       leave_handover_user_id: String(data.handover_user_id || ""),
       leave_handover_notes: String(data.handover_notes || ""),
-      purpose: String(data.purpose || ""),
       is_special_request: Boolean(data.is_special_request),
       special_request_justification: String(data.special_request_justification || ""),
     });
   }, [editRequest]);
-
-  useEffect(() => {
-    if (!organizationOptions?.length) return;
-    if (organizationOptions.length === 1) {
-      setForm((prev) => ({ ...prev, organization_id: prev.organization_id || organizationOptions[0].id }));
-    }
-  }, [organizationOptions]);
-
-  useEffect(() => {
-    if (!groupOptions?.length) return;
-    if (groupOptions.length === 1) {
-      setForm((prev) => ({ ...prev, team_id: prev.team_id || groupOptions[0].id }));
-    }
-  }, [groupOptions]);
 
   const minNoticeDays = Number(
     (selectedType?.form_schema as Record<string, unknown> | null)?.min_notice_days ?? 0,
@@ -203,9 +165,6 @@ export const LeaveRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
 
   useImperativeHandle(ref, () => ({
     validateAndBuild: () => {
-      if (!form.purpose.trim()) {
-        return { error: "Reason is required." };
-      }
       if (!form.leave_start_date || !form.leave_end_date) {
         return { error: "Leave start and end dates are required." };
       }
@@ -243,10 +202,7 @@ export const LeaveRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
 
       return {
         payload: {
-          team_id: form.team_id || undefined,
           data: {
-            purpose: form.purpose.trim(),
-            organization_id: form.organization_id || undefined,
             start_date: form.leave_start_date || undefined,
             end_date: form.leave_end_date || undefined,
             days_requested: Number(form.leave_days_requested),
@@ -267,18 +223,6 @@ export const LeaveRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
 
   return (
     <>
-      {isTagTaxonomy && setTags ? (
-        <SectionCard title="Tags" description="Classify this request with relevant tags.">
-          <TagPicker
-            taxonomyKey={taxonomyKey}
-            value={tags}
-            onChange={setTags}
-            placeholder="Add tags"
-            label="Tags"
-          />
-        </SectionCard>
-      ) : null}
-
       <SectionCard
         title="Leave Schedule"
         description={isSingleDay ? "Select the date for this one-day leave." : "Capture the date range for this leave request."}
@@ -312,17 +256,6 @@ export const LeaveRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
           ) : null}
         </div>
 
-        <div className="mt-5 border-t border-slate-100 pt-5">
-          <TextAreaField
-            label="Reason for Request"
-            value={form.purpose}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, purpose: event.target.value }))
-            }
-            placeholder="Explain the leave reason and any planning context."
-          />
-        </div>
-
         {leaveBalanceHit && (
           <div className="mt-5 rounded-[18px] border border-amber-500/20 bg-amber-500/10 p-5">
             <p className="text-sm font-medium text-amber-700">
@@ -349,42 +282,6 @@ export const LeaveRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
             )}
           </div>
         )}
-      </SectionCard>
-
-      <SectionCard
-        title="Work Context"
-        description="Tie the request to the right organization and group."
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          <SelectField
-            label="Organization"
-            value={form.organization_id}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, organization_id: event.target.value }))
-            }
-            disabled={organizationOptions.length <= 1}
-          >
-            <option value="">Select organization</option>
-            {organizationOptions.map((org) => (
-              <option key={org.id} value={org.id}>{org.name}</option>
-            ))}
-          </SelectField>
-          <SelectField
-            label="Group"
-            value={form.team_id}
-            onChange={(event) =>
-              setForm((prev) => ({ ...prev, team_id: event.target.value }))
-            }
-            disabled={groupOptions.length <= 1}
-          >
-            <option value="">Select group</option>
-            {groupOptions.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name} ({humanize(group.type)})
-              </option>
-            ))}
-          </SelectField>
-        </div>
       </SectionCard>
 
       <SectionCard

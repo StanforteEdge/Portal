@@ -1,18 +1,15 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { SectionCard, SelectField, TextAreaField, TextField } from "@/shared";
-import { formatCurrency, humanize } from "@stanforte/shared";
+import { formatCurrency } from "@stanforte/shared";
 import type { RequestTypeOption, RequestCategoryOption, RequestRecord } from "@/pages/requests/requests-api";
 import type { FamilyFormHandle } from "./family-form-types";
 import { useCachedQuery } from "@/shared/lib/core";
 
 type LoanFormState = {
-  organization_id: string;
-  team_id: string;
   loan_type: string;
   principal_amount: string;
   repayment_months: string;
   start_recovery_date: string;
-  purpose: string;
   is_special_request: boolean;
   special_request_justification: string;
 };
@@ -20,8 +17,6 @@ type LoanFormState = {
 type Props = {
   selectedType: RequestTypeOption;
   selectedCategory: RequestCategoryOption | null;
-  organizationOptions: Array<{ id: string; name: string; code: string }>;
-  groupOptions: Array<{ id: string; name: string; type: string; role: string }>;
   editRequest?: RequestRecord | null;
   loadingEdit: boolean;
   onSummary: (node: React.ReactNode) => void;
@@ -30,8 +25,6 @@ type Props = {
 export const LoanRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
   selectedType,
   selectedCategory,
-  organizationOptions,
-  groupOptions,
   editRequest,
   loadingEdit,
   onSummary,
@@ -44,13 +37,10 @@ export const LoanRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
   };
 
   const [form, setForm] = useState<LoanFormState>({
-    organization_id: "",
-    team_id: "",
     loan_type: "loan",
     principal_amount: "",
     repayment_months: "1",
     start_recovery_date: getNextMonthFirstDay(),
-    purpose: "",
     is_special_request: false,
     special_request_justification: "",
   });
@@ -59,29 +49,14 @@ export const LoanRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
     if (!editRequest) return;
     const data = editRequest.data && typeof editRequest.data === "object" ? editRequest.data : {};
     setForm({
-      organization_id: String(data.organization_id || editRequest.organization_id || ""),
-      team_id: String(data.team_id || editRequest.team_id || ""),
       loan_type: String(data.loan_type || "loan"),
       principal_amount: String(data.principal_amount || editRequest.total_amount || ""),
       repayment_months: String(data.repayment_months || "1"),
       start_recovery_date: String(data.start_recovery_date || getNextMonthFirstDay()),
-      purpose: String(data.purpose || ""),
       is_special_request: Boolean(data.is_special_request),
       special_request_justification: String(data.special_request_justification || ""),
     });
   }, [editRequest]);
-
-  useEffect(() => {
-    if (organizationOptions.length === 1) {
-      setForm((prev) => ({ ...prev, organization_id: prev.organization_id || organizationOptions[0].id }));
-    }
-  }, [organizationOptions]);
-
-  useEffect(() => {
-    if (groupOptions.length === 1) {
-      setForm((prev) => ({ ...prev, team_id: prev.team_id || groupOptions[0].id }));
-    }
-  }, [groupOptions]);
 
   const principal = Number(form.principal_amount) || 0;
   const months = Number(form.repayment_months) || 1;
@@ -149,9 +124,6 @@ export const LoanRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
       if (!form.start_recovery_date) {
         return { error: "Start recovery date is required." };
       }
-      if (!form.purpose.trim()) {
-        return { error: "Purpose is required." };
-      }
       if (policyHit && !form.is_special_request) {
         return { error: `Policy limits exceeded. Max principal: ${formatCurrency(maxPrincipal)}, Max duration: ${maxRepaymentMonths} months. Check "Special Request" to bypass with justification.` };
       }
@@ -163,16 +135,13 @@ export const LoanRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
 
       return {
         payload: {
-          team_id: form.team_id || undefined,
           total_amount: p,
           data: {
-            organization_id: form.organization_id || undefined,
             loan_type: form.loan_type,
             principal_amount: p,
             repayment_months: m,
             monthly_recovery_amount: Math.round((p / m) * 100) / 100,
             start_recovery_date: form.start_recovery_date,
-            purpose: form.purpose.trim(),
             title: title,
             is_special_request: form.is_special_request,
             special_request_justification: form.is_special_request ? form.special_request_justification.trim() : undefined,
@@ -189,39 +158,6 @@ export const LoanRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
 
   return (
     <div className="space-y-6">
-      <SectionCard
-        title="Work Context"
-        description="Select the organization and team/group for this request."
-      >
-        <div className="grid gap-4 lg:grid-cols-2">
-          <SelectField
-            label="Organization"
-            value={form.organization_id}
-            onChange={(event) => setForm((prev) => ({ ...prev, organization_id: event.target.value }))}
-            disabled={organizationOptions.length <= 1}
-          >
-            <option value="">Select organization</option>
-            {organizationOptions.map((org) => (
-              <option key={org.id} value={org.id}>{org.name}</option>
-            ))}
-          </SelectField>
-
-          <SelectField
-            label="Group/Team"
-            value={form.team_id}
-            onChange={(event) => setForm((prev) => ({ ...prev, team_id: event.target.value }))}
-            disabled={groupOptions.length <= 1}
-          >
-            <option value="">Select group</option>
-            {groupOptions.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.name} ({humanize(group.type)})
-              </option>
-            ))}
-          </SelectField>
-        </div>
-      </SectionCard>
-
       <SectionCard
         title="Loan Details"
         description="Enter the details of your loan or salary advance request."
@@ -269,15 +205,6 @@ export const LoanRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
             label="Estimated Monthly Recovery"
             value={formatCurrency(monthlyRepayment || 0)}
             disabled
-          />
-        </div>
-
-        <div className="mt-4">
-          <TextAreaField
-            label="Purpose of Request"
-            value={form.purpose}
-            onChange={(event) => setForm((prev) => ({ ...prev, purpose: event.target.value }))}
-            placeholder="Describe why you are requesting this loan or advance."
           />
         </div>
 

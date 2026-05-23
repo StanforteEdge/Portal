@@ -29,30 +29,7 @@ import {
 import { formatCurrency, formatDisplayDate } from "@stanforte/shared";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import { useMemo, useState } from "react";
-import type { UsePaymentRequestResult as UseFinanceRequestResult } from "../../hooks/usePaymentRequest";
-
-type Props = {
-  request: any;
-  requestData: Record<string, any>;
-  categoryName: string;
-  projectName: string;
-  teamName: string;
-  organizationName: string;
-  requestTags: Array<{ id: string; label: string }>;
-  lineItems: any[];
-  currentUserId?: string;
-  ownerActionsVisible: boolean;
-  availableActions: string[];
-  actionBusy: string;
-  finance: UseFinanceRequestResult;
-  financeProgress: { label: string; hint: string };
-  onHandleDisburse: () => Promise<void>;
-  onHandleRetire: () => Promise<void>;
-  onHandleDownloadArtifact: (
-    action: "pv_pdf",
-    voucherId?: string,
-  ) => Promise<void>;
-};
+import { useRequestDetails } from "../../details/context";
 
 function formatCertificateCurrency(amount: number, currency?: string | null) {
   const value = Number.isFinite(amount) ? amount : 0;
@@ -147,7 +124,7 @@ async function buildCertificateOfHonorPdf(input: {
 }
 
 
-export function PaymentRequestBody(props: Props) {
+export function PaymentRequestBody() {
   const {
     request,
     requestData,
@@ -163,10 +140,9 @@ export function PaymentRequestBody(props: Props) {
     actionBusy,
     finance,
     financeProgress,
-    onHandleDisburse,
-    onHandleRetire,
-    onHandleDownloadArtifact,
-  } = props;
+    handleWorkflowAction,
+    handleDownloadArtifact,
+  } = useRequestDetails();
   const { user } = useAuth();
   const { showToast } = useToast();
   const [certificateBusy, setCertificateBusy] = useState(false);
@@ -699,7 +675,7 @@ export function PaymentRequestBody(props: Props) {
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => void onHandleDisburse()}
+                  onClick={() => void handleWorkflowAction("disburse")}
                   disabled={
                     actionBusy !== "" ||
                     (!finance.financeAccounts?.length
@@ -866,7 +842,7 @@ export function PaymentRequestBody(props: Props) {
                 <Button
                   variant="secondary"
                   onClick={() =>
-                    void onHandleDownloadArtifact("pv_pdf", finance.previewVoucher?.id)
+                    void handleDownloadArtifact("pv_pdf", finance.previewVoucher?.id)
                   }
                   disabled={actionBusy !== ""}
                 >
@@ -1454,7 +1430,7 @@ export function PaymentRequestBody(props: Props) {
                   Cancel
                 </Button>
                 <Button
-                  onClick={() => void onHandleRetire()}
+                  onClick={() => void handleWorkflowAction("retire")}
                   disabled={actionBusy !== "" || !finance.retireForm.voucher_id}
                 >
                   {actionBusy === "retire" ? "Submitting..." : "Submit Retirement"}
