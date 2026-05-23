@@ -16,6 +16,10 @@ export class CreateTaxonomyDto {
   module?: string;
 
   @IsOptional()
+  @IsString()
+  render_type?: string;
+
+  @IsOptional()
   @IsBoolean()
   is_active?: boolean;
 }

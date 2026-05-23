@@ -11,7 +11,15 @@ export type ViewerStatus = {
   tone: StatusTone;
 };
 
-export type FinanceProgress = {
+export type PaymentProgress = {
   label: string;
   hint: string;
 };
+
+export type LoanProgress = {
+  label: string;
+  hint: string;
+};
+
+/** @deprecated Use PaymentProgress */
+export type FinanceProgress = PaymentProgress;

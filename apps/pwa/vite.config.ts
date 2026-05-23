@@ -95,6 +95,7 @@ export default defineConfig(({ mode }) => {
     resolve: {
       alias: {
         "@": fileURLToPath(new URL("./src", import.meta.url)),
+        "@stanforte/shared": fileURLToPath(new URL("../shared/src/index.ts", import.meta.url)),
       },
     },
     define: {

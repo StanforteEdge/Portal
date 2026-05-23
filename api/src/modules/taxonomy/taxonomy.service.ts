@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { paginatedResponse } from '../../common/helpers/paginated-response';
@@ -90,17 +90,25 @@ export class TaxonomyService {
     const existing = await this.prisma.taxonomy.findUnique({ where: { id } });
     if (!existing) throw new NotFoundException('Taxonomy not found');
 
-    return this.prisma.taxonomy.update({
-      where: { id },
-      data: {
-        key: dto.key ? dto.key.trim().toLowerCase().replace(/\s+/g, '_') : undefined,
-        name: dto.name?.trim(),
-        description: dto.description,
-        module: dto.module,
-        isActive: dto.is_active
-      },
-      include: { terms: { orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] } }
-    });
+    try {
+      return await this.prisma.taxonomy.update({
+        where: { id },
+        data: {
+          key: dto.key ? dto.key.trim().toLowerCase().replace(/\s+/g, '_') : undefined,
+          name: dto.name?.trim(),
+          description: dto.description,
+          module: dto.module,
+          renderType: dto.render_type,
+          isActive: dto.is_active
+        },
+        include: { terms: { orderBy: [{ sortOrder: 'asc' }, { label: 'asc' }] } }
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2002') {
+        throw new ConflictException('A taxonomy with this key already exists.');
+      }
+      throw err;
+    }
   }
 
   async deleteTaxonomy(id: string) {

@@ -311,31 +311,45 @@ export async function downloadMonthlyBreakdown(id: string) {
 export type PayrollLoan = {
   id: string;
   worker_id: string;
-  worker_name?: string | null;
-  principal: number;
-  balance: number;
-  monthly_recovery: number;
+  worker?: { id: string; full_name: string; worker_type: string; email: string } | null;
+  component_id?: string | null;
+  component?: any;
+  request_id?: string | null;
+  loan_type: "loan" | "salary_advance";
+  title: string;
+  principal_amount: number;
+  outstanding_amount: number;
   issued_date: string;
-  expected_end_date?: string | null;
-  status: string;
-  currency?: string | null;
+  start_recovery_date: string;
+  monthly_recovery_amount?: number | null;
+  recovery_rate?: number | null;
+  status: "active" | "paused" | "closed";
+  notes?: string | null;
+  repayments?: Array<{ id: string; amount: number; status: string; created_at: string }>;
 };
 
 export type UpsertLoanPayload = {
   worker_id: string;
-  principal: number;
-  monthly_recovery: number;
+  component_id?: string | null;
+  request_id?: string | null;
+  loan_type: "loan" | "salary_advance";
+  title: string;
+  principal_amount: number;
   issued_date: string;
-  expected_end_date?: string;
-  currency?: string;
-  notes?: string;
+  start_recovery_date: string;
+  monthly_recovery_amount?: number | null;
+  recovery_rate?: number | null;
+  status?: string;
+  notes?: string | null;
 };
 
-export async function listLoans(params?: { page?: number; per_page?: number; worker_id?: string }) {
+export async function listLoans(params?: { page?: number; per_page?: number; worker_id?: string; status?: string; loan_type?: string }) {
   const query = new URLSearchParams();
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
   if (params?.worker_id) query.set("worker_id", params.worker_id);
+  if (params?.status) query.set("status", params.status);
+  if (params?.loan_type) query.set("loan_type", params.loan_type);
   const suffix = query.toString() ? `?${query.toString()}` : "";
   const res = await httpRequest<any>(`/payroll/loans${suffix}`);
   const items: PayrollLoan[] = res?.data?.items ?? res?.data ?? res ?? [];
@@ -349,6 +363,14 @@ export async function createLoan(payload: UpsertLoanPayload) {
 
 export async function updateLoan(id: string, payload: Partial<UpsertLoanPayload>) {
   const res = await httpRequest<any>(`/payroll/loans/${id}`, { method: "POST", body: payload });
+  return (res?.data ?? res) as PayrollLoan;
+}
+
+export async function logManualRepayment(id: string, payload: { amount: number; notes?: string }) {
+  const res = await httpRequest<any>(`/payroll/loans/${id}/repayments`, {
+    method: "POST",
+    body: payload,
+  });
   return (res?.data ?? res) as PayrollLoan;
 }
 

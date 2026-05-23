@@ -82,7 +82,7 @@ export type RequestGroupOption = {
 
 export type RequestTypeOption = {
   id: string;
-  group_id: string;
+  group_id?: string;
   name: string;
   code_prefix: string;
   category_key?: string | null;
@@ -96,7 +96,7 @@ export type RequestTypeOption = {
 function toRequestTypeOption(item: any): RequestTypeOption {
   return {
     id: String(item.id),
-    group_id: String(item.group_id ?? item.groupId ?? ""),
+    group_id: item.category?.group_id ? String(item.category.group_id) : undefined,
     name: String(item.name ?? ""),
     code_prefix: String(item.code_prefix ?? item.codePrefix ?? ""),
     category_key: item.category_key ?? item.categoryKey ?? null,
@@ -160,7 +160,7 @@ export async function listRequestTypes(params?: { group_id?: string; include_ina
 }
 
 export async function createRequestType(payload: {
-  group_id: string;
+  category_id: string;
   name: string;
   code_prefix: string;
   category_key?: string;

@@ -24,6 +24,13 @@ export function createPolicyApi(httpRequest: HttpRequest) {
       return [] as PolicyRecord[];
     },
 
+    async resolvePolicy(module: string, policyKey: string, context?: Record<string, any>) {
+      return httpRequest<any>("/policies/resolve", {
+        method: "POST",
+        body: { module, policy_key: policyKey, context },
+      });
+    },
+
     async savePolicy(dto: Partial<PolicyRecord>, id?: string) {
       const method = "POST";
       const url = id ? `/policies/${id}` : "/policies";

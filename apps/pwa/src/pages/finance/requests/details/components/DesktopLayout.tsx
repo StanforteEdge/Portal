@@ -36,13 +36,13 @@ export function DesktopLayout() {
     <div className="grid gap-6 lg:grid-cols-12">
       <div className="space-y-6 lg:col-span-8">
         <RequestSummarySection />
-        {family !== "leave" ? <WorkContextSection /> : null}
-        {family === "leave" ? (
+        {family !== "hr" ? <WorkContextSection /> : null}
+        {family === "hr" ? (
           <LeaveCoverageSection />
         ) : (
           <RequestItemsTable />
         )}
-        {family !== "leave" ? <PaymentVouchersTable /> : null}
+        {family !== "hr" ? <PaymentVouchersTable /> : null}
         <SupportingDocumentsSection />
       </div>
 

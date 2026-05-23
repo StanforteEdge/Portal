@@ -540,6 +540,7 @@ export class PayrollService {
       data: {
         workerId: dto.worker_id,
         componentId: dto.component_id || null,
+        requestId: dto.request_id ? BigInt(String(dto.request_id)) : null,
         loanType: dto.loan_type,
         title: dto.title,
         principalAmount: dto.principal_amount,
@@ -568,6 +569,7 @@ export class PayrollService {
       data: {
         workerId: dto.worker_id,
         componentId: dto.component_id || null,
+        requestId: dto.request_id ? BigInt(String(dto.request_id)) : null,
         loanType: dto.loan_type,
         title: dto.title,
         principalAmount: dto.principal_amount,
@@ -584,6 +586,37 @@ export class PayrollService {
         repayments: { orderBy: { createdAt: 'desc' }, take: 24 },
       }
     });
+    return this.serializeLoan(row);
+  }
+
+  async logManualRepayment(id: string, amount: number, notes?: string) {
+    const existing = await this.prisma.payrollLoan.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Payroll loan not found');
+
+    const newOutstanding = Number(existing.outstandingAmount || 0) - amount;
+
+    const row = await this.prisma.$transaction(async (tx) => {
+      await tx.payrollLoanRepayment.create({
+        data: {
+          loanId: id,
+          amount,
+          notes: notes || 'Manual repayment',
+        }
+      });
+      return tx.payrollLoan.update({
+        where: { id },
+        data: {
+          outstandingAmount: newOutstanding,
+          status: newOutstanding <= 0 ? 'completed' : existing.status,
+        },
+        include: {
+          worker: { select: { id: true, fullName: true, workerType: true, email: true } },
+          component: { select: { id: true, code: true, name: true } },
+          repayments: { orderBy: { createdAt: 'desc' }, take: 24 },
+        }
+      });
+    });
+
     return this.serializeLoan(row);
   }
 
@@ -807,7 +840,6 @@ export class PayrollService {
         _count: {
           select: {
             postings: true,
-            loanRepayments: true,
             payslipDistributions: true,
           },
         },
@@ -817,11 +849,30 @@ export class PayrollService {
     if (!['draft', 'prepared'].includes(existing.status)) {
       throw new BadRequestException('Only draft or prepared payroll runs can be deleted');
     }
-    if ((existing as any)._count?.postings || (existing as any)._count?.loanRepayments || (existing as any)._count?.payslipDistributions) {
+    if ((existing as any)._count?.postings || (existing as any)._count?.payslipDistributions) {
       throw new BadRequestException('Cannot delete payroll run with payroll history or postings');
     }
 
-    await this.prisma.payrollRun.delete({ where: { id } });
+    await this.prisma.$transaction(async (tx) => {
+      const repayments = await tx.payrollLoanRepayment.findMany({
+        where: { runId: id },
+      });
+      for (const repayment of repayments) {
+        await tx.payrollLoan.update({
+          where: { id: repayment.loanId },
+          data: {
+            outstandingAmount: { increment: repayment.amount },
+            status: 'active',
+          },
+        });
+      }
+      await tx.payrollLoanRepayment.deleteMany({
+        where: { runId: id },
+      });
+
+      await tx.payrollRun.delete({ where: { id } });
+    });
+
     return { action: 'deleted' };
   }
 
@@ -898,6 +949,22 @@ export class PayrollService {
     });
 
     return this.prisma.$transaction(async (tx) => {
+      const oldRepayments = await tx.payrollLoanRepayment.findMany({
+        where: { runId: id },
+      });
+      for (const repayment of oldRepayments) {
+        await tx.payrollLoan.update({
+          where: { id: repayment.loanId },
+          data: {
+            outstandingAmount: { increment: repayment.amount },
+            status: 'active',
+          },
+        });
+      }
+      await tx.payrollLoanRepayment.deleteMany({
+        where: { runId: id },
+      });
+
       await tx.payrollRunItem.deleteMany({ where: { runId: id } });
       const timesheetAllocations = await tx.payrollRunTimesheetAllocation.findMany({
         where: { runId: id },
@@ -1241,7 +1308,7 @@ export class PayrollService {
     if (!['prepared', 'draft'].includes(run.status)) throw new BadRequestException('Run cannot be submitted in its current status');
     await this.prisma.payrollRun.update({
       where: { id },
-      data: { status: 'under_review', reviewedById: actorId ? toBigInt(actorId) : null }
+      data: { status: 'under_review' }
     });
     await this.recordRunEvent(id, 'submitted', actorId, 'Submitted payroll run for review');
     await this.notifyRunStakeholders(id, {
@@ -2980,6 +3047,7 @@ export class PayrollService {
         : null,
       component_id: row.componentId ?? null,
       component: row.component || null,
+      request_id: row.requestId ? String(row.requestId) : null,
       loan_type: row.loanType,
       title: row.title,
       principal_amount: Number(row.principalAmount || 0),
@@ -3232,6 +3300,7 @@ export class PayrollService {
     const periodEnd = new Date(Date.UTC(year, month, 0));
     const run = await this.prisma.payrollRun.findFirst({ where: { year, month } });
     if (!run) return null;
+    if (['approved', 'authorized', 'paid', 'closed'].includes(run.status)) return null;
     const approvedRows = await this.prisma.projectTimesheetEntry.findMany({
       where: {
         workerId,

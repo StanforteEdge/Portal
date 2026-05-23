@@ -491,7 +491,7 @@ export default function HrPayrollWorkersPage() {
         </SectionCard>
       </div>
 
-      <SlideOver open={showSlideOver} onClose={() => setShowSlideOver(false)} size="md">
+      <SlideOver open={showSlideOver} onClose={() => setShowSlideOver(false)} size="xxl">
         <SlideOverHeader
           title={editingWorker ? "Edit Worker" : "Add Payroll Worker"}
           subtitle="Set up the worker's payroll profile, bank details, and identifiers."

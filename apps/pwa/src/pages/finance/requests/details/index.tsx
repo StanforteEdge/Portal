@@ -182,7 +182,7 @@ export function FinanceRequestDetailsPage() {
   const requestData =
     request?.data && typeof request.data === "object" ? request.data : {};
   const categoryTaxonomyKey = String(
-    request?.request_type?.category_key || "",
+    request?.request_type?.taxonomy_keys?.[0] || "",
   );
   const categoryTaxonomy = managedTaxonomies?.find(
     (taxonomy) => taxonomy.key === categoryTaxonomyKey,

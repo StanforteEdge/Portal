@@ -2,9 +2,28 @@ import { formatCurrency } from "@stanforte/shared";
 import type { RequestGroupOption, RequestRecord, RequestTypeOption } from "@/pages/requests/requests-api";
 import type { WorkflowStep, WorkflowStepStatus } from "@/shared";
 
-export type RequestFamily = "financial" | "leave" | "other";
+export type WorkflowType = "payment" | "leave" | "loan" | "other";
+
+/** @deprecated Use WorkflowType */
+export type RequestFamily = WorkflowType;
 
 export type RequestGroupMap = Record<string, { name: string; code: string }>;
+
+export type RequestModule = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export const REQUEST_MODULES: RequestModule[] = [
+  { id: "module-hr", name: "Human Resources", code: "HR" },
+  { id: "module-financial", name: "Financial", code: "FIN" },
+];
+
+const MODULE_BY_CODE: Record<string, RequestModule> = {
+  HR: REQUEST_MODULES[0],
+  FIN: REQUEST_MODULES[1],
+};
 
 export function buildGroupMap(groups: RequestGroupOption[]): RequestGroupMap {
   const map: RequestGroupMap = {};
@@ -14,14 +33,21 @@ export function buildGroupMap(groups: RequestGroupOption[]): RequestGroupMap {
   return map;
 }
 
-export function classifyRequestFamily(
+export function moduleFromFamily(family: WorkflowType): RequestModule | undefined {
+  if (family === "leave" || family === "loan") return REQUEST_MODULES[0];
+  if (family === "payment") return REQUEST_MODULES[1];
+  return undefined;
+}
+
+export function classifyRequestCategory(
   categoryKey?: string | null,
   requestTypeName?: string | null,
   groupName?: string | null,
-): RequestFamily {
+): WorkflowType {
   if (groupName) {
     const g = groupName.toLowerCase();
-    if (g.includes("leave") || g.includes("hr") || g === "personnel") return "leave";
+    if (g.includes("leave") || g === "personnel") return "leave";
+    if (g.includes("loan") || g.includes("salary") || g.includes("advance")) return "loan";
     if (
       g.includes("finance") ||
       g.includes("payment") ||
@@ -29,9 +55,8 @@ export function classifyRequestFamily(
       g.includes("procurement") ||
       g.includes("reimbursement")
     ) {
-      return "financial";
+      return "payment";
     }
-    return "other";
   }
 
   const category = String(categoryKey || "").toLowerCase();
@@ -39,6 +64,7 @@ export function classifyRequestFamily(
 
   if (category) {
     if (category.includes("leave")) return "leave";
+    if (category.includes("loan") || category.includes("salary") || category.includes("advance")) return "loan";
     if (
       category.includes("finance") ||
       category.includes("payment") ||
@@ -46,47 +72,75 @@ export function classifyRequestFamily(
       category.includes("reimbursement") ||
       category.includes("procurement")
     ) {
-      return "financial";
+      return "payment";
     }
-    return "other";
   }
 
   if (name.includes("leave")) return "leave";
-
-  if (name.includes("cash") || name.includes("expense") || name.includes("financial") || name.includes("reimbursement") || name.includes("procurement")) {
-    return "financial";
+  if (name.includes("loan") || name.includes("salary advance") || name.includes("advance")) return "loan";
+  if (
+    name.includes("cash") ||
+    name.includes("expense") ||
+    name.includes("financial") ||
+    name.includes("payment") ||
+    name.includes("reimbursement") ||
+    name.includes("procurement")
+  ) {
+    return "payment";
   }
 
   return "other";
 }
-
-export function requestFamilyLabel(family: RequestFamily) {
-  if (family === "leave") return "Leave";
-  if (family === "financial") return "Financial";
+export function workflowTypeLabel(type: WorkflowType) {
+  if (type === "leave") return "Leave";
+  if (type === "payment") return "Payment";
+  if (type === "loan") return "Loan";
   return "Other";
 }
 
-export function requestFamilyFromType(
+/** @deprecated Use workflowTypeLabel */
+export function requestFamilyLabel(family: WorkflowType) {
+  return workflowTypeLabel(family);
+}
+
+export function workflowTypeFromType(
   type?: RequestTypeOption | null,
   groups?: RequestGroupMap,
-): RequestFamily {
+): WorkflowType {
+  if (type?.workflow_type) return type.workflow_type as WorkflowType;
   const groupName = type?.groupId && groups?.[type.groupId]
     ? groups[type.groupId].name
     : null;
-  return classifyRequestFamily(
-    type?.categoryKey ?? type?.category_key,
+  return classifyRequestCategory(
+    type?.taxonomyKeys?.[0] ?? type?.taxonomy_keys?.[0] ?? type?.categoryKey ?? type?.category_key ?? type?.category_code,
     type?.name,
     groupName,
   );
 }
 
-export function requestFamilyFromRecord(request?: RequestRecord | null): RequestFamily {
-  return classifyRequestFamily(
-    request?.request_type?.category_key,
-    request?.request_type?.name,
-    request?.group?.name,
+export function requestFamilyFromTypeSimple(type?: RequestTypeOption | null): RequestFamily {
+  return classifyRequestCategory(
+    type?.taxonomyKeys?.[0] ?? type?.taxonomy_keys?.[0] ?? type?.categoryKey ?? type?.category_key ?? type?.category_code,
+    type?.name,
+    null,
   );
 }
+
+export function workflowTypeFromRecord(request?: RequestRecord | null): WorkflowType {
+  if (request?.request_type?.workflow_type) {
+    return request.request_type.workflow_type as WorkflowType;
+  }
+  const groupName = request?.group?.name ?? null;
+  const taxonomyKey = request?.request_type?.taxonomy_keys?.[0];
+  const categoryKey = taxonomyKey ?? request?.request_type?.category_key ?? request?.request_type?.category_code ?? null;
+  return classifyRequestCategory(categoryKey, request?.request_type?.name, groupName);
+}
+
+/** @deprecated Use workflowTypeFromType */
+export const requestFamilyFromType = workflowTypeFromType;
+
+/** @deprecated Use workflowTypeFromRecord */
+export const requestFamilyFromRecord = workflowTypeFromRecord;
 
 export function formatRequestStatus(status?: string | null) {
   return String(status || "draft").replaceAll("_", " ");
@@ -95,7 +149,8 @@ export function formatRequestStatus(status?: string | null) {
 export function formatViewerRequestStatus(
   status?: string | null,
   actions: string[] = [],
-  pendingStep?: string | null
+  pendingStep?: string | null,
+  workflowType?: string | null,
 ) {
   const normalizedActions = actions.map((entry) => entry.toLowerCase());
   if (normalizedActions.includes("approve") || normalizedActions.includes("reject")) {
@@ -108,7 +163,7 @@ export function formatViewerRequestStatus(
     return "Awaiting Your Confirmation";
   }
   if (normalizedActions.includes("retire")) {
-    return "Retirement Required";
+    return workflowType === "loan" ? "Loan Disbursed" : "Retirement Required";
   }
   if (normalizedActions.includes("complete")) {
     return "Ready to Close";
@@ -414,6 +469,120 @@ export function buildLeaveWorkflow(
   };
 
   return [...draftStep, ...approvalSteps, finalStep];
+}
+
+export function buildLoanWorkflow(
+  request: any,
+  pendingSteps: Array<{ step: string }>,
+  options?: { showDraftStep?: boolean },
+): WorkflowStep[] {
+  const status = deriveRequestWorkflowStatus(request);
+  const doneEntries = Array.isArray(request?.approvals?.done)
+    ? request.approvals.done
+    : [];
+  const requestTypeSteps = Array.isArray(
+    request?.request_type?.approval_flow_json?.steps,
+  )
+    ? request.request_type.approval_flow_json.steps
+    : [];
+  const approvalStepsSource = requestTypeSteps.length
+    ? requestTypeSteps
+    : [{ role: "team_lead" }, { role: "hr" }];
+  const approvalLabels = approvalStepsSource.map(
+    (step: Record<string, any>, index: number) =>
+      normalizeWorkflowLabel(step, index),
+  );
+  const approvalDoneCount = Math.min(doneEntries.length, approvalLabels.length);
+  const approvalCurrentIndex =
+    pendingSteps.length > 0
+      ? Math.min(approvalDoneCount, Math.max(0, approvalLabels.length - 1))
+      : -1;
+  const requestComplete = status === "completed";
+  const disbursedOrBeyond = ["disbursed", "active", "completed"].includes(
+    String(status),
+  );
+  const activeOrBeyond = ["active", "completed"].includes(String(status));
+  const showDraftStep = options?.showDraftStep ?? true;
+
+  const draftStep: WorkflowStep[] = showDraftStep
+    ? [
+        {
+          label: "Drafted",
+          detail: "Loan request initialized and saved.",
+          status:
+            status === "draft" && approvalDoneCount === 0
+              ? "current"
+              : "complete",
+        },
+      ]
+    : [];
+
+  const approvalSteps: WorkflowStep[] = approvalLabels.map(
+    (label: string, index: number) => {
+      const done =
+        index < approvalDoneCount ||
+        disbursedOrBeyond ||
+        status === "cleared" ||
+        requestComplete;
+      const isCurrent =
+        approvalCurrentIndex === index &&
+        ["approval", "sent", "under_review", "review"].includes(String(status));
+      return {
+        label,
+        detail: isCurrent
+          ? `Waiting on ${label}.`
+          : done
+            ? `${label} completed.`
+            : `Awaiting ${label}.`,
+        status:
+          done && !isCurrent ? "complete" : isCurrent ? "current" : "upcoming",
+      } satisfies WorkflowStep;
+    },
+  );
+
+  const disbursedStep: WorkflowStep = {
+    label: "Disbursed",
+    detail: "Loan amount disbursed to the requester.",
+    status: activeOrBeyond
+      ? "complete"
+      : status === "disbursed" || status === "cleared"
+        ? "current"
+        : "upcoming",
+  };
+
+  const activeStep: WorkflowStep = {
+    label: "Active",
+    detail: "Repayment in progress.",
+    status: requestComplete
+      ? "complete"
+      : status === "active"
+        ? "current"
+        : "upcoming",
+  };
+
+  const completedStep: WorkflowStep = {
+    label: "Completed",
+    detail: "Loan fully repaid and closed.",
+    status: requestComplete ? "complete" : "upcoming",
+  };
+
+  const steps: WorkflowStep[] = [
+    ...draftStep,
+    ...approvalSteps,
+    disbursedStep,
+    activeStep,
+    completedStep,
+  ];
+
+  let currentMarked = steps.some((s) => s.status === "current");
+  return steps.map((step) => {
+    if (step.status !== "upcoming") return step;
+    if (!currentMarked && !requestComplete) {
+      currentMarked = true;
+      return { ...step, status: "current" as const };
+    }
+    return step;
+  });
 }
 
 export function deriveRequestWorkflowStatus(request: any) {

@@ -78,7 +78,7 @@ export function buildAppNavigation(options?: {
       permissions: ["finance.view"],
       children: [
         { key: "finance-dashboard", label: "Dashboard", icon: "grid_view", path: "/finance" },
-        { key: "finance-payroll", label: "Payroll", icon: "account_balance", path: "/finance/payroll", permissions: ["payroll.manage"] },
+        { key: "finance-payroll", label: "Payroll", icon: "account_balance", path: "/finance/payroll", permissions: ["payroll.approve"] },
         {
           key: "finance-group-operations",
           label: "Operations",
@@ -163,6 +163,7 @@ export function buildAppNavigation(options?: {
           children: [
             { key: "hr-payroll", label: "Payroll Runs", icon: "receipt_long", path: "/hr/payroll", permissions: ["payroll.manage"] },
             { key: "hr-payroll-workers", label: "Workers", icon: "group", path: "/hr/payroll/workers", permissions: ["payroll.manage"] },
+            { key: "hr-payroll-loans", label: "Loans", icon: "credit_score", path: "/hr/payroll/loans", permissions: ["payroll.manage"] },
           ],
         },
         { key: "hr-settings", label: "Settings", icon: "settings", path: "/hr/settings", permissions: ["hr.manage"] },

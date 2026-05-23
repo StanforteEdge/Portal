@@ -1,8 +1,10 @@
-import { Injectable, BadRequestException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, NotFoundException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { CreateGroupDto } from './dto/create-group.dto';
 import { UpdateGroupDto } from './dto/update-group.dto';
+import { CreateCategoryDto } from './dto/create-category.dto';
+import { UpdateCategoryDto } from './dto/update-category.dto';
 import { CreateTypeDto } from './dto/create-type.dto';
 import { UpdateTypeDto } from './dto/update-type.dto';
 import { CreateRequestDto } from './dto/create-request.dto';
@@ -86,13 +88,78 @@ export class RequestsService {
     return { success: true };
   }
 
-  async listTypes(groupId?: string, includeInactive?: boolean) {
-    const rows = await this.prisma.requestType.findMany({
-      where: {
-        ...(groupId ? { groupId } : {}),
-        ...(includeInactive ? {} : { isActive: true })
-      }
+  async listCategories(groupId?: string) {
+    const where = groupId ? { groupId } : {};
+    const rows = await this.prisma.requestCategory.findMany({
+      where,
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
+      include: { group: { select: { name: true } } },
     });
+    return paginatedResponse(rows, { page: 1, per_page: rows.length, total: rows.length });
+  }
+
+  async createCategory(dto: CreateCategoryDto) {
+    const existing = await this.prisma.requestCategory.findUnique({ where: { code: dto.code } });
+    if (existing) throw new ConflictException(`Category code "${dto.code}" already exists`);
+    return this.prisma.requestCategory.create({
+      data: {
+        groupId: dto.group_id,
+        name: dto.name,
+        code: dto.code,
+        description: dto.description,
+        sortOrder: dto.sort_order ?? 0,
+      },
+    });
+  }
+
+  async updateCategory(id: string, dto: UpdateCategoryDto) {
+    return this.prisma.requestCategory.update({
+      where: { id },
+      data: {
+        name: dto.name,
+        code: dto.code,
+        description: dto.description,
+        isActive: dto.is_active,
+        sortOrder: dto.sort_order,
+      },
+    });
+  }
+
+  async deleteCategory(id: string) {
+    await this.prisma.requestCategory.delete({ where: { id } });
+    return { success: true };
+  }
+
+  async listTypes(groupId?: string, categoryId?: string, includeInactive?: boolean, actorId?: string) {
+    const typeWhere: any = {
+      ...(includeInactive ? {} : { isActive: true })
+    };
+    if (categoryId) {
+      typeWhere.categoryId = categoryId;
+    } else if (groupId) {
+      const categoryIds = (
+        await this.prisma.requestCategory.findMany({
+          where: { groupId },
+          select: { id: true }
+        })
+      ).map((c) => c.id);
+      typeWhere.categoryId = { in: categoryIds };
+    }
+    let rows = await this.prisma.requestType.findMany({
+      where: typeWhere,
+      include: { category: true }
+    });
+
+    if (actorId) {
+      const userRoles = await this.getActorRoleSlugs(actorId);
+      if (!userRoles.has('admin')) {
+        rows = rows.filter((t) => {
+          if (!t.visibleToRoles || !Array.isArray(t.visibleToRoles) || t.visibleToRoles.length === 0) return true;
+          return (t.visibleToRoles as string[]).some((role) => userRoles.has(role));
+        });
+      }
+    }
+
     return paginatedResponse(rows, { page: 1, per_page: rows.length, total: rows.length });
   }
 
@@ -103,9 +170,15 @@ export class RequestsService {
   }
 
   async createType(dto: CreateTypeDto, actorId?: string) {
-    await this.assertRequestTypeGroupAccess(dto.group_id, actorId);
+    const category = await this.prisma.requestCategory.findUnique({
+      where: { id: dto.category_id },
+      select: { groupId: true }
+    });
+    if (!category) throw new NotFoundException('Category not found');
+
+    await this.assertRequestTypeGroupAccess(category.groupId, actorId);
     const group = await this.prisma.requestGroup.findUnique({
-      where: { id: dto.group_id },
+      where: { id: category.groupId },
       select: { code: true, name: true }
     });
     const requiresCooApproval = this.requestTypeRequiresCooApproval({
@@ -113,7 +186,7 @@ export class RequestsService {
       groupName: group?.name ?? null,
       name: dto.name,
       codePrefix: dto.code_prefix,
-      categoryKey: dto.category_key,
+      taxonomyKeys: dto.taxonomy_keys,
       formSchema: dto.form_schema
     });
 
@@ -123,17 +196,20 @@ export class RequestsService {
 
     return this.prisma.requestType.create({
       data: {
-        groupId: dto.group_id,
+        categoryId: dto.category_id,
         name: dto.name,
         codePrefix: dto.code_prefix,
-        categoryKey: dto.category_key,
+        taxonomyKeys: dto.taxonomy_keys as Prisma.InputJsonValue | undefined,
         formSchema: dto.form_schema as Prisma.InputJsonValue | undefined,
         description: dto.description,
         storageType: dto.storage_type ?? 'json',
         formId: dto.form_id,
         approvalFlowJson: approvalFlowJson as Prisma.InputJsonValue | undefined,
         approvalLimit: dto.approval_limit,
-        isActive: dto.is_active ?? true
+        workflowType: dto.workflow_type ?? null,
+        handlerRoleLabel: dto.handler_role_label ?? null,
+        visibleToRoles: dto.visible_to_roles as Prisma.InputJsonValue | undefined,
+        isActive: dto.is_active ?? true,
       }
     });
   }
@@ -142,25 +218,32 @@ export class RequestsService {
     const existing = await this.prisma.requestType.findUnique({
       where: { id },
       select: {
-        groupId: true,
+        categoryId: true,
         name: true,
         codePrefix: true,
-        categoryKey: true,
+        taxonomyKeys: true,
         formSchema: true,
         approvalFlowJson: true
       }
     });
     if (!existing) throw new NotFoundException('Request type not found');
-    await this.assertRequestTypeGroupAccess(existing.groupId, actorId);
 
+    const resolvedCategoryId = dto.category_id ?? existing.categoryId;
+    const category = await this.prisma.requestCategory.findUnique({
+      where: { id: resolvedCategoryId },
+      select: { groupId: true }
+    });
+    if (!category) throw new NotFoundException('Category not found');
+
+    await this.assertRequestTypeGroupAccess(category.groupId, actorId);
     const group = await this.prisma.requestGroup.findUnique({
-      where: { id: existing.groupId },
+      where: { id: category.groupId },
       select: { code: true, name: true }
     });
 
     const mergedName = dto.name ?? existing.name;
     const mergedCodePrefix = dto.code_prefix ?? existing.codePrefix;
-    const mergedCategoryKey = dto.category_key ?? existing.categoryKey ?? undefined;
+    const mergedTaxonomyKeys = dto.taxonomy_keys ?? (existing.taxonomyKeys as string[] | undefined) ?? undefined;
     const mergedFormSchema = dto.form_schema ?? (existing.formSchema as Record<string, unknown> | undefined);
     const mergedApprovalFlow = dto.approval_flow_json ?? (existing.approvalFlowJson as Record<string, unknown> | undefined);
     const requiresCooApproval = this.requestTypeRequiresCooApproval({
@@ -168,7 +251,7 @@ export class RequestsService {
       groupName: group?.name ?? null,
       name: mergedName,
       codePrefix: mergedCodePrefix,
-      categoryKey: mergedCategoryKey,
+      taxonomyKeys: mergedTaxonomyKeys,
       formSchema: mergedFormSchema
     });
 
@@ -180,8 +263,9 @@ export class RequestsService {
       where: { id },
       data: {
         name: dto.name,
+        categoryId: dto.category_id,
         codePrefix: dto.code_prefix,
-        categoryKey: dto.category_key,
+        taxonomyKeys: dto.taxonomy_keys as Prisma.InputJsonValue | undefined,
         formSchema:
           dto.form_schema !== undefined
             ? (dto.form_schema as Prisma.InputJsonValue)
@@ -194,7 +278,10 @@ export class RequestsService {
             ? (normalizedApprovalFlow as Prisma.InputJsonValue)
             : undefined,
         approvalLimit: dto.approval_limit,
-        isActive: dto.is_active
+        isActive: dto.is_active,
+        ...(dto.workflow_type !== undefined && { workflowType: dto.workflow_type }),
+        ...(dto.handler_role_label !== undefined && { handlerRoleLabel: dto.handler_role_label }),
+        visibleToRoles: dto.visible_to_roles !== undefined ? (dto.visible_to_roles as Prisma.InputJsonValue) : undefined,
       }
     });
   }
@@ -202,10 +289,16 @@ export class RequestsService {
   async deleteType(id: string, actorId?: string) {
     const existing = await this.prisma.requestType.findUnique({
       where: { id },
-      select: { id: true, groupId: true }
+      select: { id: true, categoryId: true }
     });
     if (!existing) throw new NotFoundException('Request type not found');
-    await this.assertRequestTypeGroupAccess(existing.groupId, actorId);
+
+    const category = await this.prisma.requestCategory.findUnique({
+      where: { id: existing.categoryId },
+      select: { groupId: true }
+    });
+    if (!category) throw new NotFoundException('Category not found');
+    await this.assertRequestTypeGroupAccess(category.groupId, actorId);
 
     const usageCount = await this.prisma.requestInstance.count({
       where: { requestTypeId: existing.id }
@@ -249,7 +342,7 @@ export class RequestsService {
     groupName?: string | null;
     name?: string | null;
     codePrefix?: string | null;
-    categoryKey?: string | null;
+    taxonomyKeys?: string[] | null;
     formSchema?: Record<string, unknown> | null;
   }) {
     const marker = `${String(input.groupCode ?? '').toLowerCase()} ${String(input.groupName ?? '').toLowerCase()}`;
@@ -259,7 +352,7 @@ export class RequestsService {
     const text = [
       String(input.name ?? '').toLowerCase(),
       String(input.codePrefix ?? '').toLowerCase(),
-      String(input.categoryKey ?? '').toLowerCase(),
+      String(input.taxonomyKeys?.[0] ?? '').toLowerCase(),
       String(input.formSchema?.workflow_kind ?? '').toLowerCase(),
       String(input.formSchema?.request_kind ?? '').toLowerCase()
     ].join(' ');
@@ -332,13 +425,13 @@ export class RequestsService {
   }
 
   async createRequest(userId: string, dto: CreateRequestDto) {
-    const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id } });
+    const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id }, include: { category: true } });
     if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
     await this.formsService.validateRequestTypePayload(requestType.id, dto.data);
     this.validateLeaveRequestPayload(
       {
         name: requestType.name,
-        categoryKey: requestType.categoryKey,
+        taxonomyKeys: requestType.taxonomyKeys as string[] | null | undefined,
         formSchema: requestType.formSchema
       },
       dto.data
@@ -368,7 +461,7 @@ export class RequestsService {
       const request = await tx.requestInstance.create({
         data: {
           requestTypeId: requestType.id,
-          groupId: requestType.groupId,
+          groupId: requestType.category.groupId,
           createdBy,
           teamId: dto.team_id ? toBigInt(dto.team_id) : null,
           status: 'draft',
@@ -418,7 +511,7 @@ export class RequestsService {
   }
 
   async createManualEntry(userId: string, dto: CreateManualRequestDto) {
-    const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id } });
+    const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id }, include: { category: true } });
     if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
 
     const staff = await this.prisma.profile.findUnique({
@@ -492,7 +585,7 @@ export class RequestsService {
         data: {
           ...(explicitRequestId ? { id: explicitRequestId } : {}),
           requestTypeId: requestType.id,
-          groupId: requestType.groupId,
+          groupId: requestType.category.groupId,
           createdBy: staff.id,
           teamId: dto.team_id ? toBigInt(dto.team_id) : null,
           organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
@@ -581,6 +674,9 @@ export class RequestsService {
   }
 
   async updateManualEntry(id: string, userId: string, dto: CreateManualRequestDto) {
+    const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id }, include: { category: true } });
+    if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
+
     const existing = await this.getRequestOrThrow(id);
     const existingData =
       existing.data && typeof existing.data === 'object' && !Array.isArray(existing.data)
@@ -589,9 +685,6 @@ export class RequestsService {
     if (!existingData.manual_import) {
       throw new BadRequestException('Only manual-import requests can be updated from manual entry');
     }
-
-    const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id } });
-    if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
 
     const staff = await this.prisma.profile.findUnique({
       where: { id: toBigInt(dto.staff_id) },
@@ -668,7 +761,7 @@ export class RequestsService {
           data: {
             id: desiredRequestId,
             requestTypeId: requestType.id,
-            groupId: requestType.groupId,
+            groupId: requestType.category.groupId,
             createdBy: staff.id,
             teamId: dto.team_id ? toBigInt(dto.team_id) : null,
             organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
@@ -686,7 +779,7 @@ export class RequestsService {
           where: { id: existing.id },
           data: {
             requestTypeId: requestType.id,
-            groupId: requestType.groupId,
+            groupId: requestType.category.groupId,
             createdBy: staff.id,
             teamId: dto.team_id ? toBigInt(dto.team_id) : null,
             organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
@@ -1241,12 +1334,12 @@ export class RequestsService {
       await this.formsService.validateRequestTypePayload(request.requestTypeId, dto.data);
       const requestType = await this.prisma.requestType.findUnique({
         where: { id: request.requestTypeId },
-        select: { name: true, categoryKey: true, formSchema: true }
+        select: { name: true, taxonomyKeys: true, formSchema: true }
       });
       this.validateLeaveRequestPayload(
         {
           name: requestType?.name ?? null,
-          categoryKey: requestType?.categoryKey ?? null,
+          taxonomyKeys: requestType?.taxonomyKeys as string[] | null | undefined,
           formSchema: requestType?.formSchema ?? null
         },
         dto.data
@@ -2348,10 +2441,10 @@ export class RequestsService {
   }
 
   private validateLeaveRequestPayload(
-    requestType: { name?: string | null; categoryKey?: string | null; formSchema?: unknown } | null,
+    requestType: { name?: string | null; taxonomyKeys?: string[] | null; formSchema?: unknown } | null,
     data: unknown
   ) {
-    if (!this.isLeaveRequestType(requestType?.name ?? null, requestType?.categoryKey ?? null, requestType?.formSchema)) {
+    if (!this.isLeaveRequestType(requestType?.name ?? null, (requestType?.taxonomyKeys as string[] | null) ?? null, requestType?.formSchema)) {
       return;
     }
     if (!data || typeof data !== 'object' || Array.isArray(data)) {
@@ -2445,6 +2538,13 @@ export class RequestsService {
     });
     if (existingDebit) return;
 
+    const request = await this.prisma.requestInstance.findUnique({
+      where: { id: requestId },
+      select: { data: true }
+    });
+    const requestData = request?.data && typeof request.data === 'object' && !Array.isArray(request.data) ? (request.data as any) : {};
+    if (requestData.is_special_request === true) return;
+
     const entitlements = await this.resolveLeaveEntitlements(leave.user_id, leave.period_year);
     const entitledDays = Number(entitlements[leave.leave_type_key] ?? 0);
 
@@ -2509,14 +2609,14 @@ export class RequestsService {
     const request = await this.prisma.requestInstance.findUnique({
       where: { id: requestId },
       include: {
-        requestType: { select: { name: true, categoryKey: true, formSchema: true } }
+        requestType: { select: { name: true, taxonomyKeys: true, formSchema: true } }
       }
     });
     if (!request) return null;
     if (
       !this.isLeaveRequestType(
         request.requestType?.name ?? null,
-        request.requestType?.categoryKey ?? null,
+        request.requestType?.taxonomyKeys as string[] | null,
         request.requestType?.formSchema ?? null
       )
     ) {
@@ -2635,9 +2735,9 @@ export class RequestsService {
     return entitlements;
   }
 
-  private isLeaveRequestType(name: string | null, categoryKey: string | null, formSchema: unknown) {
+  private isLeaveRequestType(name: string | null, taxonomyKeys: string[] | null, formSchema: unknown) {
     const normalizedName = String(name ?? '').toLowerCase();
-    const normalizedCategory = String(categoryKey ?? '').toLowerCase();
+    const normalizedCategory = String(taxonomyKeys?.[0] ?? '').toLowerCase();
     const schema =
       formSchema && typeof formSchema === 'object' && !Array.isArray(formSchema)
         ? (formSchema as Record<string, unknown>)
@@ -2672,7 +2772,7 @@ export class RequestsService {
       where: { isActive: true },
       select: {
         name: true,
-        categoryKey: true,
+        taxonomyKeys: true,
         formSchema: true
       }
     });
@@ -2680,7 +2780,7 @@ export class RequestsService {
     const defaults: Record<string, number> = {};
     const carryoverCaps: Record<string, number> = {};
     for (const type of types) {
-      if (!this.isLeaveRequestType(type.name, type.categoryKey, type.formSchema)) continue;
+      if (!this.isLeaveRequestType(type.name, type.taxonomyKeys as string[] | null, type.formSchema)) continue;
       const schema =
         type.formSchema && typeof type.formSchema === 'object' && !Array.isArray(type.formSchema)
           ? (type.formSchema as Record<string, unknown>)
@@ -3628,7 +3728,7 @@ export class RequestsService {
           }
         }
       },
-      requestType: true,
+      requestType: { include: { category: true } },
       group: true,
       creator: {
         select: { id: true, username: true, email: true, firstName: true, lastName: true }
@@ -3663,7 +3763,10 @@ export class RequestsService {
             id: request.requestType.id,
             name: request.requestType.name,
             code_prefix: request.requestType.codePrefix,
-            category_key: request.requestType.categoryKey ?? null,
+            category_code: request.requestType.category?.code ?? null,
+            taxonomy_keys: request.requestType.taxonomyKeys ?? null,
+            workflow_type: request.requestType.workflowType ?? null,
+            handler_role_label: request.requestType.handlerRoleLabel ?? null,
             approval_flow_json: request.requestType.approvalFlowJson ?? null,
             form_schema: request.requestType.formSchema ?? null
           }
@@ -3795,7 +3898,7 @@ export class RequestsService {
         currency: true,
         totalAmount: true,
         items: { select: { amount: true, quantity: true } },
-        requestType: { select: { name: true, codePrefix: true, categoryKey: true, formSchema: true } },
+        requestType: { select: { name: true, codePrefix: true, taxonomyKeys: true, formSchema: true } },
         creator: {
           select: { firstName: true, lastName: true, username: true, email: true }
         }
@@ -3829,7 +3932,7 @@ export class RequestsService {
         : {};
     const isLeaveRequest = this.isLeaveRequestType(
       request.requestType?.name ?? null,
-      request.requestType?.categoryKey ?? null,
+      request.requestType?.taxonomyKeys as string[] | null,
       request.requestType?.formSchema
     );
 

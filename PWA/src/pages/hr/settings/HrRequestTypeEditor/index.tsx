@@ -232,7 +232,7 @@ function Main() {
       if (typeForm.id) {
         await updateRequestType(typeForm.id, payload);
       } else {
-        await createRequestType({ group_id: selectedGroupId, ...payload });
+        await createRequestType({ category_id: selectedGroupId, ...payload });
       }
 
       navigate("/appOld/hr/settings/leave", { replace: true });

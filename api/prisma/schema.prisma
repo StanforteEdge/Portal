@@ -781,33 +781,53 @@ model RequestGroup {
   updatedAt      DateTime @updatedAt @map("updated_at")
 
   organization Organization?     @relation(fields: [organizationId], references: [id])
-  requestTypes RequestType[]
   requests     RequestInstance[]
+  categories   RequestCategory[]
 
   @@map("sta_request_groups")
 }
 
+model RequestCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  groupId     String   @map("group_id") @db.Uuid
+  name        String   @db.VarChar(100)
+  code        String   @unique @db.VarChar(20)
+  description String?
+  sortOrder   Int      @default(0) @map("sort_order")
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  group        RequestGroup  @relation(fields: [groupId], references: [id])
+  requestTypes RequestType[]
+
+  @@map("sta_request_categories")
+}
+
 model RequestType {
   id               String   @id @default(uuid()) @db.Uuid
-  groupId          String   @map("group_id") @db.Uuid
+  categoryId       String   @map("category_id") @db.Uuid
   name             String   @db.VarChar(100)
   codePrefix       String   @map("code_prefix") @db.VarChar(10)
-  categoryKey      String?  @map("category_key") @db.VarChar(100)
+  taxonomyKeys     Json?    @map("taxonomy_keys")
   description      String?
   storageType      String?  @map("storage_type") @db.VarChar(20)
   formSchema       Json?    @map("form_schema")
   approvalFlowJson Json?    @map("approval_flow_json")
   approvalLimit    Decimal? @map("approval_limit") @db.Decimal(15, 2)
+  visibleToRoles   Json?    @map("visible_to_roles")
   sequenceCounter  Int      @default(0) @map("sequence_counter")
   isActive         Boolean  @default(true) @map("is_active")
+  workflowType     String?  @map("workflow_type") @db.VarChar(20)
+  handlerRoleLabel String?  @map("handler_role_label") @db.VarChar(100)
   formId           String?  @map("form_id") @db.Uuid
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  group    RequestGroup      @relation(fields: [groupId], references: [id])
+  category RequestCategory  @relation(fields: [categoryId], references: [id])
   requests RequestInstance[]
 
-  @@unique([groupId, codePrefix], name: "unique_group_code_prefix")
+  @@unique([categoryId, codePrefix], name: "unique_category_code_prefix")
   @@map("sta_request_types")
 }
 
@@ -838,6 +858,7 @@ model RequestInstance {
   paymentVouchers           FinancePaymentVoucher[]
   paymentVoucherCorrections FinancePaymentVoucherCorrection[]
   leaveBalanceLedger        LeaveBalanceLedger[]
+  loans                     PayrollLoan[]
 
   @@index([requestTypeId])
   @@index([groupId])
@@ -2103,6 +2124,7 @@ model PayrollLoan {
   id                    String   @id @default(uuid()) @db.Uuid
   workerId              String   @map("worker_id") @db.Uuid
   componentId           String?  @map("component_id") @db.Uuid
+  requestId             BigInt?  @map("request_id")
   loanType              String   @default("loan") @map("loan_type") @db.VarChar(20)
   title                 String   @db.VarChar(180)
   principalAmount       Decimal  @map("principal_amount") @db.Decimal(15, 2)
@@ -2119,10 +2141,12 @@ model PayrollLoan {
 
   worker     PayrollWorker          @relation(fields: [workerId], references: [id], onDelete: Cascade)
   component  PayrollComponent?      @relation(fields: [componentId], references: [id], onDelete: SetNull)
+  request    RequestInstance?       @relation(fields: [requestId], references: [id], onDelete: SetNull)
   repayments PayrollLoanRepayment[]
 
   @@index([workerId, status])
   @@index([componentId])
+  @@index([requestId])
   @@map("sta_payroll_loans")
 }
 
@@ -2756,6 +2780,7 @@ model Taxonomy {
   name        String   @db.VarChar(120)
   description String?
   module      String?  @db.VarChar(50)
+  renderType  String   @default("select") @map("render_type") @db.VarChar(20)
   isActive    Boolean  @default(true) @map("is_active")
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")

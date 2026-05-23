@@ -61,7 +61,7 @@ function resolveFinanceStatus(entry: RequestRecord) {
 
 function isLeaveRequest(entry: RequestRecord) {
   const typeName = String(entry.request_type?.name || "").toLowerCase();
-  const categoryKey = String(entry.request_type?.category_key || "").toLowerCase();
+  const categoryKey = String(entry.request_type?.taxonomy_keys?.[0] || "").toLowerCase();
   const schemaLeaveTypeKey = String(
     (entry.request_type?.form_schema as Record<string, unknown> | null)?.leave_type_key || "",
   )

@@ -21,9 +21,13 @@ export type RequestRecord = {
     id: string;
     name: string;
     code_prefix?: string | null;
-    category_key?: string | null;
+    category_code?: string | null;
+    taxonomy_keys?: string[] | null;
+    workflow_type?: string | null;
+    handler_role_label?: string | null;
     form_schema?: Record<string, unknown> | null;
     approval_flow_json?: Record<string, unknown> | null;
+    category_key?: string | null;
   } | null;
   group?: {
     id: string;
@@ -65,17 +69,25 @@ export type RequestRecord = {
 
 export type RequestTypeOption = {
   id: string;
-  groupId?: string | null;
   name: string;
   description?: string | null;
   codePrefix?: string | null;
   code_prefix?: string | null;
-  categoryKey?: string | null;
-  category_key?: string | null;
+  categoryId?: string | null;
+  category_id?: string | null;
+  taxonomyKeys?: string[] | null;
+  taxonomy_keys?: string[] | null;
+  workflow_type?: string | null;
+  handler_role_label?: string | null;
   formSchema?: Record<string, unknown> | null;
   form_schema?: Record<string, unknown> | null;
   approvalFlowJson?: Record<string, unknown> | null;
   approval_flow_json?: Record<string, unknown> | null;
+  groupId?: string | null;
+  group_id?: string | null;
+  categoryKey?: string | null;
+  category_key?: string | null;
+  category_code?: string | null;
 };
 
 export type RequestGroupOption = {
@@ -86,6 +98,17 @@ export type RequestGroupOption = {
   isActive?: boolean;
 };
 
+export type RequestCategoryOption = {
+  id: string;
+  groupId: string;
+  groupName?: string;
+  name: string;
+  code: string;
+  description?: string | null;
+  sortOrder?: number;
+  isActive?: boolean;
+};
+
 export type RequestItemInput = {
   description: string;
   amount: number;
@@ -93,6 +116,7 @@ export type RequestItemInput = {
   notes?: string;
   file_id?: string;
   file_ids?: string[];
+  vendor_id?: string;
 };
 
 export type ProjectOption = {
@@ -169,6 +193,57 @@ export async function listRequestGroups(): Promise<RequestGroupOption[]> {
   return (res as any)?.data?.items ?? [];
 }
 
+export async function listCategories(groupId?: string): Promise<RequestCategoryOption[]> {
+  const suffix = groupId ? `?group_id=${groupId}` : "";
+  const res = await httpRequest<any>(`/requests/categories${suffix}`);
+  const items: any[] = (res as any)?.data?.items ?? [];
+  return items.map((item: any) => ({
+    id: String(item.id),
+    groupId: String(item.groupId),
+    groupName: item.group?.name ?? undefined,
+    name: String(item.name),
+    code: String(item.code),
+    description: item.description ?? null,
+    sortOrder: item.sortOrder ?? 0,
+    isActive: item.isActive ?? true,
+  }));
+}
+
+export async function createCategory(payload: {
+  group_id: string;
+  name: string;
+  code: string;
+  description?: string;
+}) {
+  const res = await httpRequest<any>("/requests/categories", {
+    method: "POST",
+    body: payload,
+  });
+  return res;
+}
+
+export async function updateCategory(
+  id: string,
+  payload: {
+    name?: string;
+    code?: string;
+    description?: string;
+    is_active?: boolean;
+  },
+) {
+  const res = await httpRequest<any>(`/requests/categories/${id}`, {
+    method: "PATCH",
+    body: payload,
+  });
+  return res;
+}
+
+export async function deleteCategory(id: string) {
+  return httpRequest<{ success: boolean }>(`/requests/categories/${id}`, {
+    method: "DELETE",
+  });
+}
+
 export async function getRequest(id: string) {
   return httpRequest<RequestRecord>(`/requests/${id}`);
 }
@@ -182,6 +257,7 @@ export async function createRequest(payload: {
   request_type_id: string;
   team_id?: string;
   currency?: string;
+  total_amount?: number;
   data?: Record<string, unknown>;
   items: RequestItemInput[];
 }) {

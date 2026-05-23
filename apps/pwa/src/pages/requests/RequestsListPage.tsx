@@ -32,7 +32,7 @@ import {
   requestsMobileNav,
 } from "@/pages/requests/requests-data";
 
-type RequestFamily = "all" | "financial" | "leave";
+type RequestFamily = "all" | "financial" | "hr";
 
 type UiRequestRow = {
   id: string;
@@ -106,12 +106,12 @@ function classifyFamily(
 ): RequestFamily {
   if (groupName) {
     const g = groupName.toLowerCase();
-    if (g.includes("leave") || g.includes("hr")) return "leave";
+    if (g.includes("leave") || g.includes("hr")) return "hr";
     if (g.includes("finance") || g.includes("payment") || g.includes("procurement") || g.includes("expense")) return "financial";
   }
   const category = categoryKey.toLowerCase();
   const type = requestType.toLowerCase();
-  if (category.includes("leave") || type.includes("leave")) return "leave";
+  if (category.includes("leave") || type.includes("leave")) return "hr";
   if (
     category.includes("finance") ||
     category.includes("payment") ||
@@ -179,7 +179,7 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
     Number.isFinite(parsedDays) && parsedDays > 0 ? parsedDays : undefined;
 
   const category = String(
-    request.request_type?.category_key || "",
+    request.request_type?.taxonomy_keys?.[0] || "",
   ).toLowerCase();
   const family = classifyFamily(category, requestType, request.group?.name);
   const icon = category.includes("leave")
@@ -347,11 +347,11 @@ function ListFilters({
   const requestTypeLabel =
     activeFamily === "financial"
       ? "Financial Type"
-      : activeFamily === "leave"
+      : activeFamily === "hr"
         ? "Leave Type"
         : "Request Subtype";
   const searchPlaceholder =
-    activeFamily === "leave"
+    activeFamily === "hr"
       ? "Request no, leave type, reason"
       : activeFamily === "financial"
         ? "Request no, financial type, purpose"
@@ -443,7 +443,7 @@ function ListFilters({
             />
           </label>
 
-          {activeFamily !== "leave" ? (
+          {activeFamily !== "hr" ? (
             <SelectField
               label="Project"
               value={selectedProject}
@@ -524,7 +524,7 @@ function RequestsListTable({
   return (
     <SectionCard
       title={
-        activeFamily === "leave"
+        activeFamily === "hr"
           ? "Leave Requests"
           : activeFamily === "financial"
             ? "Financial Requests"
@@ -565,7 +565,7 @@ function RequestsListTable({
               {activeFamily === "financial" ? (
                 <TableHeaderCell>Project</TableHeaderCell>
               ) : null}
-              {activeFamily === "leave" ? (
+              {activeFamily === "hr" ? (
                 <TableHeaderCell>Leave Dates</TableHeaderCell>
               ) : null}
               <TableHeaderCell>Submitted</TableHeaderCell>
@@ -589,7 +589,7 @@ function RequestsListTable({
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-slate-700 font-medium">
-                  {row.family === "leave"
+                  {row.family === "hr"
                     ? formatLeaveDuration(row)
                     : row.totalAmount > 0
                       ? row.detail
@@ -612,7 +612,7 @@ function RequestsListTable({
                     {row.projectName || "-"}
                   </TableCell>
                 ) : null}
-                {activeFamily === "leave" ? (
+                {activeFamily === "hr" ? (
                   <TableCell className="text-sm text-slate-600">
                     {formatLeaveDateRange(row)}
                   </TableCell>
@@ -626,7 +626,7 @@ function RequestsListTable({
                 <TableCell className="rounded-r-2xl text-right">
                   {row.statusKey === "draft" || row.statusKey === "returned" ? (
                     <Link
-                      to={`${row.family === "leave" ? "/leave/new/form" : "/requests/new/form"}?edit=${row.requestId}&typeId=${row.requestTypeId}`}
+                      to={`${row.family === "hr" ? "/leave/new/form" : "/requests/new/form"}?edit=${row.requestId}&typeId=${row.requestTypeId}`}
                       className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline"
                     >
                       <Icon name="edit" className="text-[14px]" />
@@ -726,7 +726,7 @@ function RequestsMobileList({
                 <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
               </div>
               <p className="mt-2 text-sm font-semibold text-slate-700">
-                {row.family === "leave"
+                {row.family === "hr"
                   ? formatLeaveDuration(row)
                   : row.totalAmount > 0
                     ? row.detail
@@ -767,7 +767,7 @@ export function RequestsListPage() {
   const [perPage, setPerPage] = useState(10);
   const familyParam = searchParams.get("family");
   const activeFamily: RequestFamily =
-    familyParam === "financial" || familyParam === "leave" || familyParam === "all"
+    familyParam === "financial" || familyParam === "hr" || familyParam === "all"
       ? familyParam
       : "all";
 
@@ -822,7 +822,7 @@ export function RequestsListPage() {
             value: String(item.id),
             label: String(item.name),
             family: classifyFamily(
-              String(item.category_key || "").toLowerCase(),
+              String(item.taxonomy_keys?.[0] || "").toLowerCase(),
               String(item.name),
             ),
           }))
@@ -835,7 +835,7 @@ export function RequestsListPage() {
           label:
             activeFamily === "financial"
               ? "All financial types"
-              : activeFamily === "leave"
+              : activeFamily === "hr"
                 ? "All leave types"
                 : "All request subtypes",
         },
@@ -863,7 +863,7 @@ export function RequestsListPage() {
         label:
           activeFamily === "financial"
             ? "All financial types"
-            : activeFamily === "leave"
+            : activeFamily === "hr"
               ? "All leave types"
               : "All request subtypes",
       },
@@ -962,7 +962,7 @@ export function RequestsListPage() {
           .join(" ").toLowerCase();
         if (!haystack.includes(search.trim().toLowerCase())) return false;
       }
-      if (activeFamily !== "leave" && selectedProject && row.projectId !== selectedProject && row.projectName !== selectedProject) return false;
+      if (activeFamily !== "hr" && selectedProject && row.projectId !== selectedProject && row.projectName !== selectedProject) return false;
       if (activeFamily === "financial" && selectedTeam && row.teamId !== selectedTeam && row.teamName !== selectedTeam) return false;
       if (selectedOrganization && row.organizationId !== selectedOrganization && row.organizationName !== selectedOrganization) return false;
       return true;
@@ -1068,7 +1068,8 @@ export function RequestsListPage() {
           {[
             { key: "all" as const, label: "All" },
             { key: "financial" as const, label: "Financial" },
-            { key: "leave" as const, label: "Leave" },
+            { key: "hr" as const, label: "HR" },
+            { key: "other" as const, label: "Other" },
           ].map((tab) => (
             <button
               key={tab.key}
@@ -1171,7 +1172,8 @@ export function RequestsListPage() {
             {[
               { key: "all" as const, label: "All" },
               { key: "financial" as const, label: "Financial" },
-              { key: "leave" as const, label: "Leave" },
+              { key: "hr" as const, label: "HR" },
+              { key: "other" as const, label: "Other" },
             ].map((item) => (
               <button
                 key={item.key}
