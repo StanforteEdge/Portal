@@ -58,10 +58,23 @@ export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
   useEffect(() => {
     if (!editRequest?.data) return;
     const data = editRequest.data as Record<string, unknown>;
+    const loadedItems = editRequest.items?.length
+      ? editRequest.items.map((item) => ({
+          description: item.description ?? "",
+          quantity: String(item.quantity ?? 1),
+          unit_price: String(item.amount ?? ""),
+          notes: item.notes ?? "",
+          vendor_id: "",
+          file_id: item.file_id ?? undefined,
+          file_ids: item.files?.map((f) => f.id),
+          file_names: item.files?.map((f) => f.file_name),
+        }))
+      : [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "" }];
     setForm((prev) => ({
       ...prev,
       due_date: String(data.due_date || ""),
       reimbursement: Boolean(data.reimbursement),
+      items: loadedItems,
     }));
   }, [editRequest]);
 
@@ -203,14 +216,15 @@ export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
                 </div>
                 <button
                   type="button"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-danger/15 bg-danger/10 text-danger transition hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-danger/15 bg-danger/10 text-danger transition hover:bg-danger/15"
                   onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      items: prev.items.length === 1 ? prev.items : prev.items.filter((_, i) => i !== index),
-                    }))
+                    setForm((prev) => {
+                      if (prev.items.length === 1) {
+                        return { ...prev, items: [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "" }] };
+                      }
+                      return { ...prev, items: prev.items.filter((_, i) => i !== index) };
+                    })
                   }
-                  disabled={form.items.length === 1}
                   aria-label={`Remove request item ${index + 1}`}
                 >
                   <Icon name="delete" className="text-[18px]" />

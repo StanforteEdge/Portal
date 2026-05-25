@@ -27,12 +27,21 @@ const categories = [
     name: 'Payment',
     groupCode: 'FIN',
     description: 'Payment-related requests',
+    sortOrder: 10,
   },
   {
     code: 'LEAVE',
     name: 'Leave',
     groupCode: 'HR',
     description: 'Leave-related requests',
+    sortOrder: 20,
+  },
+  {
+    code: 'LOAN',
+    name: 'Loans',
+    groupCode: 'HR',
+    description: 'Staff Loans & Salary Advances',
+    sortOrder: 30,
   },
 ];
 
@@ -58,6 +67,7 @@ async function main() {
           name: cat.name,
           groupId: group.id,
           description: cat.description,
+          sortOrder: cat.sortOrder ?? 0,
           isActive: true,
           updatedAt: now,
         },
@@ -66,6 +76,7 @@ async function main() {
           name: cat.name,
           groupId: group.id,
           description: cat.description,
+          sortOrder: cat.sortOrder ?? 0,
           isActive: true,
           createdAt: now,
           updatedAt: now,

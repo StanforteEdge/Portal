@@ -11,7 +11,10 @@ function run(label, cmd, args) {
 
 function main() {
   run('Seeding RBAC', 'npm', ['run', 'seed:rbac']);
+  run('Seeding Request Categories', 'npm', ['run', 'seed:request-categories']);
   run('Seeding Finance Request Types', 'npm', ['run', 'seed:finance-requests']);
+  run('Seeding Loans System', 'npm', ['run', 'seed:loans-system']);
+  run('Seeding HR Leave System', 'npm', ['run', 'seed:hr-leave-system']);
   run('Seeding Documents', 'npm', ['run', 'seed:documents']);
   run('Seeding HR Onboarding Forms', 'npm', ['run', 'seed:hr-onboarding-forms']);
 
