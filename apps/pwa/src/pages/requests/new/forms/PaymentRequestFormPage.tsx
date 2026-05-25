@@ -58,10 +58,23 @@ export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
   useEffect(() => {
     if (!editRequest?.data) return;
     const data = editRequest.data as Record<string, unknown>;
+    const loadedItems = editRequest.items?.length
+      ? editRequest.items.map((item) => ({
+          description: item.description ?? "",
+          quantity: String(item.quantity ?? 1),
+          unit_price: String(item.amount ?? ""),
+          notes: item.notes ?? "",
+          vendor_id: "",
+          file_id: item.file_id ?? undefined,
+          file_ids: item.files?.map((f) => f.id),
+          file_names: item.files?.map((f) => f.file_name),
+        }))
+      : [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "" }];
     setForm((prev) => ({
       ...prev,
       due_date: String(data.due_date || ""),
       reimbursement: Boolean(data.reimbursement),
+      items: loadedItems,
     }));
   }, [editRequest]);
 
