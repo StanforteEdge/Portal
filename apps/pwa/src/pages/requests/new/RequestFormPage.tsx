@@ -3,7 +3,6 @@ import {
   EmptyState,
   Icon,
   PageHeader,
-  RightRail,
   SectionCard,
   SelectField,
   TextAreaField,
@@ -45,7 +44,7 @@ import { LeaveRequestFormPage } from "@/pages/requests/new/forms/LeaveRequestFor
 import { PaymentRequestFormPage } from "@/pages/requests/new/forms/PaymentRequestFormPage";
 import { LoanRequestFormPage } from "@/pages/requests/new/forms/LoanRequestFormPage";
 import { OtherRequestFormPage } from "@/pages/requests/new/forms/OtherRequestFormPage";
-import type { FamilyFormHandle } from "@/pages/requests/new/forms/family-form-types";
+import type { RequestFormHandle } from "@/pages/requests/new/forms/category-form-types";
 import {
   listEntityTags,
   listManagedTaxonomies,
@@ -99,7 +98,7 @@ export function RequestFormPage() {
   const [categoryByKey, setCategoryByKey] = useState<Record<string, string>>({});
   const [summaryContent, setSummaryContent] = useState<React.ReactNode>(null);
   const [editRequest, setEditRequest] = useState<RequestRecord | undefined>(undefined);
-  const familyFormRef = useRef<FamilyFormHandle>(null);
+  const requestFormRef = useRef<RequestFormHandle>(null);
 
   const { data: requestTypes } = useCachedQuery("requests:types", () => listRequestTypes(), { ttlMs: 1000 * 60 * 10, storage: "local" });
   const { data: projects } = useCachedQuery("requests:projects", () => listProjects(), { ttlMs: 1000 * 60 * 10, storage: "memory" });
@@ -266,7 +265,7 @@ export function RequestFormPage() {
 
   async function handleSave(submitAfterSave: boolean) {
     try {
-      const result = familyFormRef.current?.validateAndBuild();
+      const result = requestFormRef.current?.validateAndBuild();
       if (!result) return;
       if ("error" in result) {
         showToast({ tone: "warning", title: "Check this request", message: result.error });
@@ -459,6 +458,7 @@ export function RequestFormPage() {
       user={{ name: "Alex Sterling", role: "Fleet Operations" }}
       mobileNav={requestsMobileNav}
     >
+      {/* Desktop header */}
       <div className="hidden lg:block">
         <PageHeader
           breadcrumbs={[
@@ -477,154 +477,91 @@ export function RequestFormPage() {
             </Link>
           }
         />
-
-        <div className="grid gap-6 lg:grid-cols-12">
-          <div className="space-y-6 lg:col-span-8">
-            {staffDetailsCard}
-            {workflowType === "leave" ? (
-              <LeaveRequestFormPage
-                ref={familyFormRef}
-                selectedType={selectedType}
-                selectedCategory={selectedCategory}
-                handoverOptions={handoverOptions}
-                editRequest={editRequest}
-                loadingEdit={loadingEdit}
-                onSummary={setSummaryContent}
-              />
-            ) : workflowType === "loan" ? (
-              <LoanRequestFormPage
-                ref={familyFormRef}
-                selectedType={selectedType}
-                selectedCategory={selectedCategory}
-                editRequest={editRequest}
-                loadingEdit={loadingEdit}
-                onSummary={setSummaryContent}
-              />
-            ) : workflowType === "payment" ? (
-              <PaymentRequestFormPage
-                ref={familyFormRef}
-                selectedType={selectedType}
-                selectedCategory={selectedCategory}
-                vendorOptions={vendorOptions}
-                editRequest={editRequest}
-                loadingEdit={loadingEdit}
-                onSummary={setSummaryContent}
-              />
-            ) : (
-              <OtherRequestFormPage
-                ref={familyFormRef}
-                selectedType={selectedType}
-                selectedCategory={selectedCategory}
-                editRequest={editRequest}
-                loadingEdit={loadingEdit}
-                onSummary={setSummaryContent}
-              />
-            )}
-          </div>
-
-          <RightRail className="self-start lg:col-span-4 lg:sticky lg:top-28">
-            {summaryContent}
-            <SectionCard title="Submission Actions">
-              <div className="space-y-3">
-                <Button
-                  variant="secondary"
-                  className="w-full justify-center"
-                  onClick={() => void handleSave(false)}
-                  disabled={savingDraft || submitting || loadingEdit}
-                >
-                  {savingDraft ? "Saving..." : editId ? "Update Draft" : "Save Draft"}
-                </Button>
-                <Button
-                  className="w-full justify-center gap-2"
-                  onClick={() => void handleSave(true)}
-                  disabled={savingDraft || submitting || loadingEdit}
-                >
-                  {submitting ? "Submitting..." : "Submit Request"}
-                  <Icon name="arrow_forward" className="text-[18px]" />
-                </Button>
-              </div>
-            </SectionCard>
-          </RightRail>
-        </div>
       </div>
 
-      <div className="space-y-4 lg:hidden">
-        <div className="pt-1">
-          <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
-            {editId ? "Edit Request" : "New Request"}
-          </p>
-          <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">
-            {selectedType?.name || "Request form"}
-          </h1>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
-            {selectedCategory?.description || "Fill in the request details below."}
-          </p>
+      {/* Mobile header */}
+      <div className="pt-1 lg:hidden">
+        <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-slate-500">
+          {editId ? "Edit Request" : "New Request"}
+        </p>
+        <h1 className="page-title mt-2 text-[clamp(1.7rem,7vw,2.2rem)]">
+          {selectedType?.name || "Request form"}
+        </h1>
+        <p className="mt-3 max-w-xl text-sm leading-6 text-slate-500">
+          {selectedCategory?.description || "Fill in the request details below."}
+        </p>
+      </div>
+
+      {/* Single responsive grid — right rail first in DOM so summary/actions appear at top on mobile */}
+      <div className="mt-4 grid grid-cols-1 gap-6 lg:mt-6 lg:grid-cols-12">
+        {/* Right rail */}
+        <div className="space-y-4 lg:order-2 lg:col-span-4 lg:self-start lg:sticky lg:top-28">
+          {summaryContent}
+          <SectionCard title="Submission Actions">
+            <div className="space-y-3">
+              <Button
+                variant="secondary"
+                className="w-full justify-center"
+                onClick={() => void handleSave(false)}
+                disabled={savingDraft || submitting || loadingEdit}
+              >
+                {savingDraft ? "Saving..." : editId ? "Update Draft" : "Save Draft"}
+              </Button>
+              <Button
+                className="w-full justify-center gap-2"
+                onClick={() => void handleSave(true)}
+                disabled={savingDraft || submitting || loadingEdit}
+              >
+                {submitting ? "Submitting..." : "Submit Request"}
+                <Icon name="arrow_forward" className="text-[18px]" />
+              </Button>
+            </div>
+          </SectionCard>
         </div>
 
-        {summaryContent}
-
-        {staffDetailsCard}
-
-        {workflowType === "leave" ? (
-          <LeaveRequestFormPage
-            ref={familyFormRef}
-            selectedType={selectedType}
-            selectedCategory={selectedCategory}
-            handoverOptions={handoverOptions}
-            editRequest={editRequest}
-            loadingEdit={loadingEdit}
-            onSummary={setSummaryContent}
-          />
-        ) : workflowType === "loan" ? (
-          <LoanRequestFormPage
-            ref={familyFormRef}
-            selectedType={selectedType}
-            selectedCategory={selectedCategory}
-            editRequest={editRequest}
-            loadingEdit={loadingEdit}
-            onSummary={setSummaryContent}
-          />
-        ) : workflowType === "payment" ? (
-          <PaymentRequestFormPage
-            ref={familyFormRef}
-            selectedType={selectedType}
-            selectedCategory={selectedCategory}
-            vendorOptions={vendorOptions}
-            editRequest={editRequest}
-            loadingEdit={loadingEdit}
-            onSummary={setSummaryContent}
-          />
-        ) : (
-          <OtherRequestFormPage
-            ref={familyFormRef}
-            selectedType={selectedType}
-            selectedCategory={selectedCategory}
-            editRequest={editRequest}
-            loadingEdit={loadingEdit}
-            onSummary={setSummaryContent}
-          />
-        )}
-
-        <section className="section-card p-4">
-          <div className="space-y-3">
-            <Button
-              variant="secondary"
-              className="w-full justify-center"
-              onClick={() => void handleSave(false)}
-              disabled={savingDraft || submitting || loadingEdit}
-            >
-              {savingDraft ? "Saving..." : editId ? "Update Draft" : "Save Draft"}
-            </Button>
-            <Button
-              className="w-full justify-center gap-2"
-              onClick={() => void handleSave(true)}
-              disabled={savingDraft || submitting || loadingEdit}
-            >
-              {submitting ? "Submitting..." : "Submit Request"}
-              <Icon name="arrow_forward" className="text-[18px]" />
-            </Button>
-          </div>
-        </section>
+        {/* Main content */}
+        <div className="space-y-6 lg:order-1 lg:col-span-8">
+          {staffDetailsCard}
+          {workflowType === "leave" ? (
+            <LeaveRequestFormPage
+              ref={requestFormRef}
+              selectedType={selectedType}
+              selectedCategory={selectedCategory}
+              handoverOptions={handoverOptions}
+              editRequest={editRequest}
+              loadingEdit={loadingEdit}
+              onSummary={setSummaryContent}
+            />
+          ) : workflowType === "loan" ? (
+            <LoanRequestFormPage
+              ref={requestFormRef}
+              selectedType={selectedType}
+              selectedCategory={selectedCategory}
+              editRequest={editRequest}
+              loadingEdit={loadingEdit}
+              onSummary={setSummaryContent}
+            />
+          ) : workflowType === "payment" ? (
+            <PaymentRequestFormPage
+              ref={requestFormRef}
+              selectedType={selectedType}
+              selectedCategory={selectedCategory}
+              vendorOptions={vendorOptions}
+              editRequest={editRequest}
+              loadingEdit={loadingEdit}
+              onSummary={setSummaryContent}
+            />
+          ) : (
+            <OtherRequestFormPage
+              ref={requestFormRef}
+              selectedType={selectedType}
+              selectedCategory={selectedCategory}
+              editRequest={editRequest}
+              loadingEdit={loadingEdit}
+              onSummary={setSummaryContent}
+            />
+          )}
+        </div>
       </div>
     </AppShell>
   );

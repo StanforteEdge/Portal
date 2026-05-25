@@ -25,7 +25,7 @@ import {
 } from "@/pages/requests/requests-api";
 import { formatDisplayDate } from "@stanforte/shared";
 import {
-  requestFamilyFromRecord,
+  requestCategoryFromRecord,
   requestStatusTone,
 } from "@/pages/requests/request-helpers";
 import {
@@ -106,7 +106,7 @@ export default function LeavePage() {
   );
 
   const leaveRequests = (allRequests ?? []).filter(
-    (record) => requestFamilyFromRecord(record) === "leave",
+    (record) => requestCategoryFromRecord(record) === "leave",
   );
   const leaveRows = leaveRequests.map(toLeaveRow);
   const recentRows = leaveRows.slice(0, 8);
@@ -222,7 +222,7 @@ export default function LeavePage() {
           title="Recent Leave Requests"
           description="Your latest leave submissions and current approval status."
           action={
-            <Link to="/requests?family=leave">
+            <Link to="/requests?category=leave">
               <Button variant="secondary">View All Leave Requests</Button>
             </Link>
           }

@@ -13,7 +13,7 @@ type BuildFinanceViewerStatusInput = {
   roles: string[];
   permissions: string[];
   statusTone: StatusTone;
-  family?: string;
+  category?: string;
 };
 
 /** @deprecated Use buildPaymentViewerStatus from ./paymentStatus */

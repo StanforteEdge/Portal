@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "r
 import { SectionCard, SelectField, TextAreaField, TextField } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
 import type { RequestTypeOption, RequestCategoryOption, RequestRecord } from "@/pages/requests/requests-api";
-import type { FamilyFormHandle } from "./family-form-types";
+import type { RequestFormHandle } from "./category-form-types";
 import { useCachedQuery } from "@/shared/lib/core";
 
 type LoanFormState = {
@@ -22,7 +22,7 @@ type Props = {
   onSummary: (node: React.ReactNode) => void;
 };
 
-export const LoanRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
+export const LoanRequestFormPage = forwardRef<RequestFormHandle, Props>(({
   selectedType,
   selectedCategory,
   editRequest,

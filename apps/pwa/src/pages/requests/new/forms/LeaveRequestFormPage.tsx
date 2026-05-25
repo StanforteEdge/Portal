@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { SectionCard, TextAreaField, TextField, SelectField } from "@/shared";
 import type { RequestTypeOption, RequestCategoryOption, RequestRecord } from "@/pages/requests/requests-api";
-import type { FamilyFormHandle } from "./family-form-types";
+import type { RequestFormHandle } from "./category-form-types";
 import { getMyLeaveBalance } from "@/pages/requests/requests-api";
 import { useCachedQuery } from "@/shared/lib/core";
 
@@ -31,7 +31,7 @@ function parseDateOnly(value: string) {
   return date;
 }
 
-export const LeaveRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
+export const LeaveRequestFormPage = forwardRef<RequestFormHandle, Props>(({
   selectedType,
   selectedCategory,
   handoverOptions,

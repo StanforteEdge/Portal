@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "r
 import { Button, Chip, Icon, SectionCard, SelectField, TextAreaField, TextField } from "@/shared";
 import { formatCurrency, humanize } from "@stanforte/shared";
 import type { RequestTypeOption, RequestCategoryOption, RequestRecord, ProjectOption } from "@/pages/requests/requests-api";
-import type { FamilyFormHandle } from "./family-form-types";
+import type { RequestFormHandle } from "./category-form-types";
 import type { TagTerm } from "@/pages/requests/taxonomy-api";
 import { uploadFileAsset } from "@/pages/files/files-api";
 
@@ -41,7 +41,7 @@ function itemTotal(item: ItemState) {
   return parsePositiveNumber(item.quantity) * parsePositiveNumber(item.unit_price);
 }
 
-export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
+export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
   selectedType,
   selectedCategory,
   vendorOptions,
