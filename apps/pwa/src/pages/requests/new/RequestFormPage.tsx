@@ -163,6 +163,14 @@ export function RequestFormPage() {
 
   const showProject = Boolean((selectedType?.form_schema as Record<string, unknown> | null)?.show_project);
 
+  const siblingTypes = useMemo(() => {
+    if (!selectedCategory) return [];
+    const catId = selectedCategory.id;
+    return (requestTypes ?? []).filter((t: RequestTypeOption) =>
+      (t.categoryId || t.category_id) === catId
+    );
+  }, [requestTypes, selectedCategory]);
+
   const organizationOptions: Array<{ id: string; name: string; code: string }> = (organizations ?? []).map((entry: MyOrganization) => entry.organization);
   const projectOptions: Array<{ id: string; name: string }> = projects ?? [];
 
@@ -332,6 +340,19 @@ export function RequestFormPage() {
       title="Staff Details"
       description="Assign this request to the right team and workstream."
     >
+      {siblingTypes.length > 1 && (
+        <div className="mb-5">
+          <SelectField
+            label="Request Type"
+            value={form.request_type_id || typeId}
+            onChange={(event) => setForm((prev) => ({ ...prev, request_type_id: event.target.value }))}
+          >
+            {siblingTypes.map((type: RequestTypeOption) => (
+              <option key={type.id} value={type.id}>{type.name}</option>
+            ))}
+          </SelectField>
+        </div>
+      )}
       <div className="grid gap-4 lg:grid-cols-3">
         <SelectField
           label="Group / Team"
