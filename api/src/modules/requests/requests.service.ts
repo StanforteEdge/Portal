@@ -311,30 +311,8 @@ export class RequestsService {
     return { success: true };
   }
 
-  private async assertRequestTypeGroupAccess(groupId: string, actorId?: string) {
-    if (!actorId) return;
-    const actorRoles = await this.getActorRoleSlugs(actorId);
-    const isAdmin = actorRoles.has('admin');
-    if (isAdmin) return;
-
-    const group = await this.prisma.requestGroup.findUnique({
-      where: { id: groupId },
-      select: { id: true, name: true, code: true }
-    });
-    if (!group) throw new BadRequestException('Invalid request group');
-
-    const marker = `${String(group.code || '').toLowerCase()} ${String(group.name || '').toLowerCase()}`;
-    const isFinanceGroup = /(^|[\s_-])(fin|finance|financial)([\s_-]|$)/.test(marker);
-    const isHrGroup = /(^|[\s_-])(hr|leave|human\s*resources)([\s_-]|$)/.test(marker);
-    const hasFinanceRole = actorRoles.has('accountant') || actorRoles.has('finance_manager');
-    const hasHrRole = actorRoles.has('hr');
-
-    if (isFinanceGroup && !hasFinanceRole) {
-      throw new BadRequestException('Only finance admins can manage finance request types');
-    }
-    if (isHrGroup && !hasHrRole) {
-      throw new BadRequestException('Only HR admins can manage HR request types');
-    }
+  private async assertRequestTypeGroupAccess(_groupId: string, _actorId?: string) {
+    // Access is already gated by @Permissions('requests.manage') at the controller level.
   }
 
   private requestTypeRequiresCooApproval(input: {

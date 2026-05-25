@@ -32,12 +32,12 @@ import {
   requestsMobileNav,
 } from "@/pages/requests/requests-data";
 
-type RequestFamily = "all" | "financial" | "hr";
+type RequestGroupFilter = "all" | "financial" | "hr";
 
 type UiRequestRow = {
   id: string;
   requestId: string;
-  family: RequestFamily;
+  category: RequestGroupFilter;
   type: string;
   requestTypeId: string;
   categoryKey: string;
@@ -99,11 +99,11 @@ function toTone(
   return "neutral";
 }
 
-function classifyFamily(
+function classifyCategory(
   categoryKey: string,
   requestType: string,
   groupName?: string | null,
-): RequestFamily {
+): RequestGroupFilter {
   if (groupName) {
     const g = groupName.toLowerCase();
     if (g.includes("leave") || g.includes("hr")) return "hr";
@@ -181,7 +181,7 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
   const category = String(
     request.request_type?.taxonomy_keys?.[0] || "",
   ).toLowerCase();
-  const family = classifyFamily(category, requestType, request.group?.name);
+  const requestCategory = classifyCategory(category, requestType, request.group?.name);
   const icon = category.includes("leave")
     ? "event_note"
     : category.includes("finance")
@@ -193,7 +193,7 @@ function toRow(request: RequestRecord, teamsMap?: Map<string, string>) {
   return {
     id: request.request_number || `REQ-${request.id}`,
     requestId: String(request.id),
-    family,
+    category: requestCategory,
     type: requestType,
     requestTypeId: String(request.request_type?.id ?? ""),
     categoryKey: category,
@@ -290,7 +290,7 @@ function formatLeaveDuration(row: UiRequestRow) {
 }
 
 function ListFilters({
-  activeFamily,
+  activeCategory,
   status,
   statusOptions,
   onStatusChange,
@@ -317,7 +317,7 @@ function ListFilters({
   sortOrder,
   onSortOrderChange,
 }: {
-  activeFamily: RequestFamily;
+  activeCategory: RequestGroupFilter;
   status: string;
   statusOptions: RequestOption[];
   onStatusChange: (status: string) => void;
@@ -345,15 +345,15 @@ function ListFilters({
   onSortOrderChange: (value: "asc" | "desc") => void;
 }) {
   const requestTypeLabel =
-    activeFamily === "financial"
+    activeCategory === "financial"
       ? "Financial Type"
-      : activeFamily === "hr"
+      : activeCategory === "hr"
         ? "Leave Type"
         : "Request Subtype";
   const searchPlaceholder =
-    activeFamily === "hr"
+    activeCategory === "hr"
       ? "Request no, leave type, reason"
-      : activeFamily === "financial"
+      : activeCategory === "financial"
         ? "Request no, financial type, purpose"
         : "Request no, subtype, purpose";
 
@@ -443,7 +443,7 @@ function ListFilters({
             />
           </label>
 
-          {activeFamily !== "hr" ? (
+          {activeCategory !== "hr" ? (
             <SelectField
               label="Project"
               value={selectedProject}
@@ -458,7 +458,7 @@ function ListFilters({
             </SelectField>
           ) : null}
 
-          {activeFamily === "financial" ? (
+          {activeCategory === "financial" ? (
             <SelectField
               label="Team"
               value={selectedTeam}
@@ -492,7 +492,7 @@ function ListFilters({
 }
 
 function RequestsListTable({
-  activeFamily,
+  activeCategory,
   rows,
   loading,
   error,
@@ -505,7 +505,7 @@ function RequestsListTable({
   onPageChange,
   isMultiTeam,
 }: {
-  activeFamily: RequestFamily;
+  activeCategory: RequestGroupFilter;
   rows: UiRequestRow[];
   loading: boolean;
   error: string | null;
@@ -524,9 +524,9 @@ function RequestsListTable({
   return (
     <SectionCard
       title={
-        activeFamily === "hr"
+        activeCategory === "hr"
           ? "Leave Requests"
-          : activeFamily === "financial"
+          : activeCategory === "financial"
             ? "Financial Requests"
             : "All Requests"
       }
@@ -562,10 +562,10 @@ function RequestsListTable({
               <TableHeaderCell>Request ID</TableHeaderCell>
               <TableHeaderCell>Total</TableHeaderCell>
               {isMultiTeam ? <TableHeaderCell>Team</TableHeaderCell> : null}
-              {activeFamily === "financial" ? (
+              {activeCategory === "financial" ? (
                 <TableHeaderCell>Project</TableHeaderCell>
               ) : null}
-              {activeFamily === "hr" ? (
+              {activeCategory === "hr" ? (
                 <TableHeaderCell>Leave Dates</TableHeaderCell>
               ) : null}
               <TableHeaderCell>Submitted</TableHeaderCell>
@@ -589,7 +589,7 @@ function RequestsListTable({
                   </div>
                 </TableCell>
                 <TableCell className="text-sm text-slate-700 font-medium">
-                  {row.family === "hr"
+                  {row.category === "hr"
                     ? formatLeaveDuration(row)
                     : row.totalAmount > 0
                       ? row.detail
@@ -607,12 +607,12 @@ function RequestsListTable({
                     ) : null}
                   </TableCell>
                 ) : null}
-                {activeFamily === "financial" ? (
+                {activeCategory === "financial" ? (
                   <TableCell className="text-sm text-slate-600">
                     {row.projectName || "-"}
                   </TableCell>
                 ) : null}
-                {activeFamily === "hr" ? (
+                {activeCategory === "hr" ? (
                   <TableCell className="text-sm text-slate-600">
                     {formatLeaveDateRange(row)}
                   </TableCell>
@@ -626,7 +626,7 @@ function RequestsListTable({
                 <TableCell className="rounded-r-2xl text-right">
                   {row.statusKey === "draft" || row.statusKey === "returned" ? (
                     <Link
-                      to={`${row.family === "hr" ? "/leave/new/form" : "/requests/new/form"}?edit=${row.requestId}&typeId=${row.requestTypeId}`}
+                      to={`${row.category === "hr" ? "/leave/new/form" : "/requests/new/form"}?edit=${row.requestId}&typeId=${row.requestTypeId}`}
                       className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline"
                     >
                       <Icon name="edit" className="text-[14px]" />
@@ -726,7 +726,7 @@ function RequestsMobileList({
                 <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
               </div>
               <p className="mt-2 text-sm font-semibold text-slate-700">
-                {row.family === "hr"
+                {row.category === "hr"
                   ? formatLeaveDuration(row)
                   : row.totalAmount > 0
                     ? row.detail
@@ -765,10 +765,10 @@ export function RequestsListPage() {
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
-  const familyParam = searchParams.get("family");
-  const activeFamily: RequestFamily =
-    familyParam === "financial" || familyParam === "hr" || familyParam === "all"
-      ? familyParam
+  const categoryParam = searchParams.get("category");
+  const activeCategory: RequestGroupFilter =
+    categoryParam === "financial" || categoryParam === "hr" || categoryParam === "all"
+      ? categoryParam
       : "all";
 
   const organizations = useMemo(
@@ -821,7 +821,7 @@ export function RequestsListPage() {
           .map((item) => ({
             value: String(item.id),
             label: String(item.name),
-            family: classifyFamily(
+            category: classifyCategory(
               String(item.taxonomy_keys?.[0] || "").toLowerCase(),
               String(item.name),
             ),
@@ -833,15 +833,15 @@ export function RequestsListPage() {
         {
           value: "all",
           label:
-            activeFamily === "financial"
+            activeCategory === "financial"
               ? "All financial types"
-              : activeFamily === "hr"
+              : activeCategory === "hr"
                 ? "All leave types"
                 : "All request subtypes",
         },
         ...apiTypeOptions
           .filter(
-            (item) => activeFamily === "all" || item.family === activeFamily,
+            (item) => activeCategory === "all" || item.category === activeCategory,
           )
           .map(({ value, label }) => ({ value, label })),
       ];
@@ -852,7 +852,7 @@ export function RequestsListPage() {
       if (
         row.requestTypeId &&
         row.type &&
-        (activeFamily === "all" || row.family === activeFamily)
+        (activeCategory === "all" || row.category === activeCategory)
       ) {
         inferred.set(row.requestTypeId, row.type);
       }
@@ -861,9 +861,9 @@ export function RequestsListPage() {
       {
         value: "all",
         label:
-          activeFamily === "financial"
+          activeCategory === "financial"
             ? "All financial types"
-            : activeFamily === "hr"
+            : activeCategory === "hr"
               ? "All leave types"
               : "All request subtypes",
       },
@@ -872,14 +872,14 @@ export function RequestsListPage() {
         label,
       })),
     ];
-  }, [activeFamily, allRows, requestTypes]);
+  }, [activeCategory, allRows, requestTypes]);
 
   const statusOptions = useMemo(() => {
     const values = Array.from(
       new Set(
         allRows
           .filter(
-            (row) => activeFamily === "all" || row.family === activeFamily,
+            (row) => activeCategory === "all" || row.category === activeCategory,
           )
           .map((row) => row.statusKey)
           .filter(Boolean),
@@ -889,7 +889,7 @@ export function RequestsListPage() {
       { value: "", label: "All statuses" },
       ...values.map((value) => ({ value, label: toTitleCase(value) })),
     ];
-  }, [activeFamily, allRows]);
+  }, [activeCategory, allRows]);
 
   const projectOptions = useMemo(() => {
     const values = new Map<string, string>();
@@ -950,7 +950,7 @@ export function RequestsListPage() {
 
   const filteredRows = useMemo(() => {
     return allRows.filter((row) => {
-      if (activeFamily !== "all" && row.family !== activeFamily) return false;
+      if (activeCategory !== "all" && row.category !== activeCategory) return false;
       if (status && row.statusKey !== status) return false;
       if (selectedRequestTypeId !== "all" && row.requestTypeId !== selectedRequestTypeId) return false;
       if (filterDate) {
@@ -962,12 +962,12 @@ export function RequestsListPage() {
           .join(" ").toLowerCase();
         if (!haystack.includes(search.trim().toLowerCase())) return false;
       }
-      if (activeFamily !== "hr" && selectedProject && row.projectId !== selectedProject && row.projectName !== selectedProject) return false;
-      if (activeFamily === "financial" && selectedTeam && row.teamId !== selectedTeam && row.teamName !== selectedTeam) return false;
+      if (activeCategory !== "hr" && selectedProject && row.projectId !== selectedProject && row.projectName !== selectedProject) return false;
+      if (activeCategory === "financial" && selectedTeam && row.teamId !== selectedTeam && row.teamName !== selectedTeam) return false;
       if (selectedOrganization && row.organizationId !== selectedOrganization && row.organizationName !== selectedOrganization) return false;
       return true;
     });
-  }, [allRows, filterDate, activeFamily, search, selectedOrganization, selectedProject, selectedRequestTypeId, selectedTeam, status]);
+  }, [allRows, filterDate, activeCategory, search, selectedOrganization, selectedProject, selectedRequestTypeId, selectedTeam, status]);
 
   const sortedRows = useMemo(() => {
     const direction = sortOrder === "asc" ? 1 : -1;
@@ -1003,7 +1003,7 @@ export function RequestsListPage() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [status, selectedRequestTypeId, filterDate, activeFamily, search, selectedProject, selectedTeam, selectedOrganization, sortBy, sortOrder, perPage]);
+  }, [status, selectedRequestTypeId, filterDate, activeCategory, search, selectedProject, selectedTeam, selectedOrganization, sortBy, sortOrder, perPage]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -1076,12 +1076,12 @@ export function RequestsListPage() {
               type="button"
               onClick={() => {
                 const next = new URLSearchParams(searchParams);
-                next.set("family", tab.key);
+                next.set("category", tab.key);
                 setSearchParams(next);
               }}
               className={[
                 "rounded-full px-4 py-2 transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-                activeFamily === tab.key
+                activeCategory === tab.key
                   ? "bg-brand-900 text-white"
                   : "bg-slate-100 text-slate-600 hover:text-slate-900",
               ].join(" ")}
@@ -1099,7 +1099,7 @@ export function RequestsListPage() {
           </div>
 
           <ListFilters
-            activeFamily={activeFamily}
+            activeCategory={activeCategory}
             status={status}
             statusOptions={statusOptions}
             onStatusChange={setStatus}
@@ -1128,7 +1128,7 @@ export function RequestsListPage() {
           />
 
           <RequestsListTable
-            activeFamily={activeFamily}
+            activeCategory={activeCategory}
             rows={requestsError ? [] : pagedRows}
             loading={loadingRequests}
             error={requestsError}
@@ -1180,12 +1180,12 @@ export function RequestsListPage() {
                 type="button"
                 onClick={() => {
                   const next = new URLSearchParams(searchParams);
-                  next.set("family", item.key);
+                  next.set("category", item.key);
                   setSearchParams(next);
                 }}
                 className={[
                   "rounded-full px-4 py-2 text-sm font-semibold transition",
-                  activeFamily === item.key ? "bg-brand-900 text-white" : "bg-slate-100 text-slate-600",
+                  activeCategory === item.key ? "bg-brand-900 text-white" : "bg-slate-100 text-slate-600",
                 ].join(" ")}
               >
                 {item.label}

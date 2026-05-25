@@ -43,7 +43,7 @@ export type RequestDetailsContextValue = {
   refetchRequestActions: () => Promise<void>;
   refetchPaymentVouchers: () => Promise<void>;
   requestData: Record<string, any>;
-  family: string;
+  workflowType: string;
   statusTone: StatusTone;
   categoryName: string;
   requestTags: Array<{ id: string; label: string }>;

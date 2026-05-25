@@ -17,7 +17,7 @@ import { listApprovals, listRequests } from "@/pages/requests/requests-api";
 import {
   formatDisplayDate,
   formatRequestStatus,
-  requestFamilyFromRecord,
+  requestCategoryFromRecord,
   requestStatusTone,
 } from "@/pages/requests/request-helpers";
 import {
@@ -52,9 +52,9 @@ function formatTime(value?: string | null) {
   });
 }
 
-function requestIcon(typeName?: string | null, family?: string) {
+function requestIcon(typeName?: string | null, category?: string) {
   const name = String(typeName || "").toLowerCase();
-  if (family === "hr" || name.includes("leave")) return "beach_access";
+  if (category === "hr" || name.includes("leave")) return "beach_access";
   if (
     name.includes("petty") ||
     name.includes("cash") ||
@@ -63,7 +63,7 @@ function requestIcon(typeName?: string | null, family?: string) {
     return "payments";
   if (name.includes("equipment") || name.includes("asset")) return "hardware";
   if (name.includes("travel")) return "flight_takeoff";
-  return family === "financial" ? "receipt_long" : "description";
+  return category === "financial" ? "receipt_long" : "description";
 }
 
 function requestSubtitle(row: {
@@ -400,7 +400,7 @@ export default function DashboardPage() {
               <div className="divide-y divide-slate-100">
                 {/* Pending approvals first — only for users with requests.approve */}
                 {canApprove && pendingApprovalItems.map((row) => {
-                  const family = requestFamilyFromRecord(row);
+                  const category = requestCategoryFromRecord(row);
                   const hint = attentionHint(row.status, true);
                   return (
                     <Link
@@ -411,7 +411,7 @@ export default function DashboardPage() {
                       <div className="flex min-w-0 items-center gap-4">
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-900">
                           <span className="material-symbols-outlined">
-                            {requestIcon(row.request_type?.name, family)}
+                            {requestIcon(row.request_type?.name, category)}
                           </span>
                         </div>
                         <div className="min-w-0">
@@ -432,7 +432,7 @@ export default function DashboardPage() {
 
                 {/* Own requests needing action */}
                 {attentionRequests.map((row) => {
-                  const family = requestFamilyFromRecord(row);
+                  const category = requestCategoryFromRecord(row);
                   const hint = attentionHint(row.status);
                   return (
                     <Link
@@ -443,7 +443,7 @@ export default function DashboardPage() {
                       <div className="flex min-w-0 items-center gap-4">
                         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-700">
                           <span className="material-symbols-outlined">
-                            {requestIcon(row.request_type?.name, family)}
+                            {requestIcon(row.request_type?.name, category)}
                           </span>
                         </div>
                         <div className="min-w-0">

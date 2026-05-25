@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle } from "react";
 import type { RequestTypeOption, RequestCategoryOption, RequestRecord } from "@/pages/requests/requests-api";
-import type { FamilyFormHandle } from "./family-form-types";
+import type { RequestFormHandle } from "./category-form-types";
 
 type Props = {
   selectedType: RequestTypeOption;
@@ -10,7 +10,7 @@ type Props = {
   onSummary: (node: React.ReactNode) => void;
 };
 
-export const OtherRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
+export const OtherRequestFormPage = forwardRef<RequestFormHandle, Props>(({
   selectedCategory,
   onSummary,
 }, ref) => {

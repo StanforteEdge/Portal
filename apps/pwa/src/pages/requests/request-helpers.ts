@@ -5,7 +5,9 @@ import type { WorkflowStep, WorkflowStepStatus } from "@/shared";
 export type WorkflowType = "payment" | "leave" | "loan" | "other";
 
 /** @deprecated Use WorkflowType */
-export type RequestFamily = WorkflowType;
+export type RequestCategory = WorkflowType;
+/** @deprecated Use RequestCategory */
+export type RequestFamily = RequestCategory;
 
 export type RequestGroupMap = Record<string, { name: string; code: string }>;
 
@@ -33,11 +35,13 @@ export function buildGroupMap(groups: RequestGroupOption[]): RequestGroupMap {
   return map;
 }
 
-export function moduleFromFamily(family: WorkflowType): RequestModule | undefined {
-  if (family === "leave" || family === "loan") return REQUEST_MODULES[0];
-  if (family === "payment") return REQUEST_MODULES[1];
+export function moduleFromCategory(category: WorkflowType): RequestModule | undefined {
+  if (category === "leave" || category === "loan") return REQUEST_MODULES[0];
+  if (category === "payment") return REQUEST_MODULES[1];
   return undefined;
 }
+/** @deprecated Use moduleFromCategory */
+export const moduleFromFamily = moduleFromCategory;
 
 export function classifyRequestCategory(
   categoryKey?: string | null,
@@ -99,9 +103,11 @@ export function workflowTypeLabel(type: WorkflowType) {
 }
 
 /** @deprecated Use workflowTypeLabel */
-export function requestFamilyLabel(family: WorkflowType) {
-  return workflowTypeLabel(family);
+export function requestCategoryLabel(category: WorkflowType) {
+  return workflowTypeLabel(category);
 }
+/** @deprecated Use requestCategoryLabel */
+export const requestFamilyLabel = requestCategoryLabel;
 
 export function workflowTypeFromType(
   type?: RequestTypeOption | null,
@@ -118,7 +124,7 @@ export function workflowTypeFromType(
   );
 }
 
-export function requestFamilyFromTypeSimple(type?: RequestTypeOption | null): RequestFamily {
+export function requestCategoryFromTypeSimple(type?: RequestTypeOption | null): RequestCategory {
   return classifyRequestCategory(
     type?.taxonomyKeys?.[0] ?? type?.taxonomy_keys?.[0] ?? type?.categoryKey ?? type?.category_key ?? type?.category_code,
     type?.name,
@@ -137,10 +143,14 @@ export function workflowTypeFromRecord(request?: RequestRecord | null): Workflow
 }
 
 /** @deprecated Use workflowTypeFromType */
-export const requestFamilyFromType = workflowTypeFromType;
+export const requestCategoryFromType = workflowTypeFromType;
+/** @deprecated Use requestCategoryFromType */
+export const requestFamilyFromType = requestCategoryFromType;
 
 /** @deprecated Use workflowTypeFromRecord */
-export const requestFamilyFromRecord = workflowTypeFromRecord;
+export const requestCategoryFromRecord = workflowTypeFromRecord;
+/** @deprecated Use requestCategoryFromRecord */
+export const requestFamilyFromRecord = requestCategoryFromRecord;
 
 export function formatRequestStatus(status?: string | null) {
   return String(status || "draft").replaceAll("_", " ");

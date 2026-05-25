@@ -1,19 +1,19 @@
 import { formatCurrency } from "@stanforte/shared";
-import { requestFamilyFromRecord } from "@/pages/requests/request-helpers";
+import { requestCategoryFromRecord } from "@/pages/requests/request-helpers";
 import { useRequestDetails } from "../../context";
 
 export function RequestTotalCard() {
-  const { request, family, disbursedTotal } = useRequestDetails();
+  const { request, workflowType, disbursedTotal } = useRequestDetails();
 
   return (
     <section className="section-card bg-brand-900 p-5 text-white">
       <p className="text-[0.72rem] font-bold uppercase tracking-[0.18em] text-white/70">
-        {family === "hr" ? "Request Type" : "Current Total"}
+        {workflowType === "hr" ? "Request Type" : "Current Total"}
       </p>
-      {family === "hr" ? (
+      {workflowType === "hr" ? (
         <h3 className="mt-3 text-[1.65rem] font-semibold tracking-tight">
           {request.request_type?.name ||
-            requestFamilyFromRecord(request)}
+            requestCategoryFromRecord(request)}
         </h3>
       ) : (
         <div className="mt-3 flex items-baseline gap-2">
@@ -28,7 +28,7 @@ export function RequestTotalCard() {
         </div>
       )}
       <p className="mt-3 text-sm leading-6 text-white/85">
-        {family === "hr"
+        {workflowType === "hr"
           ? "This request follows the leave workflow and approval sequence."
           : "This total is calculated from the submitted request items and their supporting attachments."}
       </p>

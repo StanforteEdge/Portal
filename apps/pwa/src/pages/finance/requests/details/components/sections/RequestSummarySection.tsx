@@ -10,7 +10,7 @@ export function RequestSummarySection() {
   const {
     viewerStatus,
     requestData,
-    family,
+    workflowType,
     requestTags,
     summaryCards,
   } = useRequestDetails();
@@ -44,7 +44,7 @@ export function RequestSummarySection() {
             "No summary provided.",
         )}
       </p>
-      {family !== "hr" && requestTags.length > 0 ? (
+      {workflowType !== "hr" && requestTags.length > 0 ? (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {requestTags.map((tag) => (
             <Chip key={tag.id} variant="pending">

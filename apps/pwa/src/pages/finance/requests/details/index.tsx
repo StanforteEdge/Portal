@@ -40,7 +40,7 @@ import {
   formatPersonName,
   formatRequestStatus,
   formatViewerRequestStatus,
-  requestFamilyFromRecord,
+  requestCategoryFromRecord,
   requestStatusTone,
 } from "@/pages/requests/request-helpers";
 import type { FinancePaymentVoucherRecord } from "@/shared";
@@ -57,8 +57,7 @@ import {
   type RequestDetailsContextValue,
   type DeductionLine,
 } from "./context";
-import { DesktopLayout } from "./components/DesktopLayout";
-import { MobileLayout } from "./components/MobileLayout";
+import { RequestDetailsLayout } from "./components/RequestDetailsLayout";
 import { DisburseDialog } from "./components/modals/DisburseDialog";
 import { VoucherPreviewDialog } from "./components/modals/VoucherPreviewDialog";
 import { RetireDialog } from "./components/modals/RetireDialog";
@@ -177,7 +176,7 @@ export function FinanceRequestDetailsPage() {
       { ttlMs: 1000 * 60, storage: "memory" },
     );
 
-  const family = requestFamilyFromRecord(request || undefined);
+  const workflowType = requestCategoryFromRecord(request || undefined);
   const statusTone = requestStatusTone(request?.status);
   const requestData =
     request?.data && typeof request.data === "object" ? request.data : {};
@@ -506,7 +505,7 @@ export function FinanceRequestDetailsPage() {
 
   const summaryCards = useMemo(() => {
     if (!request) return [];
-    if (family === "leave") {
+    if (workflowType === "leave") {
       return [
         {
           label: "Leave Dates",
@@ -542,7 +541,7 @@ export function FinanceRequestDetailsPage() {
         tone: "neutral" as const,
       },
     ];
-  }, [availableActions, categoryName, family, organizationName, pendingApprovals, request, requestData]);
+  }, [availableActions, categoryName, workflowType, organizationName, pendingApprovals, request, requestData]);
 
   const activityItems = useMemo(() => {
     type ActivityItem = {
@@ -1053,7 +1052,7 @@ export function FinanceRequestDetailsPage() {
     refetchRequestActions,
     refetchPaymentVouchers,
     requestData,
-    family,
+    workflowType,
     statusTone,
     categoryName,
     requestTags,
@@ -1200,7 +1199,7 @@ export function FinanceRequestDetailsPage() {
               }
               description={
                 request
-                  ? `${request?.request_type?.name || requestFamilyFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
+                  ? `${request?.request_type?.name || requestCategoryFromRecord(request)} • ${formatPersonName(request.creator)} • ${formatDisplayDate(request.created_at)}`
                   : "Review the request details, activity, and next step."
               }
               actions={
@@ -1224,10 +1223,9 @@ export function FinanceRequestDetailsPage() {
                 </div>
               }
             />
-            <DesktopLayout />
           </div>
 
-          <MobileLayout />
+          <RequestDetailsLayout />
         </div>
 
         {showDisburseDialog ? <DisburseDialog /> : null}
