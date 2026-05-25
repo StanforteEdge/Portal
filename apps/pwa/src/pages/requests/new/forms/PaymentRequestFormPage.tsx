@@ -214,20 +214,21 @@ export const PaymentRequestFormPage = forwardRef<FamilyFormHandle, Props>(({
                   <p className="text-sm font-semibold text-slate-950">Request Item {index + 1}</p>
                   <p className="mt-1 text-xs text-slate-500">Line total updates as quantity and unit price change.</p>
                 </div>
-                <button
-                  type="button"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-danger/15 bg-danger/10 text-danger transition hover:bg-danger/15 disabled:cursor-not-allowed disabled:opacity-40"
-                  onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      items: prev.items.length === 1 ? prev.items : prev.items.filter((_, i) => i !== index),
-                    }))
-                  }
-                  disabled={form.items.length === 1}
-                  aria-label={`Remove request item ${index + 1}`}
-                >
-                  <Icon name="delete" className="text-[18px]" />
-                </button>
+                {form.items.length > 1 ? (
+                  <button
+                    type="button"
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-danger/15 bg-danger/10 text-danger transition hover:bg-danger/15"
+                    onClick={() =>
+                      setForm((prev) => ({
+                        ...prev,
+                        items: prev.items.filter((_, i) => i !== index),
+                      }))
+                    }
+                    aria-label={`Remove request item ${index + 1}`}
+                  >
+                    <Icon name="delete" className="text-[18px]" />
+                  </button>
+                ) : null}
               </div>
               <div className="grid gap-4 lg:grid-cols-[1.8fr_0.7fr_0.7fr_auto]">
                 <TextField
