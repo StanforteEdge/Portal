@@ -154,16 +154,23 @@ async function main() {
       await prisma.taxonomyTerm.createMany({ data: newTerms, skipDuplicates: true });
     }
 
+    const leaveCategory = await prisma.requestCategory.findUnique({
+      where: { code: 'LEAVE' },
+    });
+    if (!leaveCategory) {
+      throw new Error('LEAVE category not found. Run migrations first.');
+    }
+
     const leaveRequestType = await prisma.requestType.upsert({
       where: {
-        unique_group_code_prefix: {
-          groupId: group.id,
+        unique_category_code_prefix: {
+          categoryId: leaveCategory.id,
           codePrefix: REQUEST_TYPE.codePrefix,
         },
       },
       update: {
         name: REQUEST_TYPE.name,
-        categoryKey: REQUEST_TYPE.categoryKey,
+        taxonomyKeys: [REQUEST_TYPE.categoryKey],
         description: REQUEST_TYPE.description,
         storageType: 'json',
         formSchema: {},
@@ -172,10 +179,10 @@ async function main() {
         updatedAt: now,
       },
       create: {
-        groupId: group.id,
+        categoryId: leaveCategory.id,
         name: REQUEST_TYPE.name,
         codePrefix: REQUEST_TYPE.codePrefix,
-        categoryKey: REQUEST_TYPE.categoryKey,
+        taxonomyKeys: [REQUEST_TYPE.categoryKey],
         description: REQUEST_TYPE.description,
         storageType: 'json',
         formSchema: {},
