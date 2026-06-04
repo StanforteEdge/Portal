@@ -190,7 +190,7 @@ export function RequestFormPage() {
         setForm((prev) => ({
           ...prev,
           request_type_id: String(request.request_type?.id || ""),
-          organization_id: String(data.organization_id || ""),
+          organization_id: String(request.organization_id || data.organization_id || ""),
           team_id: String(request.team_id || ""),
           project_id: String(data.project_id || ""),
           purpose: String(data.purpose || ""),
@@ -283,11 +283,11 @@ export function RequestFormPage() {
         categoryTaxonomies.filter(t => categoryByKey[t.key]).map(t => [t.key, categoryByKey[t.key]])
       );
 
-      const payload: { team_id?: string; total_amount?: number; data: Record<string, unknown>; items?: RequestItemInput[] } = {
+      const payload: { team_id?: string; organization_id?: string; total_amount?: number; data: Record<string, unknown>; items?: RequestItemInput[] } = {
         team_id: form.team_id || undefined,
+        organization_id: form.organization_id || undefined,
         total_amount: result.payload.total_amount,
         data: {
-          organization_id: form.organization_id || undefined,
           project_id: showProject ? (form.project_id || undefined) : undefined,
           category_id: categoryId,
           ...(Object.keys(allCategoryIds).length > 1 ? { category_ids: allCategoryIds } : {}),
