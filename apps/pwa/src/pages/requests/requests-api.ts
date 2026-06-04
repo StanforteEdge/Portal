@@ -260,6 +260,7 @@ export async function getRequestActions(id: string) {
 export async function createRequest(payload: {
   request_type_id: string;
   team_id?: string;
+  organization_id?: string;
   currency?: string;
   total_amount?: number;
   data?: Record<string, unknown>;
@@ -276,6 +277,7 @@ export async function updateRequest(
   id: string,
   payload: {
     team_id?: string;
+    organization_id?: string;
     currency?: string;
     total_amount?: number;
     data?: Record<string, unknown>;
