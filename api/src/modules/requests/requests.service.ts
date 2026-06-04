@@ -441,6 +441,7 @@ export class RequestsService {
           requestTypeId: requestType.id,
           groupId: requestType.category.groupId,
           createdBy,
+          organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
           teamId: dto.team_id ? toBigInt(dto.team_id) : null,
           status: 'draft',
           data: dto.data as Prisma.InputJsonValue,
@@ -2778,17 +2779,23 @@ export class RequestsService {
   }
 
   private async resolvePolicyContextForUser(userId: bigint) {
-    const profile = await this.prisma.profile.findUnique({
-      where: { id: userId },
-      include: {
-        employeeProfile: { select: { primaryOrganizationId: true, primaryTeamId: true, employmentType: true } }
-      }
-    });
+    const [profile, primaryTeam] = await this.prisma.$transaction([
+      this.prisma.profile.findUnique({
+        where: { id: userId },
+        include: {
+          employeeProfile: { select: { employmentType: true } }
+        }
+      }),
+      this.prisma.groupUser.findFirst({
+        where: { userId, isPrimary: true },
+        select: { groupId: true }
+      })
+    ]);
 
     return {
       user_id: userId.toString(),
-      organization_id: profile?.employeeProfile?.primaryOrganizationId?.toString(),
-      team_id: profile?.employeeProfile?.primaryTeamId?.toString(),
+      organization_id: profile?.primaryOrganizationId?.toString(),
+      team_id: primaryTeam?.groupId?.toString(),
       staff_type: profile?.employeeProfile?.employmentType ?? undefined
     };
   }
@@ -3711,7 +3718,8 @@ export class RequestsService {
       creator: {
         select: { id: true, username: true, email: true, firstName: true, lastName: true }
       },
-      organization: true
+      organization: true,
+      team: { select: { id: true, name: true } }
     };
   }
 
@@ -3770,6 +3778,12 @@ export class RequestsService {
             id: request.organization.id.toString(),
             name: request.organization.name,
             code: request.organization.code
+          }
+        : null,
+      team: request.team
+        ? {
+            id: request.team.id.toString(),
+            name: request.team.name
           }
         : null,
       items: (request.items ?? []).map((item: any) => {

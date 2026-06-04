@@ -181,10 +181,16 @@ export class WorkService {
     const managerId = this.parseBigInt(actorId, 'user id');
     const directReports = await this.prisma.employeeProfile.findMany({
       where: { managerUserId: managerId },
-      select: { userId: true, primaryTeamId: true }
+      select: { userId: true }
     });
     const reportIds = directReports.map((row) => row.userId);
-    const teamIds = [...new Set(directReports.map((row) => row.primaryTeamId).filter(Boolean))] as bigint[];
+    const primaryTeams = reportIds.length > 0
+      ? await this.prisma.groupUser.findMany({
+          where: { userId: { in: reportIds }, isPrimary: true },
+          select: { groupId: true }
+        })
+      : [];
+    const teamIds = [...new Set(primaryTeams.map((row) => row.groupId))] as bigint[];
     const where: Prisma.WorkItemWhereInput = {
       OR: [
         { assignedById: managerId },

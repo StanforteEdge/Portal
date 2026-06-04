@@ -47,6 +47,10 @@ export type RequestRecord = {
     name: string;
     code?: string | null;
   } | null;
+  team?: {
+    id: string;
+    name: string;
+  } | null;
   items?: Array<{
     id: string;
     description?: string;
@@ -434,11 +438,20 @@ export async function listMyOrganizations() {
   return (res as any)?.data?.items ?? [];
 }
 
-export async function listGroups(params?: { active_only?: boolean }) {
+export async function listGroups(params?: { active_only?: boolean; organization_id?: string }) {
   const query = new URLSearchParams();
   query.set("active_only", params?.active_only === false ? "false" : "true");
+  if (params?.organization_id) query.set("organization_id", params.organization_id);
   const res = await httpRequest<any>(`/groups?${query.toString()}`);
   return (res as any)?.data?.items ?? [];
+}
+
+export async function listGroupsForUser(params?: { organization_id?: string }) {
+  const query = new URLSearchParams();
+  if (params?.organization_id) query.set("organization_id", params.organization_id);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const res = await httpRequest<any>(`/groups/for-user${suffix}`);
+  return (res as any) ?? [];
 }
 
 export async function getMyLeaveBalance(params?: { year?: number; leave_type_key?: string }) {

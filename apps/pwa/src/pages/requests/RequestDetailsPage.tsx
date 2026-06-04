@@ -269,9 +269,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
     projects?.find((entry: ProjectOption) => entry.id === String(requestData.project_id || ""))
       ?.name ||
     String(requestData.project_name || requestData.project_id || "-");
-  const teamName =
-    teams?.find((entry: TeamOption) => entry.id === String(requestData.team_id || ""))
-      ?.name || String(requestData.team_name || requestData.team_id || "-");
+  const teamName = request?.team?.name || String(requestData.team_name || requestData.team_id || "-");
   const handoverUserId = String(requestData.handover_user_id || "");
   const handoverColleagueName = useMemo(() => {
     if (!handoverUserId) return "-";
@@ -289,12 +287,7 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
     }
     return handoverUserId;
   }, [handoverUserId, teams]);
-  const organizationName =
-    organizations?.find(
-      (entry: MyOrganization) =>
-        entry.organization.id === String(requestData.organization_id || ""),
-    )?.organization.name ||
-    String(requestData.organization_name || requestData.organization_id || "-");
+  const organizationName = request?.organization?.name || String(requestData.organization_name || requestData.organization_id || "-");
   const lineItems = request?.items ?? [];
   const documents = lineItems.flatMap((item) => item.files ?? []);
   const requestTotal = Number(request?.total_amount || 0);

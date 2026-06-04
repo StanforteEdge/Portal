@@ -211,6 +211,39 @@ export class GroupsService {
     return this.get(id);
   }
 
+  async forUser(userId: string, query: { organization_id?: string }) {
+    const profileId = this.parseId(userId, 'user id');
+
+    const groupWhere: Prisma.GroupWhereInput = {};
+    if (query.organization_id) {
+      const orgId = this.parseId(query.organization_id, 'organization id');
+      groupWhere.OR = [
+        { organizationId: orgId },
+        { organizationMappings: { some: { organizationId: orgId } } }
+      ];
+    }
+
+    const memberships = await this.prisma.groupUser.findMany({
+      where: {
+        userId: profileId,
+        group: groupWhere
+      },
+      include: {
+        group: {
+          include: this.groupInclude()
+        }
+      },
+      orderBy: [{ isPrimary: 'desc' }, { group: { name: 'asc' } }]
+    });
+
+    return memberships.map((membership) => ({
+      ...this.serializeGroup(membership.group),
+      role: membership.role,
+      is_primary: membership.isPrimary,
+      joined_at: membership.joinedAt
+    }));
+  }
+
   async setMemberScopes(id: string, userId: string, dto: SetGroupMemberScopesDto) {
     const groupId = this.parseId(id, 'group id');
     const memberId = this.parseId(userId, 'user id');

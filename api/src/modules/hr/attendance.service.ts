@@ -1071,14 +1071,20 @@ export class AttendanceService {
   }
 
   private async getProfileContext(userId: bigint): Promise<ProfileContext> {
-    const profile = await this.prisma.profile.findUnique({
-      where: { id: userId },
-      include: {
-        organizations: true,
-        employeeProfile: { select: { primaryOrganizationId: true, primaryTeamId: true, workMode: true } },
-        employeeMeta: true
-      }
-    });
+    const [profile, primaryTeam] = await this.prisma.$transaction([
+      this.prisma.profile.findUnique({
+        where: { id: userId },
+        include: {
+          organizations: true,
+          employeeProfile: { select: { workMode: true } },
+          employeeMeta: true
+        }
+      }),
+      this.prisma.groupUser.findFirst({
+        where: { userId, isPrimary: true },
+        select: { groupId: true }
+      })
+    ]);
     if (!profile) throw new NotFoundException('User profile not found');
 
     return {
@@ -1087,14 +1093,13 @@ export class AttendanceService {
       username: profile.username,
       firstName: profile.firstName,
       lastName: profile.lastName,
-      primaryOrganizationId: profile.employeeProfile?.primaryOrganizationId ?? profile.primaryOrganizationId ?? null,
-      primaryTeamId: profile.employeeProfile?.primaryTeamId ?? null,
+      primaryOrganizationId: profile.primaryOrganizationId,
+      primaryTeamId: primaryTeam?.groupId ?? null,
       workMode: profile.employeeProfile?.workMode ?? null,
       organizationIds: Array.from(
         new Set(
           [
             ...(profile.primaryOrganizationId ? [profile.primaryOrganizationId] : []),
-            ...(profile.employeeProfile?.primaryOrganizationId ? [profile.employeeProfile.primaryOrganizationId] : []),
             ...profile.organizations.map((row: any) => row.organizationId)
           ].filter(Boolean) as bigint[]
         )

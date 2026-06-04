@@ -712,6 +712,7 @@ model Group {
   teamGoals            TeamGoal[]
   teamObjectives       TeamObjective[]
   teamKpis             TeamKpi[]
+  requestInstances     RequestInstance[]
 
   @@map("sta_groups")
 }
@@ -845,6 +846,7 @@ model RequestInstance {
   requestType               RequestType                       @relation(fields: [requestTypeId], references: [id])
   group                     RequestGroup                      @relation(fields: [groupId], references: [id])
   organization              Organization?                     @relation(fields: [organizationId], references: [id])
+  team                      Group?                            @relation(fields: [teamId], references: [id])
   creator                   Profile                           @relation("RequestCreatedBy", fields: [createdBy], references: [id])
   contact                   FinanceContact?                   @relation("RequestContact", fields: [contactId], references: [id], onDelete: SetNull)
   items                     RequestItem[]

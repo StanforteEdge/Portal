@@ -24,6 +24,12 @@ export class GroupsController {
     return this.groupsService.list(query);
   }
 
+  @Get('for-user')
+  @ApiOperation({ summary: 'Get groups for the current user' })
+  forUser(@Req() req: any, @Query() query: Record<string, any>) {
+    return this.groupsService.forUser(req.user?.id, query);
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get group details by id' })
   @Permissions('groups.view')
