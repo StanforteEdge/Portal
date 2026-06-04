@@ -230,8 +230,6 @@ model EmployeeProfile {
   confirmationDate      DateTime?        @map("confirmation_date") @db.Date
   exitDate              DateTime?        @map("exit_date") @db.Date
   workMode              WorkMode?        @map("work_mode")
-  primaryTeamId         BigInt?          @map("primary_team_id")
-  primaryOrganizationId BigInt?          @map("primary_organization_id")
   createdBy             BigInt?          @map("created_by")
   updatedBy             BigInt?          @map("updated_by")
   createdAt             DateTime         @default(now()) @map("created_at")
@@ -239,12 +237,8 @@ model EmployeeProfile {
 
   user                Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
   manager             Profile?      @relation("EmployeeManager", fields: [managerUserId], references: [id], onDelete: SetNull)
-  primaryTeam         Group?        @relation(fields: [primaryTeamId], references: [id], onDelete: SetNull)
-  primaryOrganization Organization? @relation(fields: [primaryOrganizationId], references: [id], onDelete: SetNull)
 
   @@index([managerUserId])
-  @@index([primaryTeamId])
-  @@index([primaryOrganizationId])
   @@index([employmentStatus])
   @@map("sta_employee_profiles")
 }
@@ -522,7 +516,6 @@ model Organization {
   financeContacts                FinanceContact[]
   financeSalesInvoices           FinanceSalesInvoice[]
   financeBillHeaders             FinanceBillHeader[]
-  employeeProfiles               EmployeeProfile[]
   documents                      Document[]
   payrollWorkers                 PayrollWorker[]
   payrollWorkerAllocations       PayrollWorkerAllocation[]
@@ -707,7 +700,6 @@ model Group {
   organizationMappings GroupOrganization[] @relation("GroupOrganizationGroup")
 
   members              GroupUser[]
-  employeeProfiles     EmployeeProfile[]
   financeAssets        FinanceAsset[]
   financeJournalLines  FinanceJournalLine[]
   financeSalesInvoices FinanceSalesInvoice[]
@@ -720,6 +712,7 @@ model Group {
   teamGoals            TeamGoal[]
   teamObjectives       TeamObjective[]
   teamKpis             TeamKpi[]
+  requestInstances     RequestInstance[]
 
   @@map("sta_groups")
 }
@@ -731,6 +724,7 @@ model GroupUser {
   role     GroupUserRole @default(member)
   joinedAt DateTime      @default(now()) @map("joined_at")
   addedBy  BigInt?       @map("added_by")
+  isPrimary Boolean      @default(false) @map("is_primary")
 
   group              Group                        @relation(fields: [groupId], references: [id])
   user               Profile                      @relation(fields: [userId], references: [id])
@@ -852,6 +846,7 @@ model RequestInstance {
   requestType               RequestType                       @relation(fields: [requestTypeId], references: [id])
   group                     RequestGroup                      @relation(fields: [groupId], references: [id])
   organization              Organization?                     @relation(fields: [organizationId], references: [id])
+  team                      Group?                            @relation(fields: [teamId], references: [id])
   creator                   Profile                           @relation("RequestCreatedBy", fields: [createdBy], references: [id])
   contact                   FinanceContact?                   @relation("RequestContact", fields: [contactId], references: [id], onDelete: SetNull)
   items                     RequestItem[]

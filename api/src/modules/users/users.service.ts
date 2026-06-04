@@ -32,12 +32,6 @@ export class UsersService {
           include: {
             manager: {
               select: { id: true, firstName: true, lastName: true, email: true }
-            },
-            primaryTeam: {
-              select: { id: true, name: true, type: true }
-            },
-            primaryOrganization: {
-              select: { id: true, name: true, code: true }
             }
           }
         },
@@ -82,12 +76,6 @@ export class UsersService {
           include: {
             manager: {
               select: { id: true, firstName: true, lastName: true, email: true }
-            },
-            primaryTeam: {
-              select: { id: true, name: true, type: true }
-            },
-            primaryOrganization: {
-              select: { id: true, name: true, code: true }
             }
           }
         },
@@ -659,21 +647,17 @@ export class UsersService {
                     email: user.employeeProfile.manager.email ?? null
                   },
             primary_team:
-              user.employeeProfile.primaryTeam == null
-                ? null
-                : {
-                    id: user.employeeProfile.primaryTeam.id.toString(),
-                    name: user.employeeProfile.primaryTeam.name,
-                    type: user.employeeProfile.primaryTeam.type
-                  },
+              (() => {
+                const pt = (user.groups ?? []).find(
+                  (g: any) => g.isPrimary && ['team', 'department'].includes(String(g.group.type).toLowerCase())
+                );
+                return pt ? { id: pt.group.id.toString(), name: pt.group.name, type: pt.group.type } : null;
+              })(),
             primary_organization:
-              user.employeeProfile.primaryOrganization == null
-                ? null
-                : {
-                    id: user.employeeProfile.primaryOrganization.id.toString(),
-                    name: user.employeeProfile.primaryOrganization.name,
-                    code: user.employeeProfile.primaryOrganization.code
-                  },
+              (() => {
+                const po = (user.organizations ?? []).find((o: any) => o.isPrimary);
+                return po ? { id: po.organization.id.toString(), name: po.organization.name, code: po.organization.code } : null;
+              })(),
             meta: (user.employeeMeta ?? []).reduce((acc: Record<string, unknown>, row: any) => {
               acc[row.metaKey] = row.metaValue;
               return acc;

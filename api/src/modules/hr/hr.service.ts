@@ -65,7 +65,9 @@ export class HrService {
     }
 
     if (query.organization_id) {
-      where.primaryOrganizationId = this.parseId(String(query.organization_id), 'organization id');
+      where.organizations = {
+        some: { organizationId: this.parseId(String(query.organization_id), 'organization id') }
+      };
     }
 
     const [data, total] = await this.prisma.$transaction([
@@ -299,12 +301,6 @@ export class HrService {
         where: { id: profileId },
         data: { primaryOrganizationId: organizationId }
       });
-
-      await tx.employeeProfile.upsert({
-        where: { userId: profileId },
-        update: { primaryOrganizationId: organizationId },
-        create: { userId: profileId, primaryOrganizationId: organizationId }
-      });
     });
 
     return this.getEmployee(id);
@@ -348,11 +344,6 @@ export class HrService {
         this.prisma.profile.update({
           where: { id: profileId },
           data: { primaryOrganizationId: organizationId }
-        }),
-        this.prisma.employeeProfile.upsert({
-          where: { userId: profileId },
-          update: { primaryOrganizationId: organizationId },
-          create: { userId: profileId, primaryOrganizationId: organizationId }
         })
       ]);
     }
@@ -379,11 +370,6 @@ export class HrService {
       where: { id: profileId },
       data: { primaryOrganizationId: primary?.organizationId ?? null }
     });
-    await this.prisma.employeeProfile.upsert({
-      where: { userId: profileId },
-      update: { primaryOrganizationId: primary?.organizationId ?? null },
-      create: { userId: profileId, primaryOrganizationId: primary?.organizationId ?? null }
-    });
 
     return this.getEmployee(id);
   }
@@ -405,6 +391,13 @@ export class HrService {
         : dto.role === 'manager'
           ? GroupUserRole.admin
           : GroupUserRole.member;
+
+    const existingPrimary = await this.prisma.groupUser.findFirst({
+      where: { userId: profileId, isPrimary: true },
+      select: { id: true }
+    });
+    const makePrimary = !existingPrimary;
+
     await this.prisma.groupUser.upsert({
       where: {
         unique_group_user: {
@@ -413,19 +406,15 @@ export class HrService {
         }
       },
       update: {
-        role
+        role,
+        isPrimary: makePrimary
       },
       create: {
         groupId: teamId,
         userId: profileId,
-        role
+        role,
+        isPrimary: makePrimary
       }
-    });
-
-    await this.prisma.employeeProfile.upsert({
-      where: { userId: profileId },
-      update: { primaryTeamId: teamId },
-      create: { userId: profileId, primaryTeamId: teamId }
     });
 
     return this.getEmployee(id);
@@ -449,11 +438,12 @@ export class HrService {
       orderBy: { joinedAt: 'asc' }
     });
 
-    await this.prisma.employeeProfile.upsert({
-      where: { userId: profileId },
-      update: { primaryTeamId: fallbackTeam?.groupId ?? null },
-      create: { userId: profileId, primaryTeamId: fallbackTeam?.groupId ?? null }
-    });
+    if (fallbackTeam) {
+      await this.prisma.groupUser.update({
+        where: { id: fallbackTeam.id },
+        data: { isPrimary: true }
+      });
+    }
 
     return this.getEmployee(id);
   }
@@ -692,8 +682,6 @@ export class HrService {
         hireDate: dto.hire_date ? new Date(dto.hire_date) : undefined,
         confirmationDate: dto.confirmation_date ? new Date(dto.confirmation_date) : undefined,
         exitDate: dto.exit_date ? new Date(dto.exit_date) : undefined,
-        primaryTeamId,
-        primaryOrganizationId,
         updatedBy: actorId ?? undefined
       },
       create: {
@@ -708,8 +696,6 @@ export class HrService {
         hireDate: dto.hire_date ? new Date(dto.hire_date) : undefined,
         confirmationDate: dto.confirmation_date ? new Date(dto.confirmation_date) : undefined,
         exitDate: dto.exit_date ? new Date(dto.exit_date) : undefined,
-        primaryTeamId,
-        primaryOrganizationId,
         createdBy: actorId ?? undefined,
         updatedBy: actorId ?? undefined
       }
@@ -738,6 +724,28 @@ export class HrService {
       await tx.profile.update({
         where: { id: profileId },
         data: { primaryOrganizationId }
+      });
+    }
+
+    if (primaryTeamId) {
+      await tx.groupUser.updateMany({
+        where: { userId: profileId, isPrimary: true },
+        data: { isPrimary: false }
+      });
+      await tx.groupUser.upsert({
+        where: {
+          unique_group_user: {
+            groupId: primaryTeamId,
+            userId: profileId
+          }
+        },
+        update: { isPrimary: true },
+        create: {
+          groupId: primaryTeamId,
+          userId: profileId,
+          isPrimary: true,
+          role: 'member'
+        }
       });
     }
 
@@ -813,9 +821,7 @@ export class HrService {
       },
       employeeProfile: {
         include: {
-          manager: { select: { id: true, firstName: true, lastName: true, email: true } },
-          primaryOrganization: { select: { id: true, name: true, code: true } },
-          primaryTeam: { select: { id: true, name: true, type: true } }
+          manager: { select: { id: true, firstName: true, lastName: true, email: true } }
         }
       },
       employeeMeta: true,
@@ -955,17 +961,23 @@ export class HrService {
   }
 
   private async resolvePolicyContextForUser(userId: bigint) {
-    const profile = await this.prisma.profile.findUnique({
-      where: { id: userId },
-      include: {
-        employeeProfile: { select: { primaryOrganizationId: true, primaryTeamId: true, employmentType: true } }
-      }
-    });
+    const [profile, primaryTeam] = await this.prisma.$transaction([
+      this.prisma.profile.findUnique({
+        where: { id: userId },
+        include: {
+          employeeProfile: { select: { employmentType: true } }
+        }
+      }),
+      this.prisma.groupUser.findFirst({
+        where: { userId, isPrimary: true },
+        select: { groupId: true }
+      })
+    ]);
 
     return {
       user_id: userId.toString(),
-      organization_id: profile?.employeeProfile?.primaryOrganizationId?.toString(),
-      team_id: profile?.employeeProfile?.primaryTeamId?.toString(),
+      organization_id: profile?.primaryOrganizationId?.toString(),
+      team_id: primaryTeam?.groupId?.toString(),
       staff_type: profile?.employeeProfile?.employmentType ?? undefined
     };
   }
@@ -1037,12 +1049,18 @@ export class HrService {
             managerUserId: profile.employeeProfile.managerUserId
               ? profile.employeeProfile.managerUserId.toString()
               : null,
-            primaryTeamId: profile.employeeProfile.primaryTeamId
-              ? profile.employeeProfile.primaryTeamId.toString()
-              : null,
-            primaryOrganizationId: profile.employeeProfile.primaryOrganizationId
-              ? profile.employeeProfile.primaryOrganizationId.toString()
-              : null,
+            primary_team:
+              (() => {
+                const pt = (profile.groups ?? []).find(
+                  (g: any) => g.isPrimary && ['team', 'department'].includes(String(g.group.type).toLowerCase())
+                );
+                return pt ? { id: pt.group.id.toString(), name: pt.group.name, type: pt.group.type } : null;
+              })(),
+            primary_organization:
+              (() => {
+                const po = (profile.organizations ?? []).find((o: any) => o.isPrimary);
+                return po ? { id: po.organization.id.toString(), name: po.organization.name, code: po.organization.code } : null;
+              })(),
             meta: (profile.employeeMeta ?? []).reduce(
               (acc: Record<string, unknown>, entry: any) => {
                 acc[entry.metaKey] = entry.metaValue;

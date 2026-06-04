@@ -30,7 +30,7 @@ import {
   submitRequest,
   listProjects,
   listMyOrganizations,
-  listGroups,
+  listGroupsForUser,
   type MyOrganization,
   type TeamOption,
   type RequestItemInput,
@@ -103,7 +103,11 @@ export function RequestFormPage() {
   const { data: requestTypes } = useCachedQuery("requests:types", () => listRequestTypes(), { ttlMs: 1000 * 60 * 10, storage: "local" });
   const { data: projects } = useCachedQuery("requests:projects", () => listProjects(), { ttlMs: 1000 * 60 * 10, storage: "memory" });
   const { data: organizations } = useCachedQuery("requests:my-organizations", () => listMyOrganizations(), { ttlMs: 1000 * 60 * 10, storage: "memory" });
-  const { data: teams } = useCachedQuery("requests:groups", () => listGroups({ active_only: false }), { ttlMs: 1000 * 60 * 10, storage: "memory" });
+  const { data: teams } = useCachedQuery(
+    ["requests:groups", form.organization_id].filter(Boolean).join(":"),
+    () => listGroupsForUser({ organization_id: form.organization_id || undefined }),
+    { ttlMs: 1000 * 60 * 10, storage: "memory" }
+  );
   const { data: profile } = useCachedQuery("workspace:profile:request-form", () => getWorkspaceProfile(), { ttlMs: 1000 * 60, storage: "memory" });
   const { data: categories } = useCachedQuery("requests:categories", () => listCategories(), { ttlMs: 1000 * 60 * 10, storage: "memory" });
   const { data: managedTaxonomies } = useCachedQuery("requests:taxonomies", () => listManagedTaxonomies({ include_inactive: false }), { ttlMs: 1000 * 60 * 10, storage: "memory" });
@@ -114,10 +118,10 @@ export function RequestFormPage() {
 
   const groupOptions = useMemo(
     () =>
-      (profile?.groups ?? [...(profile?.teams ?? []), ...(profile?.projects ?? [])])
+      ((teams ?? []) as any[])
         .filter((group) => ["team", "department"].includes(String(group.type || "").trim().toLowerCase()))
         .map((group) => ({ id: group.id, name: group.name, type: group.type, role: group.role })),
-    [profile?.groups, profile?.projects, profile?.teams],
+    [teams],
   );
 
   const selectedType = useMemo(

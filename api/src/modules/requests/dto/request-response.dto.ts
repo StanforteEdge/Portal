@@ -101,6 +101,11 @@ export class RequestResponseDto {
     name: string;
     code: string;
   } | null;
+  @ApiProperty({ required: false, nullable: true })
+  team?: {
+    id: string;
+    name: string;
+  } | null;
   @ApiProperty({ type: RequestItemResponseDto, isArray: true })
   items!: RequestItemResponseDto[];
   @ApiProperty({
