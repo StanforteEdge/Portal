@@ -47,4 +47,10 @@ export class DisburseRequestDto {
   @IsOptional()
   @IsUUID()
   contact_id?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'List of specific RequestItem IDs being disbursed' })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  item_ids?: string[];
 }

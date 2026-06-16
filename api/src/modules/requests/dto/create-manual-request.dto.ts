@@ -41,6 +41,21 @@ class ManualItemDto {
   @IsArray()
   @IsUUID('4', { each: true })
   file_ids?: string[];
+
+  @ApiPropertyOptional({ example: 'GTBank' })
+  @IsOptional()
+  @IsString()
+  bank_name?: string;
+
+  @ApiPropertyOptional({ example: '0123456789' })
+  @IsOptional()
+  @IsString()
+  account_number?: string;
+
+  @ApiPropertyOptional({ example: 'John Doe' })
+  @IsOptional()
+  @IsString()
+  account_name?: string;
 }
 
 class ManualApprovalDto {

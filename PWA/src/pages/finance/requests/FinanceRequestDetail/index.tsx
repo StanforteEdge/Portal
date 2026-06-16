@@ -83,6 +83,14 @@ type PaymentVoucherRecord = {
   verified_at: string | null;
   evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
   evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+  voucher_items?: Array<{
+    id: string;
+    description: string;
+    amount: number;
+    bank_name: string | null;
+    account_number: string | null;
+    account_name: string | null;
+  }>;
   retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
   pending_correction: {
     id: string;
@@ -148,6 +156,7 @@ function FinanceRequestDetailPage() {
     evidence_file_id: "",
     evidence_file_ids: [] as string[],
     evidence_file_names: [] as string[],
+    item_ids: [] as string[],
     paid_from_account_id: "",
   });
   const [voucherEditForm, setVoucherEditForm] = useState({
@@ -292,6 +301,7 @@ function FinanceRequestDetailPage() {
       evidence_file_id: "",
       evidence_file_ids: [],
       evidence_file_names: [],
+      item_ids: [],
       paid_from_account_id: financeAccounts[0]?.id || "",
     });
     setShowDisburseModal(true);
@@ -853,6 +863,52 @@ function FinanceRequestDetailPage() {
           <div className="p-5 space-y-4">
             <div className="text-lg font-medium">Disburse Request</div>
             <div className="grid grid-cols-12 gap-3">
+              
+              <div className="col-span-12">
+                <FormLabel>Select Items to Pay (Optional)</FormLabel>
+                <div className="text-xs text-slate-500 mb-2">If you select specific items, the amount will be calculated automatically.</div>
+                <div className="max-h-60 overflow-y-auto border border-slate-200 rounded-md p-2 space-y-2">
+                  {request?.items?.filter(item => {
+                    // optionally filter out items already paid if we can determine it easily, 
+                    // for now show all and let accountant choose
+                    return true;
+                  }).map(item => (
+                    <div key={item.id} className="flex items-start gap-2 p-2 hover:bg-slate-50 rounded-md">
+                      <input 
+                        type="checkbox" 
+                        className="mt-1 border-slate-300 rounded"
+                        checked={disburseForm.item_ids.includes(item.id)}
+                        onChange={(e) => {
+                          setDisburseForm(prev => {
+                            const newIds = e.target.checked 
+                              ? [...prev.item_ids, item.id]
+                              : prev.item_ids.filter(id => id !== item.id);
+                            
+                            // Auto calculate amount
+                            const selectedItems = request.items.filter(i => newIds.includes(i.id));
+                            const totalAmount = selectedItems.reduce((sum, i) => sum + Number(i.amount), 0);
+                            
+                            return { ...prev, item_ids: newIds, amount: newIds.length > 0 ? String(totalAmount) : prev.amount };
+                          });
+                        }}
+                      />
+                      <div className="flex-1">
+                        <div className="font-medium text-sm">{item.description}</div>
+                        <div className="text-xs text-slate-500 flex gap-4 mt-1">
+                          <span>Amount: {formatMoney(item.amount, "-", request.currency)}</span>
+                          {item.bank_name && <span>Bank: {item.bank_name}</span>}
+                          {item.account_number && <span>Acct: {item.account_number}</span>}
+                          {item.account_name && <span>Name: {item.account_name}</span>}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {(!request?.items || request.items.length === 0) && (
+                    <div className="text-sm text-slate-500 italic p-2">No items found on this request.</div>
+                  )}
+                </div>
+              </div>
+
               <div className="col-span-12 md:col-span-6">
                 <FormLabel>Method</FormLabel>
                 <FormSelect
@@ -904,6 +960,7 @@ function FinanceRequestDetailPage() {
                   type="number"
                   value={disburseForm.amount}
                   onChange={(e) => setDisburseForm((prev) => ({ ...prev, amount: e.target.value }))}
+                  disabled={disburseForm.item_ids.length > 0}
                 />
               </div>
               <div className="col-span-12">
@@ -962,7 +1019,27 @@ function FinanceRequestDetailPage() {
             {selectedVoucher ? (
               <>
                 <div className="text-sm"><span className="text-slate-500">PV Number:</span> {selectedVoucher.voucher_number}</div>
+                
                 <div className="text-sm"><span className="text-slate-500">Amount:</span> {formatMoney(selectedVoucher.amount, "-", request?.currency || "NGN")}</div>
+                {selectedVoucher.voucher_items?.length ? (
+                  <div className="mt-4 mb-2">
+                    <div className="text-sm font-medium mb-1 border-b pb-1">Items Paid by this PV</div>
+                    <div className="max-h-40 overflow-y-auto space-y-2">
+                      {selectedVoucher.voucher_items.map((vi, idx) => (
+                        <div key={idx} className="bg-slate-50 p-2 rounded text-sm">
+                          <div className="font-medium">{vi.description}</div>
+                          <div className="text-xs text-slate-500 flex flex-wrap gap-x-4 mt-1">
+                            <span>{formatMoney(vi.amount, "-", request?.currency || "NGN")}</span>
+                            {vi.bank_name && <span>Bank: {vi.bank_name}</span>}
+                            {vi.account_number && <span>Acct: {vi.account_number}</span>}
+                            {vi.account_name && <span>Name: {vi.account_name}</span>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+  
                 <div className="text-sm"><span className="text-slate-500">Paid From:</span> {selectedVoucher.paid_from_account?.name || "-"}</div>
                 <div className="text-sm"><span className="text-slate-500">Disbursed At:</span> {formatDisplayDate(selectedVoucher.disbursed_at)}</div>
                 {completedRequestVoucherEditLocked ? (

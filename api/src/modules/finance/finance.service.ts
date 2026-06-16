@@ -440,7 +440,17 @@ export class FinanceService {
       });
       const alreadyDisbursed = Number(disbursedAggregate._sum.amount ?? 0);
       const balanceBefore = Math.max(0, requestTotal - alreadyDisbursed);
-      const disburseAmount = dto.amount ?? balanceBefore;
+      let disburseAmount = dto.amount ?? balanceBefore;
+      let targetItems: any[] = [];
+      if (dto.item_ids && dto.item_ids.length > 0) {
+        targetItems = await this.prisma.requestItem.findMany({
+          where: { id: { in: dto.item_ids }, requestId: id }
+        });
+        if (targetItems.length !== dto.item_ids.length) {
+          throw new BadRequestException('Some specified request items were not found or do not belong to this request');
+        }
+        disburseAmount = targetItems.reduce((sum, item) => sum + Number(item.amount), 0);
+      }
       traceLog(
         `disburseRequest:balance requestId=${id.toString()} requestTotal=${requestTotal} alreadyDisbursed=${alreadyDisbursed} balanceBefore=${balanceBefore} disburseAmount=${disburseAmount}`,
       );
@@ -537,6 +547,15 @@ export class FinanceService {
           contactId: dto.contact_id ?? null,
         }
       });
+      if (targetItems.length > 0) {
+        await this.prisma.financePaymentVoucherItem.createMany({
+          data: targetItems.map((item) => ({
+            paymentVoucherId: voucher.id,
+            requestItemId: item.id,
+            amount: item.amount
+          }))
+        });
+      }
       traceLog(
         `disburseRequest:voucher-created requestId=${id.toString()} voucherId=${voucher.id} voucherNumber=${voucherNumber}`,
       );
@@ -790,6 +809,9 @@ export class FinanceService {
               select: { id: true, firstName: true, lastName: true, username: true, email: true }
             }
           }
+        },
+        voucherItems: {
+          include: { requestItem: true }
         }
       },
       orderBy: { disbursedAt: 'asc' }
@@ -866,6 +888,14 @@ export class FinanceService {
               account_type: voucher.paidFromAccount.accountType
             }
           : null,
+        voucher_items: voucher.voucherItems?.map((vi: any) => ({
+          id: vi.requestItem.id,
+          description: vi.requestItem.description,
+          amount: Number(vi.amount),
+          bank_name: vi.requestItem.bankName,
+          account_number: vi.requestItem.accountNumber,
+          account_name: vi.requestItem.accountName
+        })) || [],
         pending_correction: this.serializeVoucherCorrection(voucher.corrections?.[0] ?? null),
         retirement_files: (() => {
           const metadata =
@@ -1478,6 +1508,9 @@ export class FinanceService {
               }
             },
             orderBy: { sortOrder: 'asc' }
+          },
+          voucherItems: {
+            include: { requestItem: true }
           }
         },
         orderBy: [{ disbursedAt: 'desc' }, { createdAt: 'desc' }],
@@ -1541,7 +1574,15 @@ export class FinanceService {
             }
           : null,
         evidence_file: evidenceFiles[0] ?? null,
-        evidence_files: evidenceFiles
+        evidence_files: evidenceFiles,
+        voucher_items: row.voucherItems?.map((vi: any) => ({
+          id: vi.requestItem.id,
+          description: vi.requestItem.description,
+          amount: Number(vi.amount),
+          bank_name: vi.requestItem.bankName,
+          account_number: vi.requestItem.accountNumber,
+          account_name: vi.requestItem.accountName
+        })) || []
       };
     });
 
