@@ -24,11 +24,16 @@ import { getMyProfile } from "@/services/profile";
 import { formatMoney } from "@/utils/formatting";
 import MediaPickerModal from "@/components/Media/MediaPickerModal";
 import TagPicker from "@/components/Tags/TagPicker";
+import Papa from "papaparse";
+import { Dialog } from "@/components/Base/Headless";
 
 type CategoryTermOption = { id: string; value: string; label: string };
 
 type CreateItemState = RequestItemInput & {
   unit_price?: number;
+  bank_name?: string;
+  account_number?: string;
+  account_name?: string;
   category?: string;
   file_names?: string[];
 };
@@ -59,6 +64,9 @@ const defaultItem: CreateItemState = {
   file_id: undefined,
   file_ids: [],
   file_names: [],
+  bank_name: undefined,
+  account_number: undefined,
+  account_name: undefined,
 };
 
 const defaultForm: CreateFormState = {
@@ -115,6 +123,9 @@ function RequestsCreatePage() {
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [myUserId, setMyUserId] = useState("");
   const [editingRequestId, setEditingRequestId] = useState("");
+  const [expandedItems, setExpandedItems] = useState<Record<number, boolean>>({});
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [csvPreview, setCsvPreview] = useState<any[]>([]);
 
   const selectedRequestType = useMemo(
     () => types.find((type) => type.id === form.request_type_id),
@@ -571,6 +582,44 @@ function RequestsCreatePage() {
     }
   };
 
+  
+  const handleCsvFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: (results) => {
+        const parsed = results.data.map((row: any) => ({
+          description: row["Description"] || row["description"] || "Imported Item",
+          unit_price: Number(row["Unit Price"] || row["unit_price"] || row["Amount"] || row["amount"]) || 0,
+          quantity: Number(row["Quantity"] || row["quantity"]) || 1,
+          amount: (Number(row["Unit Price"] || row["Amount"]) || 0) * (Number(row["Quantity"]) || 1),
+          bank_name: row["Bank Name"] || row["bank_name"] || "",
+          account_number: row["Account Number"] || row["account_number"] || "",
+          account_name: row["Account Name"] || row["account_name"] || "",
+          notes: row["Notes"] || row["notes"] || "",
+          file_id: undefined,
+          file_ids: [],
+          file_names: []
+        }));
+        setCsvPreview(parsed);
+      }
+    });
+  };
+
+  const confirmCsvImport = () => {
+    if (csvPreview.length > 0) {
+      setForm(prev => ({ ...prev, items: [...prev.items, ...csvPreview] }));
+      setCsvPreview([]);
+      setShowCsvModal(false);
+    }
+  };
+
+  const toggleItemDetails = (index: number) => {
+    setExpandedItems(prev => ({ ...prev, [index]: !prev[index] }));
+  };
+
   const onCancel = () => {
     if (kind === "leave") {
       navigate("/appOld/staff/leave");
@@ -692,8 +741,8 @@ function RequestsCreatePage() {
 
           {!isLeaveRequest ? (
             <div className="col-span-12 md:col-span-4">
-              <FormLabel>Category</FormLabel>
-              <FormSelect value={form.category_id} onChange={(e) => setForm((prev) => ({ ...prev, category_id: e.target.value }))}>
+              <FormLabel htmlFor="req-category">Category</FormLabel>
+              <FormSelect id="req-category" value={form.category_id} onChange={(e) => setForm((prev) => ({ ...prev, category_id: e.target.value }))}>
                 <option value="">Select category</option>
                 {categoryOptions.map((category) => (
                   <option key={category.id} value={category.id}>
@@ -706,14 +755,14 @@ function RequestsCreatePage() {
 
           {!isLeaveRequest ? (
             <div className="col-span-12 md:col-span-4">
-              <FormLabel>Due Date</FormLabel>
-              <FormInput type="date" value={form.due_date} onChange={(e) => setForm((prev) => ({ ...prev, due_date: e.target.value }))} />
+              <FormLabel htmlFor="req-duedate">Due Date</FormLabel>
+              <FormInput id="req-duedate" type="date" value={form.due_date} onChange={(e) => setForm((prev) => ({ ...prev, due_date: e.target.value }))} />
             </div>
           ) : null}
           {!isLeaveRequest ? (
             <div className="col-span-12 md:col-span-4">
-              <FormLabel>Project</FormLabel>
-              <FormSelect value={form.project_id} onChange={(e) => setForm((prev) => ({ ...prev, project_id: e.target.value }))}>
+              <FormLabel htmlFor="req-project">Project</FormLabel>
+              <FormSelect id="req-project" value={form.project_id} onChange={(e) => setForm((prev) => ({ ...prev, project_id: e.target.value }))}>
                 <option value="">{projectRequired ? "Select project" : "No specific project"}</option>
                 {projectOptions.map((project) => (
                   <option key={project.id} value={project.id}>
@@ -729,8 +778,8 @@ function RequestsCreatePage() {
 
           {!isLeaveRequest && shouldShowTeamSelect ? (
             <div className="col-span-12 md:col-span-4">
-              <FormLabel>Team</FormLabel>
-              <FormSelect value={form.team_id} onChange={(e) => setForm((prev) => ({ ...prev, team_id: e.target.value }))}>
+              <FormLabel htmlFor="req-team">Team</FormLabel>
+              <FormSelect id="req-team" value={form.team_id} onChange={(e) => setForm((prev) => ({ ...prev, team_id: e.target.value }))}>
                 <option value="">Select team</option>
                 {teamOptions.map((option) => (
                   <option key={option.id} value={option.id}>
@@ -743,8 +792,8 @@ function RequestsCreatePage() {
 
           {!isLeaveRequest && shouldShowOrganizationSelect ? (
             <div className="col-span-12 md:col-span-4">
-              <FormLabel>Organization</FormLabel>
-              <FormSelect value={form.organization_id} onChange={(e) => setForm((prev) => ({ ...prev, organization_id: e.target.value }))}>
+              <FormLabel htmlFor="req-org">Organization</FormLabel>
+              <FormSelect id="req-org" value={form.organization_id} onChange={(e) => setForm((prev) => ({ ...prev, organization_id: e.target.value }))}>
                 <option value="">Select organization</option>
                 {organizationOptions.map((option) => (
                   <option key={option.id} value={option.id}>
@@ -756,8 +805,8 @@ function RequestsCreatePage() {
           ) : null}
           {!isLeaveRequest ? (
             <div className="col-span-12">
-              <FormLabel>Purpose</FormLabel>
-              <FormTextarea rows={4} value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
+              <FormLabel htmlFor="req-purpose">Purpose</FormLabel>
+              <FormTextarea id="req-purpose" rows={4} value={form.purpose} onChange={(e) => setForm((prev) => ({ ...prev, purpose: e.target.value }))} />
             </div>
           ) : null}
           {!isLeaveRequest ? (
@@ -777,6 +826,10 @@ function RequestsCreatePage() {
         <div className="space-y-3">
           <div className="flex items-center">
             <h3 className="mr-auto text-base font-medium">Request Items</h3>
+            <Button variant="outline-secondary" className="mr-2" onClick={() => setShowCsvModal(true)}>
+              <Lucide icon="File" className="w-4 h-4 mr-1" />
+              Import CSV
+            </Button>
             <Button variant="outline-primary" onClick={addItem}>
               <Lucide icon="Plus" className="w-4 h-4 mr-1" />
               Add Item
@@ -787,54 +840,78 @@ function RequestsCreatePage() {
             <div key={index} className="border rounded-md p-4 flex flex-col gap-3">
               <div className="flex flex-wrap items-end gap-3">
                 <div className="w-full md:flex-[2_1_320px] min-w-0">
-                  <FormLabel>Item</FormLabel>
-                  <FormInput value={item.description} onChange={(e) => updateItem(index, "description", e.target.value)} />
+                  <FormLabel htmlFor={`item-desc-${index}`}>Item</FormLabel>
+                  <FormInput id={`item-desc-${index}`} value={item.description} onChange={(e) => updateItem(index, "description", e.target.value)} />
                 </div>
                 <div className="w-[calc(50%-0.375rem)] md:flex-[1_1_140px] min-w-0">
-                  <FormLabel>Price</FormLabel>
+                  <FormLabel htmlFor={`item-price-${index}`}>Price</FormLabel>
                   <FormInput
+                    id={`item-price-${index}`}
                     type="number"
                     value={item.unit_price || ""}
                     onChange={(e) => updateItem(index, "unit_price", e.target.value)}
                   />
                 </div>
                 <div className="w-[calc(50%-0.375rem)] md:flex-[1_1_120px] min-w-0">
-                  <FormLabel>Quantity</FormLabel>
+                  <FormLabel htmlFor={`item-qty-${index}`}>Quantity</FormLabel>
                   <FormInput
+                    id={`item-qty-${index}`}
                     type="number"
                     value={item.quantity || 1}
                     onChange={(e) => updateItem(index, "quantity", e.target.value)}
                   />
                 </div>
                 <div className="w-full md:flex-[1_1_160px] min-w-0">
-                  <FormLabel>Amount</FormLabel>
-                  <FormInput value={String(formatMoney(item.amount || 0))} readOnly />
+                  <FormLabel htmlFor={`item-amount-${index}`}>Amount</FormLabel>
+                  <FormInput id={`item-amount-${index}`} value={String(formatMoney(item.amount || 0))} readOnly />
                 </div>
                 <div className="w-full md:w-auto md:ml-auto flex md:justify-end">
                   {form.items.length > 1 ? (
-                    <Button variant="outline-danger" className="w-10 px-0 flex items-center justify-center" onClick={() => removeItem(index)}>
+                    <Button variant="outline-danger" className="w-10 px-0 flex items-center justify-center" onClick={() => removeItem(index)} aria-label={`Remove item ${index + 1}`}>
                       <Lucide icon="Trash2" className="w-4 h-4" />
                     </Button>
                   ) : null}
                 </div>
               </div>
 
-              <div className="flex flex-wrap gap-3">
-                <div className="w-full md:flex-[2_1_480px] min-w-0">
-                  <FormLabel>Notes</FormLabel>
-                  <FormTextarea value={item.notes || ""} onChange={(e) => updateItem(index, "notes", e.target.value)} />
-                </div>
-                <div className="w-full md:flex-[1_1_260px] min-w-0">
-                  <FormLabel>Invoice File</FormLabel>
-                  <Button variant="outline-secondary" className="w-full justify-center" onClick={() => setPickerIndex(index)}>
-                    <Lucide icon="FileText" className="w-4 h-4 mr-1" />
-                    {(item.file_names || []).length ? "Change Files" : "Pick Files"}
-                  </Button>
-                  <div className="text-xs text-slate-500 mt-1">
-                    {(item.file_names || []).length ? `Attached: ${(item.file_names || []).join(", ")}` : "Attach invoice per item"}
+              
+              <div className="flex w-full mt-2">
+                <button type="button" onClick={() => toggleItemDetails(index)} aria-expanded={!!expandedItems[index]} aria-controls={`item-details-${index}`} className="flex items-center text-primary text-sm font-medium hover:underline">
+                  <Lucide icon={expandedItems[index] ? "Minus" : "Plus"} className="w-4 h-4 mr-1" />
+                  {expandedItems[index] ? "Hide Details" : "Add Details"}
+                </button>
+              </div>
+
+              {expandedItems[index] && (
+                <div id={`item-details-${index}`} className="flex flex-wrap gap-3 p-4 bg-slate-50/50 rounded-md border border-slate-100 mt-2">
+                  <div className="w-full md:flex-[1_1_200px] min-w-0">
+                    <FormLabel htmlFor={`item-bank-${index}`}>Bank Name</FormLabel>
+                    <FormInput id={`item-bank-${index}`} value={item.bank_name || ""} onChange={(e) => updateItem(index, "bank_name", e.target.value)} />
+                  </div>
+                  <div className="w-full md:flex-[1_1_200px] min-w-0">
+                    <FormLabel htmlFor={`item-accnum-${index}`}>Account Number</FormLabel>
+                    <FormInput id={`item-accnum-${index}`} value={item.account_number || ""} onChange={(e) => updateItem(index, "account_number", e.target.value)} />
+                  </div>
+                  <div className="w-full md:flex-[1_1_200px] min-w-0">
+                    <FormLabel htmlFor={`item-accname-${index}`}>Account Name</FormLabel>
+                    <FormInput id={`item-accname-${index}`} value={item.account_name || ""} onChange={(e) => updateItem(index, "account_name", e.target.value)} />
+                  </div>
+                  <div className="w-full md:flex-[2_1_480px] min-w-0">
+                    <FormLabel htmlFor={`item-notes-${index}`}>Notes</FormLabel>
+                    <FormTextarea id={`item-notes-${index}`} rows={2} value={item.notes || ""} onChange={(e) => updateItem(index, "notes", e.target.value)} />
+                  </div>
+                  <div className="w-full md:flex-[1_1_260px] min-w-0">
+                    <FormLabel>Invoice File</FormLabel>
+                    <Button variant="outline-secondary" className="w-full justify-center" onClick={() => setPickerIndex(index)}>
+                      <Lucide icon="FileText" className="w-4 h-4 mr-1" />
+                      {(item.file_names || []).length ? "Change Files" : "Pick Files"}
+                    </Button>
+                    <div className="text-xs text-slate-500 mt-1">
+                      {(item.file_names || []).length ? `Attached: ${(item.file_names || []).join(", ")}` : "Attach invoice per item"}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           ))}
         </div>

@@ -7,6 +7,9 @@ export type RequestItemInput = {
   notes?: string;
   file_id?: string;
   file_ids?: string[];
+  bank_name?: string;
+  account_number?: string;
+  account_name?: string;
 };
 
 export type ManualDisbursementInput = {
@@ -49,6 +52,9 @@ export type RequestRecord = {
     amount: number;
     quantity: number;
     notes: string | null;
+    bank_name?: string | null;
+    account_number?: string | null;
+    account_name?: string | null;
     file_id: string | null;
     files: Array<{
       id: string;

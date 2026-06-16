@@ -252,6 +252,14 @@ export async function listFinanceRequestPaymentVouchers(id: string) {
     verified_at: string | null;
     evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
     evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+    voucher_items: Array<{
+      id: string;
+      description: string;
+      amount: number;
+      bank_name: string | null;
+      account_number: string | null;
+      account_name: string | null;
+    }>;
     retirement_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
     pending_correction: {
       id: string;
@@ -363,6 +371,15 @@ export type FinancePaymentVoucherListRecord = {
   verified_at: string | null;
   paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
   evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
+  evidence_files: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+  voucher_items: Array<{
+    id: string;
+    description: string;
+    amount: number;
+    bank_name: string | null;
+    account_number: string | null;
+    account_name: string | null;
+  }>;
 };
 
 export async function listFinancePaymentVouchers(params?: Record<string, unknown>) {

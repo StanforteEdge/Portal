@@ -468,7 +468,10 @@ export class RequestsService {
               categoryId: item.category_id ?? null,
               subcategoryId: item.subcategory_id ?? null,
               dueDate: item.due_date ? new Date(item.due_date) : null,
-              notes: item.notes ?? null
+              notes: item.notes ?? null,
+              bankName: item.bank_name ?? null,
+              accountNumber: item.account_number ?? null,
+              accountName: item.account_name ?? null
             }
           });
           if (fileIds.length > 0) {
@@ -587,7 +590,10 @@ export class RequestsService {
               amount: item.amount,
               quantity: item.quantity ?? 1,
               notes: item.notes ?? null,
-              fileId: fileIds[0] ?? null
+              fileId: fileIds[0] ?? null,
+              bankName: item.bank_name ?? null,
+              accountNumber: item.account_number ?? null,
+              accountName: item.account_name ?? null
             }
           });
           if (fileIds.length > 0) {
@@ -783,7 +789,10 @@ export class RequestsService {
               amount: item.amount,
               quantity: item.quantity ?? 1,
               notes: item.notes ?? null,
-              fileId: fileIds[0] ?? null
+              fileId: fileIds[0] ?? null,
+              bankName: item.bank_name ?? null,
+              accountNumber: item.account_number ?? null,
+              accountName: item.account_name ?? null
             }
           });
           if (fileIds.length > 0) {
@@ -1043,6 +1052,13 @@ export class RequestsService {
           `Request pending approval (${formattedRequestNumber})`,
           userId
         );
+        await this.notifyPreviousApprovers(
+          request.id,
+          `Request #${request.id.toString()} has been approved/cleared and moved to the next step.`,
+          `Request Update (${formattedRequestNumber})`,
+          userId,
+          dto.comment
+        );
         return this.getRequest(request.id.toString(), userId);
       }
     }
@@ -1077,6 +1093,14 @@ export class RequestsService {
         emailSubject: `Request approved (${formattedRequestNumber})`,
         emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
       });
+
+      await this.notifyPreviousApprovers(
+        request.id,
+        approvalMessage,
+        `Request Update (${formattedRequestNumber})`,
+        userId,
+        dto.comment
+      );
     } catch (error) {
       console.error('approveRequest notification failed', error);
     }
@@ -1145,6 +1169,14 @@ export class RequestsService {
         emailSubject: `Request rejected (${formattedRequestNumber})`,
         emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
       });
+
+      await this.notifyPreviousApprovers(
+        request.id,
+        rejectionMessage,
+        `Request Update (${formattedRequestNumber})`,
+        userId,
+        dto.comment
+      );
     } catch (error) {
       console.error('rejectRequest notification failed', error);
     }
@@ -1365,7 +1397,10 @@ export class RequestsService {
                 categoryId: item.category_id ?? null,
                 subcategoryId: item.subcategory_id ?? null,
                 dueDate: item.due_date ? new Date(item.due_date) : null,
-                notes: item.notes ?? null
+                notes: item.notes ?? null,
+                bankName: item.bank_name ?? null,
+                accountNumber: item.account_number ?? null,
+                accountName: item.account_name ?? null
               }
             });
             if (fileIds.length > 0) {
@@ -3817,6 +3852,9 @@ export class RequestsService {
           subcategory_id: item.subcategoryId ?? null,
           due_date: item.dueDate ?? null,
           notes: item.notes ?? null,
+          bank_name: item.bankName ?? null,
+          account_number: item.accountNumber ?? null,
+          account_name: item.accountName ?? null,
           file: files[0] ?? null,
           files
         };
@@ -4504,6 +4542,57 @@ export class RequestsService {
         message,
         ...approverNotificationChannels,
         data: { requestId: requestId.toString() },
+        notifiableType: 'request',
+        notifiableId: requestId,
+        emailSubject,
+        emailThreadKey: this.getRequestThreadKey(formattedRequestNumber)
+      });
+    }
+  }
+
+  private async notifyPreviousApprovers(
+    requestId: bigint,
+    message: string,
+    emailSubject: string,
+    excludedUserId?: string,
+    comment?: string,
+    workflowInstanceId?: string | null
+  ) {
+    let instanceId = workflowInstanceId;
+    if (!instanceId) {
+      const request = await this.prisma.requestInstance.findUnique({
+        where: { id: requestId },
+        select: { workflowInstanceId: true }
+      });
+      instanceId = request?.workflowInstanceId;
+    }
+    if (!instanceId) return;
+
+    const history = await this.prisma.workflowHistory.findMany({
+      where: { instanceId },
+      select: { performedBy: true }
+    });
+
+    const previousApprovers = Array.from(new Set(history.map(h => h.performedBy?.toString()).filter((x): x is string => !!x)));
+    if (!previousApprovers.length) return;
+
+    const formattedRequestNumber = await this.getFormattedRequestNumber(requestId);
+    const approverNotificationChannels = await this.buildRequestNotificationChannels({
+      requestId,
+      audience: 'approver',
+      message,
+      comment
+    });
+
+    for (const targetUserId of previousApprovers) {
+      if (excludedUserId && targetUserId === excludedUserId) continue;
+      await this.notificationsService.create({
+        userId: targetUserId,
+        type: 'action',
+        title: 'Request Action Update',
+        message,
+        ...approverNotificationChannels,
+        data: { requestId: requestId.toString(), comment },
         notifiableType: 'request',
         notifiableId: requestId,
         emailSubject,

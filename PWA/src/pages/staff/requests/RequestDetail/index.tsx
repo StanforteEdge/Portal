@@ -165,6 +165,15 @@ function RequestDetailPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
+  const isAccountantStep = request?.approvals?.pending?.some(
+    (p) => p.approver_type === "permission" && p.approver_id === "finance.approve"
+  ) ?? false;
+
+  const getActionLabel = (action: string) => {
+    if (action === "approve") return isAccountantStep ? "Clear" : "Approve";
+    return action;
+  };
+
   const run = async (action: string) => {
     try {
       setBusyAction(action);
@@ -189,7 +198,7 @@ function RequestDetailPage() {
           return;
         }
       }
-      if (action === "approve") await approveRequest(id, window.prompt("Approval comment (optional):") || undefined);
+      if (action === "approve") await approveRequest(id, window.prompt(`${getActionLabel(action)} comment (optional):`) || undefined);
       if (action === "reject") await rejectRequest(id, window.prompt("Rejection reason:") || undefined);
       if (action === "complete") await completeRequest(id);
 
@@ -610,7 +619,7 @@ function RequestDetailPage() {
                   }}
                   disabled={busyAction === action}
                 >
-                  {busyAction === action ? "Working..." : action}
+                  {busyAction === action ? "Working..." : getActionLabel(action)}
                 </Button>
               ))}
               <Button variant="outline-secondary" onClick={() => void runPdf()} disabled={busyAction === "pdf"}>

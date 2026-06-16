@@ -218,25 +218,25 @@ model Profile {
 }
 
 model EmployeeProfile {
-  id                    String           @id @default(uuid()) @db.Uuid
-  userId                BigInt           @unique @map("user_id")
-  employeeCode          String?          @unique @map("employee_code") @db.VarChar(60)
-  jobTitle              String?          @map("job_title") @db.VarChar(120)
-  jobDescription        String?          @map("job_description")
-  managerUserId         BigInt?          @map("manager_user_id")
-  employmentType        EmploymentType?  @map("employment_type")
-  employmentStatus      EmploymentStatus @default(draft) @map("employment_status")
-  hireDate              DateTime?        @map("hire_date") @db.Date
-  confirmationDate      DateTime?        @map("confirmation_date") @db.Date
-  exitDate              DateTime?        @map("exit_date") @db.Date
-  workMode              WorkMode?        @map("work_mode")
-  createdBy             BigInt?          @map("created_by")
-  updatedBy             BigInt?          @map("updated_by")
-  createdAt             DateTime         @default(now()) @map("created_at")
-  updatedAt             DateTime         @updatedAt @map("updated_at")
+  id               String           @id @default(uuid()) @db.Uuid
+  userId           BigInt           @unique @map("user_id")
+  employeeCode     String?          @unique @map("employee_code") @db.VarChar(60)
+  jobTitle         String?          @map("job_title") @db.VarChar(120)
+  jobDescription   String?          @map("job_description")
+  managerUserId    BigInt?          @map("manager_user_id")
+  employmentType   EmploymentType?  @map("employment_type")
+  employmentStatus EmploymentStatus @default(draft) @map("employment_status")
+  hireDate         DateTime?        @map("hire_date") @db.Date
+  confirmationDate DateTime?        @map("confirmation_date") @db.Date
+  exitDate         DateTime?        @map("exit_date") @db.Date
+  workMode         WorkMode?        @map("work_mode")
+  createdBy        BigInt?          @map("created_by")
+  updatedBy        BigInt?          @map("updated_by")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
 
-  user                Profile       @relation(fields: [userId], references: [id], onDelete: Cascade)
-  manager             Profile?      @relation("EmployeeManager", fields: [managerUserId], references: [id], onDelete: SetNull)
+  user    Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manager Profile? @relation("EmployeeManager", fields: [managerUserId], references: [id], onDelete: SetNull)
 
   @@index([managerUserId])
   @@index([employmentStatus])
@@ -718,13 +718,13 @@ model Group {
 }
 
 model GroupUser {
-  id       BigInt        @id @default(autoincrement())
-  groupId  BigInt        @map("group_id")
-  userId   BigInt        @map("user_id")
-  role     GroupUserRole @default(member)
-  joinedAt DateTime      @default(now()) @map("joined_at")
-  addedBy  BigInt?       @map("added_by")
-  isPrimary Boolean      @default(false) @map("is_primary")
+  id        BigInt        @id @default(autoincrement())
+  groupId   BigInt        @map("group_id")
+  userId    BigInt        @map("user_id")
+  role      GroupUserRole @default(member)
+  joinedAt  DateTime      @default(now()) @map("joined_at")
+  addedBy   BigInt?       @map("added_by")
+  isPrimary Boolean       @default(false) @map("is_primary")
 
   group              Group                        @relation(fields: [groupId], references: [id])
   user               Profile                      @relation(fields: [userId], references: [id])
@@ -818,7 +818,7 @@ model RequestType {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  category RequestCategory  @relation(fields: [categoryId], references: [id])
+  category RequestCategory   @relation(fields: [categoryId], references: [id])
   requests RequestInstance[]
 
   @@unique([categoryId, codePrefix], name: "unique_category_code_prefix")
@@ -875,12 +875,16 @@ model RequestItem {
   quantity      Int       @default(1)
   dueDate       DateTime? @map("due_date") @db.Date
   notes         String?
+  bankName      String?   @map("bank_name") @db.VarChar(120)
+  accountNumber String?   @map("account_number") @db.VarChar(50)
+  accountName   String?   @map("account_name") @db.VarChar(120)
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  request RequestInstance   @relation(fields: [requestId], references: [id], onDelete: Cascade)
-  file    FileAsset?        @relation(fields: [fileId], references: [id], onDelete: SetNull)
-  files   RequestItemFile[]
+  request      RequestInstance             @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  file         FileAsset?                  @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  files        RequestItemFile[]
+  voucherItems FinancePaymentVoucherItem[]
 
   @@index([requestId])
   @@index([fileId])
@@ -2713,6 +2717,7 @@ model FinancePaymentVoucher {
   corrections     FinancePaymentVoucherCorrection[]
   deductions      FinancePVDeduction[]
   whtAccruals     FinanceVendorWHTAccrual[]
+  voucherItems    FinancePaymentVoucherItem[]
 
   @@index([requestId])
   @@index([paidFromAccountId])
@@ -2723,6 +2728,22 @@ model FinancePaymentVoucher {
   @@index([retirementStatus])
   @@index([contactId])
   @@map("sta_finance_payment_vouchers")
+}
+
+model FinancePaymentVoucherItem {
+  id               String   @id @default(uuid()) @db.Uuid
+  paymentVoucherId String   @map("payment_voucher_id") @db.Uuid
+  requestItemId    String   @map("request_item_id") @db.Uuid
+  amount           Decimal  @db.Decimal(15, 2)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  paymentVoucher FinancePaymentVoucher @relation(fields: [paymentVoucherId], references: [id], onDelete: Cascade)
+  requestItem    RequestItem           @relation(fields: [requestItemId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentVoucherId, requestItemId], name: "unique_voucher_item")
+  @@index([paymentVoucherId])
+  @@index([requestItemId])
+  @@map("sta_finance_payment_voucher_items")
 }
 
 model FinancePaymentVoucherFile {
