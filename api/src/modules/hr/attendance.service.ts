@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../../common/prisma/prisma.service';
+import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { toBigInt } from '../../common/utils/ids';
 import { CreateAttendanceCorrectionDto } from './dto/create-attendance-correction.dto';
 import { CreateAttendanceExceptionDto } from './dto/create-attendance-exception.dto';
@@ -305,17 +306,28 @@ export class AttendanceService {
     const status = query.status ? String(query.status).trim().toLowerCase() : '';
     const userId = query.user_id ? toBigInt(String(query.user_id)) : null;
     const search = query.search ? String(query.search).trim().toLowerCase() : '';
+    const page = query.page ? Math.max(1, parseInt(String(query.page), 10)) : 1;
+    const limit = query.per_page ? Math.max(1, parseInt(String(query.per_page), 10)) : 25;
+    const skip = (page - 1) * limit;
 
-    const dailyRows = await this.prisma.attendanceDaily.findMany({
-      where: {
-        workDate: { gte: fromDate, lte: toDate },
-        ...(status ? { status } : {}),
-        ...(userId ? { userId } : {})
-      },
-      orderBy: [{ workDate: 'desc' }, { userId: 'asc' }]
-    });
+    const where = {
+      workDate: { gte: fromDate, lte: toDate },
+      ...(status ? { status } : {}),
+      ...(userId ? { userId } : {})
+    };
+
+    const [total, dailyRows] = await Promise.all([
+      this.prisma.attendanceDaily.count({ where }),
+      this.prisma.attendanceDaily.findMany({
+        where,
+        orderBy: [{ workDate: 'desc' }, { userId: 'asc' }],
+        skip,
+        take: limit
+      })
+    ]);
+
     if (dailyRows.length === 0) {
-      return { from: fromDate, to: toDate, data: [] };
+      return paginatedResponse([], { page, per_page: limit, total: 0 });
     }
 
     const userIds = Array.from(new Set(dailyRows.map((row) => row.userId.toString())));
@@ -351,11 +363,7 @@ export class AttendanceService {
         );
       });
 
-    return {
-      from: fromDate,
-      to: toDate,
-      data: rows
-    };
+    return paginatedResponse(rows, { page, per_page: limit, total });
   }
 
   async getDailyRecord(userId: string, workDate: string) {
@@ -577,31 +585,45 @@ export class AttendanceService {
     const fromDate = query.from ? this.toWorkDate(new Date(String(query.from))) : undefined;
     const toDate = query.to ? this.toWorkDate(new Date(String(query.to))) : undefined;
 
-    const rows = await this.prisma.attendanceCorrection.findMany({
-      where: {
-        ...(status ? { status } : {}),
-        ...(targetUserId ? { userId: targetUserId } : {}),
-        ...((fromDate || toDate)
-          ? {
-              workDate: {
-                ...(fromDate ? { gte: fromDate } : {}),
-                ...(toDate ? { lte: toDate } : {})
-              }
-            }
-          : {}),
-        ...(String(query.mine) === 'true' ? { OR: [{ requestedBy: actorId }, { reviewedBy: actorId }] } : {})
-      },
-      include: {
-        user: { select: { id: true, firstName: true, lastName: true, email: true } },
-        requester: { select: { id: true, firstName: true, lastName: true, email: true } },
-        reviewer: { select: { id: true, firstName: true, lastName: true, email: true } },
-        officeLocation: { select: { id: true, name: true } },
-        proposedOfficeLocation: { select: { id: true, name: true } }
-      },
-      orderBy: [{ status: 'asc' }, { requestedAt: 'desc' }]
-    });
+    const page = query.page ? Math.max(1, parseInt(String(query.page), 10)) : 1;
+    const limit = query.per_page ? Math.max(1, parseInt(String(query.per_page), 10)) : 25;
+    const skip = (page - 1) * limit;
 
-    return { data: rows.map((row) => this.serializeCorrection(row)) };
+    const where = {
+      ...(status ? { status } : {}),
+      ...(targetUserId ? { userId: targetUserId } : {}),
+      ...((fromDate || toDate)
+        ? {
+            workDate: {
+              ...(fromDate ? { gte: fromDate } : {}),
+              ...(toDate ? { lte: toDate } : {})
+            }
+          }
+        : {}),
+      ...(String(query.mine) === 'true' ? { OR: [{ requestedBy: actorId }, { reviewedBy: actorId }] } : {})
+    };
+
+    const [total, rows] = await Promise.all([
+      this.prisma.attendanceCorrection.count({ where }),
+      this.prisma.attendanceCorrection.findMany({
+        where,
+        include: {
+          user: { select: { id: true, firstName: true, lastName: true, email: true } },
+          requester: { select: { id: true, firstName: true, lastName: true, email: true } },
+          reviewer: { select: { id: true, firstName: true, lastName: true, email: true } },
+          officeLocation: { select: { id: true, name: true } },
+          proposedOfficeLocation: { select: { id: true, name: true } }
+        },
+        orderBy: [{ status: 'asc' }, { requestedAt: 'desc' }],
+        skip,
+        take: limit
+      })
+    ]);
+
+    return paginatedResponse(
+      rows.map((row) => this.serializeCorrection(row)),
+      { page, per_page: limit, total }
+    );
   }
 
   async createCorrection(userId: string, dto: CreateAttendanceCorrectionDto) {
