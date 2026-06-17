@@ -167,7 +167,7 @@ export default function HrAttendancePage() {
 
       const records = res.items || [];
       if (records.length === 0) {
-        showToast("No records to export.");
+        showToast({ message: "No records to export." });
         return;
       }
 
@@ -195,7 +195,7 @@ export default function HrAttendancePage() {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
     } catch (err) {
-      showToast("Failed to export CSV", "danger");
+      showToast({ message: "Failed to export CSV", tone: "danger" });
     } finally {
       setExportingCsv(false);
     }
