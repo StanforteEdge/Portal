@@ -1,4 +1,4 @@
-import { hasNextDay, formatTime } from "@stanforte/shared";
+import { getDaysDifference, formatTime } from "@stanforte/shared";
 
 type TimeWithNextDayProps = {
   time: string | Date | null | undefined;
@@ -8,9 +8,9 @@ type TimeWithNextDayProps = {
 
 export function TimeWithNextDay({ time, referenceDate, className = "" }: TimeWithNextDayProps) {
   const formatted = formatTime(time);
-  const isNextDay = hasNextDay(time, referenceDate);
+  const diffDays = getDaysDifference(time, referenceDate);
   
-  if (!isNextDay) {
+  if (diffDays === 0) {
     return <span className={className}>{formatted}</span>;
   }
   
@@ -18,7 +18,7 @@ export function TimeWithNextDay({ time, referenceDate, className = "" }: TimeWit
     <span className={`inline-flex items-center gap-1 ${className}`}>
       <span>{formatted}</span>
       <span className="inline-flex items-center px-1.5 py-0.5 text-xs font-medium bg-amber-100 text-amber-700 rounded">
-        +1 Day
+        +{diffDays} Day{diffDays > 1 ? 's' : ''}
       </span>
     </span>
   );

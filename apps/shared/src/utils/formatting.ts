@@ -72,6 +72,25 @@ export const hasNextDay = (
   return d.toDateString() !== refD.toDateString() && d > refD;
 };
 
+export const getDaysDifference = (
+  date: string | Date | null | undefined,
+  referenceDate?: string | Date | null | undefined
+): number => {
+  if (!date || !referenceDate) return 0;
+  const d = typeof date === "string" ? new Date(date) : date;
+  const refD = typeof referenceDate === "string" ? new Date(referenceDate) : referenceDate;
+  
+  if (isNaN(d.getTime()) || isNaN(refD.getTime())) return 0;
+  
+  const dMidnight = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const refMidnight = new Date(refD.getFullYear(), refD.getMonth(), refD.getDate());
+  
+  const diffTime = dMidnight.getTime() - refMidnight.getTime();
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+  
+  return diffDays > 0 ? diffDays : 0;
+};
+
 export const formatDuration = (minutes: number): string => {
   if (!minutes) return "0h 0m";
   const h = Math.floor(minutes / 60);
