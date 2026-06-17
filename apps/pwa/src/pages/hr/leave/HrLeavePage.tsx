@@ -17,6 +17,7 @@ import {
   TableHeaderRow,
   TableRow,
   PaginationControls,
+  useToast,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -86,6 +87,7 @@ function matchesHistoryFilter(record: RequestRecord, filter: HistoryFilter) {
 
 export default function HrLeavePage() {
   const { user } = useAuth();
+  const { showToast } = useToast();
 
   const { data: profile } = useCachedQuery(
     "hr:profile",
@@ -141,6 +143,58 @@ export default function HrLeavePage() {
   const historySafePage = historyData?.meta?.page ?? historyPage;
   const historyTotalPages = historyData?.meta?.total_pages ?? 1;
   const historyTotalCount = historyData?.meta?.total ?? 0;
+
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  const handleExportCsv = async () => {
+    try {
+      setExportingCsv(true);
+      const res = await listHrLeaveRequestsPaged({
+        status: queryStatus,
+        page: 1,
+        per_page: 10000,
+      });
+
+      const records = res.items || [];
+      if (records.length === 0) {
+        showToast({ message: "No records to export." });
+        return;
+      }
+
+      const headers = ["Staff Name", "Email", "Type", "Start Date", "End Date", "Days", "Submitted At", "Status"];
+      const rows = records.map((r: any) => {
+        const d = r.data ?? {};
+        const workflowStatus = deriveRequestWorkflowStatus(r);
+        const days = Number(d.days_requested ?? 0);
+        const name = creatorName(r);
+        return [
+          `"${name}"`,
+          `"${r.creator?.email ?? ""}"`,
+          `"${r.request_type?.name ?? "Leave"}"`,
+          `"${formatDate(String(d.start_date ?? ""))}"`,
+          `"${formatDate(String(d.end_date ?? ""))}"`,
+          days,
+          `"${formatDate(r.created_at)}"`,
+          `"${workflowStatus}"`,
+        ].join(",");
+      });
+
+      const csvContent = [headers.join(","), ...rows].join("\n");
+      const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.setAttribute("href", url);
+      link.setAttribute("download", `leave_history_${new Date().toISOString().slice(0, 10)}.csv`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast({ message: "Failed to export CSV", tone: "danger" });
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
@@ -280,6 +334,12 @@ export default function HrLeavePage() {
         <SectionCard
           title="Leave History"
           description="Finalized leave requests (approved/completed/rejected)."
+          action={
+            <Button variant="secondary" size="sm" onClick={handleExportCsv} className="gap-2" disabled={exportingCsv}>
+              <span className="material-symbols-outlined text-[18px]">download</span>
+              {exportingCsv ? "Exporting..." : "Export CSV"}
+            </Button>
+          }
         >
           <div className="mb-4 flex flex-wrap items-end gap-3">
             <SelectField
