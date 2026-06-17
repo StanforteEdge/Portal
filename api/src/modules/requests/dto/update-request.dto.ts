@@ -79,6 +79,12 @@ export class UpdateRequestDto {
   @Matches(/^\d+$/, { message: 'team_id must be a numeric group id' })
   team_id?: string;
 
+  @ApiPropertyOptional({ example: '5' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d+$/, { message: 'organization_id must be a numeric id' })
+  organization_id?: string;
+
   @ApiPropertyOptional({ example: 75000 })
   @IsOptional()
   @IsNumber()
