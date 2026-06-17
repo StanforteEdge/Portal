@@ -12,6 +12,9 @@ type ItemState = {
   unit_price: string;
   notes: string;
   vendor_id: string;
+  bank_name?: string;
+  account_number?: string;
+  account_name?: string;
   file_id?: string;
   file_ids?: string[];
   file_names?: string[];
@@ -52,8 +55,11 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
   const [form, setForm] = useState<FinancialFormState>({
     due_date: "",
     reimbursement: false,
-    items: [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "" }],
+    items: [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "", bank_name: "", account_number: "", account_name: "" }],
   });
+
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [csvPreview, setCsvPreview] = useState<any[]>([]);
 
   useEffect(() => {
     if (!editRequest?.data) return;
@@ -65,11 +71,14 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
           unit_price: String(item.amount ?? ""),
           notes: item.notes ?? "",
           vendor_id: "",
+          bank_name: item.bank_name ?? "",
+          account_number: item.account_number ?? "",
+          account_name: item.account_name ?? "",
           file_id: item.file_id ?? undefined,
           file_ids: item.files?.map((f) => f.id),
           file_names: item.files?.map((f) => f.file_name),
         }))
-      : [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "" }];
+      : [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "", bank_name: "", account_number: "", account_name: "" }];
     setForm((prev) => ({
       ...prev,
       due_date: String(data.due_date || ""),
@@ -123,6 +132,9 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
             amount: parsePositiveNumber(item.unit_price),
             notes: item.notes.trim() || undefined,
             vendor_id: item.vendor_id || undefined,
+            bank_name: item.bank_name?.trim() || undefined,
+            account_number: item.account_number?.trim() || undefined,
+            account_name: item.account_name?.trim() || undefined,
             file_id: item.file_ids?.[0] || item.file_id || undefined,
             file_ids: item.file_ids?.length ? item.file_ids : undefined,
           })),
@@ -190,20 +202,31 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
         title="Request Items"
         description="List the cost items that make up this request."
         action={
-          <Button
-            variant="secondary"
-            size="sm"
-            className="gap-2"
-            onClick={() =>
-              setForm((prev) => ({
-                ...prev,
-                items: [...prev.items, { description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "" }],
-              }))
-            }
-          >
-            <Icon name="add" className="text-[18px]" />
-            Add Line Item
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-slate-200"
+              onClick={() => setShowCsvModal(true)}
+            >
+              <Icon name="file_upload" className="text-[18px]" />
+              Import CSV
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="gap-2"
+              onClick={() =>
+                setForm((prev) => ({
+                  ...prev,
+                  items: [...prev.items, { description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "", bank_name: "", account_number: "", account_name: "" }],
+                }))
+              }
+            >
+              <Icon name="add" className="text-[18px]" />
+              Add Line Item
+            </Button>
+          </div>
         }
       >
         <div className="space-y-4">
@@ -220,7 +243,7 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
                   onClick={() =>
                     setForm((prev) => {
                       if (prev.items.length === 1) {
-                        return { ...prev, items: [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "" }] };
+                        return { ...prev, items: [{ description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "", bank_name: "", account_number: "", account_name: "" }] };
                       }
                       return { ...prev, items: prev.items.filter((_, i) => i !== index) };
                     })
@@ -331,6 +354,41 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
                   </p>
                 </div>
               </div>
+              <div className="mt-4 grid gap-4 lg:grid-cols-3 border-t border-slate-100 pt-4">
+                <TextField
+                  label="Bank Name (Optional)"
+                  value={item.bank_name || ""}
+                  onChange={(event) =>
+                    setForm((prev) => {
+                      const nextItems = [...prev.items];
+                      nextItems[index] = { ...nextItems[index], bank_name: event.target.value };
+                      return { ...prev, items: nextItems };
+                    })
+                  }
+                />
+                <TextField
+                  label="Account Number (Optional)"
+                  value={item.account_number || ""}
+                  onChange={(event) =>
+                    setForm((prev) => {
+                      const nextItems = [...prev.items];
+                      nextItems[index] = { ...nextItems[index], account_number: event.target.value };
+                      return { ...prev, items: nextItems };
+                    })
+                  }
+                />
+                <TextField
+                  label="Account Name (Optional)"
+                  value={item.account_name || ""}
+                  onChange={(event) =>
+                    setForm((prev) => {
+                      const nextItems = [...prev.items];
+                      nextItems[index] = { ...nextItems[index], account_name: event.target.value };
+                      return { ...prev, items: nextItems };
+                    })
+                  }
+                />
+              </div>
             </div>
           ))}
         </div>
@@ -342,7 +400,7 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
             onClick={() =>
               setForm((prev) => ({
                 ...prev,
-                items: [...prev.items, { description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "" }],
+                items: [...prev.items, { description: "", quantity: "1", unit_price: "", notes: "", vendor_id: "", bank_name: "", account_number: "", account_name: "" }],
               }))
             }
           >
@@ -351,6 +409,114 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
           </Button>
         </div>
       </SectionCard>
+
+      {showCsvModal && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6" role="dialog" aria-modal="true" aria-labelledby="csv-modal-title">
+          <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowCsvModal(false)} aria-hidden="true" />
+          <div className="relative w-full max-w-2xl rounded-2xl bg-white shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-slate-100 px-6 py-4">
+              <h2 id="csv-modal-title" className="text-lg font-semibold text-slate-900">Import CSV</h2>
+              <button onClick={() => setShowCsvModal(false)} className="rounded-full p-2 text-slate-400 hover:bg-slate-50 hover:text-slate-600">
+                <Icon name="close" className="text-[20px]" />
+              </button>
+            </div>
+            <div className="p-6 overflow-y-auto">
+              <div className="mb-4">
+                <p className="text-sm text-slate-600 mb-2">Upload a CSV file containing your line items. Use headers like: Description, Quantity, Unit Price, Bank Name, Account Number, Account Name.</p>
+                <div className="flex gap-2 mb-4">
+                  <a href="/csv-samples/request-items-sample.csv" download className="text-brand-600 text-sm hover:underline">Download Sample CSV</a>
+                </div>
+                <input
+                  type="file"
+                  accept=".csv"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                      const text = event.target?.result as string;
+                      if (!text) return;
+                      const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
+                      if (lines.length < 2) return;
+                      
+                      // Very basic CSV parser handling quotes
+                      const parseLine = (str: string) => {
+                        const result = [];
+                        let inQuotes = false;
+                        let current = "";
+                        for (let i = 0; i < str.length; i++) {
+                          const char = str[i];
+                          if (char === '"') {
+                            inQuotes = !inQuotes;
+                          } else if (char === ',' && !inQuotes) {
+                            result.push(current.trim());
+                            current = "";
+                          } else {
+                            current += char;
+                          }
+                        }
+                        result.push(current.trim());
+                        return result;
+                      };
+
+                      const headers = parseLine(lines[0] || "").map(h => h.toLowerCase());
+                      const parsed = [];
+                      for (let i = 1; i < lines.length; i++) {
+                        const values = parseLine(lines[i] || "");
+                        const row: any = {};
+                        headers.forEach((header, index) => {
+                          row[header] = values[index] !== undefined ? values[index] : "";
+                        });
+
+                        parsed.push({
+                          description: row["description"] || "Imported Item",
+                          unit_price: String(Number(row["unit price"] || row["unit_price"] || row["amount"]) || 0),
+                          quantity: String(Number(row["quantity"]) || 1),
+                          bank_name: row["bank name"] || row["bank_name"] || "",
+                          account_number: row["account number"] || row["account_number"] || "",
+                          account_name: row["account name"] || row["account_name"] || "",
+                          notes: row["notes"] || "",
+                          vendor_id: "",
+                        });
+                      }
+                      setCsvPreview(parsed);
+                    };
+                    reader.readAsText(file);
+                  }}
+                  className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-brand-50 file:text-brand-700 hover:file:bg-brand-100"
+                />
+              </div>
+
+              {csvPreview.length > 0 && (
+                <div className="mt-4 border rounded-lg overflow-hidden">
+                  <div className="bg-slate-50 px-4 py-2 font-medium text-sm border-b">Preview ({csvPreview.length} items)</div>
+                  <div className="max-h-60 overflow-y-auto">
+                    {csvPreview.map((item, idx) => (
+                      <div key={idx} className="p-3 border-b last:border-0 text-sm">
+                        <div className="font-medium">{item.description}</div>
+                        <div className="text-slate-500 text-xs mt-1">
+                          {item.quantity} x {formatCurrency(Number(item.unit_price) || 0)}
+                          {(item.bank_name || item.account_number) && ` • Bank: ${item.bank_name} - ${item.account_number}`}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+            <div className="border-t border-slate-100 bg-slate-50 px-6 py-4 flex justify-end gap-3">
+              <Button variant="outline" onClick={() => setShowCsvModal(false)}>Cancel</Button>
+              <Button variant="primary" disabled={csvPreview.length === 0} onClick={() => {
+                if (csvPreview.length > 0) {
+                  setForm(prev => ({ ...prev, items: [...prev.items, ...csvPreview] }));
+                  setCsvPreview([]);
+                  setShowCsvModal(false);
+                }
+              }}>Import Items</Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 });
