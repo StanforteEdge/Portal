@@ -58,6 +58,9 @@ export type RequestRecord = {
     quantity?: number;
     notes?: string | null;
     file_id?: string | null;
+    bank_name?: string | null;
+    account_number?: string | null;
+    account_name?: string | null;
     files?: Array<{
       id: string;
       file_name: string;
@@ -121,6 +124,9 @@ export type RequestItemInput = {
   file_id?: string;
   file_ids?: string[];
   vendor_id?: string;
+  bank_name?: string;
+  account_number?: string;
+  account_name?: string;
 };
 
 export type ProjectOption = {
@@ -141,6 +147,24 @@ export type TeamOption = {
       lastName?: string | null;
     };
   }>;
+};
+
+export type RequestItemRecord = {
+  id: string;
+  request_id: string;
+  description: string;
+  amount: number;
+  quantity: number;
+  notes?: string;
+  vendor_id?: string;
+  file_id?: string;
+  file_ids?: string[];
+  bank_name?: string;
+  account_number?: string;
+  account_name?: string;
+  created_at: string;
+  updated_at: string;
+  files?: Array<{ id: string; file_name: string; file_url: string }>;
 };
 
 export type MyOrganization = {

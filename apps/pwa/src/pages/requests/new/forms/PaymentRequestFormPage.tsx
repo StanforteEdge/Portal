@@ -204,7 +204,7 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
         action={
           <div className="flex items-center gap-2">
             <Button
-              variant="outline"
+              variant="secondary"
               size="sm"
               className="gap-2 border-slate-200"
               onClick={() => setShowCsvModal(true)}
@@ -505,7 +505,7 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
               )}
             </div>
             <div className="border-t border-slate-100 bg-slate-50 px-6 py-4 flex justify-end gap-3">
-              <Button variant="outline" onClick={() => setShowCsvModal(false)}>Cancel</Button>
+              <Button variant="secondary" onClick={() => setShowCsvModal(false)}>Cancel</Button>
               <Button variant="primary" disabled={csvPreview.length === 0} onClick={() => {
                 if (csvPreview.length > 0) {
                   setForm(prev => ({ ...prev, items: [...prev.items, ...csvPreview] }));
