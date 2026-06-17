@@ -310,11 +310,24 @@ export class AttendanceService {
     const limit = query.per_page ? Math.max(1, parseInt(String(query.per_page), 10)) : 25;
     const skip = (page - 1) * limit;
 
-    const where = {
+    const orgId = query.org_id ? toBigInt(String(query.org_id)) : null;
+    const teamId = query.team_id ? toBigInt(String(query.team_id)) : null;
+
+    const where: any = {
       workDate: { gte: fromDate, lte: toDate },
       ...(status ? { status } : {}),
       ...(userId ? { userId } : {})
     };
+
+    if (orgId || teamId) {
+      where.user = {};
+      if (orgId) {
+        where.user.organizations = { some: { organizationId: orgId } };
+      }
+      if (teamId) {
+        where.user.groups = { some: { groupId: teamId } };
+      }
+    }
 
     const [total, dailyRows] = await Promise.all([
       this.prisma.attendanceDaily.count({ where }),

@@ -218,8 +218,12 @@ export default function HrAttendancePage() {
       />
 
       <div className="grid gap-6">
-        <div className="grid gap-4 md:grid-cols-4">
-          <StatCard
+        <div>
+          <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
+            Today's Stats ({formatDate(todayStr)})
+          </h3>
+          <div className="grid gap-4 md:grid-cols-4">
+            <StatCard
             label="Total Staff"
             value={String(stats?.total_staff ?? 0)}
             tone="neutral"
@@ -243,6 +247,7 @@ export default function HrAttendancePage() {
             tone="danger"
             icon="person_off"
           />
+        </div>
         </div>
 
         {/* Attendance Trend: last 30 days */}
