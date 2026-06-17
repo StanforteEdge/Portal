@@ -107,23 +107,32 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
       return inner?.daily || [];
     },
 
-    async listRecords(params: { from: string; to: string; user_id?: string; org_id?: string; team_id?: string; status?: string }) {
+    async listRecords(params: { from: string; to: string; user_id?: string; org_id?: string; team_id?: string; status?: string; page?: number; per_page?: number }) {
       const query = new URLSearchParams();
       Object.entries(params).forEach(([k, v]) => { if (v) query.set(k, String(v)); });
-      const res = await httpRequest<any>(`/hr/attendance/records?${query.toString()}`);
-      const data = (res as any)?.data?.items ?? [];
-      return data.map(normalizeAttendanceRecord);
+      const res = await httpRequest<{ success: boolean; data: { items: any[]; meta: any } }>(`/hr/attendance/records?${query.toString()}`);
+      return {
+        items: (res?.data?.items || []).map(normalizeAttendanceRecord),
+        meta: res?.data?.meta || { page: 1, per_page: 25, total: 0, pages: 1 }
+      };
     },
 
-    async listCorrections(params?: { status?: string }) {
-      const query = params?.status ? `?status=${params.status}` : "";
-      const res = await httpRequest<any>(`/hr/attendance/corrections${query}`);
-      const data = (res as any)?.data?.items ?? [];
-      return data.map((c: any) => ({
-        ...c,
-        user_name: c.profile ? `${c.profile.first_name} ${c.profile.last_name}` : "Unknown",
-        email: c.profile?.email || "-"
-      })) as AdminCorrectionRow[];
+    async listCorrections(params?: { status?: string; page?: number; per_page?: number }) {
+      const query = new URLSearchParams();
+      if (params?.status) query.set("status", params.status);
+      if (params?.page) query.set("page", String(params.page));
+      if (params?.per_page) query.set("per_page", String(params.per_page));
+      
+      const res = await httpRequest<{ success: boolean; data: { items: any[]; meta: any } }>(`/hr/attendance/corrections?${query.toString()}`);
+      const items = res?.data?.items || [];
+      return {
+        items: items.map((c: any) => ({
+          ...c,
+          user_name: c.profile ? `${c.profile.first_name} ${c.profile.last_name}` : "Unknown",
+          email: c.profile?.email || "-"
+        })) as AdminCorrectionRow[],
+        meta: res?.data?.meta || { page: 1, per_page: 25, total: 0, pages: 1 }
+      };
     },
 
     async reviewCorrection(id: string, action: "approve" | "reject", notes?: string) {

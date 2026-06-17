@@ -111,7 +111,7 @@ export default function HrAttendancePage() {
   );
 
   const { data: attendanceData, loading: attLoading } = useCachedQuery(
-    `hr:attendance:list:${dateFrom}:${dateTo}:${statusFilter}:${orgFilter}:${teamFilter}`,
+    `hr:attendance:list:${dateFrom}:${dateTo}:${statusFilter}:${orgFilter}:${teamFilter}:${attPage}:${attPerPage}`,
     () =>
       attendanceApi.listRecords({
         from: dateFrom,
@@ -119,37 +119,87 @@ export default function HrAttendancePage() {
         status: statusFilter || undefined,
         org_id: orgFilter || undefined,
         team_id: teamFilter || undefined,
+        page: attPage,
+        per_page: attPerPage,
       }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
   const { data: correctionsData, loading: corrLoading } = useCachedQuery(
-    `hr:attendance:corrections:${corrStatusFilter}`,
-    () => attendanceApi.listCorrections(corrStatusFilter ? { status: corrStatusFilter } : undefined),
+    `hr:attendance:corrections:${corrStatusFilter}:${corrPage}:${corrPerPage}`,
+    () => attendanceApi.listCorrections({ 
+      status: corrStatusFilter || undefined,
+      page: corrPage,
+      per_page: corrPerPage,
+    }),
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const allRows: StaffDailyRow[] = (attendanceData || []) as any;
-  const allCorrections: AdminCorrectionRow[] = (correctionsData || []) as any;
+  const pagedRows: StaffDailyRow[] = (attendanceData as any)?.items || [];
+  const attTotalPages = (attendanceData as any)?.meta?.pages || 1;
+  const attTotalCount = (attendanceData as any)?.meta?.total || 0;
+  const attSafePage = attPage; // Use directly since server handles out-of-bounds
 
-  const attTotalPages = Math.max(1, Math.ceil(allRows.length / attPerPage));
-  const attSafePage = Math.min(attPage, attTotalPages);
-  const pagedRows = useMemo(() => {
-    const start = (attSafePage - 1) * attPerPage;
-    return allRows.slice(start, start + attPerPage);
-  }, [allRows, attSafePage, attPerPage]);
-
-  const corrTotalPages = Math.max(1, Math.ceil(allCorrections.length / corrPerPage));
-  const corrSafePage = Math.min(corrPage, corrTotalPages);
-  const pagedCorrections = useMemo(() => {
-    const start = (corrSafePage - 1) * corrPerPage;
-    return allCorrections.slice(start, start + corrPerPage);
-  }, [allCorrections, corrSafePage, corrPerPage]);
+  const pagedCorrections: AdminCorrectionRow[] = (correctionsData as any)?.items || [];
+  const corrTotalPages = (correctionsData as any)?.meta?.pages || 1;
+  const corrTotalCount = (correctionsData as any)?.meta?.total || 0;
+  const corrSafePage = corrPage;
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
     "HR Staff";
+
+  const [exportingCsv, setExportingCsv] = useState(false);
+
+  const handleExportCsv = async () => {
+    try {
+      setExportingCsv(true);
+      const res = await attendanceApi.listRecords({
+        from: dateFrom,
+        to: dateTo,
+        status: statusFilter || undefined,
+        org_id: orgFilter || undefined,
+        team_id: teamFilter || undefined,
+        page: 1,
+        per_page: 10000,
+      });
+
+      const records = res.items || [];
+      if (records.length === 0) {
+        showToast("No records to export.");
+        return;
+      }
+
+      const headers = ["Staff Name", "Email", "Date", "Clock In", "Clock Out", "Worked", "Late", "Mode", "Status"];
+      const rows = records.map((row: any) => [
+        `"${row.user_name}"`,
+        `"${row.email}"`,
+        `"${formatDate(row.work_date)}"`,
+        `"${formatTime(row.first_in_at)}"`,
+        `"${formatTime(row.last_out_at)}"`,
+      `"${formatDuration(row.worked_minutes)}"`,
+      `"${row.late_minutes > 0 ? formatDuration(row.late_minutes) : "-"}"`,
+      `"${row.attendance_mode ?? "-"}"`,
+      `"${humanize(deriveAttendanceStatus(row))}"`,
+    ].join(","));
+    
+    const csvContent = [headers.join(","), ...rows].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `Attendance_Records_${dateFrom}_to_${dateTo}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    } catch (err) {
+      showToast("Failed to export CSV", "danger");
+    } finally {
+      setExportingCsv(false);
+    }
+  };
 
   return (
     <AppShell
@@ -243,6 +293,12 @@ export default function HrAttendancePage() {
             <SectionCard
               title="Staff Attendance"
               description="Records for the selected date range."
+              action={
+                <Button variant="secondary" size="sm" onClick={handleExportCsv} className="gap-2" disabled={exportingCsv}>
+                  <span className="material-symbols-outlined text-[18px]">download</span>
+                  {exportingCsv ? "Exporting..." : "Export CSV"}
+                </Button>
+              }
             >
               <div className="mb-4 flex flex-wrap items-end gap-3">
                 <TextField
@@ -349,7 +405,7 @@ export default function HrAttendancePage() {
                       ) : null}
                     </TableBody>
                   </Table>
-                  {allRows.length > attPerPage && (
+                  {attTotalCount > attPerPage && (
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                       <SelectField label="" value={String(attPerPage)} onChange={(e) => { setAttPerPage(Number(e.target.value)); setAttPage(1); }} className="w-[110px]">
                         <option value="10">10 / page</option>
@@ -359,7 +415,7 @@ export default function HrAttendancePage() {
                       <PaginationControls
                         page={attSafePage}
                         totalPages={attTotalPages}
-                        totalCount={allRows.length}
+                        totalCount={attTotalCount}
                         itemLabel="record"
                         onPageChange={setAttPage}
                       />
@@ -390,7 +446,7 @@ export default function HrAttendancePage() {
             >
               {corrLoading ? (
                 <div className="text-sm text-slate-500">Loading corrections...</div>
-              ) : allCorrections.length ? (
+              ) : pagedCorrections.length ? (
                 <>
                   <Table>
                     <TableHead>
@@ -429,7 +485,7 @@ export default function HrAttendancePage() {
                       ))}
                     </TableBody>
                   </Table>
-                  {allCorrections.length > corrPerPage && (
+                  {corrTotalCount > corrPerPage && (
                     <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                       <SelectField label="" value={String(corrPerPage)} onChange={(e) => { setCorrPerPage(Number(e.target.value)); setCorrPage(1); }} className="w-[110px]">
                         <option value="10">10 / page</option>
@@ -439,7 +495,7 @@ export default function HrAttendancePage() {
                       <PaginationControls
                         page={corrSafePage}
                         totalPages={corrTotalPages}
-                        totalCount={allCorrections.length}
+                        totalCount={corrTotalCount}
                         itemLabel="request"
                         onPageChange={setCorrPage}
                       />
