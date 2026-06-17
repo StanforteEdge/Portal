@@ -10,6 +10,13 @@ import {
   SelectField,
   StatCard,
   useToast,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
@@ -278,34 +285,31 @@ export default function FinanceSalesInvoicesPage() {
               No invoices found.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="p-3 text-left font-semibold text-slate-600">Date</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Invoice Number</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Customer</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Status</th>
-                    <th className="p-3 text-right font-semibold text-slate-600">Amount</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Due Date</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
+              <Table>
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Date</TableHeaderCell>
+                    <TableHeaderCell>Invoice Number</TableHeaderCell>
+                    <TableHeaderCell>Customer</TableHeaderCell>
+                    <TableHeaderCell>Status</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Amount</TableHeaderCell>
+                    <TableHeaderCell>Due Date</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
                   {invoices.map((inv: any) => (
-                    <tr
-                      key={inv.id}
-                      className="border-b border-slate-100 hover:bg-slate-50"
-                    >
-                      <td className="p-3 text-slate-600">
+                    <TableRow key={inv.id}>
+                      <TableCell className="text-slate-600">
                         {formatDate(inv.invoiceDate ?? inv.invoice_date)}
-                      </td>
-                      <td className="p-3 font-medium text-slate-900">
+                      </TableCell>
+                      <TableCell className="font-medium text-slate-900">
                         {inv.invoiceNumber ?? inv.invoice_number ?? "-"}
-                      </td>
-                      <td className="p-3 text-slate-600">
+                      </TableCell>
+                      <TableCell className="text-slate-600">
                         {inv.customer?.name ?? "-"}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
                         <Chip
                           variant={
                             inv.status === "paid"
@@ -317,20 +321,20 @@ export default function FinanceSalesInvoicesPage() {
                         >
                           {inv.status || "draft"}
                         </Chip>
-                      </td>
-                      <td className="p-3 text-right font-medium text-slate-900">
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-slate-900">
                         {formatCurrency(
                           Number(inv.totalAmount ?? inv.total_amount ?? 0),
                           inv.currency || "NGN",
                         )}
-                      </td>
-                      <td className="p-3 text-slate-600">
+                      </TableCell>
+                      <TableCell className="text-slate-600">
                         {formatDate(inv.dueDate ?? inv.due_date) || "-"}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
 

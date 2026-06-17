@@ -27,10 +27,12 @@ export function Table({
   ...props
 }: TableProps) {
   return (
-    <table className={["min-w-full text-left", className].filter(Boolean).join(" ")} {...props}>
-      {caption ? <caption className={captionClassName || "sr-only"}>{caption}</caption> : null}
-      {children}
-    </table>
+    <div className="w-full overflow-x-auto">
+      <table className={["min-w-full text-left", className].filter(Boolean).join(" ")} {...props}>
+        {caption ? <caption className={captionClassName || "sr-only"}>{caption}</caption> : null}
+        {children}
+      </table>
+    </div>
   );
 }
 
@@ -44,7 +46,7 @@ export function TableHeaderRow({ children }: { children: ReactNode }) {
 
 export function TableHeaderCell({ children, className, ...props }: HeaderCellProps) {
   return (
-    <th className={["px-4 py-3", className].filter(Boolean).join(" ")} {...props}>
+    <th className={["px-3 py-2", className].filter(Boolean).join(" ")} {...props}>
       {children}
     </th>
   );
@@ -70,7 +72,7 @@ export function TableRow({ children, className, onClick, ...props }: RowProps) {
 
 export function TableCell({ children, className, ...props }: CellProps) {
   return (
-    <td className={["px-4 py-4", className].filter(Boolean).join(" ")} {...props}>
+    <td className={["px-3 py-2.5", className].filter(Boolean).join(" ")} {...props}>
       {children}
     </td>
   );

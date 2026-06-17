@@ -9,6 +9,13 @@ import {
   SelectField,
   PaginationControls,
   useToast,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -251,58 +258,58 @@ export default function FinanceChartAccountsPage() {
               <p className="text-slate-500">No accounts found.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="text-left p-3 font-semibold text-slate-600">Code</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Name</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Type</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Category</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Normal</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Status</th>
-                    <th className="text-right p-3 font-semibold text-slate-600">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
+              <Table>
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Code</TableHeaderCell>
+                    <TableHeaderCell>Name</TableHeaderCell>
+                    <TableHeaderCell>Type</TableHeaderCell>
+                    <TableHeaderCell>Category</TableHeaderCell>
+                    <TableHeaderCell>Normal</TableHeaderCell>
+                    <TableHeaderCell>Status</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
                   {accounts.map((account: any) => (
-                    <tr key={account.id} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className="p-3">
+                    <TableRow key={account.id}>
+                      <TableCell>
                         <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
                           {account.code || "-"}
                         </code>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
                         <p className="font-medium text-slate-900">{account.name}</p>
                         {account.is_control_account && (
                           <span className="text-xs text-brand-600">Control account</span>
                         )}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
                         <Chip variant="neutral" className="capitalize">
                           {account.type}
                         </Chip>
-                      </td>
-                      <td className="p-3 text-slate-600">
+                      </TableCell>
+                      <TableCell className="text-slate-600">
                         {account.category || "-"}
-                      </td>
-                      <td className="p-3 capitalize text-slate-600">
+                      </TableCell>
+                      <TableCell className="capitalize text-slate-600">
                         {account.normal_balance}
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
                         <Chip variant={account.is_active ? "success" : "neutral"}>
                           {account.is_active ? "Active" : "Inactive"}
                         </Chip>
-                      </td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(account)}>
                           <Icon name="edit" />
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
 

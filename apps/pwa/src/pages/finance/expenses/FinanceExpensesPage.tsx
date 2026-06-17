@@ -10,6 +10,13 @@ import {
   SelectField,
   StatCard,
   useToast,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
@@ -250,40 +257,40 @@ export default function FinanceExpensesPage() {
           ) : expenses.length === 0 ? (
             <div className="rounded-2xl bg-slate-50 px-4 py-8 text-sm text-slate-500">No expenses found.</div>
           ) : (
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="p-3 text-left font-semibold text-slate-600">Date</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Reference</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Vendor</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Account</th>
-                    <th className="p-3 text-right font-semibold text-slate-600">Amount</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Status</th>
-                    <th className="p-3 text-right font-semibold text-slate-600">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
+              <Table>
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Date</TableHeaderCell>
+                    <TableHeaderCell>Reference</TableHeaderCell>
+                    <TableHeaderCell>Vendor</TableHeaderCell>
+                    <TableHeaderCell>Account</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Amount</TableHeaderCell>
+                    <TableHeaderCell>Status</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
                   {expenses.map((entry: any) => (
-                    <tr key={entry.id} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className="p-3 text-slate-600">{formatDate(entry.expenseDate ?? entry.expense_date)}</td>
-                      <td className="p-3">
+                    <TableRow key={entry.id}>
+                      <TableCell className="text-slate-600">{formatDate(entry.expenseDate ?? entry.expense_date)}</TableCell>
+                      <TableCell>
                         <p className="font-medium text-slate-900">{entry.expenseNumber ?? entry.expense_number ?? "-"}</p>
                         <p className="text-xs text-slate-500">{entry.reference ?? "-"}</p>
-                      </td>
-                      <td className="p-3 text-slate-600">{entry.vendor?.name ?? "-"}</td>
-                      <td className="p-3 text-slate-600">{entry.account?.name ?? "-"}</td>
-                      <td className="p-3 text-right text-slate-900">{formatCurrency(Number(entry.totalAmount ?? entry.total_amount ?? entry.amount ?? 0), entry.currency || "NGN")}</td>
-                      <td className="p-3"><Chip variant={entry.status === "approved" || entry.status === "paid" ? "success" : entry.status === "draft" ? "neutral" : "warning"}>{entry.status || "draft"}</Chip></td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="text-slate-600">{entry.vendor?.name ?? "-"}</TableCell>
+                      <TableCell className="text-slate-600">{entry.account?.name ?? "-"}</TableCell>
+                      <TableCell className="text-right text-slate-900">{formatCurrency(Number(entry.totalAmount ?? entry.total_amount ?? entry.amount ?? 0), entry.currency || "NGN")}</TableCell>
+                      <TableCell><Chip variant={entry.status === "approved" || entry.status === "paid" ? "success" : entry.status === "draft" ? "neutral" : "warning"}>{entry.status || "draft"}</Chip></TableCell>
+                      <TableCell className="text-right">
                         <Button variant="ghost" size="sm" onClick={() => openEdit(entry)}>
                           <Icon name="edit" />
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
 
