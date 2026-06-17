@@ -16,6 +16,7 @@ import {
   TableHeaderCell,
   TableHeaderRow,
   TableRow,
+  PaginationControls,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -29,6 +30,7 @@ import {
 import {
   listHrLeaveRequests,
   listHrLeaveApprovals,
+  listHrLeaveRequestsPaged,
   type RequestRecord,
 } from "./hr-leave-api";
 
@@ -95,6 +97,8 @@ export default function HrLeavePage() {
   const [historyFilter, setHistoryFilter] = useState<HistoryFilter>(
     "approved_or_completed",
   );
+  const [historyPage, setHistoryPage] = useState(1);
+  const [historyPerPage, setHistoryPerPage] = useState(25);
 
   const { data: approvals, loading: appLoading } = useCachedQuery(
     "hr:leave:approvals",
@@ -108,13 +112,35 @@ export default function HrLeavePage() {
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
+  const queryStatusMap: Record<string, string> = {
+    approved_or_completed: "cleared",
+    approved: "cleared",
+    completed: "cleared",
+    rejected: "rejected",
+  };
+  const queryStatus = queryStatusMap[historyFilter] || "cleared,rejected";
+
+  const { data: historyData, loading: historyLoading } = useCachedQuery(
+    `hr:leave:history:${historyPage}:${historyPerPage}:${queryStatus}`,
+    () => listHrLeaveRequestsPaged({
+      status: queryStatus,
+      page: historyPage,
+      per_page: historyPerPage,
+    }),
+    { ttlMs: 1000 * 30, storage: "memory" }
+  );
+
   const pendingApprovals: RequestRecord[] = approvals ?? [];
   const allLeaveRequests: RequestRecord[] = allLeave ?? [];
   const currentlyOnLeave = allLeaveRequests.filter(isCurrentlyOnLeave);
-  const historyLeaveRequests = useMemo(
-    () => allLeaveRequests.filter((record) => matchesHistoryFilter(record, historyFilter)),
-    [allLeaveRequests, historyFilter],
-  );
+  const historyLeaveRequests = useMemo(() => {
+    const items = historyData?.items ?? [];
+    return items.filter((record) => matchesHistoryFilter(record, historyFilter));
+  }, [historyData?.items, historyFilter]);
+
+  const historySafePage = historyData?.meta?.page ?? historyPage;
+  const historyTotalPages = historyData?.meta?.total_pages ?? 1;
+  const historyTotalCount = historyData?.meta?.total ?? 0;
 
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
@@ -268,72 +294,97 @@ export default function HrLeavePage() {
             </SelectField>
           </div>
 
-          {allLoading ? (
+          {historyLoading ? (
             <div className="text-sm text-slate-500">Loading leave history...</div>
           ) : (
-            <Table>
-              <TableHead>
-                <TableHeaderRow>
-                  <TableHeaderCell>Staff</TableHeaderCell>
-                  <TableHeaderCell>Type</TableHeaderCell>
-                  <TableHeaderCell>From</TableHeaderCell>
-                  <TableHeaderCell>To</TableHeaderCell>
-                  <TableHeaderCell>Days</TableHeaderCell>
-                  <TableHeaderCell>Submitted</TableHeaderCell>
-                  <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell>{""}</TableHeaderCell>
-                </TableHeaderRow>
-              </TableHead>
-              <TableBody>
-                {historyLeaveRequests.map((r) => {
-                  const d = r.data ?? {};
-                  const workflowStatus = deriveRequestWorkflowStatus(r);
-                  const days = Number(d.days_requested ?? 0);
-                  const name = creatorName(r);
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell>
-                        <p className="font-semibold text-slate-900">{name}</p>
-                        <p className="text-xs text-slate-500">
-                          {r.creator?.email ?? ""}
-                        </p>
-                      </TableCell>
-                      <TableCell>{r.request_type?.name ?? "Leave"}</TableCell>
-                      <TableCell>{formatDate(String(d.start_date ?? ""))}</TableCell>
-                      <TableCell>{formatDate(String(d.end_date ?? ""))}</TableCell>
-                      <TableCell>{days > 0 ? `${days}d` : "-"}</TableCell>
-                      <TableCell>{formatDate(r.created_at)}</TableCell>
-                      <TableCell>
-                        <Chip variant={requestStatusTone(workflowStatus)}>
-                          {workflowStatus}
-                        </Chip>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() =>
-                            navigate(`/hr/requests/${r.id}`)
-                          }
-                        >
-                          Detail
-                        </Button>
+            <div className="flex flex-col gap-4">
+              <Table>
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Staff</TableHeaderCell>
+                    <TableHeaderCell>Type</TableHeaderCell>
+                    <TableHeaderCell>From</TableHeaderCell>
+                    <TableHeaderCell>To</TableHeaderCell>
+                    <TableHeaderCell>Days</TableHeaderCell>
+                    <TableHeaderCell>Submitted</TableHeaderCell>
+                    <TableHeaderCell>Status</TableHeaderCell>
+                    <TableHeaderCell>{""}</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
+                  {historyLeaveRequests.map((r) => {
+                    const d = r.data ?? {};
+                    const workflowStatus = deriveRequestWorkflowStatus(r);
+                    const days = Number(d.days_requested ?? 0);
+                    const name = creatorName(r);
+                    return (
+                      <TableRow key={r.id}>
+                        <TableCell>
+                          <p className="font-semibold text-slate-900">{name}</p>
+                          <p className="text-xs text-slate-500">
+                            {r.creator?.email ?? ""}
+                          </p>
+                        </TableCell>
+                        <TableCell>{r.request_type?.name ?? "Leave"}</TableCell>
+                        <TableCell>{formatDate(String(d.start_date ?? ""))}</TableCell>
+                        <TableCell>{formatDate(String(d.end_date ?? ""))}</TableCell>
+                        <TableCell>{days > 0 ? `${days}d` : "-"}</TableCell>
+                        <TableCell>{formatDate(r.created_at)}</TableCell>
+                        <TableCell>
+                          <Chip variant={requestStatusTone(workflowStatus)}>
+                            {workflowStatus}
+                          </Chip>
+                        </TableCell>
+                        <TableCell>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() =>
+                              navigate(`/hr/requests/${r.id}`)
+                            }
+                          >
+                            Detail
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {!historyLeaveRequests.length ? (
+                    <TableRow>
+                      <TableCell
+                        colSpan={8}
+                        className="py-10 text-center text-slate-500"
+                      >
+                        No leave requests found for this status.
                       </TableCell>
                     </TableRow>
-                  );
-                })}
-                {!historyLeaveRequests.length ? (
-                  <TableRow>
-                    <TableCell
-                      colSpan={8}
-                      className="py-10 text-center text-slate-500"
-                    >
-                      No leave requests found for this status.
-                    </TableCell>
-                  </TableRow>
-                ) : null}
-              </TableBody>
-            </Table>
+                  ) : null}
+                </TableBody>
+              </Table>
+              
+              <div className="flex items-center justify-between border-t border-slate-100 pt-4">
+                <SelectField
+                  label=""
+                  value={String(historyPerPage)}
+                  onChange={(e) => {
+                    setHistoryPerPage(Number(e.target.value));
+                    setHistoryPage(1);
+                  }}
+                  className="w-32"
+                >
+                  <option value="10">10 / page</option>
+                  <option value="25">25 / page</option>
+                  <option value="50">50 / page</option>
+                </SelectField>
+                <PaginationControls
+                  page={historySafePage}
+                  totalPages={historyTotalPages}
+                  totalCount={historyTotalCount}
+                  itemLabel="request"
+                  onPageChange={setHistoryPage}
+                />
+              </div>
+            </div>
           )}
         </SectionCard>
       </div>

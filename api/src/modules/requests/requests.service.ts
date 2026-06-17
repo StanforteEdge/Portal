@@ -1287,16 +1287,30 @@ export class RequestsService {
   }
 
   async listRequests(filters: Record<string, any>, userId: string) {
+    const page = filters.page ? Math.max(1, parseInt(String(filters.page), 10)) : 1;
+    const limit = filters.per_page ? Math.max(1, parseInt(String(filters.per_page), 10)) : 1000;
+    const skip = (page - 1) * limit;
+
     const where: any = {};
 
     if (filters.id) where.id = toBigInt(filters.id);
     if (filters.group_id) where.groupId = filters.group_id;
     if (filters.type_id || filters.request_type_id) where.requestTypeId = filters.type_id || filters.request_type_id;
-    if (filters.status) where.status = filters.status;
+    if (filters.status) {
+      if (typeof filters.status === 'string' && filters.status.includes(',')) {
+        where.status = { in: filters.status.split(',') };
+      } else {
+        where.status = filters.status;
+      }
+    }
     if (filters.created_by) where.createdBy = toBigInt(filters.created_by);
     if (filters.request_number) {
       const raw = String(filters.request_number).trim();
       if (/^\d+$/.test(raw)) where.id = toBigInt(raw);
+    }
+    
+    if (filters.family) {
+      where.requestType = { workflowType: filters.family };
     }
 
     // If no view-all permission, restrict to current user (handled by PermissionsGuard upstream)
@@ -1304,12 +1318,19 @@ export class RequestsService {
       where.createdBy = toBigInt(userId);
     }
 
-    const data = await this.prisma.requestInstance.findMany({
-      where,
-      include: this.getRequestInclude()
-    });
+    const [total, data] = await Promise.all([
+      this.prisma.requestInstance.count({ where }),
+      this.prisma.requestInstance.findMany({
+        where,
+        include: this.getRequestInclude(),
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit,
+      })
+    ]);
+
     const items = data.map((item) => this.serializeRequest(item));
-    return paginatedResponse(items, { page: 1, per_page: items.length, total: items.length });
+    return paginatedResponse(items, { page, per_page: limit, total });
   }
 
   async getRequest(id: string, _userId: string): Promise<RequestResponseDto> {

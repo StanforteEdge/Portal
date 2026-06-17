@@ -173,6 +173,23 @@ export async function listRequests(params?: Record<string, unknown>) {
   return ((res as any)?.data?.items ?? []) as RequestRecord[];
 }
 
+export async function listRequestsPaged(params?: Record<string, unknown>) {
+  const query = new URLSearchParams();
+  if (params) {
+    Object.entries(params).forEach(([key, value]) => {
+      if (value === undefined || value === null || value === "") return;
+      query.set(key, String(value));
+    });
+  }
+
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  const res = await httpRequest<any>(`/requests${suffix}`);
+  return (res as any)?.data as {
+    items: RequestRecord[];
+    meta: { page: number; per_page: number; total: number; total_pages?: number };
+  };
+}
+
 export async function listApprovals(params?: Record<string, unknown>) {
   const query = new URLSearchParams();
   if (params) {

@@ -42,7 +42,28 @@ export async function listHrLeaveRequests(params?: {
   if (params?.from) query.from = params.from;
   if (params?.to) query.to = params.to;
   const requests = await listRequests(query);
-  return requests.filter((record) => requestCategoryFromRecord(record) === "leave");
+  return requests;
+}
+
+export async function listHrLeaveRequestsPaged(params?: {
+  status?: string;
+  user_id?: string;
+  from?: string;
+  to?: string;
+  page?: number;
+  per_page?: number;
+}) {
+  const query: Record<string, unknown> = { family: "leave" };
+  if (params?.status) query.status = params.status;
+  if (params?.user_id) query.user_id = params.user_id;
+  if (params?.from) query.from = params.from;
+  if (params?.to) query.to = params.to;
+  if (params?.page) query.page = params.page;
+  if (params?.per_page) query.per_page = params.per_page;
+  
+  const { listRequestsPaged } = await import("@/pages/requests/requests-api");
+  const data = await listRequestsPaged(query);
+  return data;
 }
 
 // Leave requests pending HR approval
