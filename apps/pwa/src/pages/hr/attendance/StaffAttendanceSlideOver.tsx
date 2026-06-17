@@ -40,7 +40,7 @@ export default function StaffAttendanceSlideOver({
     { ttlMs: 1000 * 30, storage: "memory" },
   );
 
-  const daily: AttendanceDaily[] = (data || []) as any;
+  const daily: AttendanceDaily[] = (data as any)?.items || [];
 
   return (
     <SlideOver open={true} onClose={onClose} size="xl">
