@@ -35,7 +35,7 @@ export default function EmployeeAttendanceTab({ employeeId }: Props) {
     { ttlMs: 1000 * 60, storage: "memory" }
   );
 
-  const rows: any[] = (data || []) as any;
+  const rows: any[] = (data as any)?.items || [];
   
   // Aggregate stats from rows
   const stats = rows.reduce((acc, row) => {
