@@ -10,6 +10,13 @@ import {
   SelectField,
   StatCard,
   useToast,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { resourceApi, useCachedQuery } from "@/shared/lib/core";
@@ -232,61 +239,46 @@ export default function FinanceIncomePage() {
               No income entries found.
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="p-3 text-left font-semibold text-slate-600">
-                      Date
-                    </th>
-                    <th className="p-3 text-left font-semibold text-slate-600">
-                      Payer
-                    </th>
-                    <th className="p-3 text-left font-semibold text-slate-600">
-                      Account
-                    </th>
-                    <th className="p-3 text-left font-semibold text-slate-600">
-                      Reference
-                    </th>
-                    <th className="p-3 text-right font-semibold text-slate-600">
-                      Amount
-                    </th>
-                    <th className="p-3 text-left font-semibold text-slate-600">
-                      Notes
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
+              <Table>
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Date</TableHeaderCell>
+                    <TableHeaderCell>Payer</TableHeaderCell>
+                    <TableHeaderCell>Account</TableHeaderCell>
+                    <TableHeaderCell>Reference</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Amount</TableHeaderCell>
+                    <TableHeaderCell>Notes</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
                   {income.map((entry: any) => (
-                    <tr
-                      key={entry.id}
-                      className="border-b border-slate-100 hover:bg-slate-50"
-                    >
-                      <td className="p-3 text-slate-600">
+                    <TableRow key={entry.id}>
+                      <TableCell className="text-slate-600">
                         {formatDate(entry.received_at)}
-                      </td>
-                      <td className="p-3 font-medium text-slate-900">
+                      </TableCell>
+                      <TableCell className="font-medium text-slate-900">
                         {entry.payer || "-"}
-                      </td>
-                      <td className="p-3 text-slate-600">
+                      </TableCell>
+                      <TableCell className="text-slate-600">
                         {entry.account_name || "-"}
-                      </td>
-                      <td className="p-3 text-slate-600">
+                      </TableCell>
+                      <TableCell className="text-slate-600">
                         {entry.reference || "-"}
-                      </td>
-                      <td className="p-3 text-right font-medium text-slate-900">
+                      </TableCell>
+                      <TableCell className="text-right font-medium text-slate-900">
                         {formatCurrency(
                           Number(entry.amount ?? 0),
                           entry.currency || "NGN",
                         )}
-                      </td>
-                      <td className="p-3 text-slate-500 max-w-[200px] truncate">
+                      </TableCell>
+                      <TableCell className="text-slate-500 max-w-[200px] truncate">
                         {entry.notes || "-"}
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
 

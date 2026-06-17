@@ -128,8 +128,8 @@ export function createAttendanceApi(httpRequest: HttpRequest) {
       return {
         items: items.map((c: any) => ({
           ...c,
-          user_name: c.profile ? `${c.profile.first_name} ${c.profile.last_name}` : "Unknown",
-          email: c.profile?.email || "-"
+          user_name: c.user ? `${c.user.first_name} ${c.user.last_name}` : c.profile ? `${c.profile.first_name} ${c.profile.last_name}` : "Unknown",
+          email: c.user?.email || c.profile?.email || "-"
         })) as AdminCorrectionRow[],
         meta: res?.data?.meta || { page: 1, per_page: 25, total: 0, pages: 1 }
       };

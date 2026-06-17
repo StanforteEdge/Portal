@@ -9,6 +9,13 @@ import {
   SelectField,
   PaginationControls,
   useToast,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -229,24 +236,24 @@ export default function FinanceAccountsPage() {
           ) : accounts.length === 0 ? (
             <div className="text-center py-10"><Icon name="account_balance_wallet" className="text-4xl text-slate-300 mx-auto mb-2" /><p className="text-slate-500">No accounts found.</p></div>
           ) : (
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="text-left p-3 font-semibold text-slate-600">Name</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Type</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Bank Details</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Currency</th>
-                    <th className="text-right p-3 font-semibold text-slate-600">Opening</th>
-                    <th className="text-right p-3 font-semibold text-slate-600">Current</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Status</th>
-                    <th className="text-right p-3 font-semibold text-slate-600">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
+              <Table>
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Name</TableHeaderCell>
+                    <TableHeaderCell>Type</TableHeaderCell>
+                    <TableHeaderCell>Bank Details</TableHeaderCell>
+                    <TableHeaderCell>Currency</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Opening</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Current</TableHeaderCell>
+                    <TableHeaderCell>Status</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
                   {accounts.map((account: any) => (
-                    <tr key={account.id} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className="p-3">
+                    <TableRow key={account.id}>
+                      <TableCell>
                         <button
                           type="button"
                           onClick={() => navigate(`/finance/accounts/${account.id}`)}
@@ -255,21 +262,21 @@ export default function FinanceAccountsPage() {
                           {account.name}
                         </button>
                         {account.code && <p className="text-xs text-slate-400">{account.code}</p>}
-                      </td>
-                      <td className="p-3 capitalize text-slate-600">{account.account_type}</td>
-                      <td className="p-3 text-xs text-slate-600">
+                      </TableCell>
+                      <TableCell className="capitalize text-slate-600">{account.account_type}</TableCell>
+                      <TableCell className="text-xs text-slate-600">
                         {account.bank_name || account.account_number ? (
                           <>
                             {account.bank_name && <div>{account.bank_name}</div>}
                             {account.account_number && <div>{account.account_number}</div>}
                           </>
                         ) : "-"}
-                      </td>
-                      <td className="p-3 text-slate-600">{account.currency}</td>
-                      <td className="p-3 text-right text-slate-600">{formatCurrency(account.opening_balance)}</td>
-                      <td className="p-3 text-right font-medium text-slate-900">{formatCurrency(account.current_balance)}</td>
-                      <td className="p-3"><Chip variant={account.is_active ? "success" : "neutral"}>{account.is_active ? "Active" : "Inactive"}</Chip></td>
-                      <td className="p-3 text-right">
+                      </TableCell>
+                      <TableCell className="text-slate-600">{account.currency}</TableCell>
+                      <TableCell className="text-right text-slate-600">{formatCurrency(account.opening_balance)}</TableCell>
+                      <TableCell className="text-right font-medium text-slate-900">{formatCurrency(account.current_balance)}</TableCell>
+                      <TableCell><Chip variant={account.is_active ? "success" : "neutral"}>{account.is_active ? "Active" : "Inactive"}</Chip></TableCell>
+                      <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
                           <Button variant="ghost" size="sm" onClick={() => navigate(`/finance/accounts/${account.id}`)}><Icon name="visibility" /></Button>
                           <Button variant="ghost" size="sm" onClick={() => openEdit(account)}><Icon name="edit" /></Button>
@@ -277,11 +284,11 @@ export default function FinanceAccountsPage() {
                             <Icon name={account.is_active ? "toggle_on" : "toggle_off"} />
                           </Button>
                         </div>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
           <PaginationControls page={page} totalPages={totalPages} totalCount={totalCount} showStatus={false} perPage={perPage} onPerPageChange={setPerPage} onPageChange={setPage} />

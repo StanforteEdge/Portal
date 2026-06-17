@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Chip, Icon, SlideOver, SlideOverHeader, SlideOverContent } from "@/shared";
 import { attendanceApi } from "@/shared/lib/core";
+import { TimeWithNextDay } from "@/shared/components/ui/TimeWithNextDay";
 
 type Props = {
   userId: string;
@@ -51,7 +52,7 @@ export default function AttendanceRecordSlideOver({ userId, workDate, employeeNa
 
   return (
     <SlideOver open={true} onClose={onClose}>
-      <SlideOverHeader title={displayName} onClose={onClose} subtitle={`${workDate}`} />
+      <SlideOverHeader title={displayName} onClose={onClose} subtitle={new Date(workDate).toDateString()} />
       <SlideOverContent>
         {loading ? (
           <div className="flex items-center justify-center py-10">
@@ -89,7 +90,7 @@ export default function AttendanceRecordSlideOver({ userId, workDate, employeeNa
               </div>
               <div className="rounded-2xl border border-slate-100 bg-slate-50 px-4 py-3">
                 <p className="text-[0.68rem] font-bold uppercase tracking-[0.16em] text-slate-500">Last Out</p>
-                <p className="mt-1 text-sm font-semibold text-slate-900">{formatTime(daily?.last_out_at)}</p>
+                <p className="mt-1 text-sm font-semibold text-slate-900"><TimeWithNextDay time={daily?.last_out_at} referenceDate={daily?.first_in_at} /></p>
               </div>
             </div>
 
@@ -108,7 +109,7 @@ export default function AttendanceRecordSlideOver({ userId, workDate, employeeNa
                         <p className="text-sm font-semibold text-slate-900">
                           {entry.type === "clock_in" ? "Clock In" : entry.type === "clock_out" ? "Clock Out" : entry.type}
                         </p>
-                        <p className="text-xs text-slate-500">{formatTime(entry.timestamp)}</p>
+                        <p className="text-xs text-slate-500"><TimeWithNextDay time={entry.timestamp} referenceDate={daily?.first_in_at} /></p>
                         {entry.location && <p className="text-xs text-slate-400">{entry.location}</p>}
                         {entry.latitude && entry.longitude && (
                           <p className="text-xs text-slate-400">

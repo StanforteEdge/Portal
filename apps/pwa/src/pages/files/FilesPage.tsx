@@ -9,6 +9,13 @@ import {
   SelectField,
   PaginationControls,
   useToast,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -230,37 +237,37 @@ export default function FilesPage() {
               ))}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="text-left p-3 font-semibold text-slate-600">Name</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Type</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Size</th>
-                    <th className="text-left p-3 font-semibold text-slate-600">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
+              <Table>
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Name</TableHeaderCell>
+                    <TableHeaderCell>Type</TableHeaderCell>
+                    <TableHeaderCell>Size</TableHeaderCell>
+                    <TableHeaderCell>Actions</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
                   {files.map((file: any) => (
-                    <tr key={file.id} className="border-b border-slate-100 hover:bg-slate-50">
-                      <td className="p-3">
+                    <TableRow key={file.id}>
+                      <TableCell>
                         <p className="font-medium text-slate-900 truncate max-w-[200px]">{file.file_name}</p>
-                      </td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell>
                         <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
                           {file.mime_type || "-"}
                         </code>
-                      </td>
-                      <td className="p-3 text-slate-600">{formatFileSize(file.file_size)}</td>
-                      <td className="p-3">
+                      </TableCell>
+                      <TableCell className="text-slate-600">{formatFileSize(file.file_size)}</TableCell>
+                      <TableCell>
                         <Button variant="ghost" size="sm" onClick={() => window.open(file.public_url || "#", "_blank")}>
                           <Icon name="visibility" />
                         </Button>
-                      </td>
-                    </tr>
+                      </TableCell>
+                    </TableRow>
                   ))}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
 

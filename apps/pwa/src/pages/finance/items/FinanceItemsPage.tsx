@@ -10,6 +10,13 @@ import {
   SelectField,
   StatCard,
   useToast,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeaderCell,
+  TableHeaderRow,
+  TableRow,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { resourceApi, useCachedQuery } from "@/shared/lib/core";
@@ -238,47 +245,47 @@ export default function FinanceItemsPage() {
           ) : items.length === 0 ? (
             <div className="rounded-2xl bg-slate-50 px-4 py-8 text-sm text-slate-500">No items found.</div>
           ) : (
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50">
-                    <th className="p-3 text-left font-semibold text-slate-600">Code</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Name</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Type</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Unit</th>
-                    <th className="p-3 text-right font-semibold text-slate-600">Unit Price</th>
-                    <th className="p-3 text-left font-semibold text-slate-600">Status</th>
-                    <th className="p-3 text-right font-semibold text-slate-600">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
+              <Table>
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Code</TableHeaderCell>
+                    <TableHeaderCell>Name</TableHeaderCell>
+                    <TableHeaderCell>Type</TableHeaderCell>
+                    <TableHeaderCell>Unit</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Unit Price</TableHeaderCell>
+                    <TableHeaderCell>Status</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
                   {items.map((item: any) => {
                     const type = item.itemType ?? item.item_type ?? "service";
                     const unitPrice = Number(item.unitPrice ?? item.unit_price ?? 0);
                     const active = Boolean(item.isActive ?? item.is_active ?? true);
                     return (
-                      <tr key={item.id} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="p-3 text-slate-600">{item.code || "-"}</td>
-                        <td className="p-3">
+                      <TableRow key={item.id}>
+                        <TableCell className="text-slate-600">{item.code || "-"}</TableCell>
+                        <TableCell>
                           <p className="font-medium text-slate-900">{item.name}</p>
                           {item.description ? <p className="text-xs text-slate-500">{item.description}</p> : null}
-                        </td>
-                        <td className="p-3 capitalize text-slate-600">{type}</td>
-                        <td className="p-3 text-slate-600">{item.unit || "-"}</td>
-                        <td className="p-3 text-right text-slate-900">{formatCurrency(unitPrice, item.currency || "NGN")}</td>
-                        <td className="p-3">
+                        </TableCell>
+                        <TableCell className="capitalize text-slate-600">{type}</TableCell>
+                        <TableCell className="text-slate-600">{item.unit || "-"}</TableCell>
+                        <TableCell className="text-right text-slate-900">{formatCurrency(unitPrice, item.currency || "NGN")}</TableCell>
+                        <TableCell>
                           <Chip variant={active ? "success" : "neutral"}>{active ? "Active" : "Inactive"}</Chip>
-                        </td>
-                        <td className="p-3 text-right">
+                        </TableCell>
+                        <TableCell className="text-right">
                           <Button variant="ghost" size="sm" onClick={() => openEdit(item)}>
                             <Icon name="edit" />
                           </Button>
-                        </td>
-                      </tr>
+                        </TableCell>
+                      </TableRow>
                     );
                   })}
-                </tbody>
-              </table>
+                </TableBody>
+              </Table>
             </div>
           )}
 
