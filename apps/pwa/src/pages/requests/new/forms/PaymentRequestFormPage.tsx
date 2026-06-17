@@ -18,6 +18,7 @@ type ItemState = {
   file_id?: string;
   file_ids?: string[];
   file_names?: string[];
+  is_expanded?: boolean;
 };
 
 type FinancialFormState = {
@@ -298,7 +299,24 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
                   </div>
                 </div>
               </div>
-              <div className="mt-4 grid gap-4 lg:grid-cols-3">
+              <div className="mt-2">
+                <button
+                  type="button"
+                  className="text-xs font-medium text-brand-600 hover:text-brand-800"
+                  onClick={() =>
+                    setForm((prev) => {
+                      const nextItems = [...prev.items];
+                      nextItems[index] = { ...nextItems[index], is_expanded: !item.is_expanded };
+                      return { ...prev, items: nextItems };
+                    })
+                  }
+                >
+                  {item.is_expanded ? "Hide Details" : "+ Add More Details"}
+                </button>
+              </div>
+              {item.is_expanded && (
+                <>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-3">
                 <div>
                   <TextAreaField
                     label="Notes"
@@ -389,6 +407,8 @@ export const PaymentRequestFormPage = forwardRef<RequestFormHandle, Props>(({
                   }
                 />
               </div>
+            </>
+          )}
             </div>
           ))}
         </div>
