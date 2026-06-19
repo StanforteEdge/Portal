@@ -842,6 +842,7 @@ export function FinanceRequestDetailsPage() {
       | "submit"
       | "approve"
       | "reject"
+      | "return"
       | "disburse"
       | "confirm"
       | "retire"
