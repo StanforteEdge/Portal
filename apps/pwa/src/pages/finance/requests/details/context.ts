@@ -137,6 +137,7 @@ export type RequestDetailsContextValue = {
       | "submit"
       | "approve"
       | "reject"
+      | "return"
       | "disburse"
       | "confirm"
       | "retire"
