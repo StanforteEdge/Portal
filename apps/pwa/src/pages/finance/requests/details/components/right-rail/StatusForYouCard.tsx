@@ -47,18 +47,22 @@ export function StatusForYouCard() {
       ) : null}
       {approvalActionsVisible &&
       availableActions.some((action) =>
-        ["approve", "reject"].includes(action),
+        ["approve", "reject", "return"].includes(action),
       ) ? (
         <div className="mt-4 space-y-3">
           <TextAreaField
             label="Decision note"
-            helpText="Optional context for the requester and audit trail."
+            helpText={
+              availableActions.includes("return")
+                ? "Required for Return. Optional for Approve/Reject."
+                : "Optional context for the requester and audit trail."
+            }
             value={actionComment}
             onChange={(event) => setActionComment(event.target.value)}
             rows={3}
             className="border-white/20 bg-white/10 text-white placeholder:text-white/50"
           />
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
             <Button
               variant="secondary"
               className="w-full justify-center"
@@ -81,6 +85,16 @@ export function StatusForYouCard() {
             >
               {actionBusy === "reject" ? "Rejecting..." : "Reject "}
             </Button>
+            {availableActions.includes("return") ? (
+              <Button
+                variant="secondary"
+                className="w-full justify-center"
+                onClick={() => void handleWorkflowAction("return")}
+                disabled={actionBusy !== ""}
+              >
+                {actionBusy === "return" ? "Returning..." : "Return"}
+              </Button>
+            ) : null}
           </div>
         </div>
       ) : null}
