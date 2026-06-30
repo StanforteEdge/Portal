@@ -3694,48 +3694,31 @@ export class RequestsService {
     const accountantStepMatcher = /\b(accountant|finance)\b/i;
     const cooStepMatcher = /\bcoo\b|chief\s+operating\s+officer/i;
     const edStepMatcher = /\bed\b|executive director/i;
+    const isManualImport = Boolean(data.manual_import);
     const manualApprovals = Array.isArray(data.manual_approvals)
       ? (data.manual_approvals as Array<Record<string, unknown>>)
       : [];
     const manualFor = (matcher: RegExp) =>
       manualApprovals.find((row) => matcher.test(String(row.role ?? '')));
+    const resolveStep = (workflowStep: typeof approvals.done[number] | undefined, manual: Record<string, unknown> | undefined) => ({
+      actorName: isManualImport
+        ? (typeof manual?.name === 'string' && manual.name ? manual.name : null)
+        : (workflowStep?.performed_by_name ?? (typeof manual?.name === 'string' ? manual.name : null)),
+      dateText: isManualImport
+        ? (typeof manual?.date === 'string' ? this.formatDate(manual.date) : 'Pending')
+        : (workflowStep ? this.formatDate(workflowStep.at) : (typeof manual?.date === 'string' ? this.formatDate(manual.date) : 'Pending')),
+      done: isManualImport ? Boolean(manual?.done) : (Boolean(workflowStep) || Boolean(manual?.done))
+    });
     const roleRows: string[] = [];
     const teamLead = findStep(teamLeadStepMatcher);
     const manualTeamLead = manualFor(teamLeadStepMatcher);
-    roleRows.push(
-      this.renderApprovalRoleRow({
-        roleLabel: 'Team Lead',
-        actorName: teamLead?.performed_by_name ?? (typeof manualTeamLead?.name === 'string' ? manualTeamLead.name : null),
-        dateText: teamLead
-          ? this.formatDate(teamLead.at)
-          : (typeof manualTeamLead?.date === 'string' ? this.formatDate(manualTeamLead.date) : 'Pending'),
-        done: Boolean(teamLead) || Boolean(manualTeamLead?.done)
-      })
-    );
+    roleRows.push(this.renderApprovalRoleRow({ roleLabel: 'Team Lead', ...resolveStep(teamLead, manualTeamLead) }));
     const accountant = findStep(accountantStepMatcher);
     const manualAccountant = manualFor(accountantStepMatcher);
-    roleRows.push(
-      this.renderApprovalRoleRow({
-        roleLabel: 'Accountant',
-        actorName: accountant?.performed_by_name ?? (typeof manualAccountant?.name === 'string' ? manualAccountant.name : null),
-        dateText: accountant
-          ? this.formatDate(accountant.at)
-          : (typeof manualAccountant?.date === 'string' ? this.formatDate(manualAccountant.date) : 'Pending'),
-        done: Boolean(accountant) || Boolean(manualAccountant?.done)
-      })
-    );
+    roleRows.push(this.renderApprovalRoleRow({ roleLabel: 'Accountant', ...resolveStep(accountant, manualAccountant) }));
     const coo = findStep(cooStepMatcher);
     const manualCoo = manualFor(cooStepMatcher);
-    roleRows.push(
-      this.renderApprovalRoleRow({
-        roleLabel: 'COO',
-        actorName: coo?.performed_by_name ?? (typeof manualCoo?.name === 'string' ? manualCoo.name : null),
-        dateText: coo
-          ? this.formatDate(coo.at)
-          : (typeof manualCoo?.date === 'string' ? this.formatDate(manualCoo.date) : 'Pending'),
-        done: Boolean(coo) || Boolean(manualCoo?.done)
-      })
-    );
+    roleRows.push(this.renderApprovalRoleRow({ roleLabel: 'COO', ...resolveStep(coo, manualCoo) }));
     const ed = findStep(edStepMatcher);
     const edRequired =
       approvals.done.some((row) => edStepMatcher.test(row.step)) ||
@@ -3743,16 +3726,7 @@ export class RequestsService {
       manualApprovals.some((row) => edStepMatcher.test(String(row.role ?? '')));
     if (edRequired) {
       const manualEd = manualFor(edStepMatcher);
-      roleRows.push(
-        this.renderApprovalRoleRow({
-          roleLabel: 'ED',
-          actorName: ed?.performed_by_name ?? (typeof manualEd?.name === 'string' ? manualEd.name : null),
-          dateText: ed
-            ? this.formatDate(ed.at)
-            : (typeof manualEd?.date === 'string' ? this.formatDate(manualEd.date) : 'Pending'),
-          done: Boolean(ed) || Boolean(manualEd?.done)
-        })
-      );
+      roleRows.push(this.renderApprovalRoleRow({ roleLabel: 'ED', ...resolveStep(ed, manualEd) }));
     }
 
     const voucherPagesHtml = paymentVouchers
