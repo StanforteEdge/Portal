@@ -3369,7 +3369,7 @@ export class RequestsService {
     const findStep = (matcher: RegExp) => approvals.done.find((row) => matcher.test(row.step));
     const teamLeadStepMatcher = /team[\s_-]*lead/i;
     const accountantStepMatcher = /\b(accountant|finance)\b/i;
-    const cooStepMatcher = /\bcoo\b/i;
+    const cooStepMatcher = /\bcoo\b|chief\s+operating\s+officer/i;
     const edStepMatcher = /\bed\b|executive director/i;
     const manualApprovals = Array.isArray(data.manual_approvals)
       ? (data.manual_approvals as Array<Record<string, unknown>>)
@@ -3651,7 +3651,7 @@ export class RequestsService {
       request.creator.username ||
       request.creator.email;
 
-    const cooApproved = approvals.done.find((a) => /coo/i.test(a.step));
+    const cooApproved = approvals.done.find((a) => /\bcoo\b|chief\s+operating\s+officer/i.test(a.step));
     const edApproved = approvals.done.find((a) => /\bed\b|executive director/i.test(a.step));
     const method = voucher?.method ?? null;
     const details = voucher?.transactionRef ?? '-';
