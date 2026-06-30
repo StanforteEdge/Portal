@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
-import { Button, Icon, Table, TableHead, TableHeaderRow, TableHeaderCell, TableRow, TableCell, TableBody, TextField, SelectField, TextAreaField, useToast, SlideOver } from "@/shared";
+import { AppShell, Button, Icon, PageHeader, Table, TableHead, TableHeaderRow, TableHeaderCell, TableRow, TableCell, TableBody, TextField, SelectField, TextAreaField, useToast, SlideOver } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { httpRequest } from "@/shared/lib/core";
 import { requestApi, adminUsersApi, resourceApi, financeApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { listProjects, downloadRequestArtifact, type RequestItemInput } from "../../requests/requests-api";
+import { buildAppMobileNav, buildRequestsNavigation } from "@/pages/requests/requests-data";
 import { listManagedTaxonomies, type ManagedTaxonomy } from "../../requests/taxonomy-api";
 import type { FinanceAccountRecord } from "@/shared";
 
@@ -1069,8 +1070,22 @@ function FinanceManualEntryPage() {
     );
   }
 
+  const userName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.email || "Staff";
+
   return (
-    <>
+    <AppShell
+      navigation={buildRequestsNavigation()}
+      activeLabel="finance-legacy-manual-entry"
+      user={{ name: userName, role: "Finance" }}
+      mobileNav={buildAppMobileNav("Finance")}
+    >
+      <PageHeader
+        eyebrow="Finance"
+        breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Legacy Manual Entry" }]}
+        title="Legacy Manual Entry"
+        description="Manually create and manage requests with full control over all fields."
+      />
+
       <input
         ref={importInputRef}
         type="file"
@@ -1079,7 +1094,7 @@ function FinanceManualEntryPage() {
         onChange={(e) => void handleBatchImportFile(e)}
       />
       <div className="flex items-center mt-8 intro-y">
-        <h2 className="mr-auto text-lg font-medium">Finance Legacy Manual Entry</h2>
+        <h2 className="mr-auto text-lg font-medium">Legacy Manual Entry</h2>
         <div className="flex gap-2">
           <Button variant="secondary" onClick={downloadBatchTemplate}>
             <Icon name="FileText" className="w-4 h-4 mr-1" />
@@ -1385,7 +1400,7 @@ function FinanceManualEntryPage() {
           </div>
         </div>
       </SlideOver>
-    </>
+    </AppShell>
   );
 }
 
