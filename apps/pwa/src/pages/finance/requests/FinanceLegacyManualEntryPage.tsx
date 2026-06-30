@@ -143,6 +143,8 @@ function FinanceManualEntryPage() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [importRows, setImportRows] = useState<ImportPreviewRow[]>([]);
 
+  const [requestCreatorName, setRequestCreatorName] = useState<string>("");
+
   const [staffOptions, setStaffOptions] = useState<Option[]>([]);
   const [typeOptions, setTypeOptions] = useState<RequestTypeOption[]>([]);
   const [teamOptions, setTeamOptions] = useState<Option[]>([]);
@@ -223,6 +225,7 @@ function FinanceManualEntryPage() {
     setVoucherId("");
     setLookupId("");
     setEditingId("");
+    setRequestCreatorName("");
     setNumberExists({ exists: false, requestId: null });
     setForm({
       request_type_id: "",
@@ -1083,6 +1086,7 @@ function FinanceManualEntryPage() {
           certificate_reason: "",
         }))
       );
+      setRequestCreatorName(formatPersonName(req.creator));
       const deductionRes = await financeApi.listRequestDeductions({ request_id: String(req.id), per_page: 200 })
         .catch(() => ({ items: [] as FinanceRequestDeductionRecord[] }));
       setRequestDeductions(deductionRes.items);
@@ -1288,7 +1292,7 @@ function FinanceManualEntryPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "", contact_id: "", deductions: [], refund_amount: "", refund_method: "bank_transfer", refund_reference: "", refund_date: "", certificate_staff_name: "", certificate_amount: "", certificate_declaration: "", certificate_reason: "" }])}>Add PV</Button></div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "", contact_id: "", deductions: [], refund_amount: "", refund_method: "bank_transfer", refund_reference: "", refund_date: "", certificate_staff_name: requestCreatorName, certificate_amount: "", certificate_declaration: "", certificate_reason: "" }])}>Add PV</Button></div>
           {disbursements.map((row, idx) => (
             <div key={`pv-${idx}`} className="grid grid-cols-12 gap-3 mb-4 p-3 border rounded">
               <div className="col-span-12 md:col-span-3">
@@ -1450,7 +1454,7 @@ function FinanceManualEntryPage() {
                               requestId: editingId,
                               requestLabel: `Request ${editingId}`,
                               voucherNumber: row.voucher_number || `PV-${idx + 1}`,
-                              staffName: row.certificate_staff_name?.trim() || formatPersonName(user),
+                              staffName: row.certificate_staff_name?.trim() || requestCreatorName || formatPersonName(user),
                               amountLabel: formatCertificateCurrency(certAmount, form.currency),
                               declaration: row.certificate_declaration?.trim() || "",
                               reason: row.certificate_reason?.trim() || "",
