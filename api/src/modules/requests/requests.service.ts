@@ -2489,7 +2489,12 @@ export class RequestsService {
       (sum, voucher) => sum + Math.max(0, Number(voucher.amount) - Number(voucher.retiredAmount)),
       0
     );
-    if (retirementOutstanding > 0) {
+    const deductionAgg = await this.prisma.financeRequestDeduction.aggregate({
+      where: { requestId: request.id },
+      _sum: { amount: true }
+    });
+    const totalDeducted = Number(deductionAgg._sum.amount ?? 0);
+    if (retirementOutstanding - totalDeducted > 0.009) {
       throw new BadRequestException('Cannot complete request until all payment vouchers are fully retired');
     }
 
