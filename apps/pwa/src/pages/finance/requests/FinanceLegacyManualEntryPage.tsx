@@ -899,7 +899,8 @@ function FinanceManualEntryPage() {
     }
   };
 
-  const saveManualRequest = async () => {
+  const saveManualRequest = async (disbursementsOverride?: typeof disbursements) => {
+    const dibs = disbursementsOverride ?? disbursements;
     if (!form.request_type_id || !form.staff_id) {
       setNotice({ tone: "warning", message: "Request type and staff are required." });
       return;
@@ -912,7 +913,7 @@ function FinanceManualEntryPage() {
       setNotice({ tone: "warning", message: `Request ID already exists (Request ID ${numberExists.requestId}).` });
       return;
     }
-    const voucherRows = disbursements
+    const voucherRows = dibs
       .map((row, index) => ({ row, index }))
       .filter(({ row }) => String(row.voucher_number || "").trim().length > 0);
     for (const { row, index } of voucherRows) {
@@ -973,7 +974,7 @@ function FinanceManualEntryPage() {
           file_id: item.file_id || undefined,
           file_ids: item.file_ids?.length ? item.file_ids : undefined,
         })),
-        disbursements: disbursements
+        disbursements: dibs
           .filter((d) => d.voucher_number && Number(d.amount) > 0)
           .map((d) => {
             const deductions = (d.deductions || []).filter((dl) => dl.deduction_type_id && dl.deduction_amount > 0);
@@ -1485,16 +1486,18 @@ function FinanceManualEntryPage() {
                             });
                             const previewUrl = URL.createObjectURL(certFile);
                             const asset = await resourceApi.uploadFile(certFile, { metadata: { source: "manual_retirement_certificate", request_id: editingId } });
-                            setDisbursements((p) => p.map((x, i) => {
+                            const newDisbursements = disbursements.map((x, i) => {
                               if (i !== idx) return x;
                               const existing = (x.retirement_file_ids_text || "").split(",").map((s) => s.trim()).filter(Boolean);
                               return { ...x, retirement_file_ids_text: Array.from(new Set([...existing, asset.id])).join(", ") };
-                            }));
+                            });
+                            setDisbursements(newDisbursements);
                             setCertAssetsByIndex((prev) => ({
                               ...prev,
                               [idx]: [...(prev[idx] ?? []), { id: asset.id, file_name: asset.file_name, previewUrl: asset.public_url ?? previewUrl }],
                             }));
-                            setNotice({ tone: "success", message: "Certificate generated and added to retirement files." });
+                            await saveManualRequest(newDisbursements);
+                            setNotice({ tone: "success", message: "Certificate generated and attached to request." });
                           } catch (err: any) {
                             setNotice({ tone: "error", message: err?.message || "Failed to generate certificate." });
                           } finally {
@@ -1585,7 +1588,7 @@ function FinanceManualEntryPage() {
           >
             Refresh
           </Button>
-          <Button disabled={loading || saving} onClick={saveManualRequest}>
+          <Button disabled={loading || saving} onClick={() => void saveManualRequest()}>
             {saving ? "Saving..." : editingId ? "Update Manual Request" : "Save Manual Request"}
           </Button>
           <Button variant="secondary" disabled={!requestId} onClick={async () => {
