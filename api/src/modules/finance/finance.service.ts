@@ -849,13 +849,13 @@ export class FinanceService {
       where: { requestId: id },
       include: {
         evidenceFile: {
-          select: { id: true, fileName: true, mimeType: true, publicUrl: true }
+          select: { id: true, fileName: true, mimeType: true, publicUrl: true, storagePath: true }
         },
         attachments: {
           where: { fileKind: 'evidence' },
           include: {
             file: {
-              select: { id: true, fileName: true, mimeType: true, publicUrl: true }
+              select: { id: true, fileName: true, mimeType: true, publicUrl: true, storagePath: true }
             }
           },
           orderBy: { sortOrder: 'asc' }
@@ -901,7 +901,7 @@ export class FinanceService {
       retirementFileIds.length > 0
         ? await this.prisma.fileAsset.findMany({
             where: { id: { in: retirementFileIds } },
-            select: { id: true, fileName: true, mimeType: true, publicUrl: true }
+            select: { id: true, fileName: true, mimeType: true, publicUrl: true, storagePath: true }
           })
         : [];
     const retirementFileMap = new Map(retirementFiles.map((file) => [file.id, file]));
@@ -928,7 +928,8 @@ export class FinanceService {
                 id: file.id,
                 file_name: file.fileName,
                 mime_type: file.mimeType,
-                public_url: file.publicUrl
+                public_url: file.publicUrl,
+                storage_path: (file as any).storagePath ?? null
               }
             ])
         ).values()
@@ -991,7 +992,8 @@ export class FinanceService {
               id: file.id,
               file_name: file.fileName,
               mime_type: file.mimeType,
-              public_url: file.publicUrl
+              public_url: file.publicUrl,
+              storage_path: (file as any).storagePath ?? null
             }));
         })()
       };
@@ -1579,13 +1581,13 @@ export class FinanceService {
             select: { id: true, name: true, code: true, accountType: true }
           },
           evidenceFile: {
-            select: { id: true, fileName: true, mimeType: true, publicUrl: true }
+            select: { id: true, fileName: true, mimeType: true, publicUrl: true, storagePath: true }
           },
           attachments: {
             where: { fileKind: 'evidence' },
             include: {
               file: {
-                select: { id: true, fileName: true, mimeType: true, publicUrl: true }
+                select: { id: true, fileName: true, mimeType: true, publicUrl: true, storagePath: true }
               }
             },
             orderBy: { sortOrder: 'asc' }

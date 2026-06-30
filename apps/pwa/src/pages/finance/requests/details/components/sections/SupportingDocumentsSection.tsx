@@ -1,5 +1,6 @@
 import { Button, EmptyState, Icon, SectionCard } from "@/shared";
 import { useRequestDetails } from "../../context";
+import { getFileViewUrl } from "@/shared/lib/file-url";
 
 export function SupportingDocumentsSection() {
   const { documents } = useRequestDetails();
@@ -24,9 +25,9 @@ export function SupportingDocumentsSection() {
                   {doc.mime_type || "Document"}
                 </p>
               </div>
-              {doc.public_url ? (
+              {getFileViewUrl(doc) ? (
                 <a
-                  href={doc.public_url}
+                  href={getFileViewUrl(doc)!}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex"

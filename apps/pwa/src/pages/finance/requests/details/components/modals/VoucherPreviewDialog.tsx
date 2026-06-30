@@ -4,6 +4,7 @@ import { formatDisplayDate } from "@stanforte/shared";
 import { formatRequestStatus } from "@/pages/requests/request-helpers";
 import { useRequestDetails } from "../../context";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
+import { getFileViewUrl } from "@/shared/lib/file-url";
 
 export function VoucherPreviewDialog() {
   const trapRef = useFocusTrap(true, () => setShowVoucherPreviewDialog(false));
@@ -108,26 +109,22 @@ export function VoucherPreviewDialog() {
                 Evidence files
               </div>
               <div className="mt-3 space-y-2">
-                {previewVoucher.evidence_files.map((file: any) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-2 text-sm text-slate-700"
-                  >
-                    <span className="truncate">{file.file_name}</span>
-                    {file.public_url ? (
-                      <a
-                        href={file.public_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex shrink-0"
-                      >
-                        <Button variant="secondary" size="sm">
-                          Open
-                        </Button>
-                      </a>
-                    ) : null}
-                  </div>
-                ))}
+                {previewVoucher.evidence_files.map((file: any) => {
+                  const url = getFileViewUrl(file);
+                  return (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-2 text-sm text-slate-700"
+                    >
+                      <span className="truncate">{file.file_name}</span>
+                      {url ? (
+                        <a href={url} target="_blank" rel="noreferrer" className="inline-flex shrink-0">
+                          <Button variant="secondary" size="sm">Open</Button>
+                        </a>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}
@@ -137,26 +134,22 @@ export function VoucherPreviewDialog() {
                 Retirement files
               </div>
               <div className="mt-3 space-y-2">
-                {previewVoucher.retirement_files.map((file: any) => (
-                  <div
-                    key={file.id}
-                    className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-2 text-sm text-slate-700"
-                  >
-                    <span className="truncate">{file.file_name}</span>
-                    {file.public_url ? (
-                      <a
-                        href={file.public_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex shrink-0"
-                      >
-                        <Button variant="secondary" size="sm">
-                          Open
-                        </Button>
-                      </a>
-                    ) : null}
-                  </div>
-                ))}
+                {previewVoucher.retirement_files.map((file: any) => {
+                  const url = getFileViewUrl(file);
+                  return (
+                    <div
+                      key={file.id}
+                      className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-2 text-sm text-slate-700"
+                    >
+                      <span className="truncate">{file.file_name}</span>
+                      {url ? (
+                        <a href={url} target="_blank" rel="noreferrer" className="inline-flex shrink-0">
+                          <Button variant="secondary" size="sm">Open</Button>
+                        </a>
+                      ) : null}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           ) : null}
