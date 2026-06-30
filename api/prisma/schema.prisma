@@ -215,6 +215,7 @@ model Profile {
   createdPVDeductions             FinancePVDeduction[]              @relation("PVDeductionCreatedBy")
   createdWHTRemittances           FinanceWHTRemittance[]            @relation("WHTRemittanceCreatedBy")
   updatedWHTRemittances           FinanceWHTRemittance[]            @relation("WHTRemittanceUpdatedBy")
+  createdRequestDeductions        FinanceRequestDeduction[]         @relation("RequestDeductionCreatedBy")
 
   @@map("sta_profiles")
 }
@@ -856,6 +857,7 @@ model RequestInstance {
   paymentVoucherCorrections FinancePaymentVoucherCorrection[]
   leaveBalanceLedger        LeaveBalanceLedger[]
   loans                     PayrollLoan[]
+  requestDeductions         FinanceRequestDeduction[] @relation("RequestDeductions")
 
   @@index([requestTypeId])
   @@index([groupId])
@@ -3208,7 +3210,8 @@ model FinanceDeductionType {
   updatedByUser Profile?                  @relation("DeductionTypeUpdatedBy", fields: [updatedBy], references: [id])
   pvDeductions  FinancePVDeduction[]
   accruals      FinanceVendorWHTAccrual[]
-  remittances   FinanceWHTRemittance[]
+  remittances          FinanceWHTRemittance[]
+  requestDeductions    FinanceRequestDeduction[] @relation("DeductionTypeRequestDeductions")
 
   @@index([isActive])
   @@map("sta_finance_deduction_types")
@@ -3232,6 +3235,31 @@ model FinancePVDeduction {
 
   @@index([paymentVoucherId])
   @@map("sta_finance_pv_deductions")
+}
+
+model FinanceRequestDeduction {
+  id              String   @id @default(uuid()) @db.Uuid
+  requestId       BigInt   @map("request_id")
+  deductionTypeId String   @map("deduction_type_id") @db.Uuid
+  amount          Decimal  @db.Decimal(15, 2)
+  rate            Decimal  @db.Decimal(6, 4)
+  grossAmount     Decimal  @map("gross_amount") @db.Decimal(15, 2)
+  status          String   @default("pending") @db.VarChar(20)
+  remittedAt      DateTime? @map("remitted_at")
+  remittanceRef   String?  @map("remittance_ref") @db.VarChar(255)
+  notes           String?
+  createdBy       BigInt   @map("created_by")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  request       RequestInstance      @relation("RequestDeductions", fields: [requestId], references: [id])
+  deductionType FinanceDeductionType @relation("DeductionTypeRequestDeductions", fields: [deductionTypeId], references: [id])
+  createdByUser Profile              @relation("RequestDeductionCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([requestId])
+  @@index([status])
+  @@index([deductionTypeId])
+  @@map("sta_finance_request_deductions")
 }
 
 model FinanceVendorWHTAccrual {

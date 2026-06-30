@@ -1,5 +1,24 @@
-import { IsArray, IsDateString, IsNumber, IsOptional, IsString, IsUUID } from 'class-validator';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsArray, IsDateString, IsNumber, IsOptional, IsString, IsUUID, ValidateNested } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+
+export class DisburseDeductionLineDto {
+  @ApiProperty()
+  @IsUUID()
+  deduction_type_id!: string;
+
+  @ApiProperty({ example: 0.05 })
+  @IsNumber()
+  rate!: number;
+
+  @ApiProperty({ example: 30000 })
+  @IsNumber()
+  gross_amount!: number;
+
+  @ApiProperty({ example: 1500 })
+  @IsNumber()
+  amount!: number;
+}
 
 export class DisburseRequestDto {
   @ApiPropertyOptional({ example: 'Approved and transferred to requester account.' })
@@ -53,4 +72,11 @@ export class DisburseRequestDto {
   @IsArray()
   @IsUUID('4', { each: true })
   item_ids?: string[];
+
+  @ApiPropertyOptional({ type: [DisburseDeductionLineDto], description: 'Statutory deduction lines to create as sibling records' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => DisburseDeductionLineDto)
+  deductions?: DisburseDeductionLineDto[];
 }

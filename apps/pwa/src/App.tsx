@@ -30,6 +30,7 @@ import FinanceReportsPage from "@/pages/finance/reports/FinanceReportsPage";
 import FinanceReportDetailPage from "@/pages/finance/reports/FinanceReportDetailPage";
 import FinanceSettingsPage from "@/pages/finance/settings/FinanceSettingsPage";
 import FinanceDeductionTypesPage from "@/pages/finance/deductions/FinanceDeductionTypesPage";
+import StatutoryDeductionsPage from "@/pages/finance/deductions/StatutoryDeductionsPage";
 import FinanceChartAccountsPage from "@/pages/finance/accounts/FinanceChartAccountsPage";
 import FinanceCustomersPage from "@/pages/finance/customers";
 import FinanceVendorsPage from "@/pages/finance/vendors";
@@ -244,6 +245,7 @@ export default function App() {
             <Route path="/finance/accounts/:id" element={<FinanceAccountDetailPage />} />
             <Route path="/finance/manual-entry" element={<FinanceManualEntryPage />} />
             <Route path="/finance/legacy-manual-entry" element={<FinanceLegacyManualEntryPage />} />
+            <Route path="/finance/statutory-deductions" element={<StatutoryDeductionsPage />} />
             <Route path="/finance/items" element={<FinanceItemsPage />} />
             <Route path="/finance/expenses" element={<FinanceExpensesPage />} />
             <Route path="/finance/income" element={<FinanceIncomePage />} />

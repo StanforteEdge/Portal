@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
@@ -34,6 +34,7 @@ import { DeductionService } from './deduction.service';
 import { UpsertDeductionTypeDto } from './dto/upsert-deduction-type.dto';
 import { ApplyPVDeductionsDto } from './dto/apply-pv-deductions.dto';
 import { CreateWHTRemittanceDto } from './dto/create-wht-remittance.dto';
+import { StatutoryDeductionsQueryDto, RemitStatutoryDeductionsDto } from './dto/statutory-deductions.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -854,5 +855,21 @@ export class FinanceController {
   @ApiOperation({ summary: 'Create a WHT remittance batch' })
   createWHTRemittance(@Req() req: any, @Body() dto: CreateWHTRemittanceDto) {
     return this.deductionService.createWHTRemittance(dto, req.user?.id, req.user?.organizationId);
+  }
+
+  // ── Request-level Statutory Deductions ──────────────────────────────────
+
+  @Get('statutory-deductions')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List request-level statutory deductions across all requests' })
+  listRequestDeductions(@Query() query: StatutoryDeductionsQueryDto) {
+    return this.deductionService.listRequestDeductions(query);
+  }
+
+  @Patch('statutory-deductions/remit')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Batch-remit selected statutory deductions' })
+  batchRemitDeductions(@Req() req: any, @Body() dto: RemitStatutoryDeductionsDto) {
+    return this.deductionService.batchRemitDeductions(dto, req.user?.id);
   }
 }

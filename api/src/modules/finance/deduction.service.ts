@@ -4,12 +4,14 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
 import { UpsertDeductionTypeDto } from './dto/upsert-deduction-type.dto';
 import { ApplyPVDeductionsDto } from './dto/apply-pv-deductions.dto';
 import { CreateWHTRemittanceDto } from './dto/create-wht-remittance.dto';
+import { StatutoryDeductionsQueryDto, RemitStatutoryDeductionsDto } from './dto/statutory-deductions.dto';
 
 @Injectable()
 export class DeductionService {
@@ -127,6 +129,26 @@ export class DeductionService {
                 grossAmount: deduction.grossAmount,
                 withheldAmount: deduction.deductionAmount,
                 organizationId: null,
+                updatedAt: now,
+              },
+            }),
+          ),
+        );
+      }
+
+      // Create FinanceRequestDeduction siblings for request-level deduction tracking
+      if (pv.requestId) {
+        await Promise.all(
+          createdDeductions.map((deduction) =>
+            tx.financeRequestDeduction.create({
+              data: {
+                requestId: pv.requestId!,
+                deductionTypeId: deduction.deductionTypeId,
+                amount: deduction.deductionAmount,
+                rate: deduction.rate,
+                grossAmount: deduction.grossAmount,
+                status: 'pending',
+                createdBy: toBigInt(userId),
                 updatedAt: now,
               },
             }),
@@ -269,5 +291,74 @@ export class DeductionService {
     });
     if (!remittance) throw new NotFoundException('WHT remittance not found');
     return remittance;
+  }
+
+  // ── Request-level Statutory Deductions ──────────────────────────────────
+
+  async listRequestDeductions(query: StatutoryDeductionsQueryDto) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(200, Math.max(1, Number(query.per_page ?? 50)));
+    const skip = (page - 1) * perPage;
+
+    const where: Prisma.FinanceRequestDeductionWhereInput = {};
+    if (query.status) where.status = query.status;
+    if (query.deduction_type_id) where.deductionTypeId = query.deduction_type_id;
+    if (query.request_id) where.requestId = toBigInt(query.request_id);
+    if (query.search) {
+      where.request = { data: { path: ['request_number'], string_contains: query.search } };
+    }
+    if (query.date_from || query.date_to) {
+      where.createdAt = {
+        ...(query.date_from ? { gte: new Date(query.date_from) } : {}),
+        ...(query.date_to ? { lte: new Date(query.date_to) } : {}),
+      };
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.financeRequestDeduction.findMany({
+        where,
+        include: {
+          deductionType: { select: { id: true, name: true, code: true } },
+          request: { select: { id: true, createdAt: true, status: true, data: true } },
+          createdByUser: { select: { id: true, firstName: true, lastName: true } },
+        },
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: perPage,
+      }),
+      this.prisma.financeRequestDeduction.count({ where }),
+    ]);
+
+    return {
+      data: {
+        items: rows,
+        pagination: { page, per_page: perPage, total, total_pages: Math.ceil(total / perPage) },
+      },
+    };
+  }
+
+  async batchRemitDeductions(dto: RemitStatutoryDeductionsDto, userId: number) {
+    const ids = dto.deduction_ids;
+    const now = dto.remitted_at ? new Date(dto.remitted_at) : new Date();
+
+    const existing = await this.prisma.financeRequestDeduction.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, status: true },
+    });
+
+    if (existing.length !== ids.length) {
+      throw new NotFoundException('Some deductions were not found');
+    }
+    const alreadyRemitted = existing.filter((d) => d.status === 'remitted');
+    if (alreadyRemitted.length > 0) {
+      throw new BadRequestException(`${alreadyRemitted.length} deduction(s) already remitted`);
+    }
+
+    await this.prisma.financeRequestDeduction.updateMany({
+      where: { id: { in: ids } },
+      data: { status: 'remitted', remittedAt: now, remittanceRef: dto.reference, notes: dto.notes ?? null },
+    });
+
+    return { updated: ids.length };
   }
 }

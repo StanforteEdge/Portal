@@ -11,7 +11,7 @@ import { buildAppMobileNav, buildRequestsNavigation } from "@/pages/requests/req
 import { listManagedTaxonomies, type ManagedTaxonomy } from "../../requests/taxonomy-api";
 import { buildCertificateOfHonorPdf, formatCertificateCurrency } from "./details/utils/certificate-pdf";
 import { formatPersonName } from "@/pages/requests/request-helpers";
-import type { FinanceAccountRecord } from "@/shared";
+import type { FinanceAccountRecord, FinanceRequestDeductionRecord } from "@/shared";
 
 type Option = { id: string; name: string };
 type RequestTypeOption = Option & { categoryKey?: string | null };
@@ -159,6 +159,7 @@ function FinanceManualEntryPage() {
   const [certOpenByIndex, setCertOpenByIndex] = useState<Record<number, boolean>>({});
   const [generatingCertIndex, setGeneratingCertIndex] = useState<number | null>(null);
   const [certAssetsByIndex, setCertAssetsByIndex] = useState<Record<number, { id: string; file_name: string; previewUrl: string }[]>>({});
+  const [requestDeductions, setRequestDeductions] = useState<FinanceRequestDeductionRecord[]>([]);
 
   const [form, setForm] = useState({
     request_type_id: "",
@@ -250,6 +251,7 @@ function FinanceManualEntryPage() {
         include_ed: false,
       },
     });
+    setRequestDeductions([]);
     setItems([{ description: "", amount: 0, quantity: 1, notes: "", file_id: "" }]);
     setDisbursements([
       {
@@ -1081,6 +1083,9 @@ function FinanceManualEntryPage() {
           certificate_reason: "",
         }))
       );
+      const deductionRes = await financeApi.listRequestDeductions({ request_id: String(req.id), per_page: 200 })
+        .catch(() => ({ items: [] as FinanceRequestDeductionRecord[] }));
+      setRequestDeductions(deductionRes.items);
       setNotice({ tone: "success", message: `Loaded request ${req.id} for edit.` });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to find request by ID." });
@@ -1492,6 +1497,38 @@ function FinanceManualEntryPage() {
             </div>
           ))}
         </div>
+
+        {requestDeductions.length > 0 && (
+          <div className="mt-4">
+            <h4 className="font-medium text-slate-700 mb-2">Statutory Deductions on this Request</h4>
+            <table className="w-full text-sm border rounded overflow-hidden">
+              <thead className="bg-slate-50 text-slate-600">
+                <tr>
+                  <th className="px-3 py-2 text-left">Type</th>
+                  <th className="px-3 py-2 text-right">Gross</th>
+                  <th className="px-3 py-2 text-right">Withheld</th>
+                  <th className="px-3 py-2 text-left">Status</th>
+                  <th className="px-3 py-2 text-left">Reference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {requestDeductions.map((d) => (
+                  <tr key={d.id} className="border-t">
+                    <td className="px-3 py-2">{d.deduction_type_name} <span className="text-xs text-slate-400">({d.deduction_type_code})</span></td>
+                    <td className="px-3 py-2 text-right">{Number(d.gross_amount).toLocaleString()}</td>
+                    <td className="px-3 py-2 text-right">{Number(d.amount).toLocaleString()}</td>
+                    <td className="px-3 py-2">
+                      <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${d.status === "remitted" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"}`}>
+                        {d.status}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-slate-500">{d.remittance_ref ?? "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
 
         <div>
           <h4 className="font-medium mb-2">Manual Approvals</h4>

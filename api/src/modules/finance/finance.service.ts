@@ -635,6 +635,29 @@ export class FinanceService {
         );
       }
 
+      // Create FinanceRequestDeduction siblings for statutory deduction tracking
+      if (dto.deductions && dto.deductions.length > 0) {
+        await Promise.all(
+          dto.deductions.map((ded) =>
+            this.prisma.financeRequestDeduction.create({
+              data: {
+                requestId: id,
+                deductionTypeId: ded.deduction_type_id,
+                amount: ded.amount,
+                rate: ded.rate,
+                grossAmount: ded.gross_amount,
+                status: 'pending',
+                createdBy: actorId ? toBigInt(actorId) : BigInt(0),
+                updatedAt: now,
+              },
+            }),
+          ),
+        );
+        traceLog(
+          `disburseRequest:deductions-created requestId=${id.toString()} count=${dto.deductions.length}`,
+        );
+      }
+
       traceLog(`disburseRequest:journal-start requestId=${id.toString()} voucherId=${voucher.id}`);
       await this.postPaymentVoucherJournal(voucher, request.organizationId, request.teamId, actorId);
       traceLog(`disburseRequest:journal-complete requestId=${id.toString()} voucherId=${voucher.id}`);

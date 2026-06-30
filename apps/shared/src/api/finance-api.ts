@@ -217,6 +217,23 @@ export type FinancePVDeductionRecord = {
   deduction_amount: number;
 };
 
+export type FinanceRequestDeductionRecord = {
+  id: string;
+  request_id: string;
+  deduction_type_id: string;
+  deduction_type_name: string;
+  deduction_type_code: string;
+  amount: number;
+  rate: number;
+  gross_amount: number;
+  status: "pending" | "remitted";
+  remitted_at: string | null;
+  remittance_ref: string | null;
+  notes: string | null;
+  created_by_name: string;
+  created_at: string;
+};
+
 export type FinancePaymentVoucherRecord = {
   id: string;
   request_id: string;
@@ -737,6 +754,23 @@ export function createFinanceApi(httpRequest: HttpRequest) {
 
     createWHTRemittance(body: Record<string, unknown>) {
       return httpRequest<Record<string, unknown>>('/finance/wht-remittances', { method: 'POST', body });
+    },
+
+    // ── Request-level Statutory Deductions ──────────────────────────────────
+
+    async listRequestDeductions(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/statutory-deductions${toQuery(params)}`);
+      return {
+        items: ((res as any)?.data?.items ?? []) as FinanceRequestDeductionRecord[],
+        pagination: (res as any)?.data?.pagination ?? null,
+      };
+    },
+
+    batchRemitDeductions(body: Record<string, unknown>) {
+      return httpRequest<{ updated: number }>('/finance/statutory-deductions/remit', {
+        method: 'PATCH',
+        body,
+      });
     },
   };
 }

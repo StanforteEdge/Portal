@@ -671,6 +671,18 @@ export class RequestsService {
                 createdBy: toBigInt(userId),
               }))
             });
+            await tx.financeRequestDeduction.createMany({
+              data: deductions.map((d) => ({
+                requestId: request.id,
+                deductionTypeId: d.deduction_type_id,
+                amount: Number(d.deduction_amount),
+                rate: d.rate,
+                grossAmount: grossAmt,
+                status: 'pending',
+                createdBy: toBigInt(userId),
+                updatedAt: new Date(),
+              }))
+            });
           }
         }
       }
@@ -830,6 +842,7 @@ export class RequestsService {
       }
 
       await tx.financePaymentVoucher.deleteMany({ where: { requestId: existing.id } });
+      await tx.financeRequestDeduction.deleteMany({ where: { requestId: existing.id } });
       if (dto.disbursements?.length) {
         for (const row of dto.disbursements) {
           const amount = Number(row.amount);
@@ -891,6 +904,18 @@ export class RequestsService {
                 grossAmount: grossAmt,
                 deductionAmount: d.deduction_amount,
                 createdBy: toBigInt(userId),
+              }))
+            });
+            await tx.financeRequestDeduction.createMany({
+              data: deductions.map((d) => ({
+                requestId: desiredRequestId,
+                deductionTypeId: d.deduction_type_id,
+                amount: Number(d.deduction_amount),
+                rate: d.rate,
+                grossAmount: grossAmt,
+                status: 'pending',
+                createdBy: toBigInt(userId),
+                updatedAt: new Date(),
               }))
             });
           }

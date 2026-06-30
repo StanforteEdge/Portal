@@ -53,6 +53,7 @@ export type {
   PartyTransaction,
   FinancePaymentVoucherRecord,
   FinanceAccountRecord,
+  FinanceRequestDeductionRecord,
   FinanceApi,
 } from "./api/finance-api";
 export { hasAnyPermission, hasApprovalAccess, hasPermission } from "./auth/access";
