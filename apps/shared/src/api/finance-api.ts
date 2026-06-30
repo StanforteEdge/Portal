@@ -206,6 +206,17 @@ export type PartyTransaction = {
   status?: string;
 };
 
+export type FinancePVDeductionRecord = {
+  id: string;
+  payment_voucher_id: string;
+  deduction_type_id: string;
+  deduction_type_name: string;
+  deduction_type_code: string;
+  rate: number;
+  gross_amount: number;
+  deduction_amount: number;
+};
+
 export type FinancePaymentVoucherRecord = {
   id: string;
   request_id: string;
@@ -229,6 +240,9 @@ export type FinancePaymentVoucherRecord = {
   evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
   evidence_files?: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
   retirement_files?: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
+  gross_amount?: number;
+  net_amount?: number;
+  deductions?: FinancePVDeductionRecord[];
 };
 
 export type RequestRecord = {

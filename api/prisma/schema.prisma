@@ -127,6 +127,7 @@ model Profile {
   occupation            String?   @db.VarChar(100)
   employmentType        String?   @map("employment_type") @db.VarChar(20)
   primaryOrganizationId BigInt?   @map("primary_organization_id")
+  signatureFileId       String?   @map("signature_file_id") @db.Uuid
   lastLogin             DateTime? @map("last_login") @db.Timestamp(6)
   failedLoginAttempts   Int       @default(0) @map("failed_login_attempts")
   lockoutUntil          DateTime? @map("lockout_until")
@@ -134,6 +135,7 @@ model Profile {
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
   primaryOrganization Organization? @relation("PrimaryOrganization", fields: [primaryOrganizationId], references: [id])
+  signatureFile       FileAsset?    @relation("ProfileSignatureFile", fields: [signatureFileId], references: [id])
 
   organizations                   ProfileOrganization[]
   roles                           UserRole[]
@@ -2601,6 +2603,7 @@ model FileAsset {
   financeVoucherFiles    FinancePaymentVoucherFile[] @relation("FinancePaymentVoucherAttachmentFile")
   financeIncomeEntries   FinanceIncomeEntry[]
   documents              Document[]
+  profileSignatures      Profile[]                   @relation("ProfileSignatureFile")
 
   @@index([organizationId])
   @@index([uploadedBy])

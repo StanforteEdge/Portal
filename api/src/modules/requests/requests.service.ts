@@ -1619,6 +1619,13 @@ export class RequestsService {
       : { done: [], pending: [] };
     const paymentVouchers = await this.prisma.financePaymentVoucher.findMany({
       where: { requestId: request.id },
+      include: {
+        deductions: {
+          include: {
+            deductionType: true
+          }
+        }
+      },
       orderBy: { disbursedAt: 'asc' }
     });
     const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
@@ -1782,6 +1789,9 @@ export class RequestsService {
     }
     if (action === 'full_document') {
       return this.generateFullRequestDocument(id, userId);
+    }
+    if (action === 'certificate_of_honor_pdf') {
+      return this.generateCertificateOfHonorPdf(id, userId, dto);
     }
     throw new BadRequestException('Invalid download action');
   }
@@ -2052,21 +2062,9 @@ export class RequestsService {
     }
 
     for (const pv of paymentVouchers) {
-      const pvPdf = await this.buildPaymentVoucherDocument({
-        request,
-        voucherNo: pv.voucherNumber,
-        totalAmount: Number(pv.amount),
-        generatedAt,
-        approvals,
-        voucher: {
-          method: pv.method,
-          transactionRef: pv.transactionRef,
-          notes: pv.note,
-          disbursedAt: pv.disbursedAt
-        },
-        signatories
-      });
-      await this.appendPdfBuffer(mergedPdf, pvPdf);
+      // NOTE: PV pages are already embedded inline in the request PDF (via voucherPagesHtml in
+      // buildRequestPdfDocument). We only append the supporting evidence / retirement files here
+      // to avoid duplicating the PV page in the merged document.
 
       const evidenceFiles = Array.from(
         new Map(
@@ -2276,12 +2274,15 @@ export class RequestsService {
       voucher_number: voucher.voucherNumber
     });
 
-    const disbursedTotal = await this.prisma.financePaymentVoucher.aggregate({
+    const vouchers = await this.prisma.financePaymentVoucher.findMany({
       where: { requestId: request.id },
-      _sum: { amount: true }
+      select: { amount: true, grossAmount: true }
     });
     const requestTotal = Number(request.totalAmount ?? 0);
-    const totalDisbursed = Number(disbursedTotal._sum.amount ?? 0);
+    const totalDisbursed = vouchers.reduce((sum, v) => {
+      const val = v.grossAmount !== null ? Number(v.grossAmount) : Number(v.amount);
+      return sum + val;
+    }, 0);
     const shouldMoveToConfirmed = requestTotal > 0 ? totalDisbursed >= requestTotal : totalDisbursed > 0;
 
     if (request.status === 'disbursed' && shouldMoveToConfirmed) {
@@ -2395,7 +2396,10 @@ export class RequestsService {
     }
 
     const requestTotal = Number(request.totalAmount ?? 0);
-    const totalDisbursed = vouchers.reduce((sum, voucher) => sum + Number(voucher.amount), 0);
+    const totalDisbursed = vouchers.reduce((sum, voucher) => {
+      const val = voucher.grossAmount !== null ? Number(voucher.grossAmount) : Number(voucher.amount);
+      return sum + val;
+    }, 0);
     if (requestTotal > 0 && totalDisbursed < requestTotal) {
       throw new BadRequestException('Cannot complete request until total disbursement equals request total');
     }
@@ -3286,6 +3290,205 @@ export class RequestsService {
     return Buffer.from(`${header}${body}${xrefLines.join('\n')}\n${trailer}\n`, 'utf8');
   }
 
+  async generateCertificateOfHonorPdf(id: string, userId: string, dto: DownloadRequestDto) {
+    const request = await this.getRequestForDocument(id);
+    const generatedAt = new Date();
+    const logoDataUri = this.getPdfLogoDataUri();
+
+    // Resolve signature image if a signature_file_id was provided
+    let signatureDataUri: string | null = null;
+    if (dto.signature_file_id) {
+      const sigAsset = await this.prisma.fileAsset.findUnique({
+        where: { id: dto.signature_file_id }
+      });
+      if (sigAsset) {
+        const buf = await this.readAssetFileBuffer(sigAsset);
+        if (buf) {
+          const ext = (sigAsset.fileName ?? '').split('.').pop()?.toLowerCase() ?? 'png';
+          const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : 'image/png';
+          signatureDataUri = `data:${mime};base64,${buf.toString('base64')}`;
+        }
+      }
+    }
+
+    const staffName = dto.staff_name?.trim() ||
+      `${request.creator.firstName ?? ''} ${request.creator.lastName ?? ''}`.trim() ||
+      request.creator.email;
+    const requestLabel = dto.request_label?.trim() ||
+      this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
+    const voucherNumber = dto.voucher_number?.trim() || '-';
+    const amountLabel = dto.amount_label?.trim() || '-';
+    const declaration = dto.declaration?.trim() ||
+      'I hereby certify that the cash advance and/or disbursed funds referenced above were used for official purposes.';
+    const reason = dto.reason?.trim() || 'No additional explanation provided.';
+    const issuedAt = dto.issued_at?.trim() || this.formatDate(generatedAt);
+
+    const html = this.renderCertificateHtml({
+      logoDataUri,
+      signatureDataUri,
+      staffName,
+      requestLabel,
+      voucherNumber,
+      amountLabel,
+      declaration,
+      reason,
+      issuedAt
+    });
+
+    let pdfBuffer: Buffer;
+    try {
+      pdfBuffer = await this.pdfService.renderPdfFromHtml(html);
+    } catch {
+      // Fallback: build a simple text-only PDF if Puppeteer is unavailable
+      pdfBuffer = this.buildSimplePdfFromLines([
+        'CERTIFICATE OF HONOR',
+        'Cash Advance Retirement Declaration',
+        '',
+        `Request:         ${requestLabel}`,
+        `Payment Voucher: ${voucherNumber}`,
+        `Staff Member:    ${staffName}`,
+        `Amount:          ${amountLabel}`,
+        `Date:            ${issuedAt}`,
+        '',
+        'Declaration:',
+        declaration,
+        '',
+        'Why receipts are unavailable:',
+        reason,
+        '',
+        'Signature: ____________________________',
+        `Name: ${staffName}`
+      ]);
+    }
+
+    const fileName = `Certificate_of_Honor_${this.zipSafeName(requestLabel)}.pdf`;
+
+    return {
+      file_name: fileName,
+      mime_type: 'application/pdf',
+      content_base64: pdfBuffer.toString('base64'),
+      generated_at: generatedAt.toISOString(),
+      request_id: request.id.toString()
+    };
+  }
+
+  private renderCertificateHtml(input: {
+    logoDataUri: string | null;
+    signatureDataUri: string | null;
+    staffName: string;
+    requestLabel: string;
+    voucherNumber: string;
+    amountLabel: string;
+    declaration: string;
+    reason: string;
+    issuedAt: string;
+  }): string {
+    const sigBlock = input.signatureDataUri
+      ? `<img src="${input.signatureDataUri}" alt="Signature" style="height:52px; display:block; margin-bottom:4px;" />`
+      : `<div style="border-bottom:1.5px solid #111; width:220px; height:36px; margin-bottom:4px;"></div>`;
+
+    return `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <style>
+    @page { size: A4; margin: 18mm 18mm 20mm 18mm; }
+    body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+    .outer { border: 2.5px solid #111; border-radius: 6px; padding: 28px 32px; min-height: 720px; position: relative; }
+    .logo-bar { text-align: center; margin-bottom: 18px; }
+    .logo-bar img { height: 48px; }
+    .cert-title { text-align: center; font-size: 26px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; text-decoration: underline; }
+    .cert-subtitle { text-align: center; font-size: 13px; color: #444; margin-bottom: 22px; }
+    .divider { border: none; border-top: 1.5px solid #bbb; margin: 18px 0; }
+    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; margin-bottom: 18px; }
+    .meta-item { border-bottom: 1px solid #ddd; padding: 6px 0; }
+    .meta-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 2px; }
+    .meta-value { font-size: 12px; font-weight: 600; }
+    .section-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
+    .declaration-box { border: 1px solid #ddd; border-radius: 4px; padding: 12px 14px; background: #f9fafb; margin-bottom: 14px; line-height: 1.7; }
+    .sig-block { margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+    .sig-col {}
+    .sig-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-top: 6px; }
+    .sig-name { font-size: 12px; font-weight: 600; margin-top: 2px; }
+    .footer-note { margin-top: 28px; font-size: 10px; color: #666; line-height: 1.5; border-top: 1px solid #ddd; padding-top: 10px; }
+    .muted { color: #555; }
+  </style>
+</head>
+<body>
+  <div class="outer">
+    ${input.logoDataUri
+      ? `<div class="logo-bar"><img src="${input.logoDataUri}" alt="Logo" /></div>`
+      : `<div class="logo-bar"><strong style="font-size:18px;">Stanforte Edge</strong></div>`}
+
+    <div class="cert-title">Certificate of Honor</div>
+    <div class="cert-subtitle">Cash Advance Retirement Declaration</div>
+
+    <hr class="divider" />
+
+    <div class="meta-grid">
+      <div class="meta-item">
+        <div class="meta-label">Request</div>
+        <div class="meta-value">${this.escapeHtml(input.requestLabel)}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Payment Voucher</div>
+        <div class="meta-value">${this.escapeHtml(input.voucherNumber)}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Staff Member</div>
+        <div class="meta-value">${this.escapeHtml(input.staffName)}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Amount</div>
+        <div class="meta-value">${this.escapeHtml(input.amountLabel)}</div>
+      </div>
+      <div class="meta-item">
+        <div class="meta-label">Date Issued</div>
+        <div class="meta-value">${this.escapeHtml(input.issuedAt)}</div>
+      </div>
+    </div>
+
+    <hr class="divider" />
+
+    <div class="section-title">Declaration</div>
+    <div class="declaration-box">${this.escapeHtml(input.declaration)}</div>
+
+    <div class="section-title">Why Receipts Are Unavailable</div>
+    <div class="declaration-box">${this.escapeHtml(input.reason)}</div>
+
+    <div class="declaration-box muted" style="font-size:11px;">
+      I accept full responsibility for the accuracy of this declaration and understand it forms part
+      of the retirement record for this request.
+    </div>
+
+    <div class="sig-block">
+      <div class="sig-col">
+        <div class="sig-label">Signature</div>
+        ${sigBlock}
+        <div class="sig-label">Name</div>
+        <div class="sig-name">${this.escapeHtml(input.staffName)}</div>
+        <div class="sig-label" style="margin-top:6px;">Date</div>
+        <div class="sig-name">${this.escapeHtml(input.issuedAt)}</div>
+      </div>
+      <div class="sig-col">
+        <div class="sig-label">Witnessed / Verified by</div>
+        <div style="border-bottom:1.5px solid #111; width:220px; height:36px; margin-bottom:4px;"></div>
+        <div class="sig-label">Name / Title</div>
+        <div class="sig-name" style="border-bottom:1px solid #ddd; min-height:18px;"></div>
+        <div class="sig-label" style="margin-top:6px;">Date</div>
+        <div class="sig-name" style="border-bottom:1px solid #ddd; min-height:18px;"></div>
+      </div>
+    </div>
+
+    <div class="footer-note">
+      This Certificate of Honor was generated as part of the retirement process for the above-referenced
+      request. It is an official document and must be retained with the supporting retirement files.
+    </div>
+  </div>
+</body>
+</html>`;
+  }
+
   private async buildRequestPdfDocument(input: {
     request: {
       id: bigint;
@@ -3328,6 +3531,12 @@ export class RequestsService {
       disbursedAt: Date;
       retiredAt: Date | null;
       verifiedAt: Date | null;
+      grossAmount: Prisma.Decimal | null;
+      netAmount: Prisma.Decimal | null;
+      deductions?: Array<{
+        deductionAmount: Prisma.Decimal;
+        deductionType: { name: string; code: string };
+      }>;
     }>;
   }): Promise<Buffer> {
     const { request, totalAmount, generatedAt, signatories, approvals, paymentVouchers } = input;
@@ -3343,11 +3552,20 @@ export class RequestsService {
       request.creator.email;
     const requestNumber = this.getRequestNumber(request.requestType.codePrefix, request.createdAt.getFullYear(), request.id);
 
-    const disbursedTotal = paymentVouchers.reduce((sum, pv) => sum + Number(pv.amount), 0);
+    const disbursedTotal = paymentVouchers.reduce((sum, pv) => {
+      const val = pv.grossAmount !== null ? Number(pv.grossAmount) : Number(pv.amount);
+      return sum + val;
+    }, 0);
+    const totalDeductions = paymentVouchers.reduce((sum, pv) => {
+      const grossVal = pv.grossAmount !== null ? Number(pv.grossAmount) : Number(pv.amount);
+      const netVal = pv.netAmount !== null ? Number(pv.netAmount) : Number(pv.amount);
+      return sum + (grossVal - netVal);
+    }, 0);
+    const netDisbursedTotal = disbursedTotal - totalDeductions;
     const retiredTotal = paymentVouchers.reduce((sum, pv) => sum + Number(pv.retiredAmount), 0);
     const unreleased = Math.max(0, totalAmount - disbursedTotal);
-    const unspent = Math.max(0, disbursedTotal - retiredTotal);
-    const netVariance = totalAmount - retiredTotal;
+    const unspent = Math.max(0, netDisbursedTotal - retiredTotal);
+    const netVariance = totalAmount - retiredTotal - totalDeductions;
 
     const teamName = await this.resolveNameFromReference(
       data.team_name ?? data.team ?? data.team_id ?? (request as any).teamId ?? null,
@@ -3564,12 +3782,23 @@ export class RequestsService {
   </div></div>
   <div class="card"><div class="rowpad"><h3 style="margin:0 0 8px;">Disbursement</h3>
     <table class="tbl">
-      <thead><tr><th>Voucher No</th><th>Method</th><th>Amount</th><th>Date</th><th>Status</th></tr></thead>
+      <thead><tr><th>Voucher No</th><th>Method</th><th>Gross Amount</th><th>Deduction</th><th>Net Paid</th><th>Date</th><th>Status</th></tr></thead>
       <tbody>
         ${
           paymentVouchers.length
-            ? paymentVouchers.map((pv) => `<tr><td>${this.escapeHtml(pv.voucherNumber)}</td><td>${this.escapeHtml(this.paymentMethodLabel(pv.method))}</td><td>${this.formatMoney(Number(pv.amount), currency)}</td><td>${this.formatDate(pv.disbursedAt)}</td><td>${this.escapeHtml(this.toTitle(pv.retirementStatus))}</td></tr>`).join('')
-            : '<tr><td colspan="5" style="text-align:center;">No disbursement done yet.</td></tr>'
+            ? paymentVouchers
+                .map((pv) => {
+                  const grossVal = pv.grossAmount !== null ? Number(pv.grossAmount) : Number(pv.amount);
+                  const netVal = pv.netAmount !== null ? Number(pv.netAmount) : Number(pv.amount);
+                  const deductionVal = grossVal - netVal;
+                  const deds = (pv.deductions ?? [])
+                    .map((d) => `${d.deductionType.name} (${this.formatMoney(Number(d.deductionAmount), currency)})`)
+                    .join(', ');
+                  const dedText = deds ? deds : deductionVal > 0 ? this.formatMoney(deductionVal, currency) : '-';
+                  return `<tr><td>${this.escapeHtml(pv.voucherNumber)}</td><td>${this.escapeHtml(this.paymentMethodLabel(pv.method))}</td><td>${this.formatMoney(grossVal, currency)}</td><td>${this.escapeHtml(dedText)}</td><td>${this.formatMoney(netVal, currency)}</td><td>${this.formatDate(pv.disbursedAt)}</td><td>${this.escapeHtml(this.toTitle(pv.retirementStatus))}</td></tr>`;
+                })
+                .join('')
+            : '<tr><td colspan="7" style="text-align:center;">No disbursement done yet.</td></tr>'
         }
       </tbody>
     </table>
@@ -3579,7 +3808,9 @@ export class RequestsService {
       <thead><tr><th>Category</th><th>Amount</th><th>Status</th></tr></thead>
       <tbody>
         <tr><td>Items (Budget)</td><td>${this.formatMoney(totalAmount, currency)}</td><td>Requested</td></tr>
-        <tr><td>Disbursement (Released)</td><td>${this.formatMoney(disbursedTotal, currency)}</td><td>${disbursedTotal > 0 ? 'Paid' : 'Pending'}</td></tr>
+        <tr><td>Disbursement (Released - Gross)</td><td>${this.formatMoney(disbursedTotal, currency)}</td><td>${disbursedTotal > 0 ? 'Paid' : 'Pending'}</td></tr>
+        <tr><td>Statutory Deductions (Withheld)</td><td>${this.formatMoney(totalDeductions, currency)}</td><td>${totalDeductions > 0 ? 'Withheld' : '-'}</td></tr>
+        <tr><td>Net Cash Disbursed</td><td>${this.formatMoney(netDisbursedTotal, currency)}</td><td>${netDisbursedTotal > 0 ? 'Disbursed' : 'Pending'}</td></tr>
         <tr><td>Retirement (Spent)</td><td>${this.formatMoney(retiredTotal, currency)}</td><td>${retiredTotal > 0 ? 'Accounted' : 'Pending'}</td></tr>
         <tr><td>Unreleased Funds</td><td>${this.formatMoney(unreleased, currency)}</td><td>${unreleased > 0 ? 'Under-disbursed' : 'Fully disbursed'}</td></tr>
         <tr><td>Unspent Funds</td><td>${this.formatMoney(unspent, currency)}</td><td>${unspent > 0 ? 'Unspent' : 'Fully utilized'}</td></tr>

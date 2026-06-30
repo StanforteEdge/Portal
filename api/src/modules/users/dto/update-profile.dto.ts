@@ -57,4 +57,8 @@ export class UpdateProfileDto {
   @IsString()
   occupation?: string;
 
+  @IsOptional()
+  @IsString()
+  signature_file_id?: string;
+
 }

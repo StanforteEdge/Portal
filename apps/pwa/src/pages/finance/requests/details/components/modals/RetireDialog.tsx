@@ -11,9 +11,11 @@ import { formatCurrency } from "@stanforte/shared";
 import { formatPersonName } from "@/pages/requests/request-helpers";
 import { listFileAssets, uploadFileAsset } from "@/pages/files/files-api";
 import { formatCertificateCurrency, buildCertificateOfHonorPdf } from "../../utils/certificate-pdf";
+import { updateWorkspaceProfile } from "@/shared/api/workspace-api";
 import { useRequestDetails } from "../../context";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { useFocusTrap } from "@/shared/hooks/useFocusTrap";
+import { useState } from "react";
 
 export function RetireDialog() {
   const trapRef = useFocusTrap(true, () => setShowRetireDialog(false));
@@ -41,6 +43,14 @@ export function RetireDialog() {
   } = useRequestDetails();
   const { showToast } = useToast();
   const { user } = useAuth();
+  const [showSignaturePicker, setShowSignaturePicker] = useState(false);
+  // Track signature file ID for the current session (may differ from profile until saved)
+  const [sessionSignatureFileId, setSessionSignatureFileId] = useState<string | null>(null);
+  // The active signature file ID: use session override first, otherwise from user profile
+  const signatureFileId: string | undefined =
+    sessionSignatureFileId ?? (user as any)?.signature_file_id ?? undefined;
+  const signatureUrl: string | null =
+    (sessionSignatureFileId ? null : (user as any)?.signature_url) ?? null;
 
   return (
     <>
@@ -341,6 +351,35 @@ export function RetireDialog() {
                         </div>
                       </div>
                     </div>
+                    {/* Signature upload */}
+                    <div className="rounded-[18px] border border-brand-200 bg-white px-4 py-3 text-sm">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-bold uppercase tracking-[0.16em] text-slate-500">
+                            Your Signature
+                          </div>
+                          <div className="mt-1 text-xs text-slate-500">
+                            {signatureUrl
+                              ? "Signature saved to your profile."
+                              : "No signature on file. Upload one to embed it in the certificate."}
+                          </div>
+                        </div>
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setShowSignaturePicker(true)}
+                        >
+                          {signatureUrl ? "Change" : "Upload Signature"}
+                        </Button>
+                      </div>
+                      {signatureUrl ? (
+                        <img
+                          src={signatureUrl}
+                          alt="Your signature"
+                          className="mt-3 h-10 object-contain"
+                        />
+                      ) : null}
+                    </div>
                     <div className="flex flex-wrap gap-3">
                       <Button
                         variant="secondary"
@@ -368,6 +407,7 @@ export function RetireDialog() {
                                 );
                               }
                               const file = await buildCertificateOfHonorPdf({
+                                requestId: id || "",
                                 requestLabel:
                                   request?.request_number ||
                                   `Request ${id}`,
@@ -391,6 +431,7 @@ export function RetireDialog() {
                                 issuedAt: new Date()
                                   .toISOString()
                                   .slice(0, 10),
+                                signatureFileId,
                               });
                               const uploaded = await uploadFileAsset(file, {
                                 organization_id:
@@ -520,6 +561,48 @@ export function RetireDialog() {
             ...current,
             retirement_file_ids: files.map((file) => file.id),
           }));
+        }}
+      />
+
+      {/* Signature upload picker */}
+      <MediaPickerModal
+        open={showSignaturePicker}
+        onClose={() => setShowSignaturePicker(false)}
+        title="Upload Your Signature"
+        multiple={false}
+        selectedIds={signatureFileId ? [signatureFileId] : []}
+        loadFiles={async (search) =>
+          listFileAssets({
+            include_usage: false,
+            per_page: 100,
+            search,
+            uploaded_by: currentUserId,
+          })
+        }
+        uploadFiles={async (files) => {
+          const file = Array.from(files)[0];
+          if (!file) return;
+          const uploaded = await uploadFileAsset(file, {
+            organization_id:
+              String(requestData.organization_id || "") || undefined,
+            metadata: { source: "profile_signature" },
+          });
+          setSessionSignatureFileId(uploaded.id);
+          // Persist to user profile silently
+          try {
+            await updateWorkspaceProfile({ signature_file_id: uploaded.id });
+          } catch {
+            // non-blocking — signature is still usable for the current session
+          }
+          setShowSignaturePicker(false);
+        }}
+        onSelect={(files) => {
+          const file = files[0];
+          if (!file) return;
+          setSessionSignatureFileId(file.id);
+          // Persist to user profile silently
+          updateWorkspaceProfile({ signature_file_id: file.id }).catch(() => {});
+          setShowSignaturePicker(false);
         }}
       />
     </>

@@ -54,6 +54,7 @@ export type RequestDetailsContextValue = {
   documents: Array<any>;
   requestTotal: number;
   disbursedTotal: number;
+  totalDeductions: number;
   retiredTotal: number;
   remainingDisbursement: number;
   defaultFinanceAccountId: string;

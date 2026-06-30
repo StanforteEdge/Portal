@@ -386,7 +386,8 @@ export type RequestDownloadAction =
   | "request_with_attachments"
   | "pv_with_attachments"
   | "full_package"
-  | "full_document";
+  | "full_document"
+  | "certificate_of_honor_pdf";
 
 export type DownloadedRequestFile = {
   file_name: string;
@@ -406,6 +407,15 @@ export async function downloadRequestArtifact(
     voucher_id?: string;
     delivery?: "download" | "email";
     email_to?: string;
+    // Certificate of Honor fields
+    staff_name?: string;
+    request_label?: string;
+    voucher_number?: string;
+    amount_label?: string;
+    declaration?: string;
+    reason?: string;
+    issued_at?: string;
+    signature_file_id?: string;
   },
 ) {
   return httpRequest<DownloadedRequestFile>(`/requests/${id}/download`, {
@@ -415,6 +425,14 @@ export async function downloadRequestArtifact(
       voucher_id: payload.voucher_id || undefined,
       delivery: payload.delivery || undefined,
       email_to: payload.email_to || undefined,
+      staff_name: payload.staff_name || undefined,
+      request_label: payload.request_label || undefined,
+      voucher_number: payload.voucher_number || undefined,
+      amount_label: payload.amount_label || undefined,
+      declaration: payload.declaration || undefined,
+      reason: payload.reason || undefined,
+      issued_at: payload.issued_at || undefined,
+      signature_file_id: payload.signature_file_id || undefined,
     },
   });
 }

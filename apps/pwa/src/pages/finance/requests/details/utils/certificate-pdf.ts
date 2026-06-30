@@ -1,4 +1,4 @@
-import { PDFDocument, StandardFonts } from "pdf-lib";
+import { downloadRequestArtifact } from "@/pages/requests/requests-api";
 
 export function formatCertificateCurrency(
   amount: number,
@@ -13,7 +13,12 @@ export function formatCertificateCurrency(
   return `${prefix} ${formatted}`;
 }
 
+/**
+ * Generates the Certificate of Honor by calling the API (server-side Puppeteer renderer),
+ * then returns a File object compatible with the existing upload flow in RetireDialog.
+ */
 export async function buildCertificateOfHonorPdf(input: {
+  requestId: string;
   requestLabel: string;
   voucherNumber: string;
   staffName: string;
@@ -21,76 +26,30 @@ export async function buildCertificateOfHonorPdf(input: {
   declaration: string;
   reason: string;
   issuedAt: string;
-}) {
-  const pdf = await PDFDocument.create();
-  const page = pdf.addPage([595.28, 841.89]);
-  const regular = await pdf.embedFont(StandardFonts.Helvetica);
-  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const marginX = 48;
-  let y = 792;
+  signatureFileId?: string;
+}): Promise<File> {
+  const result = await downloadRequestArtifact(input.requestId, {
+    action: "certificate_of_honor_pdf",
+    staff_name: input.staffName,
+    request_label: input.requestLabel,
+    voucher_number: input.voucherNumber,
+    amount_label: input.amountLabel,
+    declaration: input.declaration,
+    reason: input.reason,
+    issued_at: input.issuedAt,
+    signature_file_id: input.signatureFileId,
+  });
 
-  const write = (
-    text: string,
-    size = 11,
-    isBold = false,
-    indent = 0,
-    lineGap = 18,
-  ) => {
-    if (y < 72) y = 792;
-    page.drawText(text, {
-      x: marginX + indent,
-      y,
-      size,
-      font: isBold ? bold : regular,
-    });
-    y -= lineGap;
-  };
-
-  write("CERTIFICATE OF HONOR", 20, true);
-  write("Cash Advance Retirement Declaration", 12, true);
-  y -= 12;
-  write(`Request: ${input.requestLabel}`, 11, true);
-  write(`Payment Voucher: ${input.voucherNumber}`);
-  write(`Staff Member: ${input.staffName}`);
-  write(`Amount: ${input.amountLabel}`);
-  write(`Date: ${input.issuedAt}`);
-  y -= 8;
-  write("Declaration", 13, true);
-  [
-    input.declaration ||
-    "I hereby certify that the cash advance and/or disbursed funds referenced above were used for official purposes.",
-    "Supporting receipts are not available for the full amount because:",
-    input.reason || "No additional explanation provided.",
-  ].forEach((line) => write(line, 11, false, 12, 16));
-  y -= 10;
-  write(
-    "I accept responsibility for the accuracy of this declaration and understand it will",
-    11,
-    false,
-    12,
-    16,
-  );
-  write(
-    "form part of the retirement record for this request.",
-    11,
-    false,
-    12,
-    16,
-  );
-  y -= 18;
-  write("Signature: ____________________________", 11, false);
-  write("Name: ________________________________", 11, false);
-
-  const bytes = await pdf.save();
-  const byteArrayBuffer = bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
+  // Convert base64 → ArrayBuffer → File
+  const binary = atob(result.content_base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
   return new File(
-    [byteArrayBuffer],
-    `Certificate_of_Honor_${input.requestLabel.replace(/[\\/]+/g, "-")}.pdf`,
-    {
-      type: "application/pdf",
-    },
+    [bytes.buffer],
+    result.file_name ||
+      `Certificate_of_Honor_${input.requestLabel.replace(/[\\/]+/g, "-")}.pdf`,
+    { type: "application/pdf" },
   );
 }

@@ -36,7 +36,8 @@ export class UsersService {
           }
         },
         employeeMeta: true,
-        onboardingProgress: true
+        onboardingProgress: true,
+        signatureFile: { select: { publicUrl: true, storagePath: true } }
       }
     });
 
@@ -65,7 +66,10 @@ export class UsersService {
         maritalStatus: dto.marital_status ?? existing.maritalStatus,
         avatar: dto.avatar ?? existing.avatar,
         bio: dto.bio ?? existing.bio,
-        occupation: dto.occupation ?? existing.occupation
+        occupation: dto.occupation ?? existing.occupation,
+        ...(dto.signature_file_id !== undefined
+          ? { signatureFileId: dto.signature_file_id || null }
+          : {})
       },
       include: {
         organizations: {
@@ -80,7 +84,8 @@ export class UsersService {
           }
         },
         employeeMeta: true,
-        onboardingProgress: true
+        onboardingProgress: true,
+        signatureFile: { select: { publicUrl: true, storagePath: true } }
       }
     });
     return this.serializeProfile(updated);
@@ -664,7 +669,8 @@ export class UsersService {
             }, {})
           }
         : null,
-      onboarding_progress: user.onboardingProgress ?? null
+      onboarding_progress: user.onboardingProgress ?? null,
+      signature_url: user.signatureFile?.publicUrl ?? user.signatureFile?.storagePath ?? null
     };
   }
 

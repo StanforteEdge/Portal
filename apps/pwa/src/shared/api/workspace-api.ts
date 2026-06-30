@@ -36,6 +36,7 @@ export type WorkspaceProfile = {
   onboarding_progress?: {
     status?: string;
   } | null;
+  signature_url?: string | null;
 };
 
 export type WorkspaceNotification = {
@@ -74,6 +75,7 @@ export async function updateWorkspaceProfile(payload: {
   state?: string;
   lga?: string;
   marital_status?: string;
+  signature_file_id?: string;
 }) {
   const res = await httpRequest<any>("/profile", {
     method: "PATCH",

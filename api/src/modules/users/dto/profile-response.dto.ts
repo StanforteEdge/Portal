@@ -75,4 +75,5 @@ export class ProfileResponseDto {
     meta: Record<string, unknown>;
   } | null;
   onboarding_progress?: Record<string, unknown> | null;
+  signature_url?: string | null;
 }

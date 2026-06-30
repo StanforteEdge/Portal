@@ -214,7 +214,19 @@ export function FinanceRequestDetailsPage() {
   const disbursedTotal = useMemo(
     () =>
       (paymentVouchers ?? []).reduce(
-        (sum, voucher) => sum + Number(voucher.amount || 0),
+        (sum, voucher) => sum + Number((voucher.gross_amount ?? voucher.amount) || 0),
+        0,
+      ),
+    [paymentVouchers],
+  );
+  const totalDeductions = useMemo(
+    () =>
+      (paymentVouchers ?? []).reduce(
+        (sum, voucher) => {
+          const gross = voucher.gross_amount !== undefined ? Number(voucher.gross_amount) : Number(voucher.amount || 0);
+          const net = Number(voucher.amount || 0);
+          return sum + (gross - net);
+        },
         0,
       ),
     [paymentVouchers],
@@ -704,6 +716,14 @@ export function FinanceRequestDetailsPage() {
         file_name: file.file_name,
       })) ?? [],
     );
+    setDisburseDeductions(
+      voucher.deductions?.map((d) => ({
+        deduction_type_id: d.deduction_type_id,
+        rate: d.rate,
+        gross_amount: d.gross_amount,
+        deduction_amount: d.deduction_amount,
+      })) ?? [],
+    );
     setDisburseForm((current) => ({
       ...current,
       amount: String(voucher.amount ?? ""),
@@ -882,6 +902,18 @@ export function FinanceRequestDetailsPage() {
             editingVoucherId,
             disbursePayload,
           );
+          try {
+            await financeApi.applyPVDeductions(editingVoucherId, {
+              deductions: disburseDeductions,
+            });
+          } catch {
+            showToast({
+              tone: "warning",
+              title: "Deductions not saved",
+              message:
+                "Payment voucher updated but deductions could not be saved.",
+            });
+          }
         } else {
           const result = await disburseRequest(id, disbursePayload, { traceId });
           if (disburseDeductions.length > 0 && result?.voucher?.id) {
@@ -1064,6 +1096,7 @@ export function FinanceRequestDetailsPage() {
     documents,
     requestTotal,
     disbursedTotal,
+    totalDeductions,
     retiredTotal,
     remainingDisbursement,
     defaultFinanceAccountId,

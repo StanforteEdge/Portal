@@ -471,11 +471,14 @@ export class FinanceService {
         throw new BadRequestException('Invalid disbursed_at date');
       }
       const requestTotal = request.totalAmount !== null ? Number(request.totalAmount) : 0;
-      const disbursedAggregate = await this.prisma.financePaymentVoucher.aggregate({
+      const existingVouchers = await this.prisma.financePaymentVoucher.findMany({
         where: { requestId: id },
-        _sum: { amount: true }
+        select: { amount: true, grossAmount: true }
       });
-      const alreadyDisbursed = Number(disbursedAggregate._sum.amount ?? 0);
+      const alreadyDisbursed = existingVouchers.reduce((sum, v) => {
+        const val = v.grossAmount !== null ? Number(v.grossAmount) : Number(v.amount);
+        return sum + val;
+      }, 0);
       const balanceBefore = Math.max(0, requestTotal - alreadyDisbursed);
       let disburseAmount = dto.amount ?? balanceBefore;
       let targetItems: any[] = [];
@@ -849,6 +852,11 @@ export class FinanceService {
         },
         voucherItems: {
           include: { requestItem: true }
+        },
+        deductions: {
+          include: {
+            deductionType: true
+          }
         }
       },
       orderBy: { disbursedAt: 'asc' }
@@ -879,8 +887,9 @@ export class FinanceService {
     let cumulativeDisbursed = 0;
     const items = vouchers.map((voucher) => {
       const amount = Number(voucher.amount);
+      const grossAmount = voucher.grossAmount !== null ? Number(voucher.grossAmount) : amount;
       const retiredAmount = Number(voucher.retiredAmount);
-      cumulativeDisbursed += amount;
+      cumulativeDisbursed += grossAmount;
       const requestBalance = Math.max(0, requestTotal - cumulativeDisbursed);
       const voucherBalance = Math.max(0, amount - retiredAmount);
       const evidenceFiles = Array.from(
@@ -925,6 +934,18 @@ export class FinanceService {
               account_type: voucher.paidFromAccount.accountType
             }
           : null,
+        gross_amount: grossAmount,
+        net_amount: voucher.netAmount !== null ? Number(voucher.netAmount) : amount,
+        deductions: (voucher.deductions ?? []).map((d: any) => ({
+          id: d.id,
+          payment_voucher_id: d.paymentVoucherId,
+          deduction_type_id: d.deductionTypeId,
+          deduction_type_name: d.deductionType?.name ?? '',
+          deduction_type_code: d.deductionType?.code ?? '',
+          rate: Number(d.rate),
+          gross_amount: Number(d.grossAmount),
+          deduction_amount: Number(d.deductionAmount),
+        })),
         voucher_items: voucher.voucherItems?.map((vi: any) => ({
           id: vi.requestItem.id,
           description: vi.requestItem.description,
@@ -1548,6 +1569,11 @@ export class FinanceService {
           },
           voucherItems: {
             include: { requestItem: true }
+          },
+          deductions: {
+            include: {
+              deductionType: true
+            }
           }
         },
         orderBy: [{ disbursedAt: 'desc' }, { createdAt: 'desc' }],
@@ -1565,6 +1591,7 @@ export class FinanceService {
       const requestNumber = `${(row.request.requestType?.codePrefix || 'REQ').toUpperCase()}/${row.request.createdAt.getFullYear()}/${row.request.id.toString()}`;
       const amount = Number(row.amount);
       const retiredAmount = Number(row.retiredAmount);
+      const grossAmount = row.grossAmount !== null ? Number(row.grossAmount) : amount;
       const evidenceFiles = Array.from(
         new Map(
           [
@@ -1612,6 +1639,18 @@ export class FinanceService {
           : null,
         evidence_file: evidenceFiles[0] ?? null,
         evidence_files: evidenceFiles,
+        gross_amount: grossAmount,
+        net_amount: row.netAmount !== null ? Number(row.netAmount) : amount,
+        deductions: (row.deductions ?? []).map((d: any) => ({
+          id: d.id,
+          payment_voucher_id: d.paymentVoucherId,
+          deduction_type_id: d.deductionTypeId,
+          deduction_type_name: d.deductionType?.name ?? '',
+          deduction_type_code: d.deductionType?.code ?? '',
+          rate: Number(d.rate),
+          gross_amount: Number(d.grossAmount),
+          deduction_amount: Number(d.deductionAmount),
+        })),
         voucher_items: row.voucherItems?.map((vi: any) => ({
           id: vi.requestItem.id,
           description: vi.requestItem.description,

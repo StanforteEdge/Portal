@@ -111,9 +111,21 @@ export function VoucherPreviewDialog() {
                 {previewVoucher.evidence_files.map((file: any) => (
                   <div
                     key={file.id}
-                    className="rounded-2xl bg-white px-3 py-2 text-sm text-slate-700"
+                    className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-2 text-sm text-slate-700"
                   >
-                    {file.file_name}
+                    <span className="truncate">{file.file_name}</span>
+                    {file.public_url ? (
+                      <a
+                        href={file.public_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex shrink-0"
+                      >
+                        <Button variant="secondary" size="sm">
+                          Open
+                        </Button>
+                      </a>
+                    ) : null}
                   </div>
                 ))}
               </div>
@@ -128,9 +140,21 @@ export function VoucherPreviewDialog() {
                 {previewVoucher.retirement_files.map((file: any) => (
                   <div
                     key={file.id}
-                    className="rounded-2xl bg-white px-3 py-2 text-sm text-slate-700"
+                    className="flex items-center justify-between gap-4 rounded-2xl bg-white px-4 py-2 text-sm text-slate-700"
                   >
-                    {file.file_name}
+                    <span className="truncate">{file.file_name}</span>
+                    {file.public_url ? (
+                      <a
+                        href={file.public_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex shrink-0"
+                      >
+                        <Button variant="secondary" size="sm">
+                          Open
+                        </Button>
+                      </a>
+                    ) : null}
                   </div>
                 ))}
               </div>
