@@ -1686,7 +1686,7 @@ export class RequestsService {
     if (request.status === 'cleared') return ['disburse'];
     if (request.status === 'disbursed') return ['confirm'];
     if (request.status === 'confirmed') return ['retire'];
-    if (request.status === 'retired') return ['complete'];
+    if (request.status === 'retired') return ['retire', 'complete'];
     return [];
   }
 
@@ -2400,12 +2400,22 @@ export class RequestsService {
     if (request.createdBy !== toBigInt(userId)) {
       throw new BadRequestException('Only owner can retire request');
     }
-    if (!['confirmed', 'disbursed'].includes(request.status)) {
+    if (!['confirmed', 'disbursed', 'retired'].includes(request.status)) {
       throw new BadRequestException('Request cannot be retired in current status');
     }
 
     if (dto.retirement_file_ids?.length) {
       await this.ensureFileAssetsExist(this.prisma, dto.retirement_file_ids);
+    }
+
+    if (request.status === 'retired') {
+      const resetWhere = dto.voucher_id
+        ? { requestId: request.id, id: dto.voucher_id }
+        : { requestId: request.id };
+      await this.prisma.financePaymentVoucher.updateMany({
+        where: resetWhere,
+        data: { retiredAmount: 0, retirementStatus: 'not_retired' }
+      });
     }
 
     const retirementResult = await this.applyRetirementToPaymentVouchers(request.id, dto);
@@ -4602,7 +4612,8 @@ export class RequestsService {
               ? (voucher.metadata as Record<string, unknown>)
               : {}),
             retirement_notes: dto.notes ?? null,
-            retirement_file_ids: dto.retirement_file_ids ?? []
+            retirement_file_ids: dto.retirement_file_ids ?? [],
+            breakdown: dto.breakdown ?? null
           } as Prisma.InputJsonValue
         }
       });
