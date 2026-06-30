@@ -30,20 +30,6 @@ class ManualDeductionDto {
   deduction_amount!: number;
 }
 
-class RequestLevelDeductionDto {
-  @ApiProperty()
-  @IsUUID()
-  deduction_type_id!: string;
-
-  @ApiProperty()
-  @IsNumber()
-  rate!: number;
-
-  @ApiProperty()
-  @IsNumber()
-  deduction_amount!: number;
-}
-
 class ManualItemDto {
   @ApiProperty()
   @IsString()
@@ -288,10 +274,4 @@ export class CreateManualRequestDto {
   @Type(() => ManualVoucherDto)
   disbursements?: ManualVoucherDto[];
 
-  @ApiPropertyOptional({ type: [RequestLevelDeductionDto], description: 'Statutory deductions at request level — gross is the request total' })
-  @IsOptional()
-  @IsArray()
-  @ValidateNested({ each: true })
-  @Type(() => RequestLevelDeductionDto)
-  request_deductions?: RequestLevelDeductionDto[];
 }

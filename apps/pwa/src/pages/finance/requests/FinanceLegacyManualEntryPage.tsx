@@ -36,11 +36,6 @@ type ManualDeductionLine = {
   gross_amount: number;
   deduction_amount: number;
 };
-type RequestDeductionLine = {
-  deduction_type_id: string;
-  rate: number;
-  deduction_amount: number;
-};
 type ManualDisbursement = {
   voucher_number: string;
   amount: number;
@@ -149,7 +144,6 @@ function FinanceManualEntryPage() {
   const [importRows, setImportRows] = useState<ImportPreviewRow[]>([]);
 
   const [requestCreatorName, setRequestCreatorName] = useState<string>("");
-  const [requestDeductionLines, setRequestDeductionLines] = useState<RequestDeductionLine[]>([]);
 
   const [staffOptions, setStaffOptions] = useState<Option[]>([]);
   const [typeOptions, setTypeOptions] = useState<RequestTypeOption[]>([]);
@@ -232,7 +226,6 @@ function FinanceManualEntryPage() {
     setLookupId("");
     setEditingId("");
     setRequestCreatorName("");
-    setRequestDeductionLines([]);
     setNumberExists({ exists: false, requestId: null });
     setForm({
       request_type_id: "",
@@ -951,13 +944,13 @@ function FinanceManualEntryPage() {
           .filter((d) => d.voucher_number && Number(d.amount) > 0)
           .map((d) => {
             const deductions = (d.deductions || []).filter((dl) => dl.deduction_type_id && dl.deduction_amount > 0);
-            const totalDeducted = deductions.reduce((s, dl) => s + dl.deduction_amount, 0);
-            const grossAmt = Number(d.amount);
+            const pvNet = Number(d.amount);
+            const firstDedGross = deductions[0]?.gross_amount ?? pvNet;
             return {
               voucher_number: d.voucher_number,
-              amount: grossAmt,
-              gross_amount: deductions.length > 0 ? grossAmt : undefined,
-              net_amount: deductions.length > 0 ? grossAmt - totalDeducted : undefined,
+              amount: pvNet,
+              gross_amount: deductions.length > 0 ? firstDedGross : undefined,
+              net_amount: deductions.length > 0 ? pvNet : undefined,
               paid_from_account_id: d.paid_from_account_id || undefined,
               method: d.method || undefined,
               transaction_ref: d.transaction_ref || undefined,
@@ -978,13 +971,6 @@ function FinanceManualEntryPage() {
               refund_date: d.refund_date || undefined,
             };
           }),
-        request_deductions: requestDeductionLines
-          .filter((d) => d.deduction_type_id && d.deduction_amount > 0)
-          .map((d) => ({
-            deduction_type_id: d.deduction_type_id,
-            rate: d.rate,
-            deduction_amount: d.deduction_amount,
-          })),
       };
       const created = editingId
         ? await requestApi.updateManualRequestEntry(editingId, payload)
@@ -1089,7 +1075,12 @@ function FinanceManualEntryPage() {
           retirement_status: pv.retirement_status || "not_retired",
           retirement_file_ids_text: (pv.retirement_files || []).map((f: any) => f.id).join(", "),
           contact_id: "",
-          deductions: [],
+          deductions: (pv.deductions || []).map((d: any) => ({
+            deduction_type_id: d.deduction_type_id ?? d.deductionTypeId ?? "",
+            rate: Number(d.rate ?? 0),
+            gross_amount: Number(d.gross_amount ?? d.grossAmount ?? 0),
+            deduction_amount: Number(d.deduction_amount ?? d.deductionAmount ?? 0),
+          })),
           refund_amount: "",
           refund_method: "bank_transfer",
           refund_reference: "",
@@ -1101,14 +1092,12 @@ function FinanceManualEntryPage() {
         }))
       );
       setRequestCreatorName(formatPersonName(req.creator));
+      setDeductionsOpenByIndex(
+        Object.fromEntries(pvs.map((pv: any, i: number) => [i, (pv.deductions || []).length > 0]))
+      );
       const deductionRes = await financeApi.listRequestDeductions({ request_id: String(req.id), per_page: 200 })
         .catch(() => ({ items: [] as FinanceRequestDeductionRecord[] }));
       setRequestDeductions(deductionRes.items);
-      setRequestDeductionLines(deductionRes.items.map((d) => ({
-        deduction_type_id: d.deduction_type_id,
-        rate: Number(d.rate ?? 0),
-        deduction_amount: Number(d.amount ?? 0),
-      })));
       setNotice({ tone: "success", message: `Loaded request ${req.id} for edit.` });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to find request by ID." });
@@ -1310,56 +1299,6 @@ function FinanceManualEntryPage() {
           <div className="text-right font-medium">Items Total: {formatCurrency(itemsTotal, form.currency || "NGN")}</div>
         </div>
 
-        {/* Request-level statutory deductions */}
-        <div>
-          <div className="flex items-center justify-between mb-2">
-            <h4 className="font-medium">Statutory Deductions</h4>
-            <Button variant="secondary" onClick={() => setRequestDeductionLines((p) => [...p, { deduction_type_id: "", rate: 0, deduction_amount: 0 }])}>+ Add Deduction</Button>
-          </div>
-          <p className="text-xs text-slate-500 mb-3">Withheld from the total request amount ({formatCurrency(itemsTotal, form.currency || "NGN")}), not from individual PVs.</p>
-          {requestDeductionLines.map((line, di) => (
-            <div key={di} className="grid grid-cols-12 gap-2 items-end border rounded p-2 mb-2">
-              <div className="col-span-12 md:col-span-5">
-                <label className="text-xs text-slate-500">Deduction Type</label>
-                <SelectField label="" value={line.deduction_type_id} onChange={(e) => {
-                  const type = deductionTypeOptions.find((t) => t.id === e.target.value);
-                  const rate = type ? type.rate : line.rate;
-                  const deductionAmount = Math.round(itemsTotal * rate * 100) / 100;
-                  setRequestDeductionLines((p) => p.map((d, j) => j !== di ? d : { ...d, deduction_type_id: e.target.value, rate, deduction_amount: deductionAmount }));
-                }}>
-                  <option value="">Select type</option>
-                  {deductionTypeOptions.map((t) => <option key={t.id} value={t.id}>{t.name} ({(t.rate * 100).toFixed(1)}%)</option>)}
-                </SelectField>
-              </div>
-              <div className="col-span-6 md:col-span-2">
-                <label className="text-xs text-slate-500">Rate</label>
-                <TextField label="" type="number" step="0.001" min="0" max="1" value={line.rate} onChange={(e) => {
-                  const rate = Number(e.target.value);
-                  const deductionAmount = Math.round(itemsTotal * rate * 100) / 100;
-                  setRequestDeductionLines((p) => p.map((d, j) => j !== di ? d : { ...d, rate, deduction_amount: deductionAmount }));
-                }} />
-              </div>
-              <div className="col-span-6 md:col-span-3">
-                <label className="text-xs text-slate-500">Amount Withheld</label>
-                <TextField label="" type="number" value={line.deduction_amount} onChange={(e) => setRequestDeductionLines((p) => p.map((d, j) => j !== di ? d : { ...d, deduction_amount: Number(e.target.value) }))} />
-              </div>
-              <div className="col-span-12 md:col-span-2 flex items-end">
-                <Button variant="danger" onClick={() => setRequestDeductionLines((p) => p.filter((_, j) => j !== di))}>Remove</Button>
-              </div>
-            </div>
-          ))}
-          {requestDeductionLines.filter((d) => d.deduction_amount > 0).length > 0 && (() => {
-            const totalDeducted = requestDeductionLines.reduce((s, d) => s + d.deduction_amount, 0);
-            return (
-              <div className="rounded bg-slate-100 px-3 py-2 text-sm space-y-1 mb-3">
-                <div className="flex justify-between text-slate-600"><span>Request Total (Gross)</span><span>{formatCurrency(itemsTotal, form.currency)}</span></div>
-                <div className="flex justify-between font-medium text-red-600"><span>Total Withheld</span><span>− {formatCurrency(totalDeducted, form.currency)}</span></div>
-                <div className="flex justify-between font-bold text-slate-900 border-t pt-1"><span>Net to Disburse via PVs</span><span>{formatCurrency(itemsTotal - totalDeducted, form.currency)}</span></div>
-              </div>
-            );
-          })()}
-        </div>
-
         <div>
           <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "", contact_id: "", deductions: [], refund_amount: "", refund_method: "bank_transfer", refund_reference: "", refund_date: "", certificate_staff_name: requestCreatorName, certificate_amount: "", certificate_declaration: "", certificate_reason: "" }])}>Add PV</Button></div>
           {disbursements.map((row, idx) => (
@@ -1394,7 +1333,74 @@ function FinanceManualEntryPage() {
                 </div>
               </div>
 
-{/* Statutory deductions are entered at the request level — see section below */}
+              {/* Per-PV Statutory Deduction */}
+              <div className="col-span-12">
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-slate-600 uppercase tracking-wide">Statutory Deduction</label>
+                  <Button variant="secondary" onClick={() => {
+                    const alreadyOpen = deductionsOpenByIndex[idx];
+                    setDeductionsOpenByIndex((p) => ({ ...p, [idx]: !alreadyOpen }));
+                    if (!alreadyOpen && !(row.deductions?.length)) {
+                      setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, deductions: [{ deduction_type_id: "", rate: 0, gross_amount: 0, deduction_amount: 0 }] } : x));
+                    }
+                  }}>
+                    {deductionsOpenByIndex[idx] ? "Hide" : "Add Deduction"}
+                  </Button>
+                </div>
+                {deductionsOpenByIndex[idx] && (
+                  <div className="border rounded p-3 bg-slate-50 space-y-2">
+                    {(row.deductions || []).map((ded, di) => (
+                      <div key={di} className="grid grid-cols-12 gap-2 items-end">
+                        <div className="col-span-12 md:col-span-4">
+                          <label className="text-xs text-slate-500">Deduction Type</label>
+                          <SelectField label="" value={ded.deduction_type_id} onChange={(e) => {
+                            const type = deductionTypeOptions.find((t) => t.id === e.target.value);
+                            const rate = type?.rate ?? ded.rate;
+                            const deductionAmount = Math.round(ded.gross_amount * rate * 100) / 100;
+                            setDisbursements((p) => p.map((x, i) => i !== idx ? x : { ...x, deductions: (x.deductions || []).map((d, j) => j !== di ? d : { ...d, deduction_type_id: e.target.value, rate, deduction_amount: deductionAmount }) }));
+                          }}>
+                            <option value="">Select type</option>
+                            {deductionTypeOptions.map((t) => <option key={t.id} value={t.id}>{t.name} ({(t.rate * 100).toFixed(1)}%)</option>)}
+                          </SelectField>
+                        </div>
+                        <div className="col-span-6 md:col-span-3">
+                          <label className="text-xs text-slate-500">Invoice Gross</label>
+                          <TextField label="" type="number" value={ded.gross_amount || ""} onChange={(e) => {
+                            const gross = Number(e.target.value || 0);
+                            const deductionAmount = Math.round(gross * ded.rate * 100) / 100;
+                            setDisbursements((p) => p.map((x, i) => i !== idx ? x : { ...x, deductions: (x.deductions || []).map((d, j) => j !== di ? d : { ...d, gross_amount: gross, deduction_amount: deductionAmount }) }));
+                          }} placeholder="Invoice total before deduction" />
+                        </div>
+                        <div className="col-span-4 md:col-span-2">
+                          <label className="text-xs text-slate-500">Rate</label>
+                          <TextField label="" type="number" step="0.001" min="0" max="1" value={ded.rate} onChange={(e) => {
+                            const rate = Number(e.target.value || 0);
+                            const deductionAmount = Math.round(ded.gross_amount * rate * 100) / 100;
+                            setDisbursements((p) => p.map((x, i) => i !== idx ? x : { ...x, deductions: (x.deductions || []).map((d, j) => j !== di ? d : { ...d, rate, deduction_amount: deductionAmount }) }));
+                          }} />
+                        </div>
+                        <div className="col-span-4 md:col-span-2">
+                          <label className="text-xs text-slate-500">Withheld</label>
+                          <TextField label="" type="number" value={ded.deduction_amount || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i !== idx ? x : { ...x, deductions: (x.deductions || []).map((d, j) => j !== di ? d : { ...d, deduction_amount: Number(e.target.value || 0) }) }))} />
+                        </div>
+                        <div className="col-span-4 md:col-span-1 flex items-end">
+                          <Button variant="danger" onClick={() => setDisbursements((p) => p.map((x, i) => i !== idx ? x : { ...x, deductions: (x.deductions || []).filter((_, j) => j !== di) }))}>×</Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button variant="secondary" onClick={() => setDisbursements((p) => p.map((x, i) => i !== idx ? x : { ...x, deductions: [...(x.deductions || []), { deduction_type_id: "", rate: 0, gross_amount: 0, deduction_amount: 0 }] }))}>+ Add Line</Button>
+                    {(row.deductions || []).filter((d) => d.deduction_amount > 0).length > 0 && (() => {
+                      const totalDeducted = (row.deductions || []).reduce((s, d) => s + d.deduction_amount, 0);
+                      return (
+                        <div className="rounded bg-slate-100 px-3 py-2 text-xs space-y-0.5 mt-2">
+                          <div className="flex justify-between text-red-600 font-medium"><span>Total Withheld</span><span>− {formatCurrency(totalDeducted, form.currency)}</span></div>
+                          <div className="flex justify-between text-slate-600 border-t pt-1"><span>Net Paid (PV Amount)</span><span>{formatCurrency(Number(row.amount), form.currency)}</span></div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
 
               <div className="col-span-6 md:col-span-2"><label>Retired Amount</label><TextField label="" type="number" value={row.retired_amount || 0} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retired_amount: Number(e.target.value || 0) } : x))} /></div>
               <div className="col-span-6 md:col-span-2"><label>Retirement Status</label><SelectField label="" value={row.retirement_status || "not_retired"} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_status: e.target.value } : x))}><option value="not_retired">Pending</option><option value="partial">Partial</option><option value="retired">Retired</option><option value="verified">Confirmed</option></SelectField></div>
