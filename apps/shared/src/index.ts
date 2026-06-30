@@ -52,6 +52,7 @@ export type {
   ContactPersonRecord,
   PartyTransaction,
   FinancePaymentVoucherRecord,
+  FinanceAccountRecord,
   FinanceApi,
 } from "./api/finance-api";
 export { hasAnyPermission, hasApprovalAccess, hasPermission } from "./auth/access";

@@ -36,7 +36,7 @@ export default function FinanceBudgetDetailPage() {
   const [activeTab, setActiveTab] = useState<"summary" | "expenditures" | "assumptions" | "portfolio">("summary");
   const [isApproving, setIsApproving] = useState(false);
 
-  const { data: budget, loading, error, mutate } = useCachedQuery(
+  const { data: budget, loading, error, refetch } = useCachedQuery(
     `finance:budget:${id}`,
     () => financeApi.getBudget(id!),
     { ttlMs: 30_000, storage: "memory" }
@@ -50,7 +50,7 @@ export default function FinanceBudgetDetailPage() {
         await financeApi.approveBudget(id);
       }
       alert("Budget approved successfully");
-      mutate();
+      refetch();
     } catch (e: any) {
       alert(e?.message || "Failed to approve budget");
     } finally {
@@ -65,7 +65,7 @@ export default function FinanceBudgetDetailPage() {
         await financeApi.recalculateBudget(id);
       }
       alert("Budget recalculated");
-      mutate();
+      refetch();
     } catch (e: any) {
       alert(e?.message || "Failed to recalculate budget");
     }
@@ -121,11 +121,11 @@ export default function FinanceBudgetDetailPage() {
         description={`Status: ${budget.status || "Draft"}`}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={handleRecalculate}>Recalculate</Button>
+            <Button variant="secondary" onClick={handleRecalculate}>Recalculate</Button>
             {isDraft && (
               <>
-                <Button variant="outline" onClick={() => navigate(`/finance/budgets/${id}/edit`)}>Edit</Button>
-                <Button onClick={handleApprove} isLoading={isApproving}>Approve</Button>
+                <Button variant="secondary" onClick={() => navigate(`/finance/budgets/${id}/edit`)}>Edit</Button>
+                <Button onClick={handleApprove} disabled={isApproving}>{isApproving ? "Approving..." : "Approve"}</Button>
               </>
             )}
           </div>

@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import * as XLSX from "xlsx";
 import { useNavigate } from "react-router-dom";
-import { Button, Icon, Table, TableHeaderRow, TableHeaderCell, TableRow, TableCell, TableBody, TextField, SelectField, TextAreaField, useToast, SlideOver } from "@/shared";
+import { Button, Icon, Table, TableHead, TableHeaderRow, TableHeaderCell, TableRow, TableCell, TableBody, TextField, SelectField, TextAreaField, useToast, SlideOver } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { httpRequest } from "@/shared/lib/core";
 import { requestApi, adminUsersApi, resourceApi, financeApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
+import { listProjects, downloadRequestArtifact, type RequestItemInput } from "../../requests/requests-api";
+import { listManagedTaxonomies, type ManagedTaxonomy } from "../../requests/taxonomy-api";
+import type { FinanceAccountRecord } from "@/shared";
 
 type Option = { id: string; name: string };
 type RequestTypeOption = Option & { categoryKey?: string | null };
@@ -19,7 +22,7 @@ type ImportPreviewRow = {
   actionOptions: ImportAction[];
   existingRequestId: string | null;
   issues: string[];
-  payload: Parameters<typeof createManualRequestEntry>[0] | null;
+  payload: Parameters<typeof requestApi.createManualRequestEntry>[0] | null;
   ready: boolean;
 };
 
@@ -326,15 +329,15 @@ function FinanceManualEntryPage() {
       try {
         setLoading(true);
         const [users, groups, teams, orgs, projects, taxonomies, accounts, funds, grants] = await Promise.all([
-          listUsers({ page: 1, per_page: 200 }),
+          adminUsersApi.listUsers({ page: 1, per_page: 200 }),
           requestApi.listGroups(),
-          listTeams({ active_only: false }),
-          listOrganizations({ is_active: true }),
-          listProjects({ active_only: false }),
-          resourceApi.listTaxonomies({ context: "request_category" }),
-          listFinanceAccounts({ is_active: true }).catch(() => []),
-          listFinanceFunds({ is_active: true }).catch(() => []),
-          listFinanceGrants({ status: "active" }).catch(() => []),
+          resourceApi.listGroups({ active_only: false }),
+          resourceApi.listOrganizations(),
+          listProjects(),
+          listManagedTaxonomies({ include_inactive: false }),
+          resourceApi.listFinanceAccounts({ is_active: true }).catch(() => ({ result: [], total: 0, total_result: 0, per_page: 20, page: 1, pages: 1 })),
+          financeApi.listFunds({ is_active: true }).catch(() => []),
+          financeApi.listGrants({ status: "active" }).catch(() => []),
         ]);
         setStaffOptions(
           users.data.map((u: any) => ({
@@ -343,13 +346,13 @@ function FinanceManualEntryPage() {
           }))
         );
         const financeGroup = groups.find((g: any) => g.code?.toLowerCase() === "fin" || g.name?.toLowerCase() === "finance");
-        const requestTypes = await listRequestTypes(financeGroup ? { group_id: financeGroup.id } : undefined);
+        const requestTypes = await requestApi.listTypes(financeGroup ? { group_id: financeGroup.id } : undefined);
         setTypeOptions(requestTypes.map((t: any) => ({ id: t.id, name: t.name, categoryKey: t.category_key })));
         setTeamOptions(teams.map((t: any) => ({ id: t.id, name: t.name })));
         setOrganizationOptions(orgs.map((o: any) => ({ id: o.id, name: o.name })));
         setProjectOptions(projects.map((p: any) => ({ id: p.id, name: p.name })));
         setTaxonomyOptions(taxonomies);
-        setFinanceAccounts(accounts);
+        setFinanceAccounts(accounts?.result || []);
         setFundOptions((funds || []).map((fund: any) => ({ id: String(fund.id), code: String(fund.code || ""), name: String(fund.name || "") })));
         setGrantOptions(
           (grants || []).map((grant: any) => ({
@@ -909,8 +912,8 @@ function FinanceManualEntryPage() {
     if (!lookupId.trim()) return;
     try {
       setLoading(true);
-      const req = await httpRequest(`/requests/${1}`));
-      const pvs = await financeApi.listPaymentVouchers({ request_id: requestId })).catch(() => []);
+      const req = await httpRequest<any>(`/requests/${lookupId}`);
+      const pvs = await financeApi.listPaymentVouchers({ request_id: lookupId }).catch(() => []);
       const data = (req.data || {}) as Record<string, any>;
       const manualApprovals = Array.isArray(data.manual_approvals) ? data.manual_approvals : [];
       const findApproval = (role: string) =>
@@ -1082,8 +1085,6 @@ function FinanceManualEntryPage() {
           </Button>
         </div>
       </div>
-      {notice ?  : null}
-
       <div className="box mt-5 p-5 space-y-6">
         <div className="grid grid-cols-12 gap-3 rounded-md border p-3">
           <div className="col-span-12 md:col-span-6">
@@ -1239,37 +1240,57 @@ function FinanceManualEntryPage() {
           </Button>
           <Button variant="secondary" disabled={!requestId} onClick={async () => {
             if (!requestId) return;
-            const file = alert("Not implemented in new API");
-            downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+            try {
+              const file = await downloadRequestArtifact(requestId, { action: "request_pdf" });
+              downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+            } catch (err: any) {
+              alert(err?.message || "Failed to download");
+            }
           }}>
             Download Request PDF
           </Button>
           <Button variant="secondary" disabled={!requestId} onClick={async () => {
             if (!requestId) return;
-            const file = alert("Not implemented in new API");
-            downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+            try {
+              const file = await downloadRequestArtifact(requestId, { action: "pv_pdf" });
+              downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+            } catch (err: any) {
+              alert(err?.message || "Failed to download");
+            }
           }}>
             Download PV PDF
           </Button>
           <Button variant="secondary" disabled={!requestId} onClick={async () => {
             if (!requestId) return;
-            const zip = alert("Not implemented in new API");
-            downloadBase64File(zip.file_name, zip.mime_type, zip.content_base64);
+            try {
+              const file = await downloadRequestArtifact(requestId, { action: "request_with_attachments" });
+              downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+            } catch (err: any) {
+              alert(err?.message || "Failed to download");
+            }
           }}>
             Request + Attachments
           </Button>
           <Button variant="secondary" disabled={!requestId || !voucherId} onClick={async () => {
             if (!requestId || !voucherId) return;
-            const zip = alert("Not implemented in new API");
-            downloadBase64File(zip.file_name, zip.mime_type, zip.content_base64);
+            try {
+              const file = await downloadRequestArtifact(requestId, { action: "pv_with_attachments", voucher_id: voucherId });
+              downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+            } catch (err: any) {
+              alert(err?.message || "Failed to download");
+            }
           }}>
             PV + Retirement Attachments
           </Button>
           <Button variant="secondary" disabled={!requestId} onClick={async () => {
             if (!requestId) return;
-            const pkg = alert("Not implemented in new API");
-            if (pkg.content_base64 && pkg.mime_type) {
-              downloadBase64File(pkg.file_name, pkg.mime_type, pkg.content_base64);
+            try {
+              const file = await downloadRequestArtifact(requestId, { action: "full_package" });
+              if (file.content_base64 && file.mime_type) {
+                downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+              }
+            } catch (err: any) {
+              alert(err?.message || "Failed to download");
             }
           }}>
             Full Package ZIP

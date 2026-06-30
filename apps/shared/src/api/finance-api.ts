@@ -419,6 +419,32 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<FinanceBudgetRecord>(`/finance/budgets/${id}`);
     },
 
+    createBudget(payload: Record<string, unknown>) {
+      return httpRequest<FinanceBudgetRecord>(`/finance/budgets`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    updateBudget(id: string, payload: Record<string, unknown>) {
+      return httpRequest<FinanceBudgetRecord>(`/finance/budgets/${id}`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    approveBudget(id: string) {
+      return httpRequest<void>(`/finance/budgets/${id}/approve`, {
+        method: "POST",
+      });
+    },
+
+    recalculateBudget(id: string) {
+      return httpRequest<void>(`/finance/budgets/${id}/recalculate`, {
+        method: "POST",
+      });
+    },
+
     listSalesInvoices(params?: Record<string, unknown>) {
       return httpRequest<PaginatedResponse<FinanceInvoiceRecord>>(
         `/finance/sales-invoices${toQuery(params)}`,

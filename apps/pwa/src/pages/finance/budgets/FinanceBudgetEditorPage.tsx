@@ -156,8 +156,8 @@ export default function FinanceBudgetEditorPage() {
         title={isEditing ? `Edit Budget` : "Create New Budget"}
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" onClick={() => navigate(-1)}>Cancel</Button>
-            <Button onClick={handleSave} isLoading={isSaving}>Save Budget</Button>
+            <Button variant="secondary" onClick={() => navigate(-1)}>Cancel</Button>
+            <Button onClick={handleSave} disabled={isSaving}>{isSaving ? "Saving..." : "Save Budget"}</Button>
           </div>
         }
       />
@@ -223,7 +223,7 @@ export default function FinanceBudgetEditorPage() {
         <SectionCard 
           title="Expenditure Lines" 
           description="Enter budgeted lines. Empty rows will be ignored."
-          actions={<Button variant="outline" onClick={() => setLines([...lines, { ...emptyLine }])}>+ Add Row</Button>}
+          action={<Button variant="secondary" onClick={() => setLines([...lines, { ...emptyLine }])}>+ Add Row</Button>}
         >
           <div className="overflow-x-auto">
             <Table>
@@ -232,7 +232,7 @@ export default function FinanceBudgetEditorPage() {
                   <TableHeaderCell>Group Name</TableHeaderCell>
                   <TableHeaderCell>Line Name</TableHeaderCell>
                   <TableHeaderCell>Total Amount</TableHeaderCell>
-                  <TableHeaderCell></TableHeaderCell>
+                  <TableHeaderCell>Actions</TableHeaderCell>
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
@@ -240,6 +240,7 @@ export default function FinanceBudgetEditorPage() {
                   <TableRow key={idx}>
                     <TableCell>
                       <TextField
+                        label=""
                         value={line.group_name || ""}
                         onChange={(e) => {
                           const updated = [...lines];
@@ -250,6 +251,7 @@ export default function FinanceBudgetEditorPage() {
                     </TableCell>
                     <TableCell>
                       <TextField
+                        label=""
                         value={line.line_name || ""}
                         onChange={(e) => {
                           const updated = [...lines];
@@ -260,6 +262,7 @@ export default function FinanceBudgetEditorPage() {
                     </TableCell>
                     <TableCell>
                       <TextField
+                        label=""
                         type="number"
                         value={line.total_amount || ""}
                         onChange={(e) => {
@@ -270,7 +273,7 @@ export default function FinanceBudgetEditorPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" tone="danger" onClick={() => setLines(lines.filter((_, i) => i !== idx))}>
+                      <Button variant="danger" onClick={() => setLines(lines.filter((_, i) => i !== idx))}>
                         Remove
                       </Button>
                     </TableCell>
@@ -285,7 +288,7 @@ export default function FinanceBudgetEditorPage() {
       {activeTab === "assumptions" && (
         <SectionCard 
           title="Assumptions"
-          actions={<Button variant="outline" onClick={() => setAssumptions([...assumptions, { ...emptyAssumption }])}>+ Add Assumption</Button>}
+          action={<Button variant="secondary" onClick={() => setAssumptions([...assumptions, { ...emptyAssumption }])}>+ Add Assumption</Button>}
         >
           <div className="overflow-x-auto">
             <Table>
@@ -294,7 +297,7 @@ export default function FinanceBudgetEditorPage() {
                   <TableHeaderCell>Label</TableHeaderCell>
                   <TableHeaderCell>Value</TableHeaderCell>
                   <TableHeaderCell>Notes</TableHeaderCell>
-                  <TableHeaderCell></TableHeaderCell>
+                  <TableHeaderCell>Actions</TableHeaderCell>
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
@@ -302,6 +305,7 @@ export default function FinanceBudgetEditorPage() {
                   <TableRow key={idx}>
                     <TableCell>
                       <TextField
+                        label=""
                         value={asm.label || ""}
                         onChange={(e) => {
                           const updated = [...assumptions];
@@ -312,6 +316,7 @@ export default function FinanceBudgetEditorPage() {
                     </TableCell>
                     <TableCell>
                       <TextField
+                        label=""
                         value={asm.value || ""}
                         onChange={(e) => {
                           const updated = [...assumptions];
@@ -322,6 +327,7 @@ export default function FinanceBudgetEditorPage() {
                     </TableCell>
                     <TableCell>
                       <TextField
+                        label=""
                         value={asm.notes || ""}
                         onChange={(e) => {
                           const updated = [...assumptions];
@@ -331,7 +337,7 @@ export default function FinanceBudgetEditorPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" tone="danger" onClick={() => setAssumptions(assumptions.filter((_, i) => i !== idx))}>
+                      <Button variant="danger" onClick={() => setAssumptions(assumptions.filter((_, i) => i !== idx))}>
                         Remove
                       </Button>
                     </TableCell>
@@ -346,7 +352,7 @@ export default function FinanceBudgetEditorPage() {
       {activeTab === "portfolio" && (
         <SectionCard 
           title="Portfolio Integrations"
-          actions={<Button variant="outline" onClick={() => setPortfolio([...portfolio, { ...emptyPortfolio }])}>+ Add Portfolio</Button>}
+          action={<Button variant="secondary" onClick={() => setPortfolio([...portfolio, { ...emptyPortfolio }])}>+ Add Portfolio</Button>}
         >
           <div className="overflow-x-auto">
             <Table>
@@ -355,7 +361,7 @@ export default function FinanceBudgetEditorPage() {
                   <TableHeaderCell>Funder Name</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
                   <TableHeaderCell>Total Budget</TableHeaderCell>
-                  <TableHeaderCell></TableHeaderCell>
+                  <TableHeaderCell>Actions</TableHeaderCell>
                 </TableHeaderRow>
               </TableHead>
               <TableBody>
@@ -363,6 +369,7 @@ export default function FinanceBudgetEditorPage() {
                   <TableRow key={idx}>
                     <TableCell>
                       <TextField
+                        label=""
                         value={port.funder_name || ""}
                         onChange={(e) => {
                           const updated = [...portfolio];
@@ -373,6 +380,7 @@ export default function FinanceBudgetEditorPage() {
                     </TableCell>
                     <TableCell>
                       <SelectField
+                        label=""
                         value={port.status || "active"}
                         onChange={(e) => {
                           const updated = [...portfolio];
@@ -387,6 +395,7 @@ export default function FinanceBudgetEditorPage() {
                     </TableCell>
                     <TableCell>
                       <TextField
+                        label=""
                         type="number"
                         value={port.total_budget || ""}
                         onChange={(e) => {
@@ -397,7 +406,7 @@ export default function FinanceBudgetEditorPage() {
                       />
                     </TableCell>
                     <TableCell>
-                      <Button variant="ghost" tone="danger" onClick={() => setPortfolio(portfolio.filter((_, i) => i !== idx))}>
+                      <Button variant="danger" onClick={() => setPortfolio(portfolio.filter((_, i) => i !== idx))}>
                         Remove
                       </Button>
                     </TableCell>

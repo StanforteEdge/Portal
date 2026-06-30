@@ -388,7 +388,7 @@ export class FinanceService {
     }
 
     const res = await this.listRequests({ ...query, page: 1, per_page: 5000 });
-    const items = res.items || (res as any).result || [];
+    const items = res.data?.items || (res as any).result || (res as any).items || [];
 
     if (!items.length) {
       throw new BadRequestException('Requests export has no data');
