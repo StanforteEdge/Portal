@@ -88,7 +88,17 @@ function FinanceManualEntryPage() {
   const { user } = useAuth();
   const auth = { user };
   const roles = (auth.user?.roles ?? []).map((r) => String(r).toLowerCase());
-  const allowed = true;
+  const allowed = roles.some((r) => 
+    r === "admin" || 
+    r === "super-admin" || 
+    r === "administrator" || 
+    r.includes("admin") ||
+    r === "finance_manager" || 
+    r === "finance-manager" || 
+    r === "finance manager" ||
+    r.includes("finance_manager") ||
+    r.includes("finance-manager")
+  );
 
   const { showToast } = useToast();
   const [notice, setNotice] = useState<{ tone: any; message: string } | null>(null);
