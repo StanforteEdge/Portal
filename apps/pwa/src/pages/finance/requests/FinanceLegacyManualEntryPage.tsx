@@ -874,10 +874,6 @@ function FinanceManualEntryPage() {
       .filter(({ row }) => String(row.voucher_number || "").trim().length > 0);
     for (const { row, index } of voucherRows) {
       const rawVoucherNumber = String(row.voucher_number || "").trim();
-      if (!/^\d+$/.test(rawVoucherNumber)) {
-        setNotice({ tone: "warning", message: `PV voucher ID in row ${index + 1} must be digits only.` });
-        return;
-      }
       const exists = await requestApi.checkManualVoucherNumber(rawVoucherNumber, {
         exclude_request_id: editingId || undefined,
       });
@@ -984,10 +980,6 @@ function FinanceManualEntryPage() {
     const rawVoucherNumber = String(disbursements[index]?.voucher_number || "").trim();
     if (!rawVoucherNumber) {
       setVoucherExistsByIndex((prev) => ({ ...prev, [index]: null }));
-      return;
-    }
-    if (!/^\d+$/.test(rawVoucherNumber)) {
-      setVoucherExistsByIndex((prev) => ({ ...prev, [index]: "Voucher ID must be digits only." }));
       return;
     }
     try {
@@ -1278,11 +1270,11 @@ function FinanceManualEntryPage() {
           {disbursements.map((row, idx) => (
             <div key={`pv-${idx}`} className="grid grid-cols-12 gap-3 mb-4 p-3 border rounded">
               <div className="col-span-12 md:col-span-3">
-                <label>Voucher ID (Digits)</label>
+                <label>Voucher ID</label>
                 <TextField
  label=""                  value={row.voucher_number}
                   onChange={(e) => {
-                    const next = e.target.value.replace(/[^\d]/g, "");
+                    const next = e.target.value;
                     setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, voucher_number: next } : x));
                     setVoucherExistsByIndex((prev) => ({ ...prev, [idx]: null }));
                   }}

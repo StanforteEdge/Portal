@@ -30,7 +30,7 @@ import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { MailService } from '../../common/mail/mail.service';
 
 const MANUAL_REQUEST_ID_MIN = BigInt(1);
-const MANUAL_REQUEST_ID_MAX = BigInt(3000);
+const MANUAL_REQUEST_ID_MAX = BigInt(99999);
 const STAFF_REQUEST_ID_MIN = BigInt(3001);
 const STAFF_REQUEST_SEQUENCE_START = BigInt(3050);
 
@@ -737,8 +737,10 @@ export class RequestsService {
     const createdAt = dto.created_at ? new Date(dto.created_at) : existing.createdAt;
     if (Number.isNaN(createdAt.getTime())) throw new BadRequestException('Invalid created_at');
     const desiredRequestId = dto.request_id ? toBigInt(dto.request_id) : existing.id;
-    this.assertManualRequestIdRange(desiredRequestId);
     const isRequestIdChanged = desiredRequestId !== existing.id;
+    if (isRequestIdChanged) {
+      this.assertManualRequestIdRange(desiredRequestId);
+    }
     if (isRequestIdChanged) {
       const taken = await this.prisma.requestInstance.findUnique({
         where: { id: desiredRequestId },
