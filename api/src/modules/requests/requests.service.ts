@@ -3478,97 +3478,100 @@ export class RequestsService {
 <head>
   <meta charset="utf-8" />
   <style>
-    @page { size: A4; margin: 18mm 18mm 20mm 18mm; }
+    @page { size: A4; margin: 10mm; }
     body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
-    .outer { border: 2.5px solid #111; border-radius: 6px; padding: 28px 32px; min-height: 720px; position: relative; }
-    .logo-bar { text-align: center; margin-bottom: 18px; }
-    .logo-bar img { height: 48px; }
-    .cert-title { text-align: center; font-size: 26px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 4px; text-decoration: underline; }
-    .cert-subtitle { text-align: center; font-size: 13px; color: #444; margin-bottom: 22px; }
-    .divider { border: none; border-top: 1.5px solid #bbb; margin: 18px 0; }
-    .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 24px; margin-bottom: 18px; }
-    .meta-item { border-bottom: 1px solid #ddd; padding: 6px 0; }
-    .meta-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-bottom: 2px; }
-    .meta-value { font-size: 12px; font-weight: 600; }
-    .section-title { font-size: 13px; font-weight: 700; margin-bottom: 6px; }
-    .declaration-box { border: 1px solid #ddd; border-radius: 4px; padding: 12px 14px; background: #f9fafb; margin-bottom: 14px; line-height: 1.7; }
-    .sig-block { margin-top: 32px; display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
-    .sig-col {}
-    .sig-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #666; margin-top: 6px; }
-    .sig-name { font-size: 12px; font-weight: 600; margin-top: 2px; }
-    .footer-note { margin-top: 28px; font-size: 10px; color: #666; line-height: 1.5; border-top: 1px solid #ddd; padding-top: 10px; }
-    .muted { color: #555; }
+    .card { border: 1px solid #000; border-radius: 6px; margin-bottom: 14px; }
+    .rowpad { padding: 12px; border-bottom: 1px solid #000; }
+    .rowpad:last-child { border-bottom: 0; }
+    .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
+    .doc-title { font-size: 20px; font-weight: 700; text-align: right; text-decoration: underline; text-transform: uppercase; letter-spacing: 1px; }
+    .doc-subtitle { font-size: 11px; color: #475569; text-align: right; margin-top: 4px; }
+    .two-col { display: table; width: 100%; }
+    .two-col > div { display: table-cell; width: 50%; vertical-align: top; padding: 12px; }
+    .two-col > div:first-child { border-right: 1px solid #000; }
+    .detail-list div { margin-bottom: 5px; }
+    .muted { color: #475569; font-size: 11px; }
+    .section-title { font-weight: 700; margin-bottom: 6px; }
+    .text-block { background: #f9fafb; border: 1px solid #e2e8f0; border-radius: 4px; padding: 10px 12px; line-height: 1.7; }
+    .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+    .sig-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; margin-bottom: 4px; margin-top: 8px; }
+    .sig-line { border-bottom: 1.5px solid #111; height: 36px; margin-bottom: 4px; }
+    .sig-name { font-size: 12px; font-weight: 600; }
+    .footer-note { font-size: 10px; color: #475569; line-height: 1.5; }
   </style>
 </head>
 <body>
-  <div class="outer">
-    ${input.logoDataUri
-      ? `<div class="logo-bar"><img src="${input.logoDataUri}" alt="Logo" /></div>`
-      : `<div class="logo-bar"><strong style="font-size:18px;">Stanforte Edge</strong></div>`}
-
-    <div class="cert-title">Certificate of Honor</div>
-    <div class="cert-subtitle">Cash Advance Retirement Declaration</div>
-
-    <hr class="divider" />
-
-    <div class="meta-grid">
-      <div class="meta-item">
-        <div class="meta-label">Request</div>
-        <div class="meta-value">${this.escapeHtml(input.requestLabel)}</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">Payment Voucher</div>
-        <div class="meta-value">${this.escapeHtml(input.voucherNumber)}</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">Staff Member</div>
-        <div class="meta-value">${this.escapeHtml(input.staffName)}</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">Amount</div>
-        <div class="meta-value">${this.escapeHtml(input.amountLabel)}</div>
-      </div>
-      <div class="meta-item">
-        <div class="meta-label">Date Issued</div>
-        <div class="meta-value">${this.escapeHtml(input.issuedAt)}</div>
+  <div class="card">
+    <div class="rowpad">
+      <div class="header-row">
+        <div>${input.logoDataUri ? `<img src="${input.logoDataUri}" alt="Logo" style="height:42px;" />` : '<strong>Stanforte Edge</strong>'}</div>
+        <div>
+          <div class="doc-title">Certificate of Honor</div>
+          <div class="doc-subtitle">Cash Advance Retirement Declaration</div>
+        </div>
       </div>
     </div>
-
-    <hr class="divider" />
-
-    <div class="section-title">Declaration</div>
-    <div class="declaration-box">${this.escapeHtml(input.declaration)}</div>
-
-    <div class="section-title">Why Receipts Are Unavailable</div>
-    <div class="declaration-box">${this.escapeHtml(input.reason)}</div>
-
-    <div class="declaration-box muted" style="font-size:11px;">
-      I accept full responsibility for the accuracy of this declaration and understand it forms part
-      of the retirement record for this request.
-    </div>
-
-    <div class="sig-block">
-      <div class="sig-col">
-        <div class="sig-label">Signature</div>
-        ${sigBlock}
-        <div class="sig-label">Name</div>
-        <div class="sig-name">${this.escapeHtml(input.staffName)}</div>
-        <div class="sig-label" style="margin-top:6px;">Date</div>
-        <div class="sig-name">${this.escapeHtml(input.issuedAt)}</div>
+    <div class="two-col">
+      <div>
+        <div class="detail-list">
+          <div><strong>Staff Member:</strong> ${this.escapeHtml(input.staffName)}</div>
+          <div><strong>Request:</strong> ${this.escapeHtml(input.requestLabel)}</div>
+          <div><strong>Payment Voucher:</strong> ${this.escapeHtml(input.voucherNumber)}</div>
+        </div>
       </div>
-      <div class="sig-col">
-        <div class="sig-label">Witnessed / Verified by</div>
-        <div style="border-bottom:1.5px solid #111; width:220px; height:36px; margin-bottom:4px;"></div>
-        <div class="sig-label">Name / Title</div>
-        <div class="sig-name" style="border-bottom:1px solid #ddd; min-height:18px;"></div>
-        <div class="sig-label" style="margin-top:6px;">Date</div>
-        <div class="sig-name" style="border-bottom:1px solid #ddd; min-height:18px;"></div>
+      <div>
+        <div class="detail-list">
+          <div><strong>Amount:</strong> ${this.escapeHtml(input.amountLabel)}</div>
+          <div><strong>Date Issued:</strong> ${this.escapeHtml(input.issuedAt)}</div>
+        </div>
       </div>
     </div>
+  </div>
 
-    <div class="footer-note">
-      This Certificate of Honor was generated as part of the retirement process for the above-referenced
-      request. It is an official document and must be retained with the supporting retirement files.
+  <div class="card">
+    <div class="rowpad">
+      <div class="section-title">Declaration</div>
+      <div class="text-block">${this.escapeHtml(input.declaration)}</div>
+    </div>
+    <div class="rowpad">
+      <div class="section-title">Why Receipts Are Unavailable</div>
+      <div class="text-block">${this.escapeHtml(input.reason)}</div>
+    </div>
+    <div class="rowpad">
+      <div class="text-block muted">
+        I accept full responsibility for the accuracy of this declaration and understand it forms
+        part of the retirement record for this request.
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="rowpad">
+      <strong>Signatures</strong>
+      <div class="sig-grid">
+        <div>
+          <div class="sig-label">Signed by (Staff)</div>
+          ${sigBlock}
+          <div class="sig-label">Name</div>
+          <div class="sig-name">${this.escapeHtml(input.staffName)}</div>
+          <div class="sig-label">Date</div>
+          <div class="sig-name">${this.escapeHtml(input.issuedAt)}</div>
+        </div>
+        <div>
+          <div class="sig-label">Witnessed / Verified by</div>
+          <div class="sig-line"></div>
+          <div class="sig-label">Name / Title</div>
+          <div class="sig-name" style="border-bottom:1px solid #ddd; min-height:18px;"></div>
+          <div class="sig-label">Date</div>
+          <div class="sig-name" style="border-bottom:1px solid #ddd; min-height:18px;"></div>
+        </div>
+      </div>
+    </div>
+    <div class="rowpad">
+      <div class="footer-note">
+        This Certificate of Honor was generated as part of the retirement process for the above-referenced
+        request. It is an official document and must be retained with the supporting retirement files.
+      </div>
     </div>
   </div>
 </body>
