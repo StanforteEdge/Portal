@@ -47,6 +47,7 @@ type ManualDisbursement = {
   note: string;
   disbursed_at: string;
   evidence_file_id?: string;
+  evidence_file_ids?: string[];
   retired_amount?: number;
   retirement_status?: string;
   retirement_file_ids_text?: string;
@@ -168,6 +169,7 @@ function FinanceManualEntryPage() {
   const [generatingCertIndex, setGeneratingCertIndex] = useState<number | null>(null);
   const [certAssetsByIndex, setCertAssetsByIndex] = useState<Record<number, { id: string; file_name: string; previewUrl: string }[]>>({});
   const [requestDeductions, setRequestDeductions] = useState<FinanceRequestDeductionRecord[]>([]);
+  const [signatoryDefaults, setSignatoryDefaults] = useState<{ prepared_by: { name: string; title: string }; reviewed_by: { name: string; title: string }; approved_by: { name: string; title: string } }>({ prepared_by: { name: "", title: "" }, reviewed_by: { name: "", title: "" }, approved_by: { name: "", title: "" } });
   const [mediaPickerTarget, setMediaPickerTarget] = useState<ManualEntryPickerTarget | null>(null);
 
   const [form, setForm] = useState({
@@ -253,11 +255,11 @@ function FinanceManualEntryPage() {
       approvals: {
         team_lead_name: "",
         team_lead_date: "",
-        accountant_name: "",
+        accountant_name: signatoryDefaults.prepared_by.name,
         accountant_date: "",
-        coo_name: "",
+        coo_name: signatoryDefaults.reviewed_by.name,
         coo_date: "",
-        ed_name: "",
+        ed_name: signatoryDefaults.approved_by.name,
         ed_date: "",
         include_ed: false,
       },
@@ -394,7 +396,7 @@ function FinanceManualEntryPage() {
     const load = async () => {
       try {
         setLoading(true);
-        const [users, groups, teams, orgs, projects, taxonomies, accounts, funds, grants, vendors, deductionTypes] = await Promise.all([
+        const [users, groups, teams, orgs, projects, taxonomies, accounts, funds, grants, vendors, deductionTypes, settings] = await Promise.all([
           adminUsersApi.listUsers({ page: 1, per_page: 200 }),
           requestApi.listGroups(),
           resourceApi.listGroups({ active_only: false }),
@@ -406,7 +408,11 @@ function FinanceManualEntryPage() {
           financeApi.listGrants({ status: "active" }).catch(() => []),
           financeApi.listContacts({ contact_type: "vendor", per_page: 200 }).catch(() => ({ result: [] })),
           financeApi.listDeductionTypes({ is_active: true }).catch(() => []),
+          financeApi.getSettings().catch(() => ({})),
         ]);
+        const cfg = (settings || {}) as Record<string, any>;
+        const toSig = (key: string) => ({ name: String((cfg[key] as any)?.name ?? ""), title: String((cfg[key] as any)?.title ?? "") });
+        setSignatoryDefaults({ prepared_by: toSig("prepared_by"), reviewed_by: toSig("reviewed_by"), approved_by: toSig("approved_by") });
         setStaffOptions(
           users.data.map((u: any) => ({
             id: u.id,
@@ -452,6 +458,21 @@ function FinanceManualEntryPage() {
     };
     void load();
   }, []);
+
+  useEffect(() => {
+    if (!editingId && signatoryDefaults.prepared_by.name) {
+      setForm((prev) => ({
+        ...prev,
+        approvals: {
+          ...prev.approvals,
+          accountant_name: prev.approvals.accountant_name || signatoryDefaults.prepared_by.name,
+          coo_name: prev.approvals.coo_name || signatoryDefaults.reviewed_by.name,
+          ed_name: prev.approvals.ed_name || signatoryDefaults.approved_by.name,
+        },
+      }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signatoryDefaults]);
 
   useEffect(() => {
     const manualNumber = String(form.request_id || "").trim();
@@ -553,24 +574,26 @@ function FinanceManualEntryPage() {
       quantity: Number(item.quantity || 1),
       notes: item.notes,
       file_id: item.file_id || undefined,
+      file_ids: item.file_ids?.length ? item.file_ids : undefined,
     })),
     disbursements: (input.disbursements || [])
       .filter((entry) => entry.voucher_number && Number(entry.amount) > 0)
       .map((entry) => {
         const deductions = (entry.deductions || []).filter((d) => d.deduction_type_id && d.deduction_amount > 0);
-        const totalDeducted = deductions.reduce((s, d) => s + d.deduction_amount, 0);
-        const grossAmt = Number(entry.amount);
+        const pvNet = Number(entry.amount);
+        const firstDedGross = deductions[0]?.gross_amount ?? pvNet;
         return {
           voucher_number: entry.voucher_number,
-          amount: grossAmt,
-          gross_amount: deductions.length > 0 ? grossAmt : undefined,
-          net_amount: deductions.length > 0 ? grossAmt - totalDeducted : undefined,
+          amount: pvNet,
+          gross_amount: deductions.length > 0 ? firstDedGross : undefined,
+          net_amount: deductions.length > 0 ? pvNet : undefined,
           paid_from_account_id: entry.paid_from_account_id || undefined,
           method: entry.method || undefined,
           transaction_ref: entry.transaction_ref || undefined,
           note: entry.note || undefined,
           disbursed_at: entry.disbursed_at || undefined,
           evidence_file_id: entry.evidence_file_id || undefined,
+          evidence_file_ids: (entry as any).evidence_file_ids?.length ? (entry as any).evidence_file_ids : undefined,
           retired_amount: Number(entry.retired_amount || 0),
           retirement_status: entry.retirement_status || undefined,
           retirement_file_ids: (entry.retirement_file_ids_text || "")
@@ -908,12 +931,13 @@ function FinanceManualEntryPage() {
     try {
       setSaving(true);
       setNotice(null);
+      const defaultDate = form.created_at || undefined;
       const approvals = [
-        { role: "team_lead", name: form.approvals.team_lead_name, date: form.approvals.team_lead_date, done: !!form.approvals.team_lead_name },
-        { role: "accountant", name: form.approvals.accountant_name, date: form.approvals.accountant_date, done: !!form.approvals.accountant_name },
-        { role: "coo", name: form.approvals.coo_name, date: form.approvals.coo_date, done: !!form.approvals.coo_name },
+        { role: "team_lead", name: form.approvals.team_lead_name, date: form.approvals.team_lead_date || defaultDate, done: !!form.approvals.team_lead_name },
+        { role: "accountant", name: form.approvals.accountant_name, date: form.approvals.accountant_date || defaultDate, done: !!form.approvals.accountant_name },
+        { role: "coo", name: form.approvals.coo_name, date: form.approvals.coo_date || defaultDate, done: !!form.approvals.coo_name },
         ...(form.approvals.include_ed
-          ? [{ role: "ed", name: form.approvals.ed_name, date: form.approvals.ed_date, done: !!form.approvals.ed_name }]
+          ? [{ role: "ed", name: form.approvals.ed_name, date: form.approvals.ed_date || defaultDate, done: !!form.approvals.ed_name }]
           : []),
       ];
       const selectedProjectName =
@@ -947,6 +971,7 @@ function FinanceManualEntryPage() {
           quantity: Number(item.quantity || 1),
           notes: item.notes,
           file_id: item.file_id || undefined,
+          file_ids: item.file_ids?.length ? item.file_ids : undefined,
         })),
         disbursements: disbursements
           .filter((d) => d.voucher_number && Number(d.amount) > 0)
@@ -965,6 +990,7 @@ function FinanceManualEntryPage() {
               note: d.note || undefined,
               disbursed_at: d.disbursed_at || undefined,
               evidence_file_id: d.evidence_file_id || undefined,
+              evidence_file_ids: d.evidence_file_ids?.length ? d.evidence_file_ids : undefined,
               retired_amount: Number(d.retired_amount || 0),
               retirement_status: d.retirement_status || undefined,
               retirement_file_ids: (d.retirement_file_ids_text || "")
@@ -1049,13 +1075,13 @@ function FinanceManualEntryPage() {
         currency: req.currency || "NGN",
         approvals: {
           team_lead_name: findApproval("team_lead")?.name || "",
-          team_lead_date: findApproval("team_lead")?.date ? String(findApproval("team_lead").date).slice(0, 10) : "",
-          accountant_name: findApproval("accountant")?.name || "",
-          accountant_date: findApproval("accountant")?.date ? String(findApproval("accountant").date).slice(0, 10) : "",
-          coo_name: findApproval("coo")?.name || "",
-          coo_date: findApproval("coo")?.date ? String(findApproval("coo").date).slice(0, 10) : "",
-          ed_name: findApproval("ed")?.name || "",
-          ed_date: findApproval("ed")?.date ? String(findApproval("ed").date).slice(0, 10) : "",
+          team_lead_date: findApproval("team_lead")?.date ? String(findApproval("team_lead").date).slice(0, 10) : (req.created_at ? String(req.created_at).slice(0, 10) : ""),
+          accountant_name: findApproval("accountant")?.name || signatoryDefaults.prepared_by.name,
+          accountant_date: findApproval("accountant")?.date ? String(findApproval("accountant").date).slice(0, 10) : (req.created_at ? String(req.created_at).slice(0, 10) : ""),
+          coo_name: findApproval("coo")?.name || signatoryDefaults.reviewed_by.name,
+          coo_date: findApproval("coo")?.date ? String(findApproval("coo").date).slice(0, 10) : (req.created_at ? String(req.created_at).slice(0, 10) : ""),
+          ed_name: findApproval("ed")?.name || signatoryDefaults.approved_by.name,
+          ed_date: findApproval("ed")?.date ? String(findApproval("ed").date).slice(0, 10) : (req.created_at ? String(req.created_at).slice(0, 10) : ""),
           include_ed: Boolean(findApproval("ed")),
         },
       }));
@@ -1067,6 +1093,7 @@ function FinanceManualEntryPage() {
           quantity: Number(item.quantity || 1),
           notes: item.notes || "",
           file_id: item.file_id || "",
+          file_ids: (item.files || item.item_files || []).map((f: any) => f.id || f.file_id || f.fileId || "").filter(Boolean),
         }))
       );
       setDisbursements(
@@ -1078,7 +1105,8 @@ function FinanceManualEntryPage() {
           transaction_ref: pv.transaction_ref || "",
           note: pv.note || "",
           disbursed_at: pv.disbursed_at ? String(pv.disbursed_at).slice(0, 10) : "",
-          evidence_file_id: pv.evidence_file?.id || "",
+          evidence_file_id: pv.evidence_file?.id || (pv.evidence_files?.[0]?.id ?? ""),
+          evidence_file_ids: (pv.evidence_files || []).map((f: any) => f.id || "").filter(Boolean),
           retired_amount: Number(pv.retired_amount || 0),
           retirement_status: pv.retirement_status || "not_retired",
           retirement_file_ids_text: (pv.retirement_files || []).map((f: any) => f.id).join(", "),
