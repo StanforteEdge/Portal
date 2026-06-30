@@ -12,6 +12,24 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
+class ManualDeductionDto {
+  @ApiProperty()
+  @IsUUID()
+  deduction_type_id!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  rate!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  gross_amount!: number;
+
+  @ApiProperty()
+  @IsNumber()
+  deduction_amount!: number;
+}
+
 class ManualItemDto {
   @ApiProperty()
   @IsString()
@@ -138,6 +156,48 @@ class ManualVoucherDto {
   @IsArray()
   @IsUUID('4', { each: true })
   retirement_file_ids?: string[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  contact_id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  gross_amount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  net_amount?: number;
+
+  @ApiPropertyOptional({ type: [ManualDeductionDto] })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ManualDeductionDto)
+  deductions?: ManualDeductionDto[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsNumber()
+  refund_amount?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  refund_method?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  refund_reference?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  refund_date?: string;
 }
 
 export class CreateManualRequestDto {

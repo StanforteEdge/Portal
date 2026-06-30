@@ -9,6 +9,8 @@ import { formatCurrency } from "@stanforte/shared";
 import { listProjects, downloadRequestArtifact, type RequestItemInput } from "../../requests/requests-api";
 import { buildAppMobileNav, buildRequestsNavigation } from "@/pages/requests/requests-data";
 import { listManagedTaxonomies, type ManagedTaxonomy } from "../../requests/taxonomy-api";
+import { buildCertificateOfHonorPdf, formatCertificateCurrency } from "./details/utils/certificate-pdf";
+import { formatPersonName } from "@/pages/requests/request-helpers";
 import type { FinanceAccountRecord } from "@/shared";
 
 type Option = { id: string; name: string };
@@ -28,6 +30,12 @@ type ImportPreviewRow = {
 };
 
 type ManualItem = RequestItemInput;
+type ManualDeductionLine = {
+  deduction_type_id: string;
+  rate: number;
+  gross_amount: number;
+  deduction_amount: number;
+};
 type ManualDisbursement = {
   voucher_number: string;
   amount: number;
@@ -40,6 +48,14 @@ type ManualDisbursement = {
   retired_amount?: number;
   retirement_status?: string;
   retirement_file_ids_text?: string;
+  contact_id?: string;
+  deductions?: ManualDeductionLine[];
+  refund_amount?: string;
+  refund_method?: string;
+  refund_reference?: string;
+  refund_date?: string;
+  certificate_declaration?: string;
+  certificate_reason?: string;
 };
 
 const downloadBase64File = (fileName: string, mimeType: string, contentBase64: string) => {
@@ -135,6 +151,11 @@ function FinanceManualEntryPage() {
   const [financeAccounts, setFinanceAccounts] = useState<FinanceAccountRecord[]>([]);
   const [fundOptions, setFundOptions] = useState<Array<{ id: string; code: string; name: string }>>([]);
   const [grantOptions, setGrantOptions] = useState<Array<{ id: string; code: string; name: string; fundId: string | null }>>([]);
+  const [vendorOptions, setVendorOptions] = useState<Array<{ id: string; name: string; company_name?: string }>>([]);
+  const [deductionTypeOptions, setDeductionTypeOptions] = useState<Array<{ id: string; name: string; rate: number }>>([]);
+  const [deductionsOpenByIndex, setDeductionsOpenByIndex] = useState<Record<number, boolean>>({});
+  const [certOpenByIndex, setCertOpenByIndex] = useState<Record<number, boolean>>({});
+  const [generatingCertIndex, setGeneratingCertIndex] = useState<number | null>(null);
 
   const [form, setForm] = useState({
     request_type_id: "",
@@ -180,6 +201,14 @@ function FinanceManualEntryPage() {
       retired_amount: 0,
       retirement_status: "not_retired",
       retirement_file_ids_text: "",
+      contact_id: "",
+      deductions: [],
+      refund_amount: "",
+      refund_method: "bank_transfer",
+      refund_reference: "",
+      refund_date: "",
+      certificate_declaration: "",
+      certificate_reason: "",
     },
   ]);
 
@@ -230,6 +259,14 @@ function FinanceManualEntryPage() {
         retired_amount: 0,
         retirement_status: "not_retired",
         retirement_file_ids_text: "",
+        contact_id: "",
+        deductions: [],
+        refund_amount: "",
+        refund_method: "bank_transfer",
+        refund_reference: "",
+        refund_date: "",
+        certificate_declaration: "",
+        certificate_reason: "",
       },
     ]);
   };
@@ -339,7 +376,7 @@ function FinanceManualEntryPage() {
     const load = async () => {
       try {
         setLoading(true);
-        const [users, groups, teams, orgs, projects, taxonomies, accounts, funds, grants] = await Promise.all([
+        const [users, groups, teams, orgs, projects, taxonomies, accounts, funds, grants, vendors, deductionTypes] = await Promise.all([
           adminUsersApi.listUsers({ page: 1, per_page: 200 }),
           requestApi.listGroups(),
           resourceApi.listGroups({ active_only: false }),
@@ -349,6 +386,8 @@ function FinanceManualEntryPage() {
           resourceApi.listFinanceAccounts({ is_active: true }).catch(() => ({ result: [], total: 0, total_result: 0, per_page: 20, page: 1, pages: 1 })),
           financeApi.listFunds({ is_active: true }).catch(() => []),
           financeApi.listGrants({ status: "active" }).catch(() => []),
+          financeApi.listContacts({ contact_type: "vendor", per_page: 200 }).catch(() => ({ result: [] })),
+          financeApi.listDeductionTypes({ is_active: true }).catch(() => []),
         ]);
         setStaffOptions(
           users.data.map((u: any) => ({
@@ -371,6 +410,20 @@ function FinanceManualEntryPage() {
             code: String(grant.code || ""),
             name: String(grant.name || ""),
             fundId: grant.fund ? String(grant.fund.id) : null,
+          }))
+        );
+        setVendorOptions(
+          ((vendors as any)?.result || []).map((v: any) => ({
+            id: String(v.id),
+            name: String(v.name || ""),
+            company_name: v.company_name ? String(v.company_name) : undefined,
+          }))
+        );
+        setDeductionTypeOptions(
+          (deductionTypes as any[] || []).map((t: any) => ({
+            id: String(t.id),
+            name: String(t.name || ""),
+            rate: Number(t.rate || 0),
           }))
         );
       } catch (error: any) {
@@ -485,22 +538,35 @@ function FinanceManualEntryPage() {
     })),
     disbursements: (input.disbursements || [])
       .filter((entry) => entry.voucher_number && Number(entry.amount) > 0)
-      .map((entry) => ({
-        voucher_number: entry.voucher_number,
-        amount: Number(entry.amount),
-        paid_from_account_id: entry.paid_from_account_id || undefined,
-        method: entry.method || undefined,
-        transaction_ref: entry.transaction_ref || undefined,
-        note: entry.note || undefined,
-        disbursed_at: entry.disbursed_at || undefined,
-        evidence_file_id: entry.evidence_file_id || undefined,
-        retired_amount: Number(entry.retired_amount || 0),
-        retirement_status: entry.retirement_status || undefined,
-        retirement_file_ids: (entry.retirement_file_ids_text || "")
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
-      })),
+      .map((entry) => {
+        const deductions = (entry.deductions || []).filter((d) => d.deduction_type_id && d.deduction_amount > 0);
+        const totalDeducted = deductions.reduce((s, d) => s + d.deduction_amount, 0);
+        const grossAmt = Number(entry.amount);
+        return {
+          voucher_number: entry.voucher_number,
+          amount: grossAmt,
+          gross_amount: deductions.length > 0 ? grossAmt : undefined,
+          net_amount: deductions.length > 0 ? grossAmt - totalDeducted : undefined,
+          paid_from_account_id: entry.paid_from_account_id || undefined,
+          method: entry.method || undefined,
+          transaction_ref: entry.transaction_ref || undefined,
+          note: entry.note || undefined,
+          disbursed_at: entry.disbursed_at || undefined,
+          evidence_file_id: entry.evidence_file_id || undefined,
+          retired_amount: Number(entry.retired_amount || 0),
+          retirement_status: entry.retirement_status || undefined,
+          retirement_file_ids: (entry.retirement_file_ids_text || "")
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean),
+          contact_id: entry.contact_id || undefined,
+          deductions: deductions.length > 0 ? deductions : undefined,
+          refund_amount: entry.refund_amount ? Number(entry.refund_amount) : undefined,
+          refund_method: entry.refund_method || undefined,
+          refund_reference: entry.refund_reference || undefined,
+          refund_date: entry.refund_date || undefined,
+        };
+      }),
   });
 
   const downloadBatchTemplate = () => {
@@ -639,6 +705,14 @@ function FinanceManualEntryPage() {
               retired_amount: Number(entry.retired_amount || 0),
               retirement_status: normalizeText(entry.retirement_status) || "not_retired",
               retirement_file_ids_text: "",
+              contact_id: "",
+              deductions: [],
+              refund_amount: "",
+              refund_method: "bank_transfer",
+              refund_reference: "",
+              refund_date: "",
+              certificate_declaration: "",
+              certificate_reason: "",
             } as ManualDisbursement;
           });
 
@@ -860,22 +934,35 @@ function FinanceManualEntryPage() {
         })),
         disbursements: disbursements
           .filter((d) => d.voucher_number && Number(d.amount) > 0)
-          .map((d) => ({
-            voucher_number: d.voucher_number,
-            amount: Number(d.amount),
-            paid_from_account_id: d.paid_from_account_id || undefined,
-            method: d.method || undefined,
-            transaction_ref: d.transaction_ref || undefined,
-            note: d.note || undefined,
-            disbursed_at: d.disbursed_at || undefined,
-            evidence_file_id: d.evidence_file_id || undefined,
-            retired_amount: Number(d.retired_amount || 0),
-            retirement_status: d.retirement_status || undefined,
-            retirement_file_ids: (d.retirement_file_ids_text || "")
-              .split(",")
-              .map((x) => x.trim())
-              .filter(Boolean),
-          })),
+          .map((d) => {
+            const deductions = (d.deductions || []).filter((dl) => dl.deduction_type_id && dl.deduction_amount > 0);
+            const totalDeducted = deductions.reduce((s, dl) => s + dl.deduction_amount, 0);
+            const grossAmt = Number(d.amount);
+            return {
+              voucher_number: d.voucher_number,
+              amount: grossAmt,
+              gross_amount: deductions.length > 0 ? grossAmt : undefined,
+              net_amount: deductions.length > 0 ? grossAmt - totalDeducted : undefined,
+              paid_from_account_id: d.paid_from_account_id || undefined,
+              method: d.method || undefined,
+              transaction_ref: d.transaction_ref || undefined,
+              note: d.note || undefined,
+              disbursed_at: d.disbursed_at || undefined,
+              evidence_file_id: d.evidence_file_id || undefined,
+              retired_amount: Number(d.retired_amount || 0),
+              retirement_status: d.retirement_status || undefined,
+              retirement_file_ids: (d.retirement_file_ids_text || "")
+                .split(",")
+                .map((x) => x.trim())
+                .filter(Boolean),
+              contact_id: d.contact_id || undefined,
+              deductions: deductions.length > 0 ? deductions : undefined,
+              refund_amount: d.refund_amount ? Number(d.refund_amount) : undefined,
+              refund_method: d.refund_method || undefined,
+              refund_reference: d.refund_reference || undefined,
+              refund_date: d.refund_date || undefined,
+            };
+          }),
       };
       const created = editingId
         ? await requestApi.updateManualRequestEntry(editingId, payload)
@@ -1187,7 +1274,7 @@ function FinanceManualEntryPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "" }])}>Add PV</Button></div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "", contact_id: "", deductions: [], refund_amount: "", refund_method: "bank_transfer", refund_reference: "", refund_date: "", certificate_declaration: "", certificate_reason: "" }])}>Add PV</Button></div>
           {disbursements.map((row, idx) => (
             <div key={`pv-${idx}`} className="grid grid-cols-12 gap-3 mb-4 p-3 border rounded">
               <div className="col-span-12 md:col-span-3">
@@ -1209,15 +1296,91 @@ function FinanceManualEntryPage() {
               </div>
               <div className="col-span-6 md:col-span-2"><label>Amount</label><TextField label="" type="number" value={row.amount} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, amount: Number(e.target.value || 0) } : x))} /></div>
               <div className="col-span-12 md:col-span-3"><label>Paid From Account</label><SelectField label="" value={row.paid_from_account_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, paid_from_account_id: e.target.value } : x))}><option value="">Select account</option>{financeAccounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.name}{acc.code ? ` (${acc.code})` : ""}</option>)}</SelectField></div>
-              <div className="col-span-6 md:col-span-2"><label>Method</label><SelectField label="" value={row.method} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, method: e.target.value } : x))}><option value="bank_transfer">Bank Transfer</option><option value="cash">Cash</option><option value="cheque">Cheque</option></SelectField></div>
+              <div className="col-span-6 md:col-span-2"><label>Method</label><SelectField label="" value={row.method} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, method: e.target.value } : x))}><option value="bank_transfer">Bank Transfer</option><option value="cash">Cash</option><option value="mobile_money">Mobile Money</option><option value="cheque">Cheque</option><option value="other">Other</option></SelectField></div>
               <div className="col-span-12 md:col-span-3"><label>Transaction Ref</label><TextField label="" value={row.transaction_ref} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, transaction_ref: e.target.value } : x))} /></div>
               <div className="col-span-12 md:col-span-2"><label>Date</label><TextField label="" type="date" value={row.disbursed_at} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, disbursed_at: e.target.value } : x))} /></div>
+              <div className="col-span-12 md:col-span-3"><label>Vendor / Payee</label><SelectField label="" value={row.contact_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, contact_id: e.target.value } : x))}><option value="">— None —</option>{vendorOptions.map((v) => <option key={v.id} value={v.id}>{v.name}{v.company_name ? ` — ${v.company_name}` : ""}</option>)}</SelectField></div>
               <div className="col-span-12 md:col-span-3"><label>PV evidence file_id</label><TextField label="" value={row.evidence_file_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, evidence_file_id: e.target.value } : x))} />
                 <div className="mt-2">
                   <input type="file" onChange={(e) => void uploadForPvEvidence(idx, e.target.files?.[0] || null)} />
                   {uploading === `pv-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
                 </div>
               </div>
+
+              {/* Statutory Deductions */}
+              <div className="col-span-12 border rounded-lg overflow-hidden">
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-50 hover:bg-slate-100"
+                  onClick={() => setDeductionsOpenByIndex((prev) => ({ ...prev, [idx]: !prev[idx] }))}
+                >
+                  <span>
+                    Statutory Deductions
+                    {(row.deductions || []).length > 0 && (
+                      <span className="ml-2 rounded-full bg-blue-100 px-2 py-0.5 text-xs font-bold text-blue-800">
+                        {row.deductions!.length}
+                      </span>
+                    )}
+                  </span>
+                  <Icon name={deductionsOpenByIndex[idx] ? "ChevronUp" : "ChevronDown"} className="w-4 h-4 text-slate-400" />
+                </button>
+                {deductionsOpenByIndex[idx] && (
+                  <div className="p-4 space-y-3 border-t">
+                    {(row.deductions || []).map((line, di) => (
+                      <div key={di} className="grid grid-cols-12 gap-2 items-end border rounded p-2">
+                        <div className="col-span-12 md:col-span-4">
+                          <label className="text-xs text-slate-500">Deduction Type</label>
+                          <SelectField label="" value={line.deduction_type_id} onChange={(e) => {
+                            const type = deductionTypeOptions.find((t) => t.id === e.target.value);
+                            const rate = type ? type.rate : line.rate;
+                            const deductionAmount = Math.round(Number(row.amount) * rate * 100) / 100;
+                            setDisbursements((p) => p.map((x, i) => i !== idx ? x : {
+                              ...x, deductions: (x.deductions || []).map((d, j) => j !== di ? d : { ...d, deduction_type_id: e.target.value, rate, gross_amount: Number(row.amount), deduction_amount: deductionAmount })
+                            }));
+                          }}>
+                            <option value="">Select type</option>
+                            {deductionTypeOptions.map((t) => <option key={t.id} value={t.id}>{t.name} ({(t.rate * 100).toFixed(1)}%)</option>)}
+                          </SelectField>
+                        </div>
+                        <div className="col-span-6 md:col-span-2">
+                          <label className="text-xs text-slate-500">Rate</label>
+                          <TextField label="" type="number" step="0.001" min="0" max="1" value={line.rate} onChange={(e) => {
+                            const rate = Number(e.target.value);
+                            const deductionAmount = Math.round(Number(row.amount) * rate * 100) / 100;
+                            setDisbursements((p) => p.map((x, i) => i !== idx ? x : {
+                              ...x, deductions: (x.deductions || []).map((d, j) => j !== di ? d : { ...d, rate, deduction_amount: deductionAmount })
+                            }));
+                          }} />
+                        </div>
+                        <div className="col-span-6 md:col-span-3">
+                          <label className="text-xs text-slate-500">Deduction Amount</label>
+                          <TextField label="" type="number" value={line.deduction_amount} onChange={(e) => {
+                            setDisbursements((p) => p.map((x, i) => i !== idx ? x : {
+                              ...x, deductions: (x.deductions || []).map((d, j) => j !== di ? d : { ...d, deduction_amount: Number(e.target.value) })
+                            }));
+                          }} />
+                        </div>
+                        <div className="col-span-12 md:col-span-3 flex items-end">
+                          <Button variant="danger" onClick={() => setDisbursements((p) => p.map((x, i) => i !== idx ? x : { ...x, deductions: (x.deductions || []).filter((_, j) => j !== di) }))}>Remove</Button>
+                        </div>
+                      </div>
+                    ))}
+                    <Button variant="secondary" onClick={() => setDisbursements((p) => p.map((x, i) => i !== idx ? x : { ...x, deductions: [...(x.deductions || []), { deduction_type_id: "", rate: 0, gross_amount: Number(x.amount), deduction_amount: 0 }] }))}>+ Add Deduction</Button>
+                    {(row.deductions || []).length > 0 && (() => {
+                      const totalDeducted = (row.deductions || []).reduce((s, d) => s + d.deduction_amount, 0);
+                      const netPayable = Number(row.amount) - totalDeducted;
+                      return (
+                        <div className="rounded bg-slate-100 px-3 py-2 text-sm space-y-1">
+                          <div className="flex justify-between text-slate-600"><span>Gross</span><span>{formatCurrency(Number(row.amount), form.currency)}</span></div>
+                          <div className="flex justify-between font-medium text-red-600"><span>Total Deductions</span><span>− {formatCurrency(totalDeducted, form.currency)}</span></div>
+                          <div className="flex justify-between font-bold text-slate-900 border-t pt-1"><span>Net Payable</span><span>{formatCurrency(netPayable, form.currency)}</span></div>
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+              </div>
+
               <div className="col-span-6 md:col-span-2"><label>Retired Amount</label><TextField label="" type="number" value={row.retired_amount || 0} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retired_amount: Number(e.target.value || 0) } : x))} /></div>
               <div className="col-span-6 md:col-span-2"><label>Retirement Status</label><SelectField label="" value={row.retirement_status || "not_retired"} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_status: e.target.value } : x))}><option value="not_retired">Pending</option><option value="partial">Partial</option><option value="retired">Retired</option><option value="verified">Confirmed</option></SelectField></div>
               <div className="col-span-12 md:col-span-5"><label>Retirement file ids (comma separated)</label><TextField label="" value={row.retirement_file_ids_text || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_file_ids_text: e.target.value } : x))} />
@@ -1226,6 +1389,78 @@ function FinanceManualEntryPage() {
                   {uploading === `ret-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
                 </div>
               </div>
+
+              {/* Refund section — shown when retired < disbursed */}
+              {Number(row.retired_amount || 0) > 0 && Number(row.retired_amount || 0) < Number(row.amount) && (
+                <div className="col-span-12 border border-amber-200 bg-amber-50 rounded-lg p-3">
+                  <p className="text-sm font-semibold text-amber-900 mb-2">
+                    Refund Required: {formatCurrency(Number(row.amount) - Number(row.retired_amount || 0), form.currency)}
+                  </p>
+                  <div className="grid grid-cols-12 gap-3">
+                    <div className="col-span-6 md:col-span-3"><label className="text-xs">Refund Amount</label><TextField label="" type="number" value={row.refund_amount || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, refund_amount: e.target.value } : x))} /></div>
+                    <div className="col-span-6 md:col-span-3"><label className="text-xs">Refund Method</label><SelectField label="" value={row.refund_method || "bank_transfer"} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, refund_method: e.target.value } : x))}><option value="bank_transfer">Bank Transfer</option><option value="cash_deposit">Cash Deposit</option><option value="cash_handin">Cash Hand-in</option></SelectField></div>
+                    <div className="col-span-6 md:col-span-3"><label className="text-xs">Refund Reference</label><TextField label="" value={row.refund_reference || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, refund_reference: e.target.value } : x))} placeholder="Txn ref / teller" /></div>
+                    <div className="col-span-6 md:col-span-3"><label className="text-xs">Refund Date</label><TextField label="" type="date" value={row.refund_date || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, refund_date: e.target.value } : x))} /></div>
+                  </div>
+                </div>
+              )}
+
+              {/* Certificate of Honor */}
+              <div className="col-span-12 border border-blue-200 bg-blue-50 rounded-lg overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2">
+                  <div>
+                    <p className="text-sm font-semibold text-blue-900">Certificate of Honor</p>
+                    <p className="text-xs text-blue-700">Use when receipts are unavailable — generate and attach to retirement files.</p>
+                  </div>
+                  <Button variant="secondary" onClick={() => setCertOpenByIndex((prev) => ({ ...prev, [idx]: !prev[idx] }))}>
+                    {certOpenByIndex[idx] ? "Hide" : "Add Certificate"}
+                  </Button>
+                </div>
+                {certOpenByIndex[idx] && (
+                  <div className="border-t border-blue-200 p-4 space-y-3">
+                    <TextAreaField label="Declaration" rows={3} value={row.certificate_declaration || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, certificate_declaration: e.target.value } : x))} helpText="Statement to be printed in the certificate." />
+                    <TextAreaField label="Reason (why receipts are unavailable)" rows={3} value={row.certificate_reason || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, certificate_reason: e.target.value } : x))} helpText="Explain the cash-advance, missing receipt, or other reason." />
+                    <Button
+                      variant="secondary"
+                      disabled={!editingId || generatingCertIndex === idx}
+                      onClick={() => {
+                        if (!editingId) { setNotice({ tone: "warning", message: "Save the request first before generating a certificate." }); return; }
+                        void (async () => {
+                          try {
+                            setGeneratingCertIndex(idx);
+                            const certFile = await buildCertificateOfHonorPdf({
+                              requestId: editingId,
+                              requestLabel: `Request ${editingId}`,
+                              voucherNumber: row.voucher_number || `PV-${idx + 1}`,
+                              staffName: formatPersonName(user),
+                              amountLabel: formatCertificateCurrency(Number(row.retired_amount || row.amount || 0), form.currency),
+                              declaration: row.certificate_declaration?.trim() || "",
+                              reason: row.certificate_reason?.trim() || "",
+                              issuedAt: new Date().toISOString().slice(0, 10),
+                              signatureFileId: (user as any)?.signature_file_id ?? undefined,
+                            });
+                            const asset = await resourceApi.uploadFile(certFile, { metadata: { source: "manual_retirement_certificate", request_id: editingId } });
+                            setDisbursements((p) => p.map((x, i) => {
+                              if (i !== idx) return x;
+                              const existing = (x.retirement_file_ids_text || "").split(",").map((s) => s.trim()).filter(Boolean);
+                              return { ...x, retirement_file_ids_text: Array.from(new Set([...existing, asset.id])).join(", ") };
+                            }));
+                            setNotice({ tone: "success", message: "Certificate generated and added to retirement files." });
+                          } catch (err: any) {
+                            setNotice({ tone: "error", message: err?.message || "Failed to generate certificate." });
+                          } finally {
+                            setGeneratingCertIndex(null);
+                          }
+                        })();
+                      }}
+                    >
+                      {generatingCertIndex === idx ? "Generating..." : "Generate & Attach Certificate"}
+                    </Button>
+                    {!editingId && <p className="text-xs text-amber-700">Save the request first to enable certificate generation.</p>}
+                  </div>
+                )}
+              </div>
+
               <div className="col-span-12 md:col-span-12"><label>Note</label><TextField label="" value={row.note} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, note: e.target.value } : x))} /></div>
             </div>
           ))}

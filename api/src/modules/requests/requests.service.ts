@@ -615,6 +615,10 @@ export class RequestsService {
           const disbursedAt = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
           if (Number.isNaN(disbursedAt.getTime())) throw new BadRequestException('Invalid disbursement date');
           const evidenceFileIds = this.normalizeVoucherEvidenceFileIds(row);
+          const deductions = row.deductions ?? [];
+          const totalDeducted = deductions.reduce((s, d) => s + Number(d.deduction_amount), 0);
+          const grossAmt = row.gross_amount != null ? Number(row.gross_amount) : amount;
+          const netAmt = row.net_amount != null ? Number(row.net_amount) : (deductions.length > 0 ? grossAmt - totalDeducted : null);
           const createdVoucher = await tx.financePaymentVoucher.create({
             data: {
               requestId: request.id,
@@ -630,8 +634,19 @@ export class RequestsService {
               disbursedAt,
               retiredAt: retiredAmount > 0 ? disbursedAt : null,
               verifiedAt: row.retirement_status === 'verified' ? disbursedAt : null,
+              contactId: row.contact_id ?? null,
+              grossAmount: deductions.length > 0 ? grossAmt : null,
+              netAmount: netAmt,
               metadata: {
-                retirement_file_ids: row.retirement_file_ids ?? []
+                retirement_file_ids: row.retirement_file_ids ?? [],
+                ...(row.refund_amount != null || row.refund_method || row.refund_reference ? {
+                  refund: {
+                    refund_amount: row.refund_amount ?? null,
+                    refund_method: row.refund_method ?? null,
+                    refund_reference: row.refund_reference ?? null,
+                    refund_date: row.refund_date ?? null,
+                  }
+                } : {})
               } as Prisma.InputJsonValue
             }
           });
@@ -642,6 +657,18 @@ export class RequestsService {
                 fileId,
                 fileKind: 'evidence',
                 sortOrder: index
+              }))
+            });
+          }
+          if (deductions.length > 0) {
+            await tx.financePVDeduction.createMany({
+              data: deductions.map((d) => ({
+                paymentVoucherId: createdVoucher.id,
+                deductionTypeId: d.deduction_type_id,
+                rate: d.rate,
+                grossAmount: grossAmt,
+                deductionAmount: d.deduction_amount,
+                createdBy: toBigInt(userId),
               }))
             });
           }
@@ -808,6 +835,10 @@ export class RequestsService {
           const disbursedAt = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
           if (Number.isNaN(disbursedAt.getTime())) throw new BadRequestException('Invalid disbursement date');
           const evidenceFileIds = this.normalizeVoucherEvidenceFileIds(row);
+          const deductions = row.deductions ?? [];
+          const totalDeducted = deductions.reduce((s, d) => s + Number(d.deduction_amount), 0);
+          const grossAmt = row.gross_amount != null ? Number(row.gross_amount) : amount;
+          const netAmt = row.net_amount != null ? Number(row.net_amount) : (deductions.length > 0 ? grossAmt - totalDeducted : null);
           const createdVoucher = await tx.financePaymentVoucher.create({
             data: {
               requestId: desiredRequestId,
@@ -823,8 +854,19 @@ export class RequestsService {
               disbursedAt,
               retiredAt: retiredAmount > 0 ? disbursedAt : null,
               verifiedAt: row.retirement_status === 'verified' ? disbursedAt : null,
+              contactId: row.contact_id ?? null,
+              grossAmount: deductions.length > 0 ? grossAmt : null,
+              netAmount: netAmt,
               metadata: {
-                retirement_file_ids: row.retirement_file_ids ?? []
+                retirement_file_ids: row.retirement_file_ids ?? [],
+                ...(row.refund_amount != null || row.refund_method || row.refund_reference ? {
+                  refund: {
+                    refund_amount: row.refund_amount ?? null,
+                    refund_method: row.refund_method ?? null,
+                    refund_reference: row.refund_reference ?? null,
+                    refund_date: row.refund_date ?? null,
+                  }
+                } : {})
               } as Prisma.InputJsonValue
             }
           });
@@ -835,6 +877,18 @@ export class RequestsService {
                 fileId,
                 fileKind: 'evidence',
                 sortOrder: index
+              }))
+            });
+          }
+          if (deductions.length > 0) {
+            await tx.financePVDeduction.createMany({
+              data: deductions.map((d) => ({
+                paymentVoucherId: createdVoucher.id,
+                deductionTypeId: d.deduction_type_id,
+                rate: d.rate,
+                grossAmount: grossAmt,
+                deductionAmount: d.deduction_amount,
+                createdBy: toBigInt(userId),
               }))
             });
           }

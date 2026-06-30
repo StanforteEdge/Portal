@@ -216,7 +216,7 @@ export function createRequestApi(httpRequest: HttpRequest) {
       const query = new URLSearchParams();
       query.set("voucher_number", voucherNumber);
       if (params?.exclude_request_id) query.set("exclude_request_id", params.exclude_request_id);
-      return httpRequest<{ exists: boolean; request_id: string | null }>(`/requests/check-manual-voucher-number?${query.toString()}`);
+      return httpRequest<{ exists: boolean; request_id: string | null }>(`/requests/manual-entry/check-voucher-number?${query.toString()}`);
     },
 
     async createManualRequestEntry(payload: Record<string, unknown>) {
