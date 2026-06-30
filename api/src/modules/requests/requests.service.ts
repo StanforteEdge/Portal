@@ -3961,6 +3961,16 @@ export class RequestsService {
       request.creator.username ||
       request.creator.email;
 
+    const pvData = (request.data ?? {}) as Record<string, unknown>;
+    const isManualImport = Boolean(pvData.manual_import);
+    const manualApprovals = Array.isArray(pvData.manual_approvals)
+      ? (pvData.manual_approvals as Array<Record<string, unknown>>)
+      : [];
+    const manualFor = (matcher: RegExp) => manualApprovals.find((row) => matcher.test(String(row.role ?? '')));
+    const manualAccountant = manualFor(/\b(accountant|finance)\b/i);
+    const manualCoo = manualFor(/\bcoo\b|chief\s+operating\s+officer/i);
+    const manualEd = manualFor(/\bed\b|executive director/i);
+
     const cooApproved = approvals.done.find((a) => /\bcoo\b|chief\s+operating\s+officer/i.test(a.step));
     const edApproved = approvals.done.find((a) => /\bed\b|executive director/i.test(a.step));
     const method = voucher?.method ?? null;
@@ -3986,14 +3996,14 @@ export class RequestsService {
       amountWords: this.amountToWords(totalAmount),
       method,
       details,
-      preparedBy: signatories.prepared_by.name || '________________',
-      preparedDate: this.formatDate(generatedAt),
-      cooBy: signatories.reviewed_by.name || '________________',
-      cooDate: cooApproved ? this.formatDate(cooApproved.at) : 'Pending',
-      cooDone: Boolean(cooApproved),
-      edBy: signatories.approved_by.name || '________________',
-      edDate: edApproved ? this.formatDate(edApproved.at) : 'Pending / N/A',
-      edDone: Boolean(edApproved),
+      preparedBy: (isManualImport && manualAccountant?.name ? String(manualAccountant.name) : null) ?? (signatories.prepared_by.name || '________________'),
+      preparedDate: isManualImport && manualAccountant?.date ? this.formatDate(String(manualAccountant.date)) : this.formatDate(generatedAt),
+      cooBy: (isManualImport && manualCoo?.name ? String(manualCoo.name) : null) ?? (signatories.reviewed_by.name || '________________'),
+      cooDate: isManualImport ? (manualCoo?.date ? this.formatDate(String(manualCoo.date)) : 'Pending') : (cooApproved ? this.formatDate(cooApproved.at) : 'Pending'),
+      cooDone: isManualImport ? Boolean(manualCoo?.done) : Boolean(cooApproved),
+      edBy: (isManualImport && manualEd?.name ? String(manualEd.name) : null) ?? (signatories.approved_by.name || '________________'),
+      edDate: isManualImport ? (manualEd?.date ? this.formatDate(String(manualEd.date)) : 'Pending / N/A') : (edApproved ? this.formatDate(edApproved.at) : 'Pending / N/A'),
+      edDone: isManualImport ? Boolean(manualEd?.done) : Boolean(edApproved),
       remarks: voucher?.notes ?? null
     });
 
