@@ -54,6 +54,8 @@ type ManualDisbursement = {
   refund_method?: string;
   refund_reference?: string;
   refund_date?: string;
+  certificate_staff_name?: string;
+  certificate_amount?: string;
   certificate_declaration?: string;
   certificate_reason?: string;
 };
@@ -156,6 +158,7 @@ function FinanceManualEntryPage() {
   const [deductionsOpenByIndex, setDeductionsOpenByIndex] = useState<Record<number, boolean>>({});
   const [certOpenByIndex, setCertOpenByIndex] = useState<Record<number, boolean>>({});
   const [generatingCertIndex, setGeneratingCertIndex] = useState<number | null>(null);
+  const [certAssetsByIndex, setCertAssetsByIndex] = useState<Record<number, { id: string; file_name: string; previewUrl: string }[]>>({});
 
   const [form, setForm] = useState({
     request_type_id: "",
@@ -207,6 +210,8 @@ function FinanceManualEntryPage() {
       refund_method: "bank_transfer",
       refund_reference: "",
       refund_date: "",
+      certificate_staff_name: "",
+      certificate_amount: "",
       certificate_declaration: "",
       certificate_reason: "",
     },
@@ -711,6 +716,8 @@ function FinanceManualEntryPage() {
               refund_method: "bank_transfer",
               refund_reference: "",
               refund_date: "",
+              certificate_staff_name: "",
+              certificate_amount: "",
               certificate_declaration: "",
               certificate_reason: "",
             } as ManualDisbursement;
@@ -1062,6 +1069,16 @@ function FinanceManualEntryPage() {
           retired_amount: Number(pv.retired_amount || 0),
           retirement_status: pv.retirement_status || "not_retired",
           retirement_file_ids_text: (pv.retirement_files || []).map((f: any) => f.id).join(", "),
+          contact_id: "",
+          deductions: [],
+          refund_amount: "",
+          refund_method: "bank_transfer",
+          refund_reference: "",
+          refund_date: "",
+          certificate_staff_name: formatPersonName(req.creator),
+          certificate_amount: "",
+          certificate_declaration: "",
+          certificate_reason: "",
         }))
       );
       setNotice({ tone: "success", message: `Loaded request ${req.id} for edit.` });
@@ -1266,7 +1283,7 @@ function FinanceManualEntryPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "", contact_id: "", deductions: [], refund_amount: "", refund_method: "bank_transfer", refund_reference: "", refund_date: "", certificate_declaration: "", certificate_reason: "" }])}>Add PV</Button></div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "", contact_id: "", deductions: [], refund_amount: "", refund_method: "bank_transfer", refund_reference: "", refund_date: "", certificate_staff_name: "", certificate_amount: "", certificate_declaration: "", certificate_reason: "" }])}>Add PV</Button></div>
           {disbursements.map((row, idx) => (
             <div key={`pv-${idx}`} className="grid grid-cols-12 gap-3 mb-4 p-3 border rounded">
               <div className="col-span-12 md:col-span-3">
@@ -1410,6 +1427,8 @@ function FinanceManualEntryPage() {
                 </div>
                 {certOpenByIndex[idx] && (
                   <div className="border-t border-blue-200 p-4 space-y-3">
+                    <TextField label="Staff Name (on certificate)" value={row.certificate_staff_name || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, certificate_staff_name: e.target.value } : x))} helpText="Defaults to request owner. Override if needed." />
+                    <TextField label="Amount (on certificate)" value={row.certificate_amount || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, certificate_amount: e.target.value } : x))} helpText={`Shortfall: ${formatCertificateCurrency(Math.max(0, Number(row.amount || 0) - Number(row.retired_amount || 0)), form.currency)}. Leave blank to use this shortfall.`} />
                     <TextAreaField label="Declaration" rows={3} value={row.certificate_declaration || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, certificate_declaration: e.target.value } : x))} helpText="Statement to be printed in the certificate." />
                     <TextAreaField label="Reason (why receipts are unavailable)" rows={3} value={row.certificate_reason || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, certificate_reason: e.target.value } : x))} helpText="Explain the cash-advance, missing receipt, or other reason." />
                     <Button
@@ -1420,22 +1439,29 @@ function FinanceManualEntryPage() {
                         void (async () => {
                           try {
                             setGeneratingCertIndex(idx);
+                            const shortfall = Math.max(0, Number(row.amount || 0) - Number(row.retired_amount || 0));
+                            const certAmount = row.certificate_amount?.trim() ? Number(row.certificate_amount) : shortfall;
                             const certFile = await buildCertificateOfHonorPdf({
                               requestId: editingId,
                               requestLabel: `Request ${editingId}`,
                               voucherNumber: row.voucher_number || `PV-${idx + 1}`,
-                              staffName: formatPersonName(user),
-                              amountLabel: formatCertificateCurrency(Number(row.retired_amount || row.amount || 0), form.currency),
+                              staffName: row.certificate_staff_name?.trim() || formatPersonName(user),
+                              amountLabel: formatCertificateCurrency(certAmount, form.currency),
                               declaration: row.certificate_declaration?.trim() || "",
                               reason: row.certificate_reason?.trim() || "",
                               issuedAt: new Date().toISOString().slice(0, 10),
                               signatureFileId: (user as any)?.signature_file_id ?? undefined,
                             });
+                            const previewUrl = URL.createObjectURL(certFile);
                             const asset = await resourceApi.uploadFile(certFile, { metadata: { source: "manual_retirement_certificate", request_id: editingId } });
                             setDisbursements((p) => p.map((x, i) => {
                               if (i !== idx) return x;
                               const existing = (x.retirement_file_ids_text || "").split(",").map((s) => s.trim()).filter(Boolean);
                               return { ...x, retirement_file_ids_text: Array.from(new Set([...existing, asset.id])).join(", ") };
+                            }));
+                            setCertAssetsByIndex((prev) => ({
+                              ...prev,
+                              [idx]: [...(prev[idx] ?? []), { id: asset.id, file_name: asset.file_name, previewUrl: asset.public_url ?? previewUrl }],
                             }));
                             setNotice({ tone: "success", message: "Certificate generated and added to retirement files." });
                           } catch (err: any) {
@@ -1449,6 +1475,15 @@ function FinanceManualEntryPage() {
                       {generatingCertIndex === idx ? "Generating..." : "Generate & Attach Certificate"}
                     </Button>
                     {!editingId && <p className="text-xs text-amber-700">Save the request first to enable certificate generation.</p>}
+                    {(certAssetsByIndex[idx] ?? []).length > 0 && (
+                      <div className="mt-2 space-y-1">
+                        {(certAssetsByIndex[idx] ?? []).map((cert) => (
+                          <a key={cert.id} href={cert.previewUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-blue-600 underline">
+                            <Icon name="FileText" className="w-3 h-3" />{cert.file_name}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
