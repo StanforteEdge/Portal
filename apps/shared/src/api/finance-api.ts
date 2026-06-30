@@ -679,7 +679,7 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     }) {
       return httpRequest<Record<string, unknown>>("/finance/settings", {
         method: "POST",
-        body: JSON.stringify(dto),
+        body: dto as Record<string, unknown>,
       });
     },
 
