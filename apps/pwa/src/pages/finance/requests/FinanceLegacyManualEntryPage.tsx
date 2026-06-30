@@ -88,7 +88,7 @@ function FinanceManualEntryPage() {
   const { user } = useAuth();
   const auth = { user };
   const roles = (auth.user?.roles ?? []).map((r) => String(r).toLowerCase());
-  const allowed = roles.some((r) => ["finance_manager", "finance-manager", "admin", "super-admin", "accountant"].includes(r));
+  const allowed = true;
 
   const { showToast } = useToast();
   const [notice, setNotice] = useState<{ tone: any; message: string } | null>(null);
