@@ -672,6 +672,17 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<Record<string, unknown>>("/finance/settings");
     },
 
+    updateSettings(dto: {
+      prepared_by?: { name?: string; title?: string };
+      reviewed_by?: { name?: string; title?: string };
+      approved_by?: { name?: string; title?: string };
+    }) {
+      return httpRequest<Record<string, unknown>>("/finance/settings", {
+        method: "POST",
+        body: JSON.stringify(dto),
+      });
+    },
+
     getExecutiveSummary(params?: Record<string, unknown>) {
       return httpRequest<Record<string, unknown>>(`/finance/reports/executive-summary${toQuery(params)}`);
     },
