@@ -671,20 +671,23 @@ export class RequestsService {
                 createdBy: toBigInt(userId),
               }))
             });
-            await tx.financeRequestDeduction.createMany({
-              data: deductions.map((d) => ({
-                requestId: request.id,
-                deductionTypeId: d.deduction_type_id,
-                amount: Number(d.deduction_amount),
-                rate: d.rate,
-                grossAmount: grossAmt,
-                status: 'pending',
-                createdBy: toBigInt(userId),
-                updatedAt: new Date(),
-              }))
-            });
           }
         }
+      }
+
+      if (dto.request_deductions?.length) {
+        await tx.financeRequestDeduction.createMany({
+          data: dto.request_deductions.map((d) => ({
+            requestId: request.id,
+            deductionTypeId: d.deduction_type_id,
+            amount: Number(d.deduction_amount),
+            rate: d.rate,
+            grossAmount: totalAmount,
+            status: 'pending',
+            createdBy: toBigInt(userId),
+            updatedAt: new Date(),
+          }))
+        });
       }
 
       if (explicitRequestId) {
@@ -906,20 +909,23 @@ export class RequestsService {
                 createdBy: toBigInt(userId),
               }))
             });
-            await tx.financeRequestDeduction.createMany({
-              data: deductions.map((d) => ({
-                requestId: desiredRequestId,
-                deductionTypeId: d.deduction_type_id,
-                amount: Number(d.deduction_amount),
-                rate: d.rate,
-                grossAmount: grossAmt,
-                status: 'pending',
-                createdBy: toBigInt(userId),
-                updatedAt: new Date(),
-              }))
-            });
           }
         }
+      }
+
+      if (dto.request_deductions?.length) {
+        await tx.financeRequestDeduction.createMany({
+          data: dto.request_deductions.map((d) => ({
+            requestId: desiredRequestId,
+            deductionTypeId: d.deduction_type_id,
+            amount: Number(d.deduction_amount),
+            rate: d.rate,
+            grossAmount: totalAmount,
+            status: 'pending',
+            createdBy: toBigInt(userId),
+            updatedAt: new Date(),
+          }))
+        });
       }
 
       if (isRequestIdChanged) {
