@@ -1,0 +1,1361 @@
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as XLSX from "xlsx";
+import { useNavigate } from "react-router-dom";
+import { Button, Icon, Table, TableHeaderRow, TableHeaderCell, TableRow, TableCell, TableBody, TextField, SelectField, TextAreaField, useToast, SlideOver } from "@/shared";
+import { useAuth } from "@/shared/context/AuthProvider";
+import { httpRequest } from "@/shared/lib/core";
+import { requestApi, adminUsersApi, resourceApi, financeApi } from "@/shared/lib/core";
+import { formatCurrency } from "@stanforte/shared";
+
+type Option = { id: string; name: string };
+type RequestTypeOption = Option & { categoryKey?: string | null };
+type ImportAction = "create" | "update" | "skip";
+type ImportPreviewRow = {
+  rowKey: string;
+  requestIdText: string;
+  requestTypeText: string;
+  staffText: string;
+  action: ImportAction;
+  actionOptions: ImportAction[];
+  existingRequestId: string | null;
+  issues: string[];
+  payload: Parameters<typeof createManualRequestEntry>[0] | null;
+  ready: boolean;
+};
+
+type ManualItem = RequestItemInput;
+type ManualDisbursement = {
+  voucher_number: string;
+  amount: number;
+  paid_from_account_id?: string;
+  method: string;
+  transaction_ref: string;
+  note: string;
+  disbursed_at: string;
+  evidence_file_id?: string;
+  retired_amount?: number;
+  retirement_status?: string;
+  retirement_file_ids_text?: string;
+};
+
+const downloadBase64File = (fileName: string, mimeType: string, contentBase64: string) => {
+  const bytes = atob(contentBase64);
+  const array = new Uint8Array(bytes.length);
+  for (let i = 0; i < bytes.length; i += 1) array[i] = bytes.charCodeAt(i);
+  const blob = new Blob([array], { type: mimeType });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+};
+
+const normalizeText = (value: unknown) => String(value ?? "").trim();
+const normalizeKey = (value: unknown) => normalizeText(value).toLowerCase();
+const normalizeRequestIdValue = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return String(Math.trunc(value));
+  }
+  const text = normalizeText(value);
+  if (/^\d+\.0+$/.test(text)) {
+    return text.replace(/\.0+$/, "");
+  }
+  return text;
+};
+
+const parseSpreadsheetDate = (value: unknown) => {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "number") {
+    const date = XLSX.SSF.parse_date_code(value);
+    if (date) {
+      const jsDate = new Date(Date.UTC(date.y, date.m - 1, date.d));
+      return jsDate.toISOString().slice(0, 10);
+    }
+  }
+  const parsed = new Date(String(value));
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toISOString().slice(0, 10);
+};
+
+function FinanceManualEntryPage() {
+  const navigate = useNavigate();
+  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const { user } = useAuth();
+  const auth = { user };
+  const roles = (auth.user?.roles ?? []).map((r) => String(r).toLowerCase());
+  const allowed = roles.some((r) => ["finance_manager", "finance-manager", "admin", "super-admin", "accountant"].includes(r));
+
+  const { showToast } = useToast();
+  const [notice, setNotice] = useState<{ tone: any; message: string } | null>(null);
+  useEffect(() => {
+    if (notice) showToast({ tone: notice.tone as any, message: notice.message, title: 'Notice' });
+  }, [notice, showToast]);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState<string | null>(null);
+  const [requestId, setRequestId] = useState<string>("");
+  const [voucherId, setVoucherId] = useState<string>("");
+  const [lookupId, setLookupId] = useState<string>("");
+  const [editingId, setEditingId] = useState<string>("");
+  const [checkingNumber, setCheckingNumber] = useState(false);
+  const [numberExists, setNumberExists] = useState<{ exists: boolean; requestId: string | null }>({
+    exists: false,
+    requestId: null,
+  });
+  const [checkingVoucherIndex, setCheckingVoucherIndex] = useState<number | null>(null);
+  const [voucherExistsByIndex, setVoucherExistsByIndex] = useState<Record<number, string | null>>({});
+  const [importingPreview, setImportingPreview] = useState(false);
+  const [importingCommit, setImportingCommit] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importRows, setImportRows] = useState<ImportPreviewRow[]>([]);
+
+  const [staffOptions, setStaffOptions] = useState<Option[]>([]);
+  const [typeOptions, setTypeOptions] = useState<RequestTypeOption[]>([]);
+  const [teamOptions, setTeamOptions] = useState<Option[]>([]);
+  const [organizationOptions, setOrganizationOptions] = useState<Option[]>([]);
+  const [projectOptions, setProjectOptions] = useState<Option[]>([]);
+  const [categoryOptions, setCategoryOptions] = useState<Option[]>([]);
+  const [taxonomyOptions, setTaxonomyOptions] = useState<ManagedTaxonomy[]>([]);
+  const [financeAccounts, setFinanceAccounts] = useState<FinanceAccountRecord[]>([]);
+  const [fundOptions, setFundOptions] = useState<Array<{ id: string; code: string; name: string }>>([]);
+  const [grantOptions, setGrantOptions] = useState<Array<{ id: string; code: string; name: string; fundId: string | null }>>([]);
+
+  const [form, setForm] = useState({
+    request_type_id: "",
+    staff_id: "",
+    request_id: "",
+    team_id: "",
+    organization_id: "",
+    project_id: "",
+    fund_id: "",
+    grant_id: "",
+    category_id: "",
+    status: "completed",
+    created_at: "",
+    due_date: "",
+    purpose: "",
+    currency: "NGN",
+    approvals: {
+      team_lead_name: "",
+      team_lead_date: "",
+      accountant_name: "",
+      accountant_date: "",
+      coo_name: "",
+      coo_date: "",
+      ed_name: "",
+      ed_date: "",
+      include_ed: false,
+    },
+  });
+
+  const [items, setItems] = useState<ManualItem[]>([
+    { description: "", amount: 0, quantity: 1, notes: "", file_id: "" },
+  ]);
+  const [disbursements, setDisbursements] = useState<ManualDisbursement[]>([
+    {
+      voucher_number: "",
+      amount: 0,
+      paid_from_account_id: "",
+      method: "bank_transfer",
+      transaction_ref: "",
+      note: "",
+      disbursed_at: "",
+      evidence_file_id: "",
+      retired_amount: 0,
+      retirement_status: "not_retired",
+      retirement_file_ids_text: "",
+    },
+  ]);
+
+  const resetManualForm = () => {
+    setRequestId("");
+    setVoucherId("");
+    setLookupId("");
+    setEditingId("");
+    setNumberExists({ exists: false, requestId: null });
+    setForm({
+      request_type_id: "",
+      staff_id: "",
+      request_id: "",
+      team_id: "",
+      organization_id: "",
+      project_id: "",
+      fund_id: "",
+      grant_id: "",
+      category_id: "",
+      status: "completed",
+      created_at: "",
+      due_date: "",
+      purpose: "",
+      currency: "NGN",
+      approvals: {
+        team_lead_name: "",
+        team_lead_date: "",
+        accountant_name: "",
+        accountant_date: "",
+        coo_name: "",
+        coo_date: "",
+        ed_name: "",
+        ed_date: "",
+        include_ed: false,
+      },
+    });
+    setItems([{ description: "", amount: 0, quantity: 1, notes: "", file_id: "" }]);
+    setDisbursements([
+      {
+        voucher_number: "",
+        amount: 0,
+        paid_from_account_id: "",
+        method: "bank_transfer",
+        transaction_ref: "",
+        note: "",
+        disbursed_at: "",
+        evidence_file_id: "",
+        retired_amount: 0,
+        retirement_status: "not_retired",
+        retirement_file_ids_text: "",
+      },
+    ]);
+  };
+
+  const itemsTotal = useMemo(
+    () => items.reduce((sum, item) => sum + Number(item.amount || 0) * Number(item.quantity || 1), 0),
+    [items]
+  );
+  const approvalNameOptions = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          staffOptions
+            .map((option: any) => option.name.trim())
+            .filter((name) => Boolean(name))
+        )
+      ).sort((a, b) => a.localeCompare(b)),
+    [staffOptions]
+  );
+  const filteredGrantOptions = useMemo(
+    () => (form.fund_id ? grantOptions.filter((grant) => grant.fundId === form.fund_id) : grantOptions),
+    [grantOptions, form.fund_id]
+  );
+  const staffLookup = useMemo(() => {
+    const map = new Map<string, Option>();
+    staffOptions.forEach((item: any) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [staffOptions]);
+  const requestTypeLookup = useMemo(() => {
+    const map = new Map<string, RequestTypeOption>();
+    typeOptions.forEach((item: any) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [typeOptions]);
+  const teamLookup = useMemo(() => {
+    const map = new Map<string, Option>();
+    teamOptions.forEach((item: any) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [teamOptions]);
+  const organizationLookup = useMemo(() => {
+    const map = new Map<string, Option>();
+    organizationOptions.forEach((item: any) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [organizationOptions]);
+  const projectLookup = useMemo(() => {
+    const map = new Map<string, Option>();
+    projectOptions.forEach((item: any) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+    });
+    return map;
+  }, [projectOptions]);
+  const fundLookup = useMemo(() => {
+    const map = new Map<string, { id: string; code: string; name: string }>();
+    fundOptions.forEach((item: any) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+      map.set(normalizeKey(item.code), item);
+      map.set(normalizeKey(`${item.code} ${item.name}`), item);
+    });
+    return map;
+  }, [fundOptions]);
+  const grantLookup = useMemo(() => {
+    const map = new Map<string, { id: string; code: string; name: string; fundId: string | null }>();
+    grantOptions.forEach((item: any) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+      map.set(normalizeKey(item.code), item);
+      map.set(normalizeKey(`${item.code} ${item.name}`), item);
+    });
+    return map;
+  }, [grantOptions]);
+  const accountLookup = useMemo(() => {
+    const map = new Map<string, FinanceAccountRecord>();
+    financeAccounts.forEach((item: any) => {
+      map.set(normalizeKey(item.id), item);
+      map.set(normalizeKey(item.name), item);
+      if (item.code) map.set(normalizeKey(item.code), item);
+      map.set(normalizeKey(`${item.code || ""} ${item.name}`), item);
+    });
+    return map;
+  }, [financeAccounts]);
+  const taxonomyTermLookup = useMemo(() => {
+    const map = new Map<string, { id: string; taxonomyKey: string }>();
+    taxonomyOptions.forEach((taxonomy) => {
+      (taxonomy.terms || []).forEach((term: any) => {
+        map.set(normalizeKey(term.id), { id: term.id, taxonomyKey: taxonomy.key });
+        map.set(normalizeKey(term.label), { id: term.id, taxonomyKey: taxonomy.key });
+        map.set(normalizeKey(term.value), { id: term.id, taxonomyKey: taxonomy.key });
+      });
+    });
+    return map;
+  }, [taxonomyOptions]);
+
+  useEffect(() => {
+    const load = async () => {
+      try {
+        setLoading(true);
+        const [users, groups, teams, orgs, projects, taxonomies, accounts, funds, grants] = await Promise.all([
+          listUsers({ page: 1, per_page: 200 }),
+          requestApi.listGroups(),
+          listTeams({ active_only: false }),
+          listOrganizations({ is_active: true }),
+          listProjects({ active_only: false }),
+          resourceApi.listTaxonomies({ context: "request_category" }),
+          listFinanceAccounts({ is_active: true }).catch(() => []),
+          listFinanceFunds({ is_active: true }).catch(() => []),
+          listFinanceGrants({ status: "active" }).catch(() => []),
+        ]);
+        setStaffOptions(
+          users.data.map((u: any) => ({
+            id: u.id,
+            name: `${u.firstName || ""} ${u.lastName || ""}`.trim() || u.username || u.email,
+          }))
+        );
+        const financeGroup = groups.find((g: any) => g.code?.toLowerCase() === "fin" || g.name?.toLowerCase() === "finance");
+        const requestTypes = await listRequestTypes(financeGroup ? { group_id: financeGroup.id } : undefined);
+        setTypeOptions(requestTypes.map((t: any) => ({ id: t.id, name: t.name, categoryKey: t.category_key })));
+        setTeamOptions(teams.map((t: any) => ({ id: t.id, name: t.name })));
+        setOrganizationOptions(orgs.map((o: any) => ({ id: o.id, name: o.name })));
+        setProjectOptions(projects.map((p: any) => ({ id: p.id, name: p.name })));
+        setTaxonomyOptions(taxonomies);
+        setFinanceAccounts(accounts);
+        setFundOptions((funds || []).map((fund: any) => ({ id: String(fund.id), code: String(fund.code || ""), name: String(fund.name || "") })));
+        setGrantOptions(
+          (grants || []).map((grant: any) => ({
+            id: String(grant.id),
+            code: String(grant.code || ""),
+            name: String(grant.name || ""),
+            fundId: grant.fund ? String(grant.fund.id) : null,
+          }))
+        );
+      } catch (error: any) {
+        setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to load manual entry options." });
+      } finally {
+        setLoading(false);
+      }
+    };
+    void load();
+  }, []);
+
+  useEffect(() => {
+    const manualNumber = String(form.request_id || "").trim();
+    if (!manualNumber) {
+      setNumberExists({ exists: false, requestId: null });
+      return;
+    }
+    if (!/^\d+$/.test(manualNumber)) {
+      setNumberExists({ exists: true, requestId: null });
+      return;
+    }
+
+    const timer = window.setTimeout(async () => {
+      try {
+        setCheckingNumber(true);
+        const result = await requestApi.checkManualRequestNumber(manualNumber, {
+          request_type_id: form.request_type_id || undefined,
+          exclude_id: editingId || undefined,
+        });
+        setNumberExists({ exists: Boolean(result.exists), requestId: result.request_id });
+      } catch {
+        setNumberExists({ exists: false, requestId: null });
+      } finally {
+        setCheckingNumber(false);
+      }
+    }, 1200);
+
+    return () => window.clearTimeout(timer);
+  }, [form.request_id, form.request_type_id, editingId]);
+
+  useEffect(() => {
+    const selectedType = typeOptions.find((item: any) => item.id === form.request_type_id);
+    const preferredTaxonomyKey = selectedType?.categoryKey || "finance_request_category";
+    const preferred = taxonomyOptions.find((item: any) => item.key === preferredTaxonomyKey);
+    const fallback = taxonomyOptions.find((item: any) => item.key === "finance_request_category") ?? taxonomyOptions[0];
+    const activeTaxonomy = preferred ?? fallback;
+    const options = (activeTaxonomy?.terms ?? []).map((term: any) => ({ id: term.id, name: term.label }));
+    setCategoryOptions(options);
+    if (form.category_id && !options.some((option: any) => option.id === form.category_id)) {
+      setForm((prev) => ({ ...prev, category_id: "" }));
+    }
+  }, [form.request_type_id, form.category_id, typeOptions, taxonomyOptions]);
+
+  useEffect(() => {
+    setForm((prev) => {
+      if (!prev.grant_id) return prev;
+      const exists = filteredGrantOptions.some((grant) => grant.id === prev.grant_id);
+      return exists ? prev : { ...prev, grant_id: "" };
+    });
+  }, [filteredGrantOptions]);
+
+  const buildManualPayload = (input: {
+    requestTypeId: string;
+    staffId: string;
+    requestId?: string;
+    teamId?: string;
+    organizationId?: string;
+    status?: string;
+    createdAt?: string;
+    currency?: string;
+    purpose?: string;
+    dueDate?: string;
+    categoryId?: string;
+    projectId?: string;
+    projectName?: string;
+    fundId?: string;
+    grantId?: string;
+    approvals?: Array<{ role: string; name?: string; date?: string; done?: boolean }>;
+    items?: ManualItem[];
+    disbursements?: ManualDisbursement[];
+  }) => ({
+    request_type_id: input.requestTypeId,
+    staff_id: input.staffId,
+    request_id: input.requestId || undefined,
+    team_id: input.teamId || undefined,
+    organization_id: input.organizationId || undefined,
+    status: input.status || "completed",
+    created_at: input.createdAt || undefined,
+    currency: input.currency || "NGN",
+    total_amount: (input.items || []).reduce(
+      (sum, item) => sum + Number(item.amount || 0) * Number(item.quantity || 1),
+      0
+    ),
+    data: {
+      purpose: input.purpose || undefined,
+      due_date: input.dueDate || undefined,
+      category_id: input.categoryId || undefined,
+      project_name: input.projectName || undefined,
+      project_id: input.projectId || undefined,
+      fund_id: input.fundId || undefined,
+      grant_id: input.grantId || undefined,
+      team_id: input.teamId || undefined,
+      organization_id: input.organizationId || undefined,
+    },
+    approvals: input.approvals || [],
+    items: (input.items || []).map((item: any) => ({
+      description: item.description,
+      amount: Number(item.amount || 0),
+      quantity: Number(item.quantity || 1),
+      notes: item.notes,
+      file_id: item.file_id || undefined,
+    })),
+    disbursements: (input.disbursements || [])
+      .filter((entry) => entry.voucher_number && Number(entry.amount) > 0)
+      .map((entry) => ({
+        voucher_number: entry.voucher_number,
+        amount: Number(entry.amount),
+        paid_from_account_id: entry.paid_from_account_id || undefined,
+        method: entry.method || undefined,
+        transaction_ref: entry.transaction_ref || undefined,
+        note: entry.note || undefined,
+        disbursed_at: entry.disbursed_at || undefined,
+        evidence_file_id: entry.evidence_file_id || undefined,
+        retired_amount: Number(entry.retired_amount || 0),
+        retirement_status: entry.retirement_status || undefined,
+        retirement_file_ids: (entry.retirement_file_ids_text || "")
+          .split(",")
+          .map((x) => x.trim())
+          .filter(Boolean),
+      })),
+  });
+
+  const downloadBatchTemplate = () => {
+    const workbook = XLSX.utils.book_new();
+    const requestSheet = XLSX.utils.json_to_sheet([
+      {
+        request_id: 3001,
+        request_type: "Operational Request",
+        staff_email_or_name: "staff@stanforteedge.com",
+        team: "Finance",
+        organization: "Stanforte Edge",
+        status: "completed",
+        created_at: "2026-03-24",
+        currency: "NGN",
+        purpose: "Legacy expense import",
+        due_date: "2026-03-24",
+        category: "Operations",
+        project: "",
+        fund: "",
+        grant: "",
+      },
+    ]);
+    const itemSheet = XLSX.utils.json_to_sheet([
+      { request_id: 3001, description: "Internet subscription", amount: 50000, quantity: 1, notes: "" },
+    ]);
+    const approvalSheet = XLSX.utils.json_to_sheet([
+      { request_id: 3001, role: "team_lead", name: "Jane Doe", date: "2026-03-24", done: true },
+      { request_id: 3001, role: "accountant", name: "John Doe", date: "2026-03-24", done: true },
+    ]);
+    const voucherSheet = XLSX.utils.json_to_sheet([
+      {
+        request_id: 3001,
+        voucher_number: 3001,
+        amount: 50000,
+        paid_from_account: "GESP",
+        method: "bank_transfer",
+        transaction_ref: "",
+        note: "",
+        disbursed_at: "2026-03-24",
+        retired_amount: 0,
+        retirement_status: "not_retired",
+      },
+    ]);
+    XLSX.utils.book_append_sheet(workbook, requestSheet, "Requests");
+    XLSX.utils.book_append_sheet(workbook, itemSheet, "Items");
+    XLSX.utils.book_append_sheet(workbook, approvalSheet, "Approvals");
+    XLSX.utils.book_append_sheet(workbook, voucherSheet, "Vouchers");
+    XLSX.writeFile(workbook, "manual-request-import-template.xlsx");
+  };
+
+  const buildImportPreviewRows = async (workbook: XLSX.WorkBook) => {
+    const requestSheet = workbook.Sheets.Requests || workbook.Sheets[workbook.SheetNames[0]];
+    const requests = XLSX.utils.sheet_to_json<Record<string, unknown>>(requestSheet, { defval: "" });
+    const itemsSheet = workbook.Sheets.Items
+      ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Items, { defval: "" })
+      : [];
+    const approvalsSheet = workbook.Sheets.Approvals
+      ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Approvals, { defval: "" })
+      : [];
+    const vouchersSheet = workbook.Sheets.Vouchers
+      ? XLSX.utils.sheet_to_json<Record<string, unknown>>(workbook.Sheets.Vouchers, { defval: "" })
+      : [];
+
+    const itemsByRequest = new Map<string, Record<string, unknown>[]>();
+    const approvalsByRequest = new Map<string, Record<string, unknown>[]>();
+    const vouchersByRequest = new Map<string, Record<string, unknown>[]>();
+    itemsSheet.forEach((row: any) => {
+      const key = normalizeRequestIdValue(row.request_id);
+      if (!key) return;
+      itemsByRequest.set(key, [...(itemsByRequest.get(key) || []), row]);
+    });
+    approvalsSheet.forEach((row: any) => {
+      const key = normalizeRequestIdValue(row.request_id);
+      if (!key) return;
+      approvalsByRequest.set(key, [...(approvalsByRequest.get(key) || []), row]);
+    });
+    vouchersSheet.forEach((row: any) => {
+      const key = normalizeRequestIdValue(row.request_id);
+      if (!key) return;
+      vouchersByRequest.set(key, [...(vouchersByRequest.get(key) || []), row]);
+    });
+
+    const previewRows = await Promise.all(
+      requests
+        .filter((row: any) => normalizeRequestIdValue(row.request_id))
+        .map(async (row: any) => {
+          const requestIdText = normalizeRequestIdValue(row.request_id);
+          const requestTypeText = normalizeText(row.request_type);
+          const staffText = normalizeText(row.staff_email_or_name || row.staff || row.staff_email);
+          const issues: string[] = [];
+
+          const requestType = requestTypeLookup.get(normalizeKey(requestTypeText));
+          if (!requestType) issues.push(`Unknown request type: ${requestTypeText}`);
+          const staff = staffLookup.get(normalizeKey(staffText));
+          if (!staff) issues.push(`Unknown staff: ${staffText}`);
+          const team = normalizeText(row.team) ? teamLookup.get(normalizeKey(row.team)) : undefined;
+          if (normalizeText(row.team) && !team) issues.push(`Unknown team: ${normalizeText(row.team)}`);
+          const organization = normalizeText(row.organization)
+            ? organizationLookup.get(normalizeKey(row.organization))
+            : undefined;
+          if (normalizeText(row.organization) && !organization) {
+            issues.push(`Unknown organization: ${normalizeText(row.organization)}`);
+          }
+          const project = normalizeText(row.project) ? projectLookup.get(normalizeKey(row.project)) : undefined;
+          if (normalizeText(row.project) && !project) issues.push(`Unknown project: ${normalizeText(row.project)}`);
+          const fund = normalizeText(row.fund) ? fundLookup.get(normalizeKey(row.fund)) : undefined;
+          if (normalizeText(row.fund) && !fund) issues.push(`Unknown fund: ${normalizeText(row.fund)}`);
+          const grant = normalizeText(row.grant) ? grantLookup.get(normalizeKey(row.grant)) : undefined;
+          if (normalizeText(row.grant) && !grant) issues.push(`Unknown grant: ${normalizeText(row.grant)}`);
+
+          const taxonomyTerm = normalizeText(row.category)
+            ? taxonomyTermLookup.get(normalizeKey(row.category))
+            : undefined;
+          if (normalizeText(row.category) && !taxonomyTerm) issues.push(`Unknown category: ${normalizeText(row.category)}`);
+
+          let existingRequestId: string | null = null;
+          if (/^\d+$/.test(requestIdText) && requestType?.id) {
+            const check = await requestApi.checkManualRequestNumber(requestIdText, { request_type_id: requestType.id });
+            existingRequestId = check.exists ? check.request_id : null;
+          } else {
+            issues.push("request_id must be digits only");
+          }
+
+          const voucherRows = (vouchersByRequest.get(requestIdText) || []).map((entry) => {
+            const voucherNumber = normalizeText(entry.voucher_number);
+            return {
+              voucher_number: voucherNumber,
+              amount: Number(entry.amount || 0),
+              paid_from_account_id: normalizeText(entry.paid_from_account)
+                ? accountLookup.get(normalizeKey(entry.paid_from_account))?.id
+                : undefined,
+              method: normalizeText(entry.method) || "bank_transfer",
+              transaction_ref: normalizeText(entry.transaction_ref) || "",
+              note: normalizeText(entry.note) || "",
+              disbursed_at: parseSpreadsheetDate(entry.disbursed_at),
+              retired_amount: Number(entry.retired_amount || 0),
+              retirement_status: normalizeText(entry.retirement_status) || "not_retired",
+              retirement_file_ids_text: "",
+            } as ManualDisbursement;
+          });
+
+          for (const voucherRow of vouchersByRequest.get(requestIdText) || []) {
+            const voucherNumber = normalizeText(voucherRow.voucher_number);
+            if (!voucherNumber) continue;
+            if (!/^\d+$/.test(voucherNumber)) {
+              issues.push(`Invalid voucher_number: ${voucherNumber}`);
+              continue;
+            }
+            const voucherCheck = await requestApi.checkManualVoucherNumber(voucherNumber);
+            if (voucherCheck.exists && voucherCheck.request_id !== existingRequestId) {
+              issues.push(`Voucher ${voucherNumber} already exists on request ${voucherCheck.request_id}`);
+            }
+          }
+
+          if ((vouchersByRequest.get(requestIdText) || []).some((entry) => normalizeText(entry.paid_from_account) && !accountLookup.get(normalizeKey(entry.paid_from_account)))) {
+            issues.push("One or more paid_from_account values could not be matched");
+          }
+
+          const payload =
+            requestType && staff
+              ? buildManualPayload({
+                  requestTypeId: requestType.id,
+                  staffId: staff.id,
+                  requestId: requestIdText,
+                  teamId: team?.id,
+                  organizationId: organization?.id,
+                  status: normalizeText(row.status) || "completed",
+                  createdAt: parseSpreadsheetDate(row.created_at),
+                  currency: normalizeText(row.currency) || "NGN",
+                  purpose: normalizeText(row.purpose),
+                  dueDate: parseSpreadsheetDate(row.due_date),
+                  categoryId: taxonomyTerm?.id,
+                  projectId: project?.id,
+                  projectName: project?.name,
+                  fundId: fund?.id,
+                  grantId: grant?.id,
+                  approvals: (approvalsByRequest.get(requestIdText) || []).map((entry) => ({
+                    role: normalizeText(entry.role),
+                    name: normalizeText(entry.name) || undefined,
+                    date: parseSpreadsheetDate(entry.date) || undefined,
+                    done: ["true", "1", "yes"].includes(normalizeKey(entry.done)),
+                  })),
+                  items: (itemsByRequest.get(requestIdText) || []).map((entry) => ({
+                    description: normalizeText(entry.description),
+                    amount: Number(entry.amount || 0),
+                    quantity: Number(entry.quantity || 1),
+                    notes: normalizeText(entry.notes) || "",
+                    file_id: "",
+                  })),
+                  disbursements: voucherRows,
+                })
+              : null;
+
+          const actionOptions: ImportAction[] = existingRequestId ? ["update", "skip"] : ["create", "skip"];
+          return {
+            rowKey: requestIdText,
+            requestIdText,
+            requestTypeText,
+            staffText,
+            action: existingRequestId ? "update" : "create",
+            actionOptions,
+            existingRequestId,
+            issues,
+            payload,
+            ready: issues.length === 0 && Boolean(payload),
+          } satisfies ImportPreviewRow;
+        })
+    );
+
+    return previewRows;
+  };
+
+  const handleBatchImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      setImportingPreview(true);
+      setNotice(null);
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: "array" });
+      if (!workbook.SheetNames.length) {
+        throw new Error("The import file does not contain any worksheet.");
+      }
+      const previewRows = await buildImportPreviewRows(workbook);
+      setImportRows(previewRows);
+      setShowImportDialog(true);
+      setNotice({
+        tone: previewRows.some((row: any) => row.ready) ? "success" : "warning",
+        message: `Loaded ${previewRows.length} import row(s). Review actions before commit.`,
+      });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.message || "Unable to parse import file." });
+    } finally {
+      setImportingPreview(false);
+      event.target.value = "";
+    }
+  };
+
+  const commitBatchImport = async () => {
+    const actionableRows = importRows.filter((row: any) => row.action !== "skip");
+    if (!actionableRows.length) {
+      setNotice({ tone: "warning", message: "No rows selected for import." });
+      return;
+    }
+    try {
+      setImportingCommit(true);
+      const results: string[] = [];
+      let successCount = 0;
+      for (const row of actionableRows) {
+        if (!row.payload) {
+          results.push(`Request ${row.requestIdText}: missing payload`);
+          continue;
+        }
+        try {
+          if (row.action === "update" && row.existingRequestId) {
+            await requestApi.updateManualRequestEntry(row.existingRequestId, row.payload);
+          } else {
+            await requestApi.createManualRequestEntry(row.payload);
+          }
+          successCount += 1;
+        } catch (error: any) {
+          results.push(
+            `Request ${row.requestIdText}: ${
+              error?.response?.data?.error?.message || error?.message || "Import failed"
+            }`
+          );
+        }
+      }
+      setShowImportDialog(false);
+      setImportRows([]);
+      setNotice({
+        tone: results.length ? "warning" : "success",
+        message: results.length
+          ? `Imported ${successCount} row(s). ${results.slice(0, 3).join(" | ")}${results.length > 3 ? " ..." : ""}`
+          : `Imported ${successCount} row(s) successfully.`,
+      });
+    } finally {
+      setImportingCommit(false);
+    }
+  };
+
+  const saveManualRequest = async () => {
+    if (!form.request_type_id || !form.staff_id) {
+      setNotice({ tone: "warning", message: "Request type and staff are required." });
+      return;
+    }
+    if (form.request_id && !/^\d+$/.test(form.request_id)) {
+      setNotice({ tone: "warning", message: "Request ID must be digits only (e.g. 25)." });
+      return;
+    }
+    if (numberExists.exists && numberExists.requestId && numberExists.requestId !== editingId) {
+      setNotice({ tone: "warning", message: `Request ID already exists (Request ID ${numberExists.requestId}).` });
+      return;
+    }
+    const voucherRows = disbursements
+      .map((row, index) => ({ row, index }))
+      .filter(({ row }) => String(row.voucher_number || "").trim().length > 0);
+    for (const { row, index } of voucherRows) {
+      const rawVoucherNumber = String(row.voucher_number || "").trim();
+      if (!/^\d+$/.test(rawVoucherNumber)) {
+        setNotice({ tone: "warning", message: `PV voucher ID in row ${index + 1} must be digits only.` });
+        return;
+      }
+      const exists = await requestApi.checkManualVoucherNumber(rawVoucherNumber, {
+        exclude_request_id: editingId || undefined,
+      });
+      if (exists.exists) {
+        setNotice({
+          tone: "warning",
+          message: `PV voucher ID ${rawVoucherNumber} already exists on request ${exists.request_id}.`,
+        });
+        return;
+      }
+    }
+    try {
+      setSaving(true);
+      setNotice(null);
+      const approvals = [
+        { role: "team_lead", name: form.approvals.team_lead_name, date: form.approvals.team_lead_date, done: !!form.approvals.team_lead_name },
+        { role: "accountant", name: form.approvals.accountant_name, date: form.approvals.accountant_date, done: !!form.approvals.accountant_name },
+        { role: "coo", name: form.approvals.coo_name, date: form.approvals.coo_date, done: !!form.approvals.coo_name },
+        ...(form.approvals.include_ed
+          ? [{ role: "ed", name: form.approvals.ed_name, date: form.approvals.ed_date, done: !!form.approvals.ed_name }]
+          : []),
+      ];
+      const selectedProjectName =
+        projectOptions.find((project) => project.id === form.project_id)?.name || undefined;
+
+      const payload = {
+        request_type_id: form.request_type_id,
+        staff_id: form.staff_id,
+        request_id: form.request_id || undefined,
+        team_id: form.team_id || undefined,
+        organization_id: form.organization_id || undefined,
+        status: form.status,
+        created_at: form.created_at || undefined,
+        currency: form.currency,
+        total_amount: itemsTotal,
+        data: {
+          purpose: form.purpose || undefined,
+          due_date: form.due_date || undefined,
+          category_id: form.category_id || undefined,
+          project_name: selectedProjectName,
+          project_id: form.project_id || undefined,
+          fund_id: form.fund_id || undefined,
+          grant_id: form.grant_id || undefined,
+          team_id: form.team_id || undefined,
+          organization_id: form.organization_id || undefined,
+        },
+        approvals,
+        items: items.map((item: any) => ({
+          description: item.description,
+          amount: Number(item.amount || 0),
+          quantity: Number(item.quantity || 1),
+          notes: item.notes,
+          file_id: item.file_id || undefined,
+        })),
+        disbursements: disbursements
+          .filter((d) => d.voucher_number && Number(d.amount) > 0)
+          .map((d) => ({
+            voucher_number: d.voucher_number,
+            amount: Number(d.amount),
+            paid_from_account_id: d.paid_from_account_id || undefined,
+            method: d.method || undefined,
+            transaction_ref: d.transaction_ref || undefined,
+            note: d.note || undefined,
+            disbursed_at: d.disbursed_at || undefined,
+            evidence_file_id: d.evidence_file_id || undefined,
+            retired_amount: Number(d.retired_amount || 0),
+            retirement_status: d.retirement_status || undefined,
+            retirement_file_ids: (d.retirement_file_ids_text || "")
+              .split(",")
+              .map((x) => x.trim())
+              .filter(Boolean),
+          })),
+      };
+      const created = editingId
+        ? await requestApi.updateManualRequestEntry(editingId, payload)
+        : await requestApi.createManualRequestEntry(payload);
+
+      setRequestId(created.id);
+      setEditingId(created.id);
+      const firstVoucher = (created as any)?.payment_vouchers?.[0]?.id || "";
+      setVoucherId(firstVoucher);
+      setNotice({ tone: "success", message: editingId ? "Manual request updated successfully." : "Manual request saved successfully." });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save manual request." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const checkVoucherNumberAtIndex = async (index: number) => {
+    const rawVoucherNumber = String(disbursements[index]?.voucher_number || "").trim();
+    if (!rawVoucherNumber) {
+      setVoucherExistsByIndex((prev) => ({ ...prev, [index]: null }));
+      return;
+    }
+    if (!/^\d+$/.test(rawVoucherNumber)) {
+      setVoucherExistsByIndex((prev) => ({ ...prev, [index]: "Voucher ID must be digits only." }));
+      return;
+    }
+    try {
+      setCheckingVoucherIndex(index);
+      const exists = await requestApi.checkManualVoucherNumber(rawVoucherNumber, {
+        exclude_request_id: editingId || undefined,
+      });
+      setVoucherExistsByIndex((prev) => ({
+        ...prev,
+        [index]: exists.exists ? `Already exists on request ${exists.request_id}.` : null,
+      }));
+    } catch {
+      setVoucherExistsByIndex((prev) => ({ ...prev, [index]: null }));
+    } finally {
+      setCheckingVoucherIndex((current) => (current === index ? null : current));
+    }
+  };
+
+  const loadForEdit = async () => {
+    if (!lookupId.trim()) return;
+    try {
+      setLoading(true);
+      const req = await httpRequest(`/requests/${1}`));
+      const pvs = await financeApi.listPaymentVouchers({ request_id: requestId })).catch(() => []);
+      const data = (req.data || {}) as Record<string, any>;
+      const manualApprovals = Array.isArray(data.manual_approvals) ? data.manual_approvals : [];
+      const findApproval = (role: string) =>
+        manualApprovals.find((row: any) => String(row.role || "").toLowerCase() === role);
+
+      setEditingId(req.id);
+      setRequestId(req.id);
+      setForm((prev) => ({
+        ...prev,
+        request_type_id: req.request_type?.id || "",
+        staff_id: req.creator?.id || "",
+        request_id: String(req.id || "").trim(),
+        team_id: String(data.team_id || ""),
+        organization_id: String(data.organization_id || ""),
+        project_id: String(data.project_id || ""),
+        fund_id: String(data.fund_id || ""),
+        grant_id: String(data.grant_id || ""),
+        category_id: String(data.category_id || ""),
+        status: req.status || "completed",
+        created_at: req.created_at ? String(req.created_at).slice(0, 10) : "",
+        due_date: data.due_date ? String(data.due_date).slice(0, 10) : "",
+        purpose: String(data.purpose || ""),
+        currency: req.currency || "NGN",
+        approvals: {
+          team_lead_name: findApproval("team_lead")?.name || "",
+          team_lead_date: findApproval("team_lead")?.date ? String(findApproval("team_lead").date).slice(0, 10) : "",
+          accountant_name: findApproval("accountant")?.name || "",
+          accountant_date: findApproval("accountant")?.date ? String(findApproval("accountant").date).slice(0, 10) : "",
+          coo_name: findApproval("coo")?.name || "",
+          coo_date: findApproval("coo")?.date ? String(findApproval("coo").date).slice(0, 10) : "",
+          ed_name: findApproval("ed")?.name || "",
+          ed_date: findApproval("ed")?.date ? String(findApproval("ed").date).slice(0, 10) : "",
+          include_ed: Boolean(findApproval("ed")),
+        },
+      }));
+
+      setItems(
+        (req.items || []).map((item: any) => ({
+          description: item.description,
+          amount: Number(item.amount || 0),
+          quantity: Number(item.quantity || 1),
+          notes: item.notes || "",
+          file_id: item.file_id || "",
+        }))
+      );
+      setDisbursements(
+        pvs.map((pv: any) => ({
+          voucher_number: pv.voucher_number,
+          amount: Number(pv.amount || 0),
+          paid_from_account_id: pv.paid_from_account?.id || "",
+          method: pv.method || "bank_transfer",
+          transaction_ref: pv.transaction_ref || "",
+          note: pv.note || "",
+          disbursed_at: pv.disbursed_at ? String(pv.disbursed_at).slice(0, 10) : "",
+          evidence_file_id: pv.evidence_file?.id || "",
+          retired_amount: Number(pv.retired_amount || 0),
+          retirement_status: pv.retirement_status || "not_retired",
+          retirement_file_ids_text: (pv.retirement_files || []).map((f: any) => f.id).join(", "),
+        }))
+      );
+      setNotice({ tone: "success", message: `Loaded request ${req.id} for edit.` });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to find request by ID." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onDeleteManual = async () => {
+    if (!editingId) return;
+    const ok = window.confirm(`Delete manual request ${editingId}? This cannot be undone.`);
+    if (!ok) return;
+    try {
+      setSaving(true);
+      await requestApi.deleteManualRequestEntry(editingId);
+      setNotice({ tone: "success", message: "Manual request deleted." });
+      setEditingId("");
+      setRequestId("");
+      setLookupId("");
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to delete request." });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const uploadForItem = async (index: number, file: File | null) => {
+    if (!file) return;
+    try {
+      setUploading(`item-${index}`);
+      const asset = await resourceApi.uploadFile(file, { metadata: { source: "manual_request_item" } });
+      setItems((prev) => prev.map((row, i) => (i === index ? { ...row, file_id: asset.id } : row)));
+      setNotice({ tone: "success", message: `Uploaded ${file.name}` });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to upload file." });
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const uploadForPvEvidence = async (index: number, file: File | null) => {
+    if (!file) return;
+    try {
+      setUploading(`pv-${index}`);
+      const asset = await resourceApi.uploadFile(file, { metadata: { source: "manual_pv_evidence" } });
+      setDisbursements((prev) => prev.map((row, i) => (i === index ? { ...row, evidence_file_id: asset.id } : row)));
+      setNotice({ tone: "success", message: `Uploaded ${file.name}` });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to upload file." });
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  const uploadForRetirement = async (index: number, file: File | null) => {
+    if (!file) return;
+    try {
+      setUploading(`ret-${index}`);
+      const asset = await resourceApi.uploadFile(file, { metadata: { source: "manual_retirement_file" } });
+      setDisbursements((prev) =>
+        prev.map((row, i) => {
+          if (i !== index) return row;
+          const existing = (row.retirement_file_ids_text || "")
+            .split(",")
+            .map((x) => x.trim())
+            .filter(Boolean);
+          return { ...row, retirement_file_ids_text: Array.from(new Set([...existing, asset.id])).join(", ") };
+        })
+      );
+      setNotice({ tone: "success", message: `Uploaded ${file.name}` });
+    } catch (error: any) {
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to upload file." });
+    } finally {
+      setUploading(null);
+    }
+  };
+
+  if (!allowed) {
+    return (
+      <div className="mt-8">
+        
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".xlsx,.xls,.csv"
+        className="hidden"
+        onChange={(e) => void handleBatchImportFile(e)}
+      />
+      <div className="flex items-center mt-8 intro-y">
+        <h2 className="mr-auto text-lg font-medium">Finance Legacy Manual Entry</h2>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={downloadBatchTemplate}>
+            <Icon name="FileText" className="w-4 h-4 mr-1" />
+            Template
+          </Button>
+          <Button variant="secondary" onClick={() => importInputRef.current?.click()} disabled={importingPreview}>
+            <Icon name="FileText" className="w-4 h-4 mr-1" />
+            {importingPreview ? "Reading..." : "Batch Import"}
+          </Button>
+          <Button variant="secondary" onClick={() => navigate("/appOld/finance")}>
+            <Icon name="ChevronLeft" className="w-4 h-4 mr-1" />
+            Back
+          </Button>
+        </div>
+      </div>
+      {notice ?  : null}
+
+      <div className="box mt-5 p-5 space-y-6">
+        <div className="grid grid-cols-12 gap-3 rounded-md border p-3">
+          <div className="col-span-12 md:col-span-6">
+            <label>Search Existing Request by ID</label>
+            <TextField
+ label=""              value={lookupId}
+              onChange={(e) => setLookupId(e.target.value.replace(/[^\d]/g, ""))}
+              placeholder="e.g. 3001"
+            />
+          </div>
+          <div className="col-span-12 md:col-span-6 flex items-end gap-2">
+            <Button variant="secondary" onClick={() => void loadForEdit()} disabled={!lookupId || loading}>
+              Search & Load
+            </Button>
+            {editingId ? (
+              <Button variant="danger" onClick={() => void onDeleteManual()} disabled={saving}>
+                Delete
+              </Button>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="grid grid-cols-12 gap-4">
+          <div className="col-span-12 md:col-span-4"><label>Request Type</label><SelectField label="" value={form.request_type_id} onChange={(e) => setForm((p) => ({ ...p, request_type_id: e.target.value }))}><option value="">Select</option>{typeOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</SelectField></div>
+          <div className="col-span-12 md:col-span-4"><label>Staff</label><SelectField label="" value={form.staff_id} onChange={(e) => setForm((p) => ({ ...p, staff_id: e.target.value }))}><option value="">Select</option>{staffOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</SelectField></div>
+          <div className="col-span-12 md:col-span-4">
+            <label>Request ID (Digits)</label>
+            <TextField
+ label=""              type="number"
+              value={form.request_id}
+              onChange={(e) => setForm((p) => ({ ...p, request_id: e.target.value.replace(/[^\d]/g, "") }))}
+              placeholder="25"
+            />
+            <div className="mt-1 text-xs text-slate-500">
+              {checkingNumber
+                ? "Checking number..."
+                : numberExists.exists
+                  ? numberExists.requestId
+                    ? `Already exists (Request ID ${numberExists.requestId})`
+                    : "Invalid request number"
+                  : "Available"}
+            </div>
+          </div>
+          <div className="col-span-12 md:col-span-3"><label>Status</label><SelectField label="" value={form.status} onChange={(e) => setForm((p) => ({ ...p, status: e.target.value }))}><option value="completed">Completed</option><option value="retired">Retired</option><option value="confirmed">Confirmed</option><option value="disbursed">Disbursed</option><option value="cleared">Cleared</option><option value="approval">Approval</option></SelectField></div>
+          <div className="col-span-12 md:col-span-3"><label>Created At</label><TextField label="" type="date" value={form.created_at} onChange={(e) => setForm((p) => ({ ...p, created_at: e.target.value }))} /></div>
+          <div className="col-span-12 md:col-span-3"><label>Due Date</label><TextField label="" type="date" value={form.due_date} onChange={(e) => setForm((p) => ({ ...p, due_date: e.target.value }))} /></div>
+          <div className="col-span-12 md:col-span-3"><label>Currency</label><TextField label="" value={form.currency} onChange={(e) => setForm((p) => ({ ...p, currency: e.target.value.toUpperCase() }))} /></div>
+          <div className="col-span-12 md:col-span-4"><label>Organization</label><SelectField label="" value={form.organization_id} onChange={(e) => setForm((p) => ({ ...p, organization_id: e.target.value }))}><option value="">Select</option>{organizationOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</SelectField></div>
+          <div className="col-span-12 md:col-span-4"><label>Department / Team</label><SelectField label="" value={form.team_id} onChange={(e) => setForm((p) => ({ ...p, team_id: e.target.value }))}><option value="">Select</option>{teamOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</SelectField></div>
+          <div className="col-span-12 md:col-span-4"><label>Project</label><SelectField label="" value={form.project_id} onChange={(e) => setForm((p) => ({ ...p, project_id: e.target.value }))}><option value="">Select</option>{projectOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</SelectField></div>
+          <div className="col-span-12 md:col-span-4"><label>Fund</label><SelectField label="" value={form.fund_id} onChange={(e) => setForm((p) => ({ ...p, fund_id: e.target.value, grant_id: "" }))}><option value="">No specific fund</option>{fundOptions.map((x) => <option key={x.id} value={x.id}>{x.code ? `${x.code} - ` : ""}{x.name}</option>)}</SelectField></div>
+          <div className="col-span-12 md:col-span-4"><label>Grant / Donor Line</label><SelectField label="" value={form.grant_id} onChange={(e) => setForm((p) => ({ ...p, grant_id: e.target.value }))}><option value="">No specific grant</option>{filteredGrantOptions.map((x) => <option key={x.id} value={x.id}>{x.code ? `${x.code} - ` : ""}{x.name}</option>)}</SelectField></div>
+          <div className="col-span-12 md:col-span-4"><label>Category</label><SelectField label="" value={form.category_id} onChange={(e) => setForm((p) => ({ ...p, category_id: e.target.value }))}><option value="">Select</option>{categoryOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</SelectField></div>
+          <div className="col-span-12 md:col-span-8"><label>Purpose</label><TextAreaField label="" rows={2} value={form.purpose} onChange={(e) => setForm((p) => ({ ...p, purpose: e.target.value }))} /></div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Items</h4><Button variant="secondary" onClick={() => setItems((p) => [...p, { description: "", amount: 0, quantity: 1, notes: "", file_id: "" }])}>Add Item</Button></div>
+          {items.map((item, idx) => (
+            <div key={`item-${idx}`} className="grid grid-cols-12 gap-3 mb-3">
+              <div className="col-span-12 md:col-span-4"><TextField label="" placeholder="Item" value={item.description} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, description: e.target.value } : row))} /></div>
+              <div className="col-span-6 md:col-span-2"><TextField label="" type="number" placeholder="Qty" value={item.quantity as number} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, quantity: Number(e.target.value || 1) } : row))} /></div>
+              <div className="col-span-6 md:col-span-2"><TextField label="" type="number" placeholder="Price" value={item.amount} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, amount: Number(e.target.value || 0) } : row))} /></div>
+              <div className="col-span-12 md:col-span-3">
+                <TextField label="" placeholder="Invoice file_id" value={item.file_id || ""} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, file_id: e.target.value } : row))} />
+                <div className="mt-2">
+                  <input type="file" onChange={(e) => void uploadForItem(idx, e.target.files?.[0] || null)} />
+                  {uploading === `item-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
+                </div>
+              </div>
+              <div className="col-span-12 md:col-span-1"><Button variant="danger" onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}>×</Button></div>
+            </div>
+          ))}
+          <div className="text-right font-medium">Items Total: {formatCurrency(itemsTotal, form.currency || "NGN")}</div>
+        </div>
+
+        <div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "" }])}>Add PV</Button></div>
+          {disbursements.map((row, idx) => (
+            <div key={`pv-${idx}`} className="grid grid-cols-12 gap-3 mb-4 p-3 border rounded">
+              <div className="col-span-12 md:col-span-3">
+                <label>Voucher ID (Digits)</label>
+                <TextField
+ label=""                  value={row.voucher_number}
+                  onChange={(e) => {
+                    const next = e.target.value.replace(/[^\d]/g, "");
+                    setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, voucher_number: next } : x));
+                    setVoucherExistsByIndex((prev) => ({ ...prev, [idx]: null }));
+                  }}
+                  onBlur={() => void checkVoucherNumberAtIndex(idx)}
+                />
+                <div className="mt-1 text-xs text-slate-500">
+                  {checkingVoucherIndex === idx
+                    ? "Checking voucher..."
+                    : voucherExistsByIndex[idx] || " "}
+                </div>
+              </div>
+              <div className="col-span-6 md:col-span-2"><label>Amount</label><TextField label="" type="number" value={row.amount} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, amount: Number(e.target.value || 0) } : x))} /></div>
+              <div className="col-span-12 md:col-span-3"><label>Paid From Account</label><SelectField label="" value={row.paid_from_account_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, paid_from_account_id: e.target.value } : x))}><option value="">Select account</option>{financeAccounts.map((acc) => <option key={acc.id} value={acc.id}>{acc.name}{acc.code ? ` (${acc.code})` : ""}</option>)}</SelectField></div>
+              <div className="col-span-6 md:col-span-2"><label>Method</label><SelectField label="" value={row.method} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, method: e.target.value } : x))}><option value="bank_transfer">Bank Transfer</option><option value="cash">Cash</option><option value="cheque">Cheque</option></SelectField></div>
+              <div className="col-span-12 md:col-span-3"><label>Transaction Ref</label><TextField label="" value={row.transaction_ref} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, transaction_ref: e.target.value } : x))} /></div>
+              <div className="col-span-12 md:col-span-2"><label>Date</label><TextField label="" type="date" value={row.disbursed_at} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, disbursed_at: e.target.value } : x))} /></div>
+              <div className="col-span-12 md:col-span-3"><label>PV evidence file_id</label><TextField label="" value={row.evidence_file_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, evidence_file_id: e.target.value } : x))} />
+                <div className="mt-2">
+                  <input type="file" onChange={(e) => void uploadForPvEvidence(idx, e.target.files?.[0] || null)} />
+                  {uploading === `pv-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
+                </div>
+              </div>
+              <div className="col-span-6 md:col-span-2"><label>Retired Amount</label><TextField label="" type="number" value={row.retired_amount || 0} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retired_amount: Number(e.target.value || 0) } : x))} /></div>
+              <div className="col-span-6 md:col-span-2"><label>Retirement Status</label><SelectField label="" value={row.retirement_status || "not_retired"} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_status: e.target.value } : x))}><option value="not_retired">Pending</option><option value="partial">Partial</option><option value="retired">Retired</option><option value="verified">Confirmed</option></SelectField></div>
+              <div className="col-span-12 md:col-span-5"><label>Retirement file ids (comma separated)</label><TextField label="" value={row.retirement_file_ids_text || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_file_ids_text: e.target.value } : x))} />
+                <div className="mt-2">
+                  <input type="file" onChange={(e) => void uploadForRetirement(idx, e.target.files?.[0] || null)} />
+                  {uploading === `ret-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
+                </div>
+              </div>
+              <div className="col-span-12 md:col-span-12"><label>Note</label><TextField label="" value={row.note} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, note: e.target.value } : x))} /></div>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <h4 className="font-medium mb-2">Manual Approvals</h4>
+          <div className="grid grid-cols-12 gap-3">
+            <div className="col-span-6 md:col-span-3"><label>Team Lead Name</label><SelectField label="" value={form.approvals.team_lead_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.team_lead_name && !approvalNameOptions.includes(form.approvals.team_lead_name) ? <option value={form.approvals.team_lead_name}>{form.approvals.team_lead_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-team-lead-${name}`} value={name}>{name}</option>)}</SelectField></div>
+            <div className="col-span-6 md:col-span-3"><label>Team Lead Date</label><TextField label="" type="date" value={form.approvals.team_lead_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_date: e.target.value } }))} /></div>
+            <div className="col-span-6 md:col-span-3"><label>Accountant Name</label><SelectField label="" value={form.approvals.accountant_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.accountant_name && !approvalNameOptions.includes(form.approvals.accountant_name) ? <option value={form.approvals.accountant_name}>{form.approvals.accountant_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-accountant-${name}`} value={name}>{name}</option>)}</SelectField></div>
+            <div className="col-span-6 md:col-span-3"><label>Accountant Date</label><TextField label="" type="date" value={form.approvals.accountant_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_date: e.target.value } }))} /></div>
+            <div className="col-span-6 md:col-span-3"><label>COO Name</label><SelectField label="" value={form.approvals.coo_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.coo_name && !approvalNameOptions.includes(form.approvals.coo_name) ? <option value={form.approvals.coo_name}>{form.approvals.coo_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-coo-${name}`} value={name}>{name}</option>)}</SelectField></div>
+            <div className="col-span-6 md:col-span-3"><label>COO Date</label><TextField label="" type="date" value={form.approvals.coo_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_date: e.target.value } }))} /></div>
+            <div className="col-span-12 md:col-span-3 flex items-end"><label className="inline-flex items-center gap-2"><input type="checkbox" checked={form.approvals.include_ed} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, include_ed: e.target.checked } }))} /><span>Include ED</span></label></div>
+            {form.approvals.include_ed ? (
+              <>
+                <div className="col-span-6 md:col-span-3"><label>ED Name</label><SelectField label="" value={form.approvals.ed_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.ed_name && !approvalNameOptions.includes(form.approvals.ed_name) ? <option value={form.approvals.ed_name}>{form.approvals.ed_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-ed-${name}`} value={name}>{name}</option>)}</SelectField></div>
+                <div className="col-span-6 md:col-span-3"><label>ED Date</label><TextField label="" type="date" value={form.approvals.ed_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_date: e.target.value } }))} /></div>
+              </>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="secondary"
+            onClick={() => {
+              resetManualForm();
+              setNotice({ tone: "success", message: "Form cleared." });
+            }}
+          >
+            Refresh
+          </Button>
+          <Button disabled={loading || saving} onClick={saveManualRequest}>
+            {saving ? "Saving..." : editingId ? "Update Manual Request" : "Save Manual Request"}
+          </Button>
+          <Button variant="secondary" disabled={!requestId} onClick={async () => {
+            if (!requestId) return;
+            const file = alert("Not implemented in new API");
+            downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+          }}>
+            Download Request PDF
+          </Button>
+          <Button variant="secondary" disabled={!requestId} onClick={async () => {
+            if (!requestId) return;
+            const file = alert("Not implemented in new API");
+            downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+          }}>
+            Download PV PDF
+          </Button>
+          <Button variant="secondary" disabled={!requestId} onClick={async () => {
+            if (!requestId) return;
+            const zip = alert("Not implemented in new API");
+            downloadBase64File(zip.file_name, zip.mime_type, zip.content_base64);
+          }}>
+            Request + Attachments
+          </Button>
+          <Button variant="secondary" disabled={!requestId || !voucherId} onClick={async () => {
+            if (!requestId || !voucherId) return;
+            const zip = alert("Not implemented in new API");
+            downloadBase64File(zip.file_name, zip.mime_type, zip.content_base64);
+          }}>
+            PV + Retirement Attachments
+          </Button>
+          <Button variant="secondary" disabled={!requestId} onClick={async () => {
+            if (!requestId) return;
+            const pkg = alert("Not implemented in new API");
+            if (pkg.content_base64 && pkg.mime_type) {
+              downloadBase64File(pkg.file_name, pkg.mime_type, pkg.content_base64);
+            }
+          }}>
+            Full Package ZIP
+          </Button>
+        </div>
+        {requestId ? <div className="text-slate-600 text-sm">Saved Request ID: {requestId}. For PV attachment ZIP, enter a voucher id below if needed.</div> : null}
+        {requestId ? (
+          <div className="max-w-md">
+            <label>Voucher ID (for PV ZIP download)</label>
+            <TextField label="" value={voucherId} onChange={(e) => setVoucherId(e.target.value)} placeholder="Paste voucher UUID" />
+          </div>
+        ) : null}
+      </div>
+
+      <SlideOver open={showImportDialog} onClose={() => setShowImportDialog(false)} size="xl">
+        <div className="p-5 flex flex-col h-full bg-white">
+          <h2 className="mr-auto text-base font-medium mb-4">Batch Manual Import</h2>
+          <div className="mb-4 text-sm text-slate-500">
+            Review each row before import. Existing request IDs default to <strong>Update</strong>. New ones default to <strong>Create</strong>. Conflict rows should be set to <strong>Skip</strong>.
+          </div>
+          <div className="max-h-[60vh] overflow-auto border rounded-md">
+            <Table>
+              <TableHead>
+                <TableRow>
+                  <TableHeaderCell>Request ID</TableHeaderCell>
+                  <TableHeaderCell>Type</TableHeaderCell>
+                  <TableHeaderCell>Staff</TableHeaderCell>
+                  <TableHeaderCell>Existing</TableHeaderCell>
+                  <TableHeaderCell>Action</TableHeaderCell>
+                  <TableHeaderCell>Issues</TableHeaderCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {importRows.map((row, index) => (
+                  <TableRow key={`${row.rowKey}-${index}`}>
+                    <TableCell>{row.requestIdText}</TableCell>
+                    <TableCell>{row.requestTypeText || "-"}</TableCell>
+                    <TableCell>{row.staffText || "-"}</TableCell>
+                    <TableCell>{row.existingRequestId || "-"}</TableCell>
+                    <TableCell>
+                      <SelectField
+ label=""                        value={row.action}
+                        onChange={(e) =>
+                          setImportRows((prev) =>
+                            prev.map((entry, entryIndex) =>
+                              entryIndex === index ? { ...entry, action: e.target.value as ImportAction } : entry
+                            )
+                          )
+                        }
+                      >
+                        {row.actionOptions.map((option: any) => (
+                          <option key={option} value={option}>
+                            {option === "create" ? "Create" : option === "update" ? "Update" : "Skip"}
+                          </option>
+                        ))}
+                      </SelectField>
+                    </TableCell>
+                    <TableCell>
+                      {row.issues.length ? (
+                        <div className="text-xs text-red-500">
+                          {row.issues.map((issue, issueIndex) => (
+                            <div key={`${row.rowKey}-issue-${issueIndex}`}>{issue}</div>
+                          ))}
+                        </div>
+                      ) : (
+                        <div className="text-xs text-green-500">Ready</div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="mt-8 flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setShowImportDialog(false)} className="mr-2">
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={() => void commitBatchImport()} disabled={importingCommit}>
+              <Icon name="FileText" className="w-4 h-4 mr-1" />
+              {importingCommit ? "Importing..." : "Commit Import"}
+            </Button>
+          </div>
+        </div>
+      </SlideOver>
+    </>
+  );
+}
+
+export default FinanceManualEntryPage;

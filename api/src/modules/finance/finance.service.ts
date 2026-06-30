@@ -143,7 +143,8 @@ export class FinanceService {
           requestType: true,
           group: true,
           organization: true,
-          creator: { select: { id: true, email: true, username: true, firstName: true, lastName: true } }
+          creator: { select: { id: true, email: true, username: true, firstName: true, lastName: true } },
+          paymentVouchers: { select: { voucherNumber: true } }
         },
         orderBy: { createdAt: 'desc' },
       })
@@ -371,12 +372,48 @@ export class FinanceService {
           : null,
         data: entry.row.data,
         total_amount: Number(entry.row.totalAmount ?? 0),
+        pv_numbers: entry.row.paymentVouchers?.map((v: any) => v.voucherNumber).filter(Boolean).join(', ') || null,
         created_at: entry.row.createdAt.toISOString(),
         updated_at: entry.row.updatedAt.toISOString(),
         items: []
       })),
       { page, per_page: perPage, total: totalResult }
     );
+  }
+
+  async exportRequests(query: Record<string, any>, format = 'csv') {
+    const normalizedFormat = String(format || 'csv').trim().toLowerCase();
+    if (!['csv'].includes(normalizedFormat)) {
+      throw new BadRequestException('Unsupported export format');
+    }
+
+    const res = await this.listRequests({ ...query, page: 1, per_page: 5000 });
+    const items = res.items || (res as any).result || [];
+
+    if (!items.length) {
+      throw new BadRequestException('Requests export has no data');
+    }
+
+    const csvRows = items.map((item: any) => ({
+      request_number: item.request_number,
+      date_created: String(item.created_at).slice(0, 10),
+      staff: item.request_creator_name,
+      team: item.team_name || '',
+      organization: item.organization?.name || '',
+      status: item.request_status,
+      currency: item.currency || 'NGN',
+      total_amount: item.request_total_amount,
+      pv_numbers: item.pv_numbers || '',
+      purpose: (item.data as any)?.purpose || (item.data as any)?.leave_reason || ''
+    }));
+
+    const csv = this.toCsv(csvRows);
+
+    return {
+      file_name: `finance-requests-${new Date().toISOString().slice(0, 10)}.${normalizedFormat}`,
+      mime_type: 'text/csv; charset=utf-8',
+      content_base64: Buffer.from(`\uFEFF${csv}`, 'utf8').toString('base64'),
+    };
   }
 
   private isLeaveRequestType(

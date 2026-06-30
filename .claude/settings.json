@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pkill -f \"vite\")",
+      "Bash(pkill -f \"ts-node-dev\")",
+      "Bash(pkill -f \"vite|ts-node-dev\")",
+      "Bash(mkdir -p /Users/olalekan/Projects/stanforteedge/portal/api/prisma/migrations/20260523000000_fix_hr_categories_and_assign_types)",
+      "Bash(nvm ls *)"
+    ],
+    "additionalDirectories": [
+      "/Users/olalekan/Projects/stanforteedge/portal/api/prisma/migrations"
+    ]
+  }
+}

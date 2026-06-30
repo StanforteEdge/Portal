@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   AppShell,
   Button,
@@ -30,6 +31,7 @@ function asMoney(value: unknown, currency = "NGN") {
 
 export default function FinanceBudgetsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [year, setYear] = useState("");
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
@@ -71,7 +73,7 @@ export default function FinanceBudgetsPage() {
         breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Budgets" }]}
         title="Budgets"
         description="Track approved budgets, actual spend, and variance in one view."
-        actions={<Button>New Budget</Button>}
+        actions={<Button onClick={() => navigate("/finance/budgets/new")}>New Budget</Button>}
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -117,7 +119,7 @@ export default function FinanceBudgetsPage() {
                 const statusKey = String(row.status || "draft").toLowerCase();
                 const variance = Number(row.variance_amount || 0);
                 return (
-                  <TableRow key={row.id}>
+                  <TableRow key={row.id} className="cursor-pointer hover:bg-slate-50" onClick={() => navigate(`/finance/budgets/${row.id}`)}>
                     <TableCell>{label || row.id.slice(0, 8)}</TableCell>
                     <TableCell>
                       <Chip variant={statusKey === "approved" ? "success" : statusKey === "draft" ? "pending" : "neutral"}>

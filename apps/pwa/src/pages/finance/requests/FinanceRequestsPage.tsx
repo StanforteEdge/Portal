@@ -120,7 +120,26 @@ export default function FinanceRequestsPage() {
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(10);
   const [moreFiltersOpen, setMoreFiltersOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const isRequestsView = true;
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const file = await financeApi.exportRequests(financeRequestQuery);
+      if (file && file.content_base64 && file.file_name) {
+        const link = document.createElement("a");
+        link.href = `data:${file.mime_type};base64,${file.content_base64}`;
+        link.download = file.file_name;
+        link.click();
+      }
+    } catch (err: any) {
+      console.error("Export failed", err);
+      alert(err?.message || "Failed to export requests");
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     setPage(1);
@@ -413,6 +432,29 @@ export default function FinanceRequestsPage() {
                 onClick={() => setMoreFiltersOpen((current) => !current)}
               >
                 {moreFiltersOpen ? " - " : " + "}
+              </Button>
+            </div>
+            <div className="flex justify-end h-stretch flex-col self-stretch gap-2 lg:flex-row lg:items-end">
+              <label className="block lg:hidden">
+                <span className="field-label">&nbsp;</span>
+              </label>
+              <Link to="/finance/legacy-manual-entry">
+                <Button
+                  type="button"
+                  variant="primary"
+                  className="w-full lg:w-auto"
+                >
+                  Manual Entry
+                </Button>
+              </Link>
+              <Button
+                type="button"
+                variant="secondary"
+                className="w-full lg:w-auto"
+                onClick={() => void handleExport()}
+                disabled={exporting || total === 0}
+              >
+                {exporting ? "Exporting..." : "Export"}
               </Button>
             </div>
           </div>

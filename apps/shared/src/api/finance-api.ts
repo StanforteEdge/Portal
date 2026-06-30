@@ -339,6 +339,10 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return asPaginatedResponse<RequestRecord>(response, "/finance/requests");
     },
 
+    exportRequests(params?: Record<string, unknown>) {
+      return httpRequest<DownloadedFile>(`/finance/requests/export${toQuery(params)}`);
+    },
+
     listPaymentVouchers(params?: Record<string, unknown>) {
       const suffix = toQuery(params);
       return httpRequest<PaginatedResponse<FinancePaymentVoucherRecord>>(

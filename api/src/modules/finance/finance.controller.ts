@@ -85,6 +85,13 @@ export class FinanceController {
     return this.financeService.listRequests(query);
   }
 
+  @Get('requests/export')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'Export finance requests' })
+  exportRequests(@Query() query: Record<string, any>, @Query('format') format?: string) {
+    return this.financeService.exportRequests(query, format);
+  }
+
   @Get('accounts')
   @Permissions('requests.view')
   @ApiOperation({ summary: 'List finance accounts (bank/cash/wallet)' })

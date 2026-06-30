@@ -663,13 +663,6 @@ export class RequestsService {
     if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
 
     const existing = await this.getRequestOrThrow(id);
-    const existingData =
-      existing.data && typeof existing.data === 'object' && !Array.isArray(existing.data)
-        ? (existing.data as Record<string, unknown>)
-        : {};
-    if (!existingData.manual_import) {
-      throw new BadRequestException('Only manual-import requests can be updated from manual entry');
-    }
 
     const staff = await this.prisma.profile.findUnique({
       where: { id: toBigInt(dto.staff_id) },

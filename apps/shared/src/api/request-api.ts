@@ -202,6 +202,41 @@ export function createRequestApi(httpRequest: HttpRequest) {
     async listGroups() {
       const res = await httpRequest<any>("/requests/groups");
       return ((res as any)?.data?.items ?? []) as any[];
+    },
+
+    async checkManualRequestNumber(requestId: string, params?: { request_type_id?: string; exclude_id?: string }) {
+      const query = new URLSearchParams();
+      query.set("request_id", requestId);
+      if (params?.request_type_id) query.set("request_type_id", params.request_type_id);
+      if (params?.exclude_id) query.set("exclude_id", params.exclude_id);
+      return httpRequest<{ exists: boolean; request_id: string | null }>(`/requests/check-manual-request-number?${query.toString()}`);
+    },
+
+    async checkManualVoucherNumber(voucherNumber: string, params?: { exclude_request_id?: string }) {
+      const query = new URLSearchParams();
+      query.set("voucher_number", voucherNumber);
+      if (params?.exclude_request_id) query.set("exclude_request_id", params.exclude_request_id);
+      return httpRequest<{ exists: boolean; request_id: string | null }>(`/requests/check-manual-voucher-number?${query.toString()}`);
+    },
+
+    async createManualRequestEntry(payload: Record<string, unknown>) {
+      return httpRequest<ResourceRequest>("/requests/manual-entry", {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    async updateManualRequestEntry(id: string, payload: Record<string, unknown>) {
+      return httpRequest<ResourceRequest>(`/requests/${id}/manual-entry`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    async deleteManualRequestEntry(id: string) {
+      return httpRequest<void>(`/requests/${id}/manual-entry`, {
+        method: "DELETE",
+      });
     }
   };
 }
