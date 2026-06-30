@@ -11,6 +11,8 @@ import { buildAppMobileNav, buildRequestsNavigation } from "@/pages/requests/req
 import { listManagedTaxonomies, type ManagedTaxonomy } from "../../requests/taxonomy-api";
 import { buildCertificateOfHonorPdf, formatCertificateCurrency } from "./details/utils/certificate-pdf";
 import { formatPersonName } from "@/pages/requests/request-helpers";
+import { MediaPickerModal } from "@/shared/components/media/MediaPickerModal";
+import { listFileAssets, uploadFileAsset } from "@/pages/files/files-api";
 import type { FinanceAccountRecord, FinanceRequestDeductionRecord } from "@/shared";
 
 type Option = { id: string; name: string };
@@ -58,6 +60,11 @@ type ManualDisbursement = {
   certificate_amount?: string;
   certificate_declaration?: string;
   certificate_reason?: string;
+};
+
+type ManualEntryPickerTarget = {
+  kind: "item" | "pv" | "retirement";
+  index: number;
 };
 
 const downloadBase64File = (fileName: string, mimeType: string, contentBase64: string) => {
@@ -126,7 +133,6 @@ function FinanceManualEntryPage() {
   }, [notice, showToast]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState<string | null>(null);
   const [requestId, setRequestId] = useState<string>("");
   const [voucherId, setVoucherId] = useState<string>("");
   const [lookupId, setLookupId] = useState<string>("");
@@ -162,6 +168,7 @@ function FinanceManualEntryPage() {
   const [generatingCertIndex, setGeneratingCertIndex] = useState<number | null>(null);
   const [certAssetsByIndex, setCertAssetsByIndex] = useState<Record<number, { id: string; file_name: string; previewUrl: string }[]>>({});
   const [requestDeductions, setRequestDeductions] = useState<FinanceRequestDeductionRecord[]>([]);
+  const [mediaPickerTarget, setMediaPickerTarget] = useState<ManualEntryPickerTarget | null>(null);
 
   const [form, setForm] = useState({
     request_type_id: "",
@@ -219,6 +226,7 @@ function FinanceManualEntryPage() {
       certificate_reason: "",
     },
   ]);
+  const currentUserId = user?.id ? String(user.id) : undefined;
 
   const resetManualForm = () => {
     setRequestId("");
@@ -1124,56 +1132,36 @@ function FinanceManualEntryPage() {
     }
   };
 
-  const uploadForItem = async (index: number, file: File | null) => {
-    if (!file) return;
-    try {
-      setUploading(`item-${index}`);
-      const asset = await resourceApi.uploadFile(file, { metadata: { source: "manual_request_item" } });
-      setItems((prev) => prev.map((row, i) => (i === index ? { ...row, file_id: asset.id } : row)));
-      setNotice({ tone: "success", message: `Uploaded ${file.name}` });
-    } catch (error: any) {
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to upload file." });
-    } finally {
-      setUploading(null);
-    }
-  };
-
-  const uploadForPvEvidence = async (index: number, file: File | null) => {
-    if (!file) return;
-    try {
-      setUploading(`pv-${index}`);
-      const asset = await resourceApi.uploadFile(file, { metadata: { source: "manual_pv_evidence" } });
-      setDisbursements((prev) => prev.map((row, i) => (i === index ? { ...row, evidence_file_id: asset.id } : row)));
-      setNotice({ tone: "success", message: `Uploaded ${file.name}` });
-    } catch (error: any) {
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to upload file." });
-    } finally {
-      setUploading(null);
-    }
-  };
-
-  const uploadForRetirement = async (index: number, file: File | null) => {
-    if (!file) return;
-    try {
-      setUploading(`ret-${index}`);
-      const asset = await resourceApi.uploadFile(file, { metadata: { source: "manual_retirement_file" } });
-      setDisbursements((prev) =>
-        prev.map((row, i) => {
-          if (i !== index) return row;
-          const existing = (row.retirement_file_ids_text || "")
+  const selectedMediaIds = mediaPickerTarget
+    ? mediaPickerTarget.kind === "item"
+      ? [items[mediaPickerTarget.index]?.file_id].filter(Boolean) as string[]
+      : mediaPickerTarget.kind === "pv"
+        ? [disbursements[mediaPickerTarget.index]?.evidence_file_id].filter(Boolean) as string[]
+        : (disbursements[mediaPickerTarget.index]?.retirement_file_ids_text || "")
             .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean);
-          return { ...row, retirement_file_ids_text: Array.from(new Set([...existing, asset.id])).join(", ") };
-        })
-      );
-      setNotice({ tone: "success", message: `Uploaded ${file.name}` });
-    } catch (error: any) {
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to upload file." });
-    } finally {
-      setUploading(null);
+            .map((value) => value.trim())
+            .filter(Boolean)
+    : [];
+
+  const applySelectedMedia = (target: ManualEntryPickerTarget, fileIds: string[]) => {
+    if (target.kind === "item") {
+      setItems((prev) => prev.map((row, index) => (index === target.index ? { ...row, file_id: fileIds[0] || "" } : row)));
+      return;
     }
+    if (target.kind === "pv") {
+      setDisbursements((prev) => prev.map((row, index) => (index === target.index ? { ...row, evidence_file_id: fileIds[0] || "" } : row)));
+      return;
+    }
+    setDisbursements((prev) =>
+      prev.map((row, index) => (index === target.index ? { ...row, retirement_file_ids_text: fileIds.join(", ") } : row))
+    );
   };
+
+  const mediaUploadSource = mediaPickerTarget?.kind === "item"
+    ? "manual_request_item"
+    : mediaPickerTarget?.kind === "pv"
+      ? "manual_pv_evidence"
+      : "manual_retirement_file";
 
   if (!allowed) {
     return (
@@ -1289,8 +1277,9 @@ function FinanceManualEntryPage() {
               <div className="col-span-12 md:col-span-3">
                 <TextField label="" placeholder="Invoice file_id" value={item.file_id || ""} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, file_id: e.target.value } : row))} />
                 <div className="mt-2">
-                  <input type="file" onChange={(e) => void uploadForItem(idx, e.target.files?.[0] || null)} />
-                  {uploading === `item-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
+                  <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "item", index: idx })}>
+                    Select / Upload File
+                  </Button>
                 </div>
               </div>
               <div className="col-span-12 md:col-span-1"><Button variant="danger" onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}>×</Button></div>
@@ -1328,8 +1317,9 @@ function FinanceManualEntryPage() {
               <div className="col-span-12 md:col-span-3"><label>Vendor / Payee</label><SelectField label="" value={row.contact_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, contact_id: e.target.value } : x))}><option value="">— None —</option>{vendorOptions.map((v) => <option key={v.id} value={v.id}>{v.name}{v.company_name ? ` — ${v.company_name}` : ""}</option>)}</SelectField></div>
               <div className="col-span-12 md:col-span-3"><label>PV evidence file_id</label><TextField label="" value={row.evidence_file_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, evidence_file_id: e.target.value } : x))} />
                 <div className="mt-2">
-                  <input type="file" onChange={(e) => void uploadForPvEvidence(idx, e.target.files?.[0] || null)} />
-                  {uploading === `pv-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
+                  <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "pv", index: idx })}>
+                    Select / Upload File
+                  </Button>
                 </div>
               </div>
 
@@ -1406,8 +1396,9 @@ function FinanceManualEntryPage() {
               <div className="col-span-6 md:col-span-2"><label>Retirement Status</label><SelectField label="" value={row.retirement_status || "not_retired"} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_status: e.target.value } : x))}><option value="not_retired">Pending</option><option value="partial">Partial</option><option value="retired">Retired</option><option value="verified">Confirmed</option></SelectField></div>
               <div className="col-span-12 md:col-span-5"><label>Retirement file ids (comma separated)</label><TextField label="" value={row.retirement_file_ids_text || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_file_ids_text: e.target.value } : x))} />
                 <div className="mt-2">
-                  <input type="file" onChange={(e) => void uploadForRetirement(idx, e.target.files?.[0] || null)} />
-                  {uploading === `ret-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
+                  <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "retirement", index: idx })}>
+                    Select / Upload Files
+                  </Button>
                 </div>
               </div>
 
@@ -1706,6 +1697,65 @@ function FinanceManualEntryPage() {
           </div>
         </div>
       </SlideOver>
+
+      <MediaPickerModal
+        open={mediaPickerTarget !== null}
+        onClose={() => setMediaPickerTarget(null)}
+        title={
+          mediaPickerTarget?.kind === "item"
+            ? "Select Item Invoice"
+            : mediaPickerTarget?.kind === "pv"
+              ? "Select PV Evidence"
+              : "Select Retirement Files"
+        }
+        multiple={mediaPickerTarget?.kind === "retirement"}
+        selectedIds={selectedMediaIds}
+        loadFiles={async (search) =>
+          listFileAssets({
+            include_usage: true,
+            per_page: 200,
+            search,
+            uploaded_by: currentUserId,
+          })
+        }
+        uploadFiles={async (files, onProgress) => {
+          if (!mediaPickerTarget) return;
+          const total = files.length;
+          let uploadedCount = 0;
+          const uploadedIds: string[] = [];
+
+          for (const file of Array.from(files)) {
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
+            });
+            const uploaded = await uploadFileAsset(file, {
+              organization_id: form.organization_id || undefined,
+              metadata: {
+                source: mediaUploadSource,
+                ...(editingId ? { request_id: editingId } : {}),
+              },
+            });
+            uploadedCount += 1;
+            uploadedIds.push(uploaded.id);
+            onProgress?.({
+              uploaded: uploadedCount,
+              total,
+              current_file_name: file.name,
+            });
+          }
+
+          const nextIds = mediaPickerTarget.kind === "retirement"
+            ? Array.from(new Set([...selectedMediaIds, ...uploadedIds]))
+            : uploadedIds.slice(-1);
+          applySelectedMedia(mediaPickerTarget, nextIds);
+        }}
+        onSelect={(files) => {
+          if (!mediaPickerTarget) return;
+          applySelectedMedia(mediaPickerTarget, files.map((file) => file.id));
+        }}
+      />
     </AppShell>
   );
 }
