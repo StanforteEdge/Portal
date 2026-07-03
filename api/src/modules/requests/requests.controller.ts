@@ -289,6 +289,12 @@ export class RequestsController {
     return this.requestsService.getApprovalHistory(id, req.user?.id);
   }
 
+  @Get(':id/thread')
+  @Permissions('requests.view')
+  getRequestThread(@Req() req: any, @Param('id') id: string) {
+    return this.requestsService.getRequestThread(id, req.user?.id);
+  }
+
 
   @Post('generate-pdf')
   @Permissions('requests.view')
@@ -302,7 +308,7 @@ export class RequestsController {
     }
   })
   generatePdf(@Req() req: any, @Body('id') id: string) {
-    return this.requestsService.generatePdf(id, req.user?.id);
+    return this.requestsService.downloadByAction(id, req.user?.id, { action: 'request_pdf' });
   }
 
   @Post('generate-pv')
@@ -317,7 +323,7 @@ export class RequestsController {
     }
   })
   generatePaymentVoucher(@Req() req: any, @Body('id') id: string) {
-    return this.requestsService.generatePaymentVoucher(id, req.user?.id);
+    return this.requestsService.downloadByAction(id, req.user?.id, { action: 'pv_pdf' });
   }
 
   @Post(':id/download')

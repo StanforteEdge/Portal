@@ -8,7 +8,8 @@ import Pagination from "@/components/Base/Pagination";
 import Table from "@/components/Base/Table";
 import AppNotice, { type NoticeTone } from "@/components/AppNotice";
 import NewPortalNotice from "@/components/NewPortalNotice";
-import { approveRequest, getRequestActions, listApprovals, rejectRequest, type RequestRecord } from "@/services/requests";
+import { approveRequest, getRequestActions, listApprovals, rejectRequest, returnRequest, type RequestRecord } from "@/services/requests";
+import ActionCommentModal from "@/components/ActionCommentModal";
 import { formatDisplayDate, formatMoney, formatPersonName, formatRequestNumber, statusBadgeClass } from "@/utils/formatting";
 
 function RequestApprovalsPage() {
@@ -22,6 +23,14 @@ function RequestApprovalsPage() {
   const [actingId, setActingId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
+  const [pendingAction, setPendingAction] = useState<{
+    id: string;
+    action: "approve" | "reject";
+    title: string;
+    suggestion: string;
+    confirmLabel: string;
+    confirmVariant: "primary" | "outline-danger";
+  } | null>(null);
 
   const filteredRequests = useMemo(() => {
     const searchText = search.trim().toLowerCase();
@@ -73,7 +82,16 @@ function RequestApprovalsPage() {
     }
   };
 
-  const handleAction = async (id: string, action: "approve" | "reject") => {
+  const openPendingAction = (id: string, action: "approve" | "reject") => {
+    setPendingAction(
+      action === "approve"
+        ? { id, action, title: "Approve Request", suggestion: "Approved.", confirmLabel: "Approve", confirmVariant: "primary" }
+        : { id, action, title: "Reject Request", suggestion: "This request has been rejected.", confirmLabel: "Reject", confirmVariant: "outline-danger" }
+    );
+  };
+
+  const handleAction = async (id: string, action: "approve" | "reject", comment: string) => {
+    setPendingAction(null);
     try {
       setActingId(id);
       const availableActions: string[] = await getRequestActions(id).catch(() => []);
@@ -85,13 +103,8 @@ function RequestApprovalsPage() {
         });
         return;
       }
-      if (action === "approve") {
-        await approveRequest(id, "Approved from approvals queue");
-      } else {
-        const comment = window.prompt("Rejection reason");
-        if (!comment) return;
-        await rejectRequest(id, comment);
-      }
+      if (action === "approve") await approveRequest(id, comment);
+      else await rejectRequest(id, comment);
       await load();
     } catch (error: any) {
       if (String(error?.response?.data?.error?.message || "").includes("not an allowed approver")) {
@@ -274,11 +287,11 @@ function RequestApprovalsPage() {
                       <Table.Td>
                         {req.approval_view_status === "pending" ? (
                           <div className="flex gap-2">
-                            <Button size="sm" variant="outline-primary" disabled={actingId === req.id} onClick={() => void handleAction(req.id, "approve")}>
+                            <Button size="sm" variant="outline-primary" disabled={actingId === req.id} onClick={() => openPendingAction(req.id, "approve")}>
                               <Lucide icon="CheckCheck" className="w-4 h-4 mr-1" />
                               Approve
                             </Button>
-                            <Button size="sm" variant="outline-danger" disabled={actingId === req.id} onClick={() => void handleAction(req.id, "reject")}>
+                            <Button size="sm" variant="outline-danger" disabled={actingId === req.id} onClick={() => openPendingAction(req.id, "reject")}>
                               <Lucide icon="XCircle" className="w-4 h-4 mr-1" />
                               Reject
                             </Button>
@@ -315,6 +328,19 @@ function RequestApprovalsPage() {
           </Pagination>
         </div>
       </div>
+
+      {pendingAction && (
+        <ActionCommentModal
+          open={Boolean(pendingAction)}
+          title={pendingAction.title}
+          suggestion={pendingAction.suggestion}
+          confirmLabel={pendingAction.confirmLabel}
+          confirmVariant={pendingAction.confirmVariant}
+          busy={actingId === pendingAction.id}
+          onClose={() => setPendingAction(null)}
+          onConfirm={(comment) => void handleAction(pendingAction.id, pendingAction.action, comment)}
+        />
+      )}
     </>
   );
 }

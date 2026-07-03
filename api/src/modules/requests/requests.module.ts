@@ -6,10 +6,12 @@ import { FormsModule } from '../forms/forms.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MailModule } from '../../common/mail/mail.module';
 import { PdfModule } from '../../common/pdf/pdf.module';
+import { DocumentGeneratorService } from '../../common/documents/document-generator.service';
 
 @Module({
   imports: [WorkflowModule, FormsModule, NotificationsModule, MailModule, PdfModule],
   controllers: [RequestsController],
-  providers: [RequestsService]
+  providers: [RequestsService, DocumentGeneratorService],
+  exports: [DocumentGeneratorService],
 })
 export class RequestsModule {}

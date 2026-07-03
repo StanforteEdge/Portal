@@ -20,11 +20,15 @@ import {
   generateRequestPvByVoucher,
   getRequest,
   getRequestActions,
+  getRequestThread,
   rejectRequest,
+  returnRequest,
   retireRequest,
   submitRequest,
   type RequestRecord,
+  type ThreadEntry,
 } from "@/services/requests";
+import ActionCommentModal from "@/components/ActionCommentModal";
 import { listTeams, type TeamOption } from "@/services/teams";
 import { listOrganizations, type OrganizationRecord } from "@/services/organizations";
 import { listProjects, type ProjectOption } from "@/services/projects";
@@ -126,12 +130,20 @@ function RequestDetailPage() {
   });
   const [showRetirementPicker, setShowRetirementPicker] = useState(false);
   const [requestTags, setRequestTags] = useState<TagTerm[]>([]);
+  const [thread, setThread] = useState<ThreadEntry[]>([]);
+  const [actionModal, setActionModal] = useState<{
+    action: "approve" | "reject" | "return";
+    title: string;
+    suggestion: string;
+    confirmLabel: string;
+    confirmVariant: "primary" | "outline-danger" | "outline-warning";
+  } | null>(null);
   const authUserId = useAppSelector((state) => String(state.auth.user?.id ?? ""));
 
   const load = async () => {
     try {
       setLoading(true);
-      const [req, actionList, teamsData, orgData, projectData, taxonomies, pvs, tagPayload] = await Promise.all([
+      const [req, actionList, teamsData, orgData, projectData, taxonomies, pvs, tagPayload, threadData] = await Promise.all([
         getRequest(id),
         getRequestActions(id),
         listTeams({ active_only: false }).catch(() => []),
@@ -140,6 +152,7 @@ function RequestDetailPage() {
         listManagedTaxonomies({ include_inactive: false }).catch(() => []),
         listFinanceRequestPaymentVouchers(id).catch(() => []),
         listEntityTags("request", id, "request_tags").catch(() => ({ tags: [] as TagTerm[] })),
+        getRequestThread(id).catch(() => [] as ThreadEntry[]),
       ]);
       setRequest(req);
       setActions(actionList);
@@ -148,6 +161,7 @@ function RequestDetailPage() {
       setProjects(projectData);
       setPaymentVouchers(pvs);
       setRequestTags(tagPayload?.tags || []);
+      setThread(threadData);
       const termMap: Record<string, string> = {};
       for (const taxonomy of taxonomies) {
         for (const term of taxonomy.terms || []) termMap[String(term.id)] = String(term.label);
@@ -174,7 +188,69 @@ function RequestDetailPage() {
     return action;
   };
 
+  const openActionModal = (action: "approve" | "reject" | "return") => {
+    const isAccountant = isAccountantStep && action === "approve";
+    const configs = {
+      approve: {
+        title: isAccountant ? "Clear Request" : "Approve Request",
+        suggestion: isAccountant ? "Cleared." : "Approved.",
+        confirmLabel: isAccountant ? "Clear" : "Approve",
+        confirmVariant: "primary" as const,
+      },
+      reject: {
+        title: "Reject Request",
+        suggestion: "This request has been rejected.",
+        confirmLabel: "Reject",
+        confirmVariant: "outline-danger" as const,
+      },
+      return: {
+        title: "Return Request",
+        suggestion: "Please revise and resubmit.",
+        confirmLabel: "Return",
+        confirmVariant: "outline-warning" as const,
+      },
+    };
+    setActionModal({ action, ...configs[action] });
+  };
+
+  const runWithComment = async (action: "approve" | "reject" | "return", comment: string) => {
+    setActionModal(null);
+    try {
+      setBusyAction(action);
+      setNotice(null);
+
+      if (action === "approve" || action === "reject" || action === "return") {
+        const availableActions: string[] = await getRequestActions(id).catch(() => []);
+        if (!availableActions.includes(action)) {
+          await load();
+          setNotice({
+            tone: "error",
+            message: "This request is no longer awaiting your approval. We refreshed the page for you.",
+          });
+          return;
+        }
+      }
+      if (action === "approve") await approveRequest(id, comment);
+      if (action === "reject") await rejectRequest(id, comment);
+      if (action === "return") await returnRequest(id, comment);
+
+      setNotice({ tone: "success", message: `Action '${action}' completed.` });
+      await load();
+    } catch (error: any) {
+      if (String(error?.response?.data?.error?.message || "").includes("not an allowed approver")) {
+        await load();
+      }
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || `Action '${action}' failed.` });
+    } finally {
+      setBusyAction("");
+    }
+  };
+
   const run = async (action: string) => {
+    if (action === "approve" || action === "reject" || action === "return") {
+      openActionModal(action);
+      return;
+    }
     try {
       setBusyAction(action);
       setNotice(null);
@@ -187,27 +263,11 @@ function RequestDetailPage() {
         return;
       }
       if (action === "submit") await submitRequest(id);
-      if (action === "approve" || action === "reject") {
-        const availableActions: string[] = await getRequestActions(id).catch(() => []);
-        if (!availableActions.includes(action)) {
-          await load();
-          setNotice({
-            tone: "error",
-            message: "This request is no longer awaiting your approval. We refreshed the page for you.",
-          });
-          return;
-        }
-      }
-      if (action === "approve") await approveRequest(id, window.prompt(`${getActionLabel(action)} comment (optional):`) || undefined);
-      if (action === "reject") await rejectRequest(id, window.prompt("Rejection reason:") || undefined);
       if (action === "complete") await completeRequest(id);
 
       setNotice({ tone: "success", message: `Action '${action}' completed.` });
       await load();
     } catch (error: any) {
-      if (String(error?.response?.data?.error?.message || "").includes("not an allowed approver")) {
-        await load();
-      }
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || `Action '${action}' failed.` });
     } finally {
       setBusyAction("");
@@ -588,6 +648,56 @@ function RequestDetailPage() {
               </div>
             </div>
 
+            {thread.length > 0 && (
+              <div className="rounded-md border p-4 space-y-3">
+                <h3 className="font-medium">Approval Thread</h3>
+                {thread.map((entry, idx) => {
+                  const badgeStyle: Record<string, string> = {
+                    submission: "bg-blue-100 text-blue-700",
+                    approval: "bg-green-100 text-green-700",
+                    rejection: "bg-red-100 text-red-700",
+                    return: "bg-amber-100 text-amber-700",
+                    auto_approval: "bg-purple-100 text-purple-700",
+                  };
+                  const badgeLabel: Record<string, string> = {
+                    submission: "Submitted",
+                    approval: "Approved",
+                    rejection: "Rejected",
+                    return: "Returned",
+                    auto_approval: "Auto-approved",
+                  };
+                  return (
+                    <div key={idx} className="flex gap-3">
+                      <div className="flex-shrink-0 mt-1 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 uppercase">
+                        {entry.actor_name.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="font-medium">{entry.actor_name}</span>
+                          {entry.actor_email && <span className="text-slate-400 text-xs">{entry.actor_email}</span>}
+                          <span className="text-slate-400 text-xs">· {entry.role_label}</span>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle[entry.type] ?? "bg-slate-100 text-slate-600"}`}>
+                            {badgeLabel[entry.type] ?? entry.type}
+                          </span>
+                          <span className="text-slate-400 text-xs ml-auto">{new Date(entry.at).toLocaleString()}</span>
+                        </div>
+                        {entry.comment && (
+                          <div className="mt-1 text-sm text-slate-700 whitespace-pre-line">{entry.comment}</div>
+                        )}
+                        {entry.attachments?.length ? (
+                          <div className="mt-1 flex flex-wrap gap-2">
+                            {entry.attachments.map((a) => (
+                              <span key={a.id} className="text-xs text-slate-500 border rounded px-2 py-0.5">{a.name}</span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2">
               {canEditDraft ? (
                 <Button
@@ -710,6 +820,19 @@ function RequestDetailPage() {
         selectedIds={retireForm.retirement_file_ids}
         onSelect={applyRetirementFiles}
       />
+
+      {actionModal && (
+        <ActionCommentModal
+          open={Boolean(actionModal)}
+          title={actionModal.title}
+          suggestion={actionModal.suggestion}
+          confirmLabel={actionModal.confirmLabel}
+          confirmVariant={actionModal.confirmVariant}
+          busy={busyAction === actionModal.action}
+          onClose={() => setActionModal(null)}
+          onConfirm={(comment) => void runWithComment(actionModal.action, comment)}
+        />
+      )}
 
       <Dialog open={Boolean(selectedVoucher)} onClose={() => setSelectedVoucher(null)}>
         <Dialog.Panel>

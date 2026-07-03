@@ -18,6 +18,7 @@ import { formatMoney } from "@/utils/formatting";
 import { uploadFileAsset } from "@/services/files";
 import { listFinanceAccounts, listFinanceRequestPaymentVouchers, type FinanceAccountRecord } from "@/services/finance";
 import { listFinanceFunds, listFinanceGrants } from "@/services/financeAccounting";
+import { getRequestThread, type ThreadEntry } from "@/services/requests";
 
 type Option = { id: string; name: string };
 type RequestTypeOption = Option & { categoryKey?: string | null };
@@ -35,7 +36,15 @@ type ImportPreviewRow = {
   ready: boolean;
 };
 
-type ManualItem = RequestItemInput;
+type FileRef = { id: string; name: string };
+
+type ManualItem = {
+  description: string;
+  amount: number;
+  quantity: number;
+  notes: string;
+  file_ids: FileRef[];
+};
 type ManualDisbursement = {
   voucher_number: string;
   amount: number;
@@ -44,10 +53,10 @@ type ManualDisbursement = {
   transaction_ref: string;
   note: string;
   disbursed_at: string;
-  evidence_file_id?: string;
+  evidence_file_ids: FileRef[];
   retired_amount?: number;
   retirement_status?: string;
-  retirement_file_ids_text?: string;
+  retirement_file_ids: FileRef[];
 };
 
 const downloadBase64File = (fileName: string, mimeType: string, contentBase64: string) => {
@@ -158,7 +167,7 @@ function FinanceManualEntryPage() {
   });
 
   const [items, setItems] = useState<ManualItem[]>([
-    { description: "", amount: 0, quantity: 1, notes: "", file_id: "" },
+    { description: "", amount: 0, quantity: 1, notes: "", file_ids: [] },
   ]);
   const [disbursements, setDisbursements] = useState<ManualDisbursement[]>([
     {
@@ -169,12 +178,13 @@ function FinanceManualEntryPage() {
       transaction_ref: "",
       note: "",
       disbursed_at: "",
-      evidence_file_id: "",
+      evidence_file_ids: [],
       retired_amount: 0,
       retirement_status: "not_retired",
-      retirement_file_ids_text: "",
+      retirement_file_ids: [],
     },
   ]);
+  const [thread, setThread] = useState<ThreadEntry[]>([]);
 
   const resetManualForm = () => {
     setRequestId("");
@@ -209,7 +219,7 @@ function FinanceManualEntryPage() {
         include_ed: false,
       },
     });
-    setItems([{ description: "", amount: 0, quantity: 1, notes: "", file_id: "" }]);
+    setItems([{ description: "", amount: 0, quantity: 1, notes: "", file_ids: [] }]);
     setDisbursements([
       {
         voucher_number: "",
@@ -219,12 +229,13 @@ function FinanceManualEntryPage() {
         transaction_ref: "",
         note: "",
         disbursed_at: "",
-        evidence_file_id: "",
+        evidence_file_ids: [],
         retired_amount: 0,
         retirement_status: "not_retired",
-        retirement_file_ids_text: "",
+        retirement_file_ids: [],
       },
     ]);
+    setThread([]);
   };
 
   const itemsTotal = useMemo(
@@ -474,7 +485,7 @@ function FinanceManualEntryPage() {
       amount: Number(item.amount || 0),
       quantity: Number(item.quantity || 1),
       notes: item.notes,
-      file_id: item.file_id || undefined,
+      file_id: item.file_ids?.[0]?.id || undefined,
     })),
     disbursements: (input.disbursements || [])
       .filter((entry) => entry.voucher_number && Number(entry.amount) > 0)
@@ -486,13 +497,10 @@ function FinanceManualEntryPage() {
         transaction_ref: entry.transaction_ref || undefined,
         note: entry.note || undefined,
         disbursed_at: entry.disbursed_at || undefined,
-        evidence_file_id: entry.evidence_file_id || undefined,
+        evidence_file_id: entry.evidence_file_ids?.[0]?.id || undefined,
         retired_amount: Number(entry.retired_amount || 0),
         retirement_status: entry.retirement_status || undefined,
-        retirement_file_ids: (entry.retirement_file_ids_text || "")
-          .split(",")
-          .map((x) => x.trim())
-          .filter(Boolean),
+        retirement_file_ids: (entry.retirement_file_ids || []).map((f) => f.id),
       })),
   });
 
@@ -629,9 +637,10 @@ function FinanceManualEntryPage() {
               transaction_ref: normalizeText(entry.transaction_ref) || "",
               note: normalizeText(entry.note) || "",
               disbursed_at: parseSpreadsheetDate(entry.disbursed_at),
+              evidence_file_ids: [],
               retired_amount: Number(entry.retired_amount || 0),
               retirement_status: normalizeText(entry.retirement_status) || "not_retired",
-              retirement_file_ids_text: "",
+              retirement_file_ids: [],
             } as ManualDisbursement;
           });
 
@@ -681,7 +690,7 @@ function FinanceManualEntryPage() {
                     amount: Number(entry.amount || 0),
                     quantity: Number(entry.quantity || 1),
                     notes: normalizeText(entry.notes) || "",
-                    file_id: "",
+                    file_ids: [],
                   })),
                   disbursements: voucherRows,
                 })
@@ -849,7 +858,7 @@ function FinanceManualEntryPage() {
           amount: Number(item.amount || 0),
           quantity: Number(item.quantity || 1),
           notes: item.notes,
-          file_id: item.file_id || undefined,
+          file_id: item.file_ids[0]?.id || undefined,
         })),
         disbursements: disbursements
           .filter((d) => d.voucher_number && Number(d.amount) > 0)
@@ -861,13 +870,10 @@ function FinanceManualEntryPage() {
             transaction_ref: d.transaction_ref || undefined,
             note: d.note || undefined,
             disbursed_at: d.disbursed_at || undefined,
-            evidence_file_id: d.evidence_file_id || undefined,
+            evidence_file_id: d.evidence_file_ids[0]?.id || undefined,
             retired_amount: Number(d.retired_amount || 0),
             retirement_status: d.retirement_status || undefined,
-            retirement_file_ids: (d.retirement_file_ids_text || "")
-              .split(",")
-              .map((x) => x.trim())
-              .filter(Boolean),
+            retirement_file_ids: d.retirement_file_ids.map((f) => f.id),
           })),
       };
       const created = editingId
@@ -879,6 +885,7 @@ function FinanceManualEntryPage() {
       const firstVoucher = (created as any)?.payment_vouchers?.[0]?.id || "";
       setVoucherId(firstVoucher);
       setNotice({ tone: "success", message: editingId ? "Manual request updated successfully." : "Manual request saved successfully." });
+      getRequestThread(created.id).then(setThread).catch(() => {});
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save manual request." });
     } finally {
@@ -960,7 +967,7 @@ function FinanceManualEntryPage() {
           amount: Number(item.amount || 0),
           quantity: Number(item.quantity || 1),
           notes: item.notes || "",
-          file_id: item.file_id || "",
+          file_ids: item.file_id ? [{ id: item.file_id, name: item.file_id }] : [],
         }))
       );
       setDisbursements(
@@ -972,12 +979,13 @@ function FinanceManualEntryPage() {
           transaction_ref: pv.transaction_ref || "",
           note: pv.note || "",
           disbursed_at: pv.disbursed_at ? String(pv.disbursed_at).slice(0, 10) : "",
-          evidence_file_id: pv.evidence_file?.id || "",
+          evidence_file_ids: pv.evidence_file ? [{ id: pv.evidence_file.id, name: pv.evidence_file.file_name }] : [],
           retired_amount: Number(pv.retired_amount || 0),
           retirement_status: pv.retirement_status || "not_retired",
-          retirement_file_ids_text: (pv.retirement_files || []).map((f) => f.id).join(", "),
+          retirement_file_ids: (pv.retirement_files || []).map((f) => ({ id: f.id, name: f.file_name })),
         }))
       );
+      getRequestThread(req.id).then(setThread).catch(() => {});
       setNotice({ tone: "success", message: `Loaded request ${req.id} for edit.` });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to find request by ID." });
@@ -1009,7 +1017,13 @@ function FinanceManualEntryPage() {
     try {
       setUploading(`item-${index}`);
       const asset = await uploadFileAsset(file, { metadata: { source: "manual_request_item" } });
-      setItems((prev) => prev.map((row, i) => (i === index ? { ...row, file_id: asset.id } : row)));
+      setItems((prev) =>
+        prev.map((row, i) =>
+          i === index
+            ? { ...row, file_ids: [...row.file_ids.filter((f) => f.id !== asset.id), { id: asset.id, name: file.name }] }
+            : row
+        )
+      );
       setNotice({ tone: "success", message: `Uploaded ${file.name}` });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to upload file." });
@@ -1023,7 +1037,13 @@ function FinanceManualEntryPage() {
     try {
       setUploading(`pv-${index}`);
       const asset = await uploadFileAsset(file, { metadata: { source: "manual_pv_evidence" } });
-      setDisbursements((prev) => prev.map((row, i) => (i === index ? { ...row, evidence_file_id: asset.id } : row)));
+      setDisbursements((prev) =>
+        prev.map((row, i) =>
+          i === index
+            ? { ...row, evidence_file_ids: [...row.evidence_file_ids.filter((f) => f.id !== asset.id), { id: asset.id, name: file.name }] }
+            : row
+        )
+      );
       setNotice({ tone: "success", message: `Uploaded ${file.name}` });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to upload file." });
@@ -1038,14 +1058,11 @@ function FinanceManualEntryPage() {
       setUploading(`ret-${index}`);
       const asset = await uploadFileAsset(file, { metadata: { source: "manual_retirement_file" } });
       setDisbursements((prev) =>
-        prev.map((row, i) => {
-          if (i !== index) return row;
-          const existing = (row.retirement_file_ids_text || "")
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean);
-          return { ...row, retirement_file_ids_text: Array.from(new Set([...existing, asset.id])).join(", ") };
-        })
+        prev.map((row, i) =>
+          i === index
+            ? { ...row, retirement_file_ids: [...row.retirement_file_ids.filter((f) => f.id !== asset.id), { id: asset.id, name: file.name }] }
+            : row
+        )
       );
       setNotice({ tone: "success", message: `Uploaded ${file.name}` });
     } catch (error: any) {
@@ -1148,17 +1165,25 @@ function FinanceManualEntryPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Items</h4><Button variant="outline-secondary" onClick={() => setItems((p) => [...p, { description: "", amount: 0, quantity: 1, notes: "", file_id: "" }])}>Add Item</Button></div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Items</h4><Button variant="outline-secondary" onClick={() => setItems((p) => [...p, { description: "", amount: 0, quantity: 1, notes: "", file_ids: [] }])}>Add Item</Button></div>
           {items.map((item, idx) => (
             <div key={`item-${idx}`} className="grid grid-cols-12 gap-3 mb-3">
               <div className="col-span-12 md:col-span-4"><FormInput placeholder="Item" value={item.description} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, description: e.target.value } : row))} /></div>
               <div className="col-span-6 md:col-span-2"><FormInput type="number" placeholder="Qty" value={item.quantity as number} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, quantity: Number(e.target.value || 1) } : row))} /></div>
               <div className="col-span-6 md:col-span-2"><FormInput type="number" placeholder="Price" value={item.amount} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, amount: Number(e.target.value || 0) } : row))} /></div>
               <div className="col-span-12 md:col-span-3">
-                <FormInput placeholder="Invoice file_id" value={item.file_id || ""} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, file_id: e.target.value } : row))} />
-                <div className="mt-2">
-                  <input type="file" onChange={(e) => void uploadForItem(idx, e.target.files?.[0] || null)} />
-                  {uploading === `item-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
+                <div className="space-y-1">
+                  {item.file_ids.map((f) => (
+                    <div key={f.id} className="flex items-center gap-1 text-xs rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                      <span className="flex-1 truncate text-slate-600">{f.name}</span>
+                      <button type="button" onClick={() => setItems((p) => p.map((row, i) => i === idx ? { ...row, file_ids: row.file_ids.filter((x) => x.id !== f.id) } : row))} className="text-slate-400 hover:text-danger">×</button>
+                    </div>
+                  ))}
+                  <label className="inline-flex items-center gap-1 cursor-pointer text-xs text-primary hover:underline">
+                    <Lucide icon="FileText" className="w-3 h-3" />
+                    {uploading === `item-${idx}` ? "Uploading..." : "Attach file"}
+                    <input type="file" className="hidden" onChange={(e) => { void uploadForItem(idx, e.target.files?.[0] || null); e.target.value = ""; }} />
+                  </label>
                 </div>
               </div>
               <div className="col-span-12 md:col-span-1"><Button variant="danger" onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}>×</Button></div>
@@ -1168,7 +1193,7 @@ function FinanceManualEntryPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="outline-secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "" }])}>Add PV</Button></div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="outline-secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_ids: [], retired_amount: 0, retirement_status: "not_retired", retirement_file_ids: [] }])}>Add PV</Button></div>
           {disbursements.map((row, idx) => (
             <div key={`pv-${idx}`} className="grid grid-cols-12 gap-3 mb-4 p-3 border rounded">
               <div className="col-span-12 md:col-span-3">
@@ -1193,18 +1218,38 @@ function FinanceManualEntryPage() {
               <div className="col-span-6 md:col-span-2"><FormLabel>Method</FormLabel><FormSelect value={row.method} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, method: e.target.value } : x))}><option value="bank_transfer">Bank Transfer</option><option value="cash">Cash</option><option value="cheque">Cheque</option></FormSelect></div>
               <div className="col-span-12 md:col-span-3"><FormLabel>Transaction Ref</FormLabel><FormInput value={row.transaction_ref} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, transaction_ref: e.target.value } : x))} /></div>
               <div className="col-span-12 md:col-span-2"><FormLabel>Date</FormLabel><FormInput type="date" value={row.disbursed_at} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, disbursed_at: e.target.value } : x))} /></div>
-              <div className="col-span-12 md:col-span-3"><FormLabel>PV evidence file_id</FormLabel><FormInput value={row.evidence_file_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, evidence_file_id: e.target.value } : x))} />
-                <div className="mt-2">
-                  <input type="file" onChange={(e) => void uploadForPvEvidence(idx, e.target.files?.[0] || null)} />
-                  {uploading === `pv-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
+              <div className="col-span-12 md:col-span-3">
+                <FormLabel>PV Evidence Files</FormLabel>
+                <div className="space-y-1">
+                  {row.evidence_file_ids.map((f) => (
+                    <div key={f.id} className="flex items-center gap-1 text-xs rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                      <span className="flex-1 truncate text-slate-600">{f.name}</span>
+                      <button type="button" onClick={() => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, evidence_file_ids: x.evidence_file_ids.filter((e) => e.id !== f.id) } : x))} className="text-slate-400 hover:text-danger">×</button>
+                    </div>
+                  ))}
+                  <label className="inline-flex items-center gap-1 cursor-pointer text-xs text-primary hover:underline">
+                    <Lucide icon="FileText" className="w-3 h-3" />
+                    {uploading === `pv-${idx}` ? "Uploading..." : "Attach evidence"}
+                    <input type="file" className="hidden" onChange={(e) => { void uploadForPvEvidence(idx, e.target.files?.[0] || null); e.target.value = ""; }} />
+                  </label>
                 </div>
               </div>
               <div className="col-span-6 md:col-span-2"><FormLabel>Retired Amount</FormLabel><FormInput type="number" value={row.retired_amount || 0} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retired_amount: Number(e.target.value || 0) } : x))} /></div>
               <div className="col-span-6 md:col-span-2"><FormLabel>Retirement Status</FormLabel><FormSelect value={row.retirement_status || "not_retired"} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_status: e.target.value } : x))}><option value="not_retired">Pending</option><option value="partial">Partial</option><option value="retired">Retired</option><option value="verified">Confirmed</option></FormSelect></div>
-              <div className="col-span-12 md:col-span-5"><FormLabel>Retirement file ids (comma separated)</FormLabel><FormInput value={row.retirement_file_ids_text || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_file_ids_text: e.target.value } : x))} />
-                <div className="mt-2">
-                  <input type="file" onChange={(e) => void uploadForRetirement(idx, e.target.files?.[0] || null)} />
-                  {uploading === `ret-${idx}` ? <div className="text-xs text-slate-500 mt-1">Uploading...</div> : null}
+              <div className="col-span-12 md:col-span-5">
+                <FormLabel>Retirement Files</FormLabel>
+                <div className="space-y-1">
+                  {row.retirement_file_ids.map((f) => (
+                    <div key={f.id} className="flex items-center gap-1 text-xs rounded border border-slate-200 bg-slate-50 px-2 py-1">
+                      <span className="flex-1 truncate text-slate-600">{f.name}</span>
+                      <button type="button" onClick={() => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_file_ids: x.retirement_file_ids.filter((e) => e.id !== f.id) } : x))} className="text-slate-400 hover:text-danger">×</button>
+                    </div>
+                  ))}
+                  <label className="inline-flex items-center gap-1 cursor-pointer text-xs text-primary hover:underline">
+                    <Lucide icon="FileText" className="w-3 h-3" />
+                    {uploading === `ret-${idx}` ? "Uploading..." : "Attach retirement file"}
+                    <input type="file" className="hidden" onChange={(e) => { void uploadForRetirement(idx, e.target.files?.[0] || null); e.target.value = ""; }} />
+                  </label>
                 </div>
               </div>
               <div className="col-span-12 md:col-span-12"><FormLabel>Note</FormLabel><FormInput value={row.note} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, note: e.target.value } : x))} /></div>
@@ -1289,6 +1334,49 @@ function FinanceManualEntryPage() {
             <FormInput value={voucherId} onChange={(e) => setVoucherId(e.target.value)} placeholder="Paste voucher UUID" />
           </div>
         ) : null}
+
+        {thread.length > 0 && (
+          <div className="rounded-md border p-4 space-y-3">
+            <h4 className="font-medium">Approval Thread</h4>
+            {thread.map((entry, idx) => {
+              const badgeStyle: Record<string, string> = {
+                submission: "bg-blue-100 text-blue-700",
+                approval: "bg-green-100 text-green-700",
+                rejection: "bg-red-100 text-red-700",
+                return: "bg-amber-100 text-amber-700",
+                auto_approval: "bg-purple-100 text-purple-700",
+              };
+              const badgeLabel: Record<string, string> = {
+                submission: "Submitted",
+                approval: "Approved",
+                rejection: "Rejected",
+                return: "Returned",
+                auto_approval: "Auto-approved",
+              };
+              return (
+                <div key={idx} className="flex gap-3">
+                  <div className="flex-shrink-0 mt-1 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 uppercase">
+                    {entry.actor_name.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 text-sm">
+                      <span className="font-medium">{entry.actor_name}</span>
+                      {entry.actor_email && <span className="text-slate-400 text-xs">{entry.actor_email}</span>}
+                      <span className="text-slate-400 text-xs">· {entry.role_label}</span>
+                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle[entry.type] ?? "bg-slate-100 text-slate-600"}`}>
+                        {badgeLabel[entry.type] ?? entry.type}
+                      </span>
+                      <span className="text-slate-400 text-xs ml-auto">{new Date(entry.at).toLocaleString()}</span>
+                    </div>
+                    {entry.comment && (
+                      <div className="mt-1 text-sm text-slate-700 whitespace-pre-line">{entry.comment}</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <Dialog open={showImportDialog} onClose={() => setShowImportDialog(false)} size="xl">

@@ -24,9 +24,13 @@ import {
   generateRequestPvByVoucher,
   getRequest,
   getRequestActions,
+  getRequestThread,
   rejectRequest,
+  returnRequest,
   type RequestRecord,
+  type ThreadEntry,
 } from "@/services/requests";
+import ActionCommentModal from "@/components/ActionCommentModal";
 import { listTeams, type TeamOption } from "@/services/teams";
 import { listOrganizations, type OrganizationRecord } from "@/services/organizations";
 import { listProjects, type ProjectOption } from "@/services/projects";
@@ -142,6 +146,15 @@ function FinanceRequestDetailPage() {
   const [busyAction, setBusyAction] = useState("");
   const [notice, setNotice] = useState<{ tone: NoticeTone; message: string } | null>(null);
   const [selectedVoucher, setSelectedVoucher] = useState<PaymentVoucherRecord | null>(null);
+  const [thread, setThread] = useState<ThreadEntry[]>([]);
+  const [actionModal, setActionModal] = useState<{
+    action: "approve" | "reject" | "return";
+    title: string;
+    suggestion: string;
+    confirmLabel: string;
+    confirmVariant: "primary" | "outline-danger" | "outline-warning";
+  } | null>(null);
+  const [correctionRejectModal, setCorrectionRejectModal] = useState(false);
 
   const [showDisburseModal, setShowDisburseModal] = useState(false);
   const [showEvidencePicker, setShowEvidencePicker] = useState(false);
@@ -234,7 +247,7 @@ function FinanceRequestDetailPage() {
   const load = async () => {
     try {
       setLoading(true);
-      const [req, actionList, teamsData, orgData, projectData, taxonomies, pvs, tagPayload, accounts] = await Promise.all([
+      const [req, actionList, teamsData, orgData, projectData, taxonomies, pvs, tagPayload, accounts, threadData] = await Promise.all([
         getRequest(id),
         getRequestActions(id),
         listTeams({ active_only: false }).catch(() => []),
@@ -244,6 +257,7 @@ function FinanceRequestDetailPage() {
         listFinanceRequestPaymentVouchers(id).catch(() => []),
         listEntityTags("request", id, "request_tags").catch(() => ({ tags: [] as TagTerm[] })),
         listFinanceAccounts({ is_active: true }).catch(() => []),
+        getRequestThread(id).catch(() => [] as ThreadEntry[]),
       ]);
       setRequest(req);
       setActions(actionList);
@@ -253,6 +267,7 @@ function FinanceRequestDetailPage() {
       setPaymentVouchers(pvs);
       setFinanceAccounts(accounts);
       setRequestTags(tagPayload?.tags || []);
+      setThread(threadData);
 
       const termMap: Record<string, string> = {};
       for (const taxonomy of taxonomies) {
@@ -375,57 +390,61 @@ function FinanceRequestDetailPage() {
     }
   };
 
-  const approve = async () => {
+  const isAccountantStep = (request?.approvals?.pending ?? []).some(
+    (p: any) => p.approver_type === "permission" && p.approver_id === "finance.approve"
+  );
+
+  const openActionModal = (action: "approve" | "reject" | "return") => {
+    const configs = {
+      approve: {
+        title: isAccountantStep ? "Clear Request" : "Approve Request",
+        suggestion: isAccountantStep ? "Cleared." : "Approved.",
+        confirmLabel: isAccountantStep ? "Clear" : "Approve",
+        confirmVariant: "primary" as const,
+      },
+      reject: {
+        title: "Reject Request",
+        suggestion: "This request has been rejected.",
+        confirmLabel: "Reject",
+        confirmVariant: "outline-danger" as const,
+      },
+      return: {
+        title: "Return Request",
+        suggestion: "Please revise and resubmit.",
+        confirmLabel: "Return",
+        confirmVariant: "outline-warning" as const,
+      },
+    };
+    setActionModal({ action, ...configs[action] });
+  };
+
+  const runWithComment = async (action: "approve" | "reject" | "return", comment: string) => {
+    setActionModal(null);
     try {
-      setBusyAction("approve");
+      setBusyAction(action);
       const availableActions: string[] = await getRequestActions(id).catch(() => []);
-      if (!availableActions.includes("approve")) {
+      if (!availableActions.includes(action)) {
         await load();
-        setNotice({
-          tone: "error",
-          message: "This request is no longer awaiting your approval. We refreshed the page for you.",
-        });
+        setNotice({ tone: "error", message: "This request is no longer awaiting your action. We refreshed the page for you." });
         return;
       }
-      const comment = window.prompt("Approval comment (optional):", "") || undefined;
-      await approveRequest(id, comment);
-      setNotice({ tone: "success", message: "Request approved." });
+      if (action === "approve") await approveRequest(id, comment);
+      if (action === "reject") await rejectRequest(id, comment);
+      if (action === "return") await returnRequest(id, comment);
+      setNotice({ tone: "success", message: `Request ${action}d.` });
       await load();
     } catch (error: any) {
       if (String(error?.response?.data?.error?.message || "").includes("not an allowed approver")) {
         await load();
       }
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Approval failed." });
+      setNotice({ tone: "error", message: error?.response?.data?.error?.message || `Action failed.` });
     } finally {
       setBusyAction("");
     }
   };
 
-  const reject = async () => {
-    try {
-      setBusyAction("reject");
-      const availableActions: string[] = await getRequestActions(id).catch(() => []);
-      if (!availableActions.includes("reject")) {
-        await load();
-        setNotice({
-          tone: "error",
-          message: "This request is no longer awaiting your review. We refreshed the page for you.",
-        });
-        return;
-      }
-      const comment = window.prompt("Rejection reason:", "") || undefined;
-      await rejectRequest(id, comment);
-      setNotice({ tone: "success", message: "Request rejected." });
-      await load();
-    } catch (error: any) {
-      if (String(error?.response?.data?.error?.message || "").includes("not an allowed approver")) {
-        await load();
-      }
-      setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Rejection failed." });
-    } finally {
-      setBusyAction("");
-    }
-  };
+  const approve = () => openActionModal("approve");
+  const reject = () => openActionModal("reject");
 
   const complete = async () => {
     try {
@@ -559,13 +578,13 @@ function FinanceRequestDetailPage() {
     }
   };
 
-  const rejectPendingCorrection = async () => {
+  const rejectPendingCorrection = async (comment: string) => {
     const pending = selectedVoucher?.pending_correction;
     if (!selectedVoucher || !pending) return;
-    const comment = window.prompt("Reason for rejecting this correction (optional):", "") || undefined;
+    setCorrectionRejectModal(false);
     try {
       setBusyAction("reject_voucher_correction");
-      await rejectFinanceRequestPaymentVoucherCorrection(id, selectedVoucher.id, pending.id, { comment });
+      await rejectFinanceRequestPaymentVoucherCorrection(id, selectedVoucher.id, pending.id, { comment: comment || undefined });
       setNotice({ tone: "success", message: `Correction for voucher ${selectedVoucher.voucher_number} rejected.` });
       await load();
       const refreshed = await listFinanceRequestPaymentVouchers(id).then((rows) => rows.find((row) => row.id === selectedVoucher.id) || null);
@@ -823,17 +842,63 @@ function FinanceRequestDetailPage() {
               )}
             </div>
 
+            {thread.length > 0 && (
+              <div className="border-t pt-4 space-y-3">
+                <div className="font-medium">Approval Thread</div>
+                {thread.map((entry, idx) => {
+                  const badgeStyle: Record<string, string> = {
+                    submission: "bg-blue-100 text-blue-700",
+                    approval: "bg-green-100 text-green-700",
+                    rejection: "bg-red-100 text-red-700",
+                    return: "bg-amber-100 text-amber-700",
+                    auto_approval: "bg-purple-100 text-purple-700",
+                  };
+                  const badgeLabel: Record<string, string> = {
+                    submission: "Submitted",
+                    approval: "Approved",
+                    rejection: "Rejected",
+                    return: "Returned",
+                    auto_approval: "Auto-approved",
+                  };
+                  return (
+                    <div key={idx} className="flex gap-3">
+                      <div className="flex-shrink-0 mt-1 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 uppercase">
+                        {entry.actor_name.charAt(0)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="font-medium">{entry.actor_name}</span>
+                          {entry.actor_email && <span className="text-slate-400 text-xs">{entry.actor_email}</span>}
+                          <span className="text-slate-400 text-xs">· {entry.role_label}</span>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle[entry.type] ?? "bg-slate-100 text-slate-600"}`}>
+                            {badgeLabel[entry.type] ?? entry.type}
+                          </span>
+                          <span className="text-slate-400 text-xs ml-auto">{new Date(entry.at).toLocaleString()}</span>
+                        </div>
+                        {entry.comment && <div className="mt-1 text-sm text-slate-700 whitespace-pre-line">{entry.comment}</div>}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             <div className="border-t pt-4">
               <div className="mb-2 font-medium">Finance Actions</div>
               <div className="flex flex-wrap gap-2">
                 {actions.includes("approve") ? (
-                  <Button onClick={() => void approve()} disabled={busyAction === "approve"}>
-                    {busyAction === "approve" ? "Working..." : "Approve"}
+                  <Button onClick={approve} disabled={busyAction === "approve"}>
+                    {busyAction === "approve" ? "Working..." : isAccountantStep ? "Clear" : "Approve"}
                   </Button>
                 ) : null}
                 {actions.includes("reject") ? (
-                  <Button variant="outline-danger" onClick={() => void reject()} disabled={busyAction === "reject"}>
+                  <Button variant="outline-danger" onClick={reject} disabled={busyAction === "reject"}>
                     {busyAction === "reject" ? "Working..." : "Reject"}
+                  </Button>
+                ) : null}
+                {actions.includes("return") ? (
+                  <Button variant="outline-warning" onClick={() => openActionModal("return")} disabled={busyAction === "return"}>
+                    {busyAction === "return" ? "Working..." : "Return"}
                   </Button>
                 ) : null}
                 {(request.status === "cleared" || request.status === "disbursed") ? (
@@ -1212,7 +1277,7 @@ function FinanceRequestDetailPage() {
               <>
                 <Button
                   variant="outline-secondary"
-                  onClick={() => void rejectPendingCorrection()}
+                  onClick={() => setCorrectionRejectModal(true)}
                   disabled={busyAction === "reject_voucher_correction"}
                 >
                   {busyAction === "reject_voucher_correction" ? "Rejecting..." : "Reject Correction"}
@@ -1300,6 +1365,30 @@ function FinanceRequestDetailPage() {
           </div>
         </Dialog.Panel>
       </Dialog>
+
+      {actionModal && (
+        <ActionCommentModal
+          open={Boolean(actionModal)}
+          title={actionModal.title}
+          suggestion={actionModal.suggestion}
+          confirmLabel={actionModal.confirmLabel}
+          confirmVariant={actionModal.confirmVariant}
+          busy={busyAction === actionModal.action}
+          onClose={() => setActionModal(null)}
+          onConfirm={(comment) => void runWithComment(actionModal.action, comment)}
+        />
+      )}
+
+      <ActionCommentModal
+        open={correctionRejectModal}
+        title="Reject Voucher Correction"
+        suggestion="This correction request has been rejected."
+        confirmLabel="Reject Correction"
+        confirmVariant="outline-danger"
+        busy={busyAction === "reject_voucher_correction"}
+        onClose={() => setCorrectionRejectModal(false)}
+        onConfirm={(comment) => void rejectPendingCorrection(comment)}
+      />
     </>
   );
 }

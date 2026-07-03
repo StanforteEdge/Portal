@@ -306,6 +306,26 @@ export async function completeRequest(id: string) {
   return response.data?.data as RequestRecord;
 }
 
+export async function returnRequest(id: string, comment: string) {
+  const response = await apiClient.post(`/requests/${id}/return`, { action: "return", comment });
+  return response.data?.data as RequestRecord;
+}
+
+export type ThreadEntry = {
+  type: "submission" | "approval" | "rejection" | "return" | "auto_approval";
+  actor_name: string;
+  actor_email: string | null;
+  role_label: string;
+  comment: string | null;
+  at: string;
+  attachments?: Array<{ name: string; id: string }>;
+};
+
+export async function getRequestThread(id: string): Promise<ThreadEntry[]> {
+  const response = await apiClient.get(`/requests/${id}/thread`);
+  return (response.data?.data ?? []) as ThreadEntry[];
+}
+
 export async function retireRequest(
   id: string,
   payload: { voucher_id?: string; notes?: string; retired_amount?: number; retirement_file_ids?: string[] }
