@@ -156,12 +156,16 @@ function FinanceManualEntryPage() {
     approvals: {
       team_lead_name: "",
       team_lead_date: "",
+      team_lead_comment: "Approved.",
       accountant_name: "",
       accountant_date: "",
+      accountant_comment: "Cleared.",
       coo_name: "",
       coo_date: "",
+      coo_comment: "Approved.",
       ed_name: "",
       ed_date: "",
+      ed_comment: "Approved.",
       include_ed: false,
     },
   });
@@ -210,12 +214,16 @@ function FinanceManualEntryPage() {
       approvals: {
         team_lead_name: "",
         team_lead_date: "",
+        team_lead_comment: "Approved.",
         accountant_name: "",
         accountant_date: "",
+        accountant_comment: "Cleared.",
         coo_name: "",
         coo_date: "",
+        coo_comment: "Approved.",
         ed_name: "",
         ed_date: "",
+        ed_comment: "Approved.",
         include_ed: false,
       },
     });
@@ -821,11 +829,11 @@ function FinanceManualEntryPage() {
       setSaving(true);
       setNotice(null);
       const approvals = [
-        { role: "team_lead", name: form.approvals.team_lead_name, date: form.approvals.team_lead_date, done: !!form.approvals.team_lead_name },
-        { role: "accountant", name: form.approvals.accountant_name, date: form.approvals.accountant_date, done: !!form.approvals.accountant_name },
-        { role: "coo", name: form.approvals.coo_name, date: form.approvals.coo_date, done: !!form.approvals.coo_name },
+        { role: "team_lead", name: form.approvals.team_lead_name, date: form.approvals.team_lead_date, done: !!form.approvals.team_lead_name, comment: form.approvals.team_lead_comment || undefined },
+        { role: "accountant", name: form.approvals.accountant_name, date: form.approvals.accountant_date, done: !!form.approvals.accountant_name, comment: form.approvals.accountant_comment || undefined },
+        { role: "coo", name: form.approvals.coo_name, date: form.approvals.coo_date, done: !!form.approvals.coo_name, comment: form.approvals.coo_comment || undefined },
         ...(form.approvals.include_ed
-          ? [{ role: "ed", name: form.approvals.ed_name, date: form.approvals.ed_date, done: !!form.approvals.ed_name }]
+          ? [{ role: "ed", name: form.approvals.ed_name, date: form.approvals.ed_date, done: !!form.approvals.ed_name, comment: form.approvals.ed_comment || undefined }]
           : []),
       ];
       const selectedProjectName =
@@ -951,12 +959,16 @@ function FinanceManualEntryPage() {
         approvals: {
           team_lead_name: findApproval("team_lead")?.name || "",
           team_lead_date: findApproval("team_lead")?.date ? String(findApproval("team_lead").date).slice(0, 10) : "",
+          team_lead_comment: findApproval("team_lead")?.comment || "Approved.",
           accountant_name: findApproval("accountant")?.name || "",
           accountant_date: findApproval("accountant")?.date ? String(findApproval("accountant").date).slice(0, 10) : "",
+          accountant_comment: findApproval("accountant")?.comment || "Cleared.",
           coo_name: findApproval("coo")?.name || "",
           coo_date: findApproval("coo")?.date ? String(findApproval("coo").date).slice(0, 10) : "",
+          coo_comment: findApproval("coo")?.comment || "Approved.",
           ed_name: findApproval("ed")?.name || "",
           ed_date: findApproval("ed")?.date ? String(findApproval("ed").date).slice(0, 10) : "",
+          ed_comment: findApproval("ed")?.comment || "Approved.",
           include_ed: Boolean(findApproval("ed")),
         },
       }));
@@ -1260,17 +1272,24 @@ function FinanceManualEntryPage() {
         <div>
           <h4 className="font-medium mb-2">Manual Approvals</h4>
           <div className="grid grid-cols-12 gap-3">
+            {/* Team Lead */}
             <div className="col-span-6 md:col-span-3"><FormLabel>Team Lead Name</FormLabel><FormSelect value={form.approvals.team_lead_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.team_lead_name && !approvalNameOptions.includes(form.approvals.team_lead_name) ? <option value={form.approvals.team_lead_name}>{form.approvals.team_lead_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-team-lead-${name}`} value={name}>{name}</option>)}</FormSelect></div>
             <div className="col-span-6 md:col-span-3"><FormLabel>Team Lead Date</FormLabel><FormInput type="date" value={form.approvals.team_lead_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_date: e.target.value } }))} /></div>
+            <div className="col-span-12 md:col-span-6"><FormLabel>Team Lead Comment</FormLabel><FormTextarea rows={1} value={form.approvals.team_lead_comment} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_comment: e.target.value } }))} placeholder="Approved." /></div>
+            {/* Accountant */}
             <div className="col-span-6 md:col-span-3"><FormLabel>Accountant Name</FormLabel><FormSelect value={form.approvals.accountant_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.accountant_name && !approvalNameOptions.includes(form.approvals.accountant_name) ? <option value={form.approvals.accountant_name}>{form.approvals.accountant_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-accountant-${name}`} value={name}>{name}</option>)}</FormSelect></div>
             <div className="col-span-6 md:col-span-3"><FormLabel>Accountant Date</FormLabel><FormInput type="date" value={form.approvals.accountant_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_date: e.target.value } }))} /></div>
+            <div className="col-span-12 md:col-span-6"><FormLabel>Accountant Comment</FormLabel><FormTextarea rows={1} value={form.approvals.accountant_comment} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_comment: e.target.value } }))} placeholder="Cleared." /></div>
+            {/* COO */}
             <div className="col-span-6 md:col-span-3"><FormLabel>COO Name</FormLabel><FormSelect value={form.approvals.coo_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.coo_name && !approvalNameOptions.includes(form.approvals.coo_name) ? <option value={form.approvals.coo_name}>{form.approvals.coo_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-coo-${name}`} value={name}>{name}</option>)}</FormSelect></div>
             <div className="col-span-6 md:col-span-3"><FormLabel>COO Date</FormLabel><FormInput type="date" value={form.approvals.coo_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_date: e.target.value } }))} /></div>
+            <div className="col-span-12 md:col-span-6"><FormLabel>COO Comment</FormLabel><FormTextarea rows={1} value={form.approvals.coo_comment} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_comment: e.target.value } }))} placeholder="Approved." /></div>
             <div className="col-span-12 md:col-span-3 flex items-end"><label className="inline-flex items-center gap-2"><input type="checkbox" checked={form.approvals.include_ed} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, include_ed: e.target.checked } }))} /><span>Include ED</span></label></div>
             {form.approvals.include_ed ? (
               <>
                 <div className="col-span-6 md:col-span-3"><FormLabel>ED Name</FormLabel><FormSelect value={form.approvals.ed_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.ed_name && !approvalNameOptions.includes(form.approvals.ed_name) ? <option value={form.approvals.ed_name}>{form.approvals.ed_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-ed-${name}`} value={name}>{name}</option>)}</FormSelect></div>
                 <div className="col-span-6 md:col-span-3"><FormLabel>ED Date</FormLabel><FormInput type="date" value={form.approvals.ed_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_date: e.target.value } }))} /></div>
+                <div className="col-span-12 md:col-span-6"><FormLabel>ED Comment</FormLabel><FormTextarea rows={1} value={form.approvals.ed_comment} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_comment: e.target.value } }))} placeholder="Approved." /></div>
               </>
             ) : null}
           </div>

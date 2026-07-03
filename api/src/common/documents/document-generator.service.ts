@@ -809,6 +809,28 @@ export class DocumentGeneratorService {
       addFile(item.file);
       (item.files ?? []).forEach((a: any) => addFile(a.file));
     }
+
+    // Collect any file IDs referenced in data.items[] that aren't already in fileMap
+    const dataItems = Array.isArray(data.items) ? (data.items as any[]) : [];
+    const missingFileIds = new Set<string>();
+    for (const di of dataItems) {
+      const ids: string[] = [];
+      if (di?.file_id && typeof di.file_id === 'string') ids.push(di.file_id);
+      if (Array.isArray(di?.file_ids)) ids.push(...di.file_ids.map((f: any) => (typeof f === 'string' ? f : f?.id)).filter(Boolean));
+      for (const fid of ids) {
+        if (!fileMap.has(fid)) missingFileIds.add(fid);
+      }
+    }
+    if (missingFileIds.size > 0) {
+      const extra = await this.prisma.fileAsset.findMany({
+        where: { id: { in: Array.from(missingFileIds) } },
+        select: { id: true, fileName: true },
+      });
+      for (const f of extra) {
+        if (f.fileName) fileMap.set(f.id, { id: f.id, name: f.fileName });
+      }
+    }
+
     const attachments = Array.from(fileMap.values());
 
     const submissionComment = [
@@ -816,7 +838,7 @@ export class DocumentGeneratorService {
         ? `Please make payment for the listed items. ${purpose}.`
         : 'Please make payment for the listed items.',
       attachments.length > 0
-        ? `The following supporting documents are attached: ${attachments.map((a) => a.name).join(', ')}.`
+        ? `Supporting documents attached: ${attachments.map((a) => a.name).join(', ')}.`
         : null,
     ]
       .filter(Boolean)
@@ -834,7 +856,32 @@ export class DocumentGeneratorService {
       },
     ];
 
-    if (!request.workflowInstanceId) return thread;
+    // For manual imports: build thread from data.manual_approvals
+    if (!request.workflowInstanceId) {
+      const manualApprovals = Array.isArray(data.manual_approvals) ? (data.manual_approvals as any[]) : [];
+      const roleOrder = ['team_lead', 'accountant', 'coo', 'ed'];
+      const roleLabelMap: Record<string, string> = {
+        team_lead: 'Team Lead',
+        accountant: 'Accountant',
+        coo: 'COO',
+        ed: 'Executive Director',
+      };
+      const sorted = [...manualApprovals].sort(
+        (a, b) => roleOrder.indexOf(a.role) - roleOrder.indexOf(b.role),
+      );
+      for (const ap of sorted) {
+        if (!ap?.name && !ap?.date) continue;
+        thread.push({
+          type: 'approval',
+          actor_name: ap.name ?? null,
+          actor_email: null,
+          role_label: roleLabelMap[ap.role] ?? String(ap.role),
+          comment: ap.comment ?? null,
+          at: ap.date ? new Date(ap.date) : request.createdAt,
+        });
+      }
+      return thread;
+    }
 
     const instance = await this.prisma.workflowInstance.findUnique({
       where: { id: request.workflowInstanceId },
@@ -892,14 +939,21 @@ export class DocumentGeneratorService {
     const typeConfig: Record<string, { label: string; color: string; icon: string }> = {
       submission: { label: 'Submitted', color: '#2563eb', icon: '●' },
       approval: { label: 'Approved', color: '#16a34a', icon: '✓' },
+      clearance: { label: 'Cleared', color: '#0891b2', icon: '✓' },
       rejection: { label: 'Rejected', color: '#dc2626', icon: '✗' },
       return: { label: 'Returned', color: '#d97706', icon: '↩' },
       auto_approval: { label: 'Auto-approved', color: '#7c3aed', icon: '✓' },
     };
 
+    const isFinanceRole = (label: string) => {
+      const l = label.toLowerCase();
+      return l.includes('accountant') || l.includes('finance') || l.includes('cleared');
+    };
+
     const rows = entries
       .map((entry, idx) => {
-        const cfg = typeConfig[entry.type] ?? typeConfig.approval;
+        const effectiveType = entry.type === 'approval' && isFinanceRole(entry.role_label) ? 'clearance' : entry.type;
+        const cfg = typeConfig[effectiveType] ?? typeConfig.approval;
         const nameAndEmail = entry.actor_email
           ? `${this.escapeHtml(entry.actor_name)} &lt;${this.escapeHtml(entry.actor_email)}&gt;`
           : this.escapeHtml(entry.actor_name);
