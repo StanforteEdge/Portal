@@ -1,5 +1,5 @@
 import { DocumentGeneratorService } from '../../../common/documents/document-generator.service';
-import { Document, DocumentIds, DocumentOutput } from '../../../common/documents/document.types';
+import { Document, DocumentIds, DocumentOutput, RequestThread } from '../../../common/documents/document.types';
 
 type PaymentVoucherContext = {
   request: any;
@@ -7,7 +7,7 @@ type PaymentVoucherContext = {
   totalAmount: number;
   generatedAt: Date;
   signatories: any;
-  approvals: any;
+  thread: RequestThread;
 };
 
 export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
@@ -20,18 +20,18 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
       this.engine.fetchRequest(requestId),
       this.engine.fetchSignatories(),
     ]);
-    const [approvals, voucher] = await Promise.all([
-      this.engine.fetchApprovals(request.workflowInstanceId),
+    const [thread, voucher] = await Promise.all([
+      this.engine.fetchThread(requestId),
       voucherId
         ? this.engine.fetchPaymentVoucher(requestId, voucherId)
         : this.engine.fetchPaymentVouchers(requestId).then((pvs) => pvs[0] ?? null),
     ]);
     const totalAmount = voucher ? Number(voucher.amount) : this.engine.resolveTotalAmount(request);
-    return { request, voucher, totalAmount, generatedAt: new Date(), signatories, approvals };
+    return { request, voucher, totalAmount, generatedAt: new Date(), signatories, thread };
   }
 
   async render(ctx: PaymentVoucherContext): Promise<DocumentOutput> {
-    const { request, voucher, totalAmount, generatedAt, signatories, approvals } = ctx;
+    const { request, voucher, totalAmount, generatedAt, signatories, thread } = ctx;
     const currency = request.currency || 'NGN';
     const logoDataUri = this.engine.getPdfLogoDataUri();
     const payee =
@@ -41,16 +41,19 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
 
     const data = (request.data ?? {}) as Record<string, unknown>;
     const isManualImport = Boolean(data.manual_import);
+
     const manualApprovals = Array.isArray(data.manual_approvals)
       ? (data.manual_approvals as Array<Record<string, unknown>>)
       : [];
     const manualFor = (matcher: RegExp) => manualApprovals.find((row) => matcher.test(String(row.role ?? '')));
     const manualAccountant = manualFor(/\b(accountant|finance)\b/i);
-    const manualCoo = manualFor(/\bcoo\b|chief\s+operating\s+officer/i);
-    const manualEd = manualFor(/\bed\b|executive director/i);
 
-    const cooApproved = approvals.done.find((a: any) => /\bcoo\b|chief\s+operating\s+officer/i.test(a.step));
-    const edApproved = approvals.done.find((a: any) => /\bed\b|executive director/i.test(a.step));
+    const cooEntry = thread.find(
+      (e) => e.type === 'approval' && /\bcoo\b|chief\s+operating\s+officer/i.test(e.role_label),
+    );
+    const edEntry = thread.find(
+      (e) => e.type === 'approval' && /\bed\b|executive\s+director/i.test(e.role_label),
+    );
 
     const method = voucher?.method ?? null;
     const voucherNo = voucher?.voucherNumber ?? 'N/A';
@@ -63,6 +66,8 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
           )
           .join('')
       : `<tr><td>1</td><td>${this.engine.escapeHtml(request.requestType.name)} Request</td><td>${this.engine.formatMoney(totalAmount, currency)}</td></tr>`;
+
+    const approvalEntries = thread.filter((e) => e.type !== 'submission');
 
     const body = this.engine.renderVoucherPageHtml({
       logoDataUri,
@@ -83,31 +88,18 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
         isManualImport && manualAccountant?.date
           ? this.engine.formatDate(String(manualAccountant.date))
           : this.engine.formatDate(generatedAt),
-      cooBy:
-        (isManualImport && manualCoo?.name ? String(manualCoo.name) : null) ??
-        (signatories.reviewed_by.name || '________________'),
-      cooDate: isManualImport
-        ? manualCoo?.date
-          ? this.engine.formatDate(String(manualCoo.date))
-          : 'Pending'
-        : cooApproved
-          ? this.engine.formatDate(cooApproved.at)
-          : 'Pending',
-      cooDone: isManualImport ? Boolean(manualCoo?.done) : Boolean(cooApproved),
-      edBy:
-        (isManualImport && manualEd?.name ? String(manualEd.name) : null) ??
-        (signatories.approved_by.name || '________________'),
-      edDate: isManualImport
-        ? manualEd?.date
-          ? this.engine.formatDate(String(manualEd.date))
-          : 'Pending / N/A'
-        : edApproved
-          ? this.engine.formatDate(edApproved.at)
-          : 'Pending / N/A',
-      edDone: isManualImport ? Boolean(manualEd?.done) : Boolean(edApproved),
+      cooBy: cooEntry?.actor_name ?? signatories.reviewed_by.name ?? '________________',
+      cooDate: cooEntry ? this.engine.formatDateTime(cooEntry.at) : 'Pending',
+      cooDone: Boolean(cooEntry),
+      edBy: edEntry?.actor_name ?? signatories.approved_by.name ?? '________________',
+      edDate: edEntry ? this.engine.formatDateTime(edEntry.at) : 'N/A',
+      edDone: Boolean(edEntry),
       remarks: voucher?.note ?? null,
-      approvalsThread: isManualImport ? [] : approvals.done,
     });
+
+    const threadSection = approvalEntries.length > 0
+      ? `<div style="margin-top:16px; padding:0 2px;"><div style="font-weight:700; font-size:13px; margin-bottom:8px;">Approval Thread</div>${this.engine.renderThreadHtml(approvalEntries)}</div>`
+      : '';
 
     const html = `<!doctype html><html><head><meta charset="utf-8" />
 <style>
@@ -125,7 +117,7 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
   .approvals { margin-top: 16px; }
   .approval { border: 1px solid #ddd; border-radius: 5px; padding: 8px; margin-bottom: 8px; }
   .muted { color: #475569; font-size: 11px; }
-</style></head><body>${body}</body></html>`;
+</style></head><body>${body}${threadSection}</body></html>`;
 
     const buffer = await this.engine.renderPdfFromHtml(html, [
       `PAYMENT VOUCHER ${voucherNo}`,
