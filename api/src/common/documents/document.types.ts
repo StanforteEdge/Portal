@@ -72,6 +72,8 @@ export type RequestThread = ThreadEntry[];
 export type FullPaymentVoucher = {
   id: string;
   voucherNumber: string;
+  grant: { name: string; code: string; donor: { name: string } | null } | null;
+  fund: { name: string; code: string } | null;
   amount: any;
   retiredAmount: any;
   retirementStatus: string;

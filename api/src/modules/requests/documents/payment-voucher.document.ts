@@ -55,6 +55,10 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
       (e) => e.type === 'approval' && /\bed\b|executive\s+director/i.test(e.role_label),
     );
 
+    const grantDonorLabel = voucher?.grant
+      ? [voucher.grant.name, voucher.grant.donor?.name].filter(Boolean).join(' — ')
+      : (voucher?.fund?.name ?? null);
+
     const method = voucher?.method ?? null;
     const voucherNo = voucher?.voucherNumber ?? 'N/A';
 
@@ -79,6 +83,7 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
       amountWords: this.engine.amountToWords(totalAmount),
       method,
       details: voucher?.transactionRef ?? '-',
+      grantDonorLabel,
       preparedBy:
         (isManualImport && manualAccountant?.name ? String(manualAccountant.name) : null) ??
         (signatories.prepared_by.name || '________________'),

@@ -198,6 +198,8 @@ export class DocumentGeneratorService {
           include: { file: true },
           orderBy: { sortOrder: 'asc' },
         },
+        grant: { select: { name: true, code: true, donor: { select: { name: true } } } },
+        fund: { select: { name: true, code: true } },
       },
       orderBy: { disbursedAt: 'asc' },
     }) as any;
@@ -214,6 +216,8 @@ export class DocumentGeneratorService {
           include: { file: true },
           orderBy: { sortOrder: 'asc' },
         },
+        grant: { select: { name: true, code: true, donor: { select: { name: true } } } },
+        fund: { select: { name: true, code: true } },
       },
     });
     if (!pv) throw new NotFoundException('Payment voucher not found');
@@ -588,6 +592,7 @@ export class DocumentGeneratorService {
     edBy: string;
     edDate: string;
     edDone: boolean;
+    grantDonorLabel?: string | null;
     remarks?: string | null;
     pageBreak?: boolean;
     logoDataUri?: string | null;
@@ -603,6 +608,7 @@ export class DocumentGeneratorService {
         </div>
         <div class="row"><div><strong>Payee Name:</strong></div><div class="line">${this.escapeHtml(input.payee)}</div></div>
         <div class="row"><div><strong>Address / Contact:</strong></div><div class="line">${this.escapeHtml(input.contact)}</div></div>
+        ${input.grantDonorLabel ? `<div class="row"><div><strong>Paid by (Grant / Donor):</strong></div><div class="line">${this.escapeHtml(input.grantDonorLabel)}</div></div>` : ''}
         <div class="row">
           <strong>Payment Items</strong>
           <table class="tbl">
