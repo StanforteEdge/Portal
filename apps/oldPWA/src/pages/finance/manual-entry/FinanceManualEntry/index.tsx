@@ -18,7 +18,6 @@ import { formatMoney } from "@/utils/formatting";
 import { uploadFileAsset } from "@/services/files";
 import { listFinanceAccounts, listFinanceRequestPaymentVouchers, type FinanceAccountRecord } from "@/services/finance";
 import { listFinanceFunds, listFinanceGrants } from "@/services/financeAccounting";
-import { getRequestThread, type ThreadEntry } from "@/services/requests";
 
 type Option = { id: string; name: string };
 type RequestTypeOption = Option & { categoryKey?: string | null };
@@ -188,8 +187,6 @@ function FinanceManualEntryPage() {
       retirement_file_ids: [],
     },
   ]);
-  const [thread, setThread] = useState<ThreadEntry[]>([]);
-
   const resetManualForm = () => {
     setRequestId("");
     setVoucherId("");
@@ -243,7 +240,6 @@ function FinanceManualEntryPage() {
         retirement_file_ids: [],
       },
     ]);
-    setThread([]);
   };
 
   const itemsTotal = useMemo(
@@ -894,7 +890,6 @@ function FinanceManualEntryPage() {
       const firstVoucher = (created as any)?.payment_vouchers?.[0]?.id || "";
       setVoucherId(firstVoucher);
       setNotice({ tone: "success", message: editingId ? "Manual request updated successfully." : "Manual request saved successfully." });
-      getRequestThread(created.id).then(setThread).catch(() => {});
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save manual request." });
     } finally {
@@ -1002,7 +997,6 @@ function FinanceManualEntryPage() {
           retirement_file_ids: (pv.retirement_files || []).map((f) => ({ id: f.id, name: f.file_name })),
         }))
       );
-      getRequestThread(req.id).then(setThread).catch(() => {});
       setNotice({ tone: "success", message: `Loaded request ${req.id} for edit.` });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to find request by ID." });
@@ -1359,48 +1353,6 @@ function FinanceManualEntryPage() {
           </div>
         ) : null}
 
-        {thread.length > 0 && (
-          <div className="rounded-md border p-4 space-y-3">
-            <h4 className="font-medium">Approval Thread</h4>
-            {thread.map((entry, idx) => {
-              const badgeStyle: Record<string, string> = {
-                submission: "bg-blue-100 text-blue-700",
-                approval: "bg-green-100 text-green-700",
-                rejection: "bg-red-100 text-red-700",
-                return: "bg-amber-100 text-amber-700",
-                auto_approval: "bg-purple-100 text-purple-700",
-              };
-              const badgeLabel: Record<string, string> = {
-                submission: "Submitted",
-                approval: "Approved",
-                rejection: "Rejected",
-                return: "Returned",
-                auto_approval: "Auto-approved",
-              };
-              return (
-                <div key={idx} className="flex gap-3">
-                  <div className="flex-shrink-0 mt-1 w-8 h-8 rounded-full bg-slate-100 flex items-center justify-center text-xs font-bold text-slate-500 uppercase">
-                    {entry.actor_name.charAt(0)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 text-sm">
-                      <span className="font-medium">{entry.actor_name}</span>
-                      {entry.actor_email && <span className="text-slate-400 text-xs">{entry.actor_email}</span>}
-                      <span className="text-slate-400 text-xs">· {entry.role_label}</span>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${badgeStyle[entry.type] ?? "bg-slate-100 text-slate-600"}`}>
-                        {badgeLabel[entry.type] ?? entry.type}
-                      </span>
-                      <span className="text-slate-400 text-xs ml-auto">{new Date(entry.at).toLocaleString()}</span>
-                    </div>
-                    {entry.comment && (
-                      <div className="mt-1 text-sm text-slate-700 whitespace-pre-line">{entry.comment}</div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </div>
 
       <Dialog open={showImportDialog} onClose={() => setShowImportDialog(false)} size="xl">

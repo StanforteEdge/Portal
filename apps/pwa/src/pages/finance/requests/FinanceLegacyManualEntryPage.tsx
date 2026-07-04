@@ -13,7 +13,6 @@ import { buildCertificateOfHonorPdf, formatCertificateCurrency } from "./details
 import { formatPersonName } from "@/pages/requests/request-helpers";
 import { MediaPickerModal } from "@/shared/components/media/MediaPickerModal";
 import { listFileAssets, uploadFileAsset, getFileAssets, deleteFileAsset } from "@/pages/files/files-api";
-import { getRequestThread, type ThreadEntry } from "@/pages/requests/requests-api";
 import type { FinanceAccountRecord, FinanceRequestDeductionRecord } from "@/shared";
 
 type Option = { id: string; name: string };
@@ -178,8 +177,6 @@ function FinanceManualEntryPage() {
   const [requestDeductions, setRequestDeductions] = useState<FinanceRequestDeductionRecord[]>([]);
   const [signatoryDefaults, setSignatoryDefaults] = useState<{ prepared_by: { name: string; title: string }; reviewed_by: { name: string; title: string }; approved_by: { name: string; title: string } }>({ prepared_by: { name: "", title: "" }, reviewed_by: { name: "", title: "" }, approved_by: { name: "", title: "" } });
   const [mediaPickerTarget, setMediaPickerTarget] = useState<ManualEntryPickerTarget | null>(null);
-  const [thread, setThread] = useState<ThreadEntry[]>([]);
-
   const [form, setForm] = useState({
     request_type_id: "",
     staff_id: "",
@@ -284,7 +281,6 @@ function FinanceManualEntryPage() {
     });
     setRequestDeductions([]);
     setItems([{ description: "", amount: 0, quantity: 1, notes: "", file_ids: [] }]);
-    setThread([]);
     setDisbursements([
       {
         voucher_number: "",
@@ -1033,7 +1029,6 @@ function FinanceManualEntryPage() {
       const firstVoucher = (created as any)?.payment_vouchers?.[0]?.id || "";
       setVoucherId(firstVoucher);
       setNotice({ tone: "success", message: editingId ? "Manual request updated successfully." : "Manual request saved successfully." });
-      getRequestThread(created.id).then(setThread).catch(() => {});
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save manual request." });
     } finally {
@@ -1156,7 +1151,6 @@ function FinanceManualEntryPage() {
       const deductionRes = await financeApi.listRequestDeductions({ request_id: String(req.id), per_page: 200 })
         .catch(() => ({ items: [] as FinanceRequestDeductionRecord[] }));
       setRequestDeductions(deductionRes.items);
-      getRequestThread(req.id).then(setThread).catch(() => {});
       setNotice({ tone: "success", message: `Loaded request ${req.id} for edit.` });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to find request by ID." });
@@ -1326,7 +1320,7 @@ function FinanceManualEntryPage() {
           <div className="col-span-12 md:col-span-4"><label>Grant / Donor Line</label><SelectField label="" value={form.grant_id} onChange={(e) => setForm((p) => ({ ...p, grant_id: e.target.value }))}><option value="">No specific grant</option>{filteredGrantOptions.map((x) => <option key={x.id} value={x.id}>{x.code ? `${x.code} - ` : ""}{x.name}</option>)}</SelectField></div>
           <div className="col-span-12 md:col-span-4"><label>Category</label><SelectField label="" value={form.category_id} onChange={(e) => setForm((p) => ({ ...p, category_id: e.target.value }))}><option value="">Select</option>{categoryOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</SelectField></div>
           <div className="col-span-12 md:col-span-8"><label>Purpose</label><TextAreaField label="" rows={2} value={form.purpose} onChange={(e) => setForm((p) => ({ ...p, purpose: e.target.value }))} /></div>
-          <div className="col-span-12"><label>Submission Note <span className="text-xs font-normal text-slate-400">(shown as first entry in approval thread)</span></label><TextAreaField label="" rows={2} value={form.submission_comment} onChange={(e) => setForm((p) => ({ ...p, submission_comment: e.target.value }))} placeholder="Please make payment for the listed items." /></div>
+          <div className="col-span-12"><label>Submission Note <span className="text-xs font-normal text-slate-400">(requester comment)</span></label><TextAreaField label="" rows={2} value={form.submission_comment} onChange={(e) => setForm((p) => ({ ...p, submission_comment: e.target.value }))} placeholder="Please make payment for the listed items." /></div>
         </div>
 
         <div>
@@ -1715,47 +1709,6 @@ function FinanceManualEntryPage() {
           </div>
         ) : null}
 
-        {thread.length > 0 && (
-          <div className="mt-6">
-            <h4 className="font-medium mb-3">Approval Thread</h4>
-            <div className="space-y-3">
-              {thread.map((entry, i) => {
-                const badgeClass =
-                  entry.type === "submission" ? "bg-blue-100 text-blue-700" :
-                  entry.type === "clearance" ? "bg-cyan-100 text-cyan-700" :
-                  entry.type === "approval" ? "bg-green-100 text-green-700" :
-                  entry.type === "rejection" ? "bg-red-100 text-red-700" :
-                  "bg-amber-100 text-amber-700";
-                const badgeLabel =
-                  entry.type === "submission" ? "Submitted" :
-                  entry.type === "clearance" ? "Cleared" :
-                  entry.type === "approval" ? "Approved" :
-                  entry.type === "rejection" ? "Rejected" :
-                  "Returned";
-                return (
-                  <div key={i} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap mb-1">
-                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeClass}`}>{badgeLabel}</span>
-                        <span className="text-sm font-medium text-slate-800">{entry.actor_name}</span>
-                        <span className="text-xs text-slate-500">{entry.role_label}</span>
-                        <span className="text-xs text-slate-400 ml-auto">{entry.at ? new Date(entry.at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}</span>
-                      </div>
-                      {entry.comment && <p className="text-sm text-slate-600">{entry.comment}</p>}
-                      {entry.attachments && entry.attachments.length > 0 && (
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {entry.attachments.map((att) => (
-                            <span key={att.id} className="text-xs px-2 py-0.5 bg-white border rounded text-slate-500">{att.name}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
       </div>
 
       <SlideOver open={showImportDialog} onClose={() => setShowImportDialog(false)} size="xl">
