@@ -194,6 +194,7 @@ function FinanceManualEntryPage() {
     created_at: "",
     due_date: "",
     purpose: "",
+    submission_comment: "Please make payment for the listed items.",
     currency: "NGN",
     approvals: {
       team_lead_name: "",
@@ -263,6 +264,7 @@ function FinanceManualEntryPage() {
       created_at: "",
       due_date: "",
       purpose: "",
+      submission_comment: "Please make payment for the listed items.",
       currency: "NGN",
       approvals: {
         team_lead_name: "",
@@ -974,6 +976,7 @@ function FinanceManualEntryPage() {
         total_amount: itemsTotal,
         data: {
           purpose: form.purpose || undefined,
+          submission_comment: form.submission_comment || undefined,
           due_date: form.due_date || undefined,
           category_id: form.category_id || undefined,
           project_name: selectedProjectName,
@@ -1088,6 +1091,7 @@ function FinanceManualEntryPage() {
         created_at: req.created_at ? String(req.created_at).slice(0, 10) : "",
         due_date: data.due_date ? String(data.due_date).slice(0, 10) : "",
         purpose: String(data.purpose || ""),
+        submission_comment: data.submission_comment ? String(data.submission_comment) : (data.purpose ? `Please make payment for the listed items. ${data.purpose}.` : "Please make payment for the listed items."),
         currency: req.currency || "NGN",
         approvals: {
           team_lead_name: findApproval("team_lead")?.name || "",
@@ -1322,6 +1326,7 @@ function FinanceManualEntryPage() {
           <div className="col-span-12 md:col-span-4"><label>Grant / Donor Line</label><SelectField label="" value={form.grant_id} onChange={(e) => setForm((p) => ({ ...p, grant_id: e.target.value }))}><option value="">No specific grant</option>{filteredGrantOptions.map((x) => <option key={x.id} value={x.id}>{x.code ? `${x.code} - ` : ""}{x.name}</option>)}</SelectField></div>
           <div className="col-span-12 md:col-span-4"><label>Category</label><SelectField label="" value={form.category_id} onChange={(e) => setForm((p) => ({ ...p, category_id: e.target.value }))}><option value="">Select</option>{categoryOptions.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</SelectField></div>
           <div className="col-span-12 md:col-span-8"><label>Purpose</label><TextAreaField label="" rows={2} value={form.purpose} onChange={(e) => setForm((p) => ({ ...p, purpose: e.target.value }))} /></div>
+          <div className="col-span-12"><label>Submission Note <span className="text-xs font-normal text-slate-400">(shown as first entry in approval thread)</span></label><TextAreaField label="" rows={2} value={form.submission_comment} onChange={(e) => setForm((p) => ({ ...p, submission_comment: e.target.value }))} placeholder="Please make payment for the listed items." /></div>
         </div>
 
         <div>

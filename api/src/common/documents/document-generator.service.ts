@@ -833,16 +833,19 @@ export class DocumentGeneratorService {
 
     const attachments = Array.from(fileMap.values());
 
-    const submissionComment = [
-      purpose
-        ? `Please make payment for the listed items. ${purpose}.`
-        : 'Please make payment for the listed items.',
-      attachments.length > 0
-        ? `Supporting documents attached: ${attachments.map((a) => a.name).join(', ')}.`
-        : null,
-    ]
-      .filter(Boolean)
-      .join(' ');
+    const customComment = typeof data.submission_comment === 'string' && data.submission_comment.trim()
+      ? data.submission_comment.trim()
+      : null;
+    const autoComment = purpose
+      ? `Please make payment for the listed items. ${purpose}.`
+      : 'Please make payment for the listed items.';
+    const baseComment = customComment ?? autoComment;
+    const filesSuffix = attachments.length > 0
+      ? `Supporting documents attached: ${attachments.map((a) => a.name).join(', ')}.`
+      : null;
+    const submissionComment = filesSuffix
+      ? `${baseComment} ${filesSuffix}`
+      : baseComment;
 
     const thread: ThreadEntry[] = [
       {
