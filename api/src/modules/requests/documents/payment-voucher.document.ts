@@ -67,8 +67,6 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
           .join('')
       : `<tr><td>1</td><td>${this.engine.escapeHtml(request.requestType.name)} Request</td><td>${this.engine.formatMoney(totalAmount, currency)}</td></tr>`;
 
-    const approvalEntries = thread.filter((e) => e.type !== 'submission');
-
     const body = this.engine.renderVoucherPageHtml({
       logoDataUri,
       voucherNo,
@@ -97,10 +95,6 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
       remarks: voucher?.note ?? null,
     });
 
-    const threadSection = approvalEntries.length > 0
-      ? `<div style="margin-top:16px; padding:0 2px;"><div style="font-weight:700; font-size:13px; margin-bottom:8px;">Approval Thread</div>${this.engine.renderThreadHtml(approvalEntries)}</div>`
-      : '';
-
     const html = `<!doctype html><html><head><meta charset="utf-8" />
 <style>
   @page { size: A4; margin: 10mm; }
@@ -117,7 +111,7 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
   .approvals { margin-top: 16px; }
   .approval { border: 1px solid #ddd; border-radius: 5px; padding: 8px; margin-bottom: 8px; }
   .muted { color: #475569; font-size: 11px; }
-</style></head><body>${body}${threadSection}</body></html>`;
+</style></head><body>${body}</body></html>`;
 
     const buffer = await this.engine.renderPdfFromHtml(html, [
       `PAYMENT VOUCHER ${voucherNo}`,
