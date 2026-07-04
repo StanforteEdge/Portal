@@ -31,6 +31,7 @@ export type MediaPickerModalProps = {
       current_file_name?: string;
     }) => void,
   ) => Promise<void>;
+  deleteFile?: (id: string) => Promise<void>;
   title?: string;
   multiple?: boolean;
   selectedIds?: string[];
@@ -51,6 +52,7 @@ export function MediaPickerModal({
   onSelect,
   loadFiles,
   uploadFiles,
+  deleteFile,
   title = "Media Library",
   multiple = false,
   selectedIds = [],
@@ -133,6 +135,23 @@ export function MediaPickerModal({
       if (!multiple) return prev[0] === id ? [] : [id];
       return prev.includes(id) ? prev.filter((row) => row !== id) : [...prev, id];
     });
+  }
+
+  async function handleDelete(id: string, fileName: string) {
+    if (!deleteFile) return;
+    if (!window.confirm(`Delete "${fileName}"? This cannot be undone.`)) return;
+    try {
+      setBusy(true);
+      setError("");
+      await deleteFile(id);
+      setItems((prev) => prev.filter((item) => item.id !== id));
+      setSelected((prev) => prev.filter((sel) => sel !== id));
+      setNewlyUploadedIds((prev) => { const next = new Set(prev); next.delete(id); return next; });
+    } catch (deleteError) {
+      setError(deleteError instanceof Error ? deleteError.message : "Delete failed. The file may be attached to a request.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   if (!open) return null;
@@ -269,7 +288,7 @@ export function MediaPickerModal({
                       <div>{item.mime_type || "-"}</div>
                       <div>{formatBytes(item.file_size)}</div>
                     </div>
-                    <div className="shrink-0">
+                    <div className="flex shrink-0 items-center gap-2">
                       {preview ? (
                         <a
                           href={preview}
@@ -284,6 +303,17 @@ export function MediaPickerModal({
                       ) : (
                         <span className="text-xs text-slate-400">-</span>
                       )}
+                      {deleteFile ? (
+                        <button
+                          type="button"
+                          onClick={(event) => { event.stopPropagation(); void handleDelete(item.id, item.file_name); }}
+                          disabled={busy}
+                          className="inline-flex items-center justify-center h-8 w-8 rounded-full border border-red-200 text-red-500 hover:bg-red-50 disabled:opacity-40"
+                          title="Delete file"
+                        >
+                          <Icon name="delete" className="text-[14px]" />
+                        </button>
+                      ) : null}
                     </div>
                   </button>
                 );

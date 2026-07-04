@@ -12,7 +12,7 @@ import { listManagedTaxonomies, type ManagedTaxonomy } from "../../requests/taxo
 import { buildCertificateOfHonorPdf, formatCertificateCurrency } from "./details/utils/certificate-pdf";
 import { formatPersonName } from "@/pages/requests/request-helpers";
 import { MediaPickerModal } from "@/shared/components/media/MediaPickerModal";
-import { listFileAssets, uploadFileAsset, getFileAssets } from "@/pages/files/files-api";
+import { listFileAssets, uploadFileAsset, getFileAssets, deleteFileAsset } from "@/pages/files/files-api";
 import { getRequestThread, type ThreadEntry } from "@/pages/requests/requests-api";
 import type { FinanceAccountRecord, FinanceRequestDeductionRecord } from "@/shared";
 
@@ -1819,6 +1819,7 @@ function FinanceManualEntryPage() {
       <MediaPickerModal
         open={mediaPickerTarget !== null}
         onClose={() => setMediaPickerTarget(null)}
+        deleteFile={deleteFileAsset}
         title={
           mediaPickerTarget?.kind === "item"
             ? "Select Item Invoice"

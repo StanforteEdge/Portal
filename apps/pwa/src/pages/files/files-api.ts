@@ -86,6 +86,10 @@ export async function getFileAssets(ids: string[]): Promise<FileAssetRecord[]> {
   return results.filter((r): r is FileAssetRecord => r !== null);
 }
 
+export async function deleteFileAsset(id: string): Promise<void> {
+  await httpRequest<unknown>(`/files/${id}`, { method: "DELETE" });
+}
+
 export async function uploadFileAsset(
   file: File,
   payload?: { organization_id?: string; metadata?: Record<string, unknown> }
