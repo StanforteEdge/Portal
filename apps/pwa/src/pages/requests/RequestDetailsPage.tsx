@@ -581,13 +581,20 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
         ]
         : [];
 
-    const done: ActivityItem[] = completedApprovals.map((entry) => ({
-      title: `${entry.step} ${entry.action}`,
-      description: entry.comment || "Workflow action completed.",
-      time: formatDisplayDate(entry.at),
-      tone: entry.action === "reject" ? "danger" : "success",
-      icon: entry.action === "reject" ? "cancel" : "task_alt",
-    }));
+    const done: ActivityItem[] = completedApprovals.map((entry) => {
+      const actor = [
+        entry.performed_by_name || null,
+        entry.performed_by_email ? `<${entry.performed_by_email}>` : null,
+      ].filter(Boolean).join(" ");
+      const actionLabel = entry.action === "reject" ? "Rejected" : entry.action === "auto_approve" ? "Auto-approved" : "✓ " + (entry.comment || "Approved");
+      return {
+        title: entry.step,
+        description: actor ? `${actor}\n${actionLabel}` : actionLabel,
+        time: formatDisplayDate(entry.at),
+        tone: entry.action === "reject" ? "danger" : "success",
+        icon: entry.action === "reject" ? "cancel" : "task_alt",
+      };
+    });
 
     const pending: ActivityItem[] = pendingApprovals.map((entry) => ({
       title: `${entry.step} pending`,

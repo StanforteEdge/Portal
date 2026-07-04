@@ -106,6 +106,7 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
           : 'Pending / N/A',
       edDone: isManualImport ? Boolean(manualEd?.done) : Boolean(edApproved),
       remarks: voucher?.note ?? null,
+      approvalsThread: isManualImport ? [] : approvals.done,
     });
 
     const html = `<!doctype html><html><head><meta charset="utf-8" />

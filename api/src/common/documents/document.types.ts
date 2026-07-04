@@ -44,6 +44,7 @@ export type ApprovalSummary = {
     action: string;
     step: string;
     performed_by_name?: string | null;
+    performed_by_email?: string | null;
     comment?: string | null;
     at: Date | string;
   }>;

@@ -2775,7 +2775,7 @@ export class RequestsService {
     const performerMap = new Map(
       performers.map((user) => {
         const fullName = `${user.firstName ?? ''} ${user.lastName ?? ''}`.trim();
-        return [user.id.toString(), fullName || user.username || user.email];
+        return [user.id.toString(), { name: fullName || user.username || user.email, email: user.email ?? null }];
       })
     );
 
@@ -2785,7 +2785,8 @@ export class RequestsService {
         action: entry.action,
         step: entry.fromStepId ? stepMap.get(entry.fromStepId) ?? 'Unknown step' : 'Unknown step',
         performed_by: entry.performedBy ? entry.performedBy.toString() : null,
-        performed_by_name: entry.performedBy ? performerMap.get(entry.performedBy.toString()) ?? null : null,
+        performed_by_name: entry.performedBy ? (performerMap.get(entry.performedBy.toString())?.name ?? null) : null,
+        performed_by_email: entry.performedBy ? (performerMap.get(entry.performedBy.toString())?.email ?? null) : null,
         comment: entry.comment,
         at: entry.createdAt
       }));

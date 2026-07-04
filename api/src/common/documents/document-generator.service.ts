@@ -162,7 +162,7 @@ export class DocumentGeneratorService {
     const performerMap = new Map(
       performers.map((u) => {
         const name = `${u.firstName ?? ''} ${u.lastName ?? ''}`.trim();
-        return [u.id.toString(), name || u.username || u.email];
+        return [u.id.toString(), { name: name || u.username || u.email, email: u.email ?? null }];
       }),
     );
     const done = instance.history
@@ -171,7 +171,8 @@ export class DocumentGeneratorService {
         action: e.action,
         step: e.fromStepId ? stepMap.get(e.fromStepId) ?? 'Unknown step' : 'Unknown step',
         performed_by: e.performedBy ? e.performedBy.toString() : null,
-        performed_by_name: e.performedBy ? performerMap.get(e.performedBy.toString()) ?? null : null,
+        performed_by_name: e.performedBy ? (performerMap.get(e.performedBy.toString())?.name ?? null) : null,
+        performed_by_email: e.performedBy ? (performerMap.get(e.performedBy.toString())?.email ?? null) : null,
         comment: e.comment,
         at: e.createdAt,
       }));
@@ -590,6 +591,14 @@ export class DocumentGeneratorService {
     remarks?: string | null;
     pageBreak?: boolean;
     logoDataUri?: string | null;
+    approvalsThread?: Array<{
+      step: string;
+      action: string;
+      performed_by_name?: string | null;
+      performed_by_email?: string | null;
+      comment?: string | null;
+      at: Date | string;
+    }>;
   }): string {
     const { method } = input;
     return `<div class="${input.pageBreak ? 'page-break' : ''}">
@@ -626,6 +635,17 @@ export class DocumentGeneratorService {
           ${input.cooDone ? `<div class="approval"><div><strong>[✓] Approved By (COO):</strong> ${this.escapeHtml(input.cooBy)}</div><div class="muted">${this.escapeHtml(input.cooDate)}</div></div>` : ''}
           ${input.edDone ? `<div class="approval"><div><strong>[✓] Approved By (ED):</strong> ${this.escapeHtml(input.edBy)}</div><div class="muted">${this.escapeHtml(input.edDate)}</div></div>` : ''}
           ${input.remarks ? `<div class="row"><strong>Remarks:</strong><div>${this.escapeHtml(input.remarks)}</div></div>` : ''}
+          ${input.approvalsThread && input.approvalsThread.length > 0 ? `
+          <div style="margin-top:12px;"><strong>Approval Thread:</strong></div>
+          ${input.approvalsThread.map((entry) => {
+            const actor = [
+              entry.performed_by_name ? this.escapeHtml(entry.performed_by_name) : null,
+              entry.performed_by_email ? `&lt;${this.escapeHtml(entry.performed_by_email)}&gt;` : null,
+            ].filter(Boolean).join(' ');
+            const actionLabel = entry.action === 'reject' ? 'Rejected' : entry.action === 'auto_approve' ? 'Auto-approved' : 'Approved';
+            const commentText = entry.comment ? this.escapeHtml(entry.comment) : actionLabel;
+            return `<div class="approval"><div><strong>${this.escapeHtml(entry.step)}</strong>${actor ? ` — ${actor}` : ''}</div><div class="muted">${this.escapeHtml(this.formatDateTime(entry.at))}</div><div style="margin-top:4px;">✓ ${commentText}</div></div>`;
+          }).join('')}` : ''}
         </div>
       </div>
     </div>`;
