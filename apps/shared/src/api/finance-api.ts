@@ -254,6 +254,8 @@ export type FinancePaymentVoucherRecord = {
   retired_at: string | null;
   verified_at: string | null;
   paid_from_account: { id: string; name: string; code: string | null; account_type: string } | null;
+  contact_id?: string;
+  contact?: { id: string; name: string } | null;
   evidence_file: { id: string; file_name: string; mime_type: string | null; public_url: string | null } | null;
   evidence_files?: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;
   retirement_files?: Array<{ id: string; file_name: string; mime_type: string | null; public_url: string | null }>;

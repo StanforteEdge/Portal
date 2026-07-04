@@ -50,4 +50,9 @@ export class UpdatePaymentVoucherDto {
   @IsOptional()
   @IsDateString()
   disbursed_at?: string;
+
+  @ApiPropertyOptional({ example: 'a1b2c3d4-e5f6-7890-abcd-ef1234567890' })
+  @IsOptional()
+  @IsUUID()
+  contact_id?: string;
 }

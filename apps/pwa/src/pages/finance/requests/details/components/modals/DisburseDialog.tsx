@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Button,
   Icon,
@@ -38,6 +38,7 @@ export function DisburseDialog() {
 
   const [deductionsOpen, setDeductionsOpen] = useState(false);
   const [grossAmount, setGrossAmount] = useState(disburseForm.amount);
+  const [grossAmountEdited, setGrossAmountEdited] = useState(false);
 
   const { data: contactsData } = useCachedQuery(
     "finance:contacts:vendors",
@@ -54,6 +55,11 @@ export function DisburseDialog() {
   const deductionTypes: any[] = Array.isArray(deductionTypesData)
     ? deductionTypesData
     : [];
+
+  useEffect(() => {
+    if (grossAmountEdited) return;
+    syncGross(disburseForm.amount);
+  }, [disburseForm.amount, grossAmountEdited]);
 
   function syncGross(value: string) {
     setGrossAmount(value);
@@ -173,7 +179,7 @@ export function DisburseDialog() {
           <div className="flex-1 overflow-y-auto px-6 py-5">
             <div className="grid gap-4 md:grid-cols-2">
               <TextField
-                label="Amount"
+                label="Amount (Net Paid)"
                 type="number"
                 min="0"
                 value={disburseForm.amount}
@@ -184,6 +190,7 @@ export function DisburseDialog() {
                   }))
                 }
                 placeholder={String(request?.total_amount ?? "")}
+                helpText="Enter the cash actually paid out. If tax is withheld, add the gross amount under Statutory Deductions."
               />
               <SelectField
                 label="Method"
@@ -319,9 +326,15 @@ export function DisburseDialog() {
                       min="0"
                       className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-900/20"
                       value={grossAmount}
-                      onChange={(e) => syncGross(e.target.value)}
+                      onChange={(e) => {
+                        setGrossAmountEdited(true);
+                        syncGross(e.target.value);
+                      }}
                       placeholder={disburseForm.amount || "Enter gross amount"}
                     />
+                    <p className="mt-1 text-xs text-slate-500">
+                      Gross amount before WHT/VAT/other statutory deductions.
+                    </p>
                   </div>
 
                   {/* Deduction lines */}
@@ -420,6 +433,9 @@ export function DisburseDialog() {
                       <div className="flex justify-between font-bold text-slate-900 border-t border-slate-200 pt-2">
                         <span>Net Payable</span>
                         <span>{formatCurrency(netPayable, "NGN")}</span>
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Net payable should match the Amount (Net Paid) field above.
                       </div>
                     </div>
                   )}

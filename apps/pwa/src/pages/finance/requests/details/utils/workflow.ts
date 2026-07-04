@@ -42,6 +42,7 @@ export function buildWorkflow(
   pendingSteps: Array<{ step: string }>,
   paymentVouchers: Array<{
     amount?: number;
+    gross_amount?: number;
     retired_amount?: number;
     retirement_status?: string;
   }>,
@@ -82,7 +83,7 @@ export function buildWorkflow(
   );
   const total = Number(request?.total_amount || 0);
   const disbursedTotal = paymentVouchers.reduce(
-    (sum, voucher) => sum + Number(voucher.amount || 0),
+    (sum, voucher) => sum + Number((voucher.gross_amount ?? voucher.amount) || 0),
     0,
   );
   const retiredTotal = paymentVouchers.reduce(

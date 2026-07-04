@@ -224,7 +224,7 @@ export function FinanceRequestDetailsPage() {
       (paymentVouchers ?? []).reduce(
         (sum, voucher) => {
           const gross = voucher.gross_amount !== undefined ? Number(voucher.gross_amount) : Number(voucher.amount || 0);
-          const net = Number(voucher.amount || 0);
+          const net = voucher.net_amount !== undefined ? Number(voucher.net_amount) : Number(voucher.amount || 0);
           return sum + (gross - net);
         },
         0,
@@ -735,6 +735,7 @@ export function FinanceRequestDetailsPage() {
       disbursed_at: voucher.disbursed_at
         ? String(voucher.disbursed_at).slice(0, 10)
         : current.disbursed_at,
+      contact_id: voucher.contact_id || voucher.contact?.id || "",
     }));
     setShowDisbursementMediaPicker(false);
     setShowDisburseDialog(true);

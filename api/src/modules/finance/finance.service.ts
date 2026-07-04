@@ -863,6 +863,9 @@ export class FinanceService {
         paidFromAccount: {
           select: { id: true, name: true, code: true, accountType: true }
         },
+        contact: {
+          select: { id: true, name: true }
+        },
         corrections: {
           where: { status: 'pending' },
           orderBy: { createdAt: 'desc' },
@@ -957,6 +960,10 @@ export class FinanceService {
               code: voucher.paidFromAccount.code,
               account_type: voucher.paidFromAccount.accountType
             }
+          : null,
+        contact_id: voucher.contactId ?? undefined,
+        contact: voucher.contact
+          ? { id: voucher.contact.id, name: voucher.contact.name }
           : null,
         gross_amount: grossAmount,
         net_amount: voucher.netAmount !== null ? Number(voucher.netAmount) : amount,
@@ -1247,6 +1254,16 @@ export class FinanceService {
     const nextNote = dto.note ?? voucher.note;
     const nextMethod = dto.method ?? voucher.method;
     const nextTransactionRef = dto.transaction_ref ?? voucher.transactionRef;
+    let nextContactId = dto.contact_id ?? voucher.contactId;
+    if (nextContactId) {
+      const contact = await this.prisma.financeContact.findUnique({
+        where: { id: nextContactId },
+        select: { id: true }
+      });
+      if (!contact) throw new BadRequestException('Invalid contact_id');
+    } else {
+      nextContactId = null;
+    }
     const changeSummary: Record<string, { from: string | number | null; to: string | number | null }> = {};
     if (Number(voucher.amount) !== nextAmount) changeSummary.amount = { from: Number(voucher.amount), to: nextAmount };
     if ((voucher.paidFromAccountId ?? null) !== (paidFromAccountId ?? null)) {
@@ -1260,6 +1277,9 @@ export class FinanceService {
       changeSummary.transaction_ref = { from: voucher.transactionRef ?? null, to: nextTransactionRef ?? null };
     }
     if ((voucher.note ?? null) !== (nextNote ?? null)) changeSummary.note = { from: voucher.note ?? null, to: nextNote ?? null };
+    if ((voucher.contactId ?? null) !== (nextContactId ?? null)) {
+      changeSummary.contact_id = { from: voucher.contactId ?? null, to: nextContactId ?? null };
+    }
 
     return {
       evidenceFileIds,
@@ -1270,6 +1290,7 @@ export class FinanceService {
       nextNote,
       nextMethod,
       nextTransactionRef,
+      nextContactId,
       changeSummary,
       currentSnapshot: {
         amount: Number(voucher.amount),
@@ -1277,6 +1298,7 @@ export class FinanceService {
         disbursed_at: voucher.disbursedAt.toISOString(),
         method: voucher.method ?? null,
         transaction_ref: voucher.transactionRef ?? null,
+        contact_id: voucher.contactId ?? null,
         note: voucher.note ?? null,
         evidence_file_ids: voucher.evidenceFileId ? [voucher.evidenceFileId] : []
       } as Prisma.InputJsonValue,
@@ -1286,6 +1308,7 @@ export class FinanceService {
         disbursed_at: disbursedAt.toISOString(),
         method: nextMethod ?? null,
         transaction_ref: nextTransactionRef ?? null,
+        contact_id: nextContactId ?? null,
         note: nextNote ?? null,
         evidence_file_ids: evidenceFileIds
       } as Prisma.InputJsonValue
@@ -1318,6 +1341,7 @@ export class FinanceService {
           transactionRef: prepared.nextTransactionRef,
           evidenceFileId: prepared.evidenceFileIds[0] ?? null,
           amount: prepared.nextAmount,
+          contactId: prepared.nextContactId,
           paidFromAccountId: prepared.paidFromAccountId,
           disbursedAt: prepared.disbursedAt,
         },
@@ -1577,8 +1601,11 @@ export class FinanceService {
               creator: { select: { firstName: true, lastName: true, username: true, email: true } },
             }
           },
-          paidFromAccount: {
-            select: { id: true, name: true, code: true, accountType: true }
+        paidFromAccount: {
+          select: { id: true, name: true, code: true, accountType: true }
+          },
+          contact: {
+            select: { id: true, name: true }
           },
           evidenceFile: {
             select: { id: true, fileName: true, mimeType: true, publicUrl: true, storagePath: true }
@@ -1661,6 +1688,10 @@ export class FinanceService {
               code: row.paidFromAccount.code,
               account_type: row.paidFromAccount.accountType
             }
+          : null,
+        contact_id: row.contactId ?? undefined,
+        contact: row.contact
+          ? { id: row.contact.id, name: row.contact.name }
           : null,
         evidence_file: evidenceFiles[0] ?? null,
         evidence_files: evidenceFiles,
