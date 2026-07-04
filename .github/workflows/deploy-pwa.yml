@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - "oldPWA/**"
+      - "apps/oldPWA/**"
       - ".github/workflows/deploy-pwa.yml"
 
 jobs:
@@ -26,7 +26,7 @@ jobs:
       - name: Compute build metadata
         id: build_meta
         run: |
-          APP_VERSION=$(node -p "require('./oldPWA/package.json').version")
+          APP_VERSION=$(node -p "require('./apps/oldPWA/package.json').version")
           BUILD_PATCH=$(git rev-list --count HEAD)
           BUILD_VERSION="1.0.$((BUILD_PATCH - 332))"
           echo "app_version=$APP_VERSION" >> "$GITHUB_OUTPUT"
@@ -35,15 +35,15 @@ jobs:
 
       - name: Install dependencies
         run: npm install --include=optional --no-audit --no-fund
-        working-directory: oldPWA
+        working-directory: apps/oldPWA
 
       - name: Work around npm optional dependency bug (rollup linux binary)
         run: npm install @rollup/rollup-linux-x64-gnu --no-save --no-audit --no-fund
-        working-directory: oldPWA
+        working-directory: apps/oldPWA
 
       - name: Build
         run: npm run build
-        working-directory: oldPWA
+        working-directory: apps/oldPWA
         env:
           VITE_API_BASE_URL: ${{ secrets.PWA_API_BASE_URL }}
           VITE_APP_BASE_PATH: ${{ secrets.PWA_BASE_PATH }}
@@ -52,7 +52,7 @@ jobs:
 
       - name: Write version manifest
         run: |
-          cat > oldPWA/dist/version.json <<EOF
+          cat > apps/oldPWA/dist/version.json <<EOF
           {
             "app_version": "${{ steps.build_meta.outputs.app_version }}",
             "build_version": "${{ steps.build_meta.outputs.build_version }}",
@@ -75,7 +75,7 @@ jobs:
           host: ${{ secrets.PWA_SSH_HOST }}
           username: ${{ secrets.PWA_SSH_USER }}
           key: ${{ secrets.PWA_SSH_PRIVATE_KEY }}
-          source: "oldPWA/dist/*"
+          source: "apps/oldPWA/dist/*"
           target: ${{ secrets.PWA_WEB_DIR }}
           strip_components: 2
           overwrite: true
