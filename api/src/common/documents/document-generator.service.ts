@@ -623,8 +623,8 @@ export class DocumentGeneratorService {
         <div class="approvals">
           <strong>Approvals:</strong>
           <div class="approval"><div><strong>Prepared By (Accountant):</strong> ${this.escapeHtml(input.preparedBy)}</div><div class="muted">${this.escapeHtml(input.preparedDate)}</div></div>
-          <div class="approval"><div><strong>[${input.cooDone ? '✓' : ' '}] Approved By (COO):</strong> ${this.escapeHtml(input.cooBy)}</div><div class="muted">${this.escapeHtml(input.cooDate)}</div></div>
-          <div class="approval"><div><strong>[${input.edDone ? '✓' : ' '}] Approved By (ED):</strong> ${this.escapeHtml(input.edBy)}</div><div class="muted">${this.escapeHtml(input.edDate)}</div></div>
+          ${input.cooDone ? `<div class="approval"><div><strong>[✓] Approved By (COO):</strong> ${this.escapeHtml(input.cooBy)}</div><div class="muted">${this.escapeHtml(input.cooDate)}</div></div>` : ''}
+          ${input.edDone ? `<div class="approval"><div><strong>[✓] Approved By (ED):</strong> ${this.escapeHtml(input.edBy)}</div><div class="muted">${this.escapeHtml(input.edDate)}</div></div>` : ''}
           ${input.remarks ? `<div class="row"><strong>Remarks:</strong><div>${this.escapeHtml(input.remarks)}</div></div>` : ''}
         </div>
       </div>
