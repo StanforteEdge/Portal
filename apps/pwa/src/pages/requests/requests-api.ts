@@ -372,6 +372,21 @@ export async function confirmRequest(id: string) {
   });
 }
 
+export type ThreadEntry = {
+  type: "submission" | "approval" | "rejection" | "return" | "clearance";
+  actor_name: string;
+  actor_email: string | null;
+  role_label: string;
+  comment: string | null;
+  at: string;
+  attachments?: Array<{ id: string; name: string }>;
+};
+
+export async function getRequestThread(id: string): Promise<ThreadEntry[]> {
+  const res = await httpRequest<any>(`/requests/${id}/thread`);
+  return (Array.isArray(res) ? res : (res as any)?.data ?? []) as ThreadEntry[];
+}
+
 export async function completeRequest(id: string) {
   return httpRequest<RequestRecord>(`/requests/${id}/complete`, {
     method: "POST",

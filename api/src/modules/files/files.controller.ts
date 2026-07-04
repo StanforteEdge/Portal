@@ -93,6 +93,13 @@ export class FilesController {
     return this.filesService.getUsage(id);
   }
 
+  @Get(':id')
+  @Permissions('requests.view')
+  @ApiOperation({ summary: 'Get file asset by ID' })
+  findOne(@Param('id') id: string) {
+    return this.filesService.findOne(id);
+  }
+
   @Delete(':id')
   @Permissions('requests.manage')
   @ApiOperation({ summary: 'Delete file if not attached to any request/PV/retirement' })

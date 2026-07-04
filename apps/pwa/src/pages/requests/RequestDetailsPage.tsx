@@ -733,9 +733,19 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
       if (action === "submit") {
         await submitRequest(id, actionComment.trim() || undefined);
       } else if (action === "approve") {
-        await approveRequest(id, actionComment.trim() || undefined);
+        const comment = actionComment.trim();
+        if (!comment) {
+          showToast({ tone: "warning", title: "Decision note required", message: "Please add a comment before approving." });
+          return;
+        }
+        await approveRequest(id, comment);
       } else if (action === "reject") {
-        await rejectRequest(id, actionComment.trim() || undefined);
+        const comment = actionComment.trim();
+        if (!comment) {
+          showToast({ tone: "warning", title: "Decision note required", message: "Please add a comment before rejecting." });
+          return;
+        }
+        await rejectRequest(id, comment);
       } else if (action === "return") {
         const reason = actionComment.trim();
         if (!reason) {

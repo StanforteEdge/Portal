@@ -78,16 +78,41 @@ export function RequestActionCard() {
         <div className="mt-4 space-y-3">
           <TextAreaField
             label="Decision note"
-            helpText={
-              availableActions.includes("return")
-                ? "Required for Return. Optional for Approve/Reject."
-                : "Optional context for the requester and audit trail."
-            }
+            helpText="Required — your comment is added to the approval thread."
             value={actionComment}
             onChange={(event) => setActionComment(event.target.value)}
             rows={3}
             className="border-white/20 bg-white/10 text-white placeholder:text-white/50"
           />
+          <div className="flex flex-wrap gap-2">
+            {availableActions.includes("approve") && (
+              <button
+                type="button"
+                onClick={() => setActionComment(handlerActionsVisible && isPayment ? "Cleared." : "Approved.")}
+                className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80 hover:bg-white/20 transition-colors"
+              >
+                Use: &ldquo;{handlerActionsVisible && isPayment ? "Cleared." : "Approved."}&rdquo;
+              </button>
+            )}
+            {availableActions.includes("reject") && (
+              <button
+                type="button"
+                onClick={() => setActionComment("This request has been rejected.")}
+                className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80 hover:bg-white/20 transition-colors"
+              >
+                Use: &ldquo;This request has been rejected.&rdquo;
+              </button>
+            )}
+            {availableActions.includes("return") && (
+              <button
+                type="button"
+                onClick={() => setActionComment("Please review and correct the details before resubmitting.")}
+                className="rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs text-white/80 hover:bg-white/20 transition-colors"
+              >
+                Use: &ldquo;Please review and correct...&rdquo;
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <Button
               variant="secondary"

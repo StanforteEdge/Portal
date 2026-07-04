@@ -190,6 +190,22 @@ export class FilesService {
     return { success: true, id: file.id, file_name: file.fileName };
   }
 
+  async findOne(id: string) {
+    const file = await this.prisma.fileAsset.findUnique({
+      where: { id },
+      select: { id: true, fileName: true, mimeType: true, fileSize: true, storagePath: true, publicUrl: true },
+    });
+    if (!file) throw new NotFoundException('File not found');
+    return {
+      id: file.id,
+      file_name: file.fileName,
+      mime_type: file.mimeType,
+      file_size: file.fileSize,
+      storage_path: file.storagePath,
+      public_url: file.publicUrl,
+    };
+  }
+
   async getUsage(id: string) {
     const file = await this.prisma.fileAsset.findUnique({
       where: { id },

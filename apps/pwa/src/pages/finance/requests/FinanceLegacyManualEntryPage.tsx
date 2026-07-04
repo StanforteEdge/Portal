@@ -12,11 +12,13 @@ import { listManagedTaxonomies, type ManagedTaxonomy } from "../../requests/taxo
 import { buildCertificateOfHonorPdf, formatCertificateCurrency } from "./details/utils/certificate-pdf";
 import { formatPersonName } from "@/pages/requests/request-helpers";
 import { MediaPickerModal } from "@/shared/components/media/MediaPickerModal";
-import { listFileAssets, uploadFileAsset } from "@/pages/files/files-api";
+import { listFileAssets, uploadFileAsset, getFileAssets } from "@/pages/files/files-api";
+import { getRequestThread, type ThreadEntry } from "@/pages/requests/requests-api";
 import type { FinanceAccountRecord, FinanceRequestDeductionRecord } from "@/shared";
 
 type Option = { id: string; name: string };
 type RequestTypeOption = Option & { categoryKey?: string | null };
+type FileRef = { id: string; name: string };
 type ImportAction = "create" | "update" | "skip";
 type ImportPreviewRow = {
   rowKey: string;
@@ -31,7 +33,13 @@ type ImportPreviewRow = {
   ready: boolean;
 };
 
-type ManualItem = RequestItemInput;
+type ManualItem = {
+  description: string;
+  amount: number;
+  quantity: number;
+  notes: string;
+  file_ids: FileRef[];
+};
 type ManualDeductionLine = {
   deduction_type_id: string;
   rate: number;
@@ -46,11 +54,10 @@ type ManualDisbursement = {
   transaction_ref: string;
   note: string;
   disbursed_at: string;
-  evidence_file_id?: string;
-  evidence_file_ids?: string[];
+  evidence_file_ids: FileRef[];
   retired_amount?: number;
   retirement_status?: string;
-  retirement_file_ids_text?: string;
+  retirement_file_ids: FileRef[];
   contact_id?: string;
   deductions?: ManualDeductionLine[];
   refund_amount?: string;
@@ -171,6 +178,7 @@ function FinanceManualEntryPage() {
   const [requestDeductions, setRequestDeductions] = useState<FinanceRequestDeductionRecord[]>([]);
   const [signatoryDefaults, setSignatoryDefaults] = useState<{ prepared_by: { name: string; title: string }; reviewed_by: { name: string; title: string }; approved_by: { name: string; title: string } }>({ prepared_by: { name: "", title: "" }, reviewed_by: { name: "", title: "" }, approved_by: { name: "", title: "" } });
   const [mediaPickerTarget, setMediaPickerTarget] = useState<ManualEntryPickerTarget | null>(null);
+  const [thread, setThread] = useState<ThreadEntry[]>([]);
 
   const [form, setForm] = useState({
     request_type_id: "",
@@ -190,18 +198,22 @@ function FinanceManualEntryPage() {
     approvals: {
       team_lead_name: "",
       team_lead_date: "",
+      team_lead_comment: "Approved.",
       accountant_name: "",
       accountant_date: "",
+      accountant_comment: "Cleared.",
       coo_name: "",
       coo_date: "",
+      coo_comment: "Approved.",
       ed_name: "",
       ed_date: "",
+      ed_comment: "Approved.",
       include_ed: false,
     },
   });
 
   const [items, setItems] = useState<ManualItem[]>([
-    { description: "", amount: 0, quantity: 1, notes: "", file_id: "" },
+    { description: "", amount: 0, quantity: 1, notes: "", file_ids: [] },
   ]);
   const [disbursements, setDisbursements] = useState<ManualDisbursement[]>([
     {
@@ -212,10 +224,10 @@ function FinanceManualEntryPage() {
       transaction_ref: "",
       note: "",
       disbursed_at: "",
-      evidence_file_id: "",
+      evidence_file_ids: [],
       retired_amount: 0,
       retirement_status: "not_retired",
-      retirement_file_ids_text: "",
+      retirement_file_ids: [],
       contact_id: "",
       deductions: [],
       refund_amount: "",
@@ -255,17 +267,22 @@ function FinanceManualEntryPage() {
       approvals: {
         team_lead_name: "",
         team_lead_date: "",
+        team_lead_comment: "Approved.",
         accountant_name: signatoryDefaults.prepared_by.name,
         accountant_date: "",
+        accountant_comment: "Cleared.",
         coo_name: signatoryDefaults.reviewed_by.name,
         coo_date: "",
+        coo_comment: "Approved.",
         ed_name: signatoryDefaults.approved_by.name,
         ed_date: "",
+        ed_comment: "Approved.",
         include_ed: false,
       },
     });
     setRequestDeductions([]);
-    setItems([{ description: "", amount: 0, quantity: 1, notes: "", file_id: "" }]);
+    setItems([{ description: "", amount: 0, quantity: 1, notes: "", file_ids: [] }]);
+    setThread([]);
     setDisbursements([
       {
         voucher_number: "",
@@ -275,10 +292,10 @@ function FinanceManualEntryPage() {
         transaction_ref: "",
         note: "",
         disbursed_at: "",
-        evidence_file_id: "",
+        evidence_file_ids: [],
         retired_amount: 0,
         retirement_status: "not_retired",
-        retirement_file_ids_text: "",
+        retirement_file_ids: [],
         contact_id: "",
         deductions: [],
         refund_amount: "",
@@ -573,8 +590,8 @@ function FinanceManualEntryPage() {
       amount: Number(item.amount || 0),
       quantity: Number(item.quantity || 1),
       notes: item.notes,
-      file_id: item.file_id || undefined,
-      file_ids: item.file_ids?.length ? item.file_ids : undefined,
+      file_id: item.file_ids[0]?.id || undefined,
+      file_ids: item.file_ids.length ? item.file_ids.map((f: FileRef) => f.id) : undefined,
     })),
     disbursements: (input.disbursements || [])
       .filter((entry) => entry.voucher_number && Number(entry.amount) > 0)
@@ -592,14 +609,10 @@ function FinanceManualEntryPage() {
           transaction_ref: entry.transaction_ref || undefined,
           note: entry.note || undefined,
           disbursed_at: entry.disbursed_at || undefined,
-          evidence_file_id: entry.evidence_file_id || undefined,
-          evidence_file_ids: (entry as any).evidence_file_ids?.length ? (entry as any).evidence_file_ids : undefined,
+          evidence_file_ids: entry.evidence_file_ids.length ? entry.evidence_file_ids.map((f) => f.id) : undefined,
           retired_amount: Number(entry.retired_amount || 0),
           retirement_status: entry.retirement_status || undefined,
-          retirement_file_ids: (entry.retirement_file_ids_text || "")
-            .split(",")
-            .map((x) => x.trim())
-            .filter(Boolean),
+          retirement_file_ids: entry.retirement_file_ids.map((f) => f.id),
           contact_id: entry.contact_id || undefined,
           deductions: deductions.length > 0 ? deductions : undefined,
           refund_amount: entry.refund_amount ? Number(entry.refund_amount) : undefined,
@@ -745,7 +758,8 @@ function FinanceManualEntryPage() {
               disbursed_at: parseSpreadsheetDate(entry.disbursed_at),
               retired_amount: Number(entry.retired_amount || 0),
               retirement_status: normalizeText(entry.retirement_status) || "not_retired",
-              retirement_file_ids_text: "",
+              evidence_file_ids: [],
+              retirement_file_ids: [],
               contact_id: "",
               deductions: [],
               refund_amount: "",
@@ -805,7 +819,7 @@ function FinanceManualEntryPage() {
                     amount: Number(entry.amount || 0),
                     quantity: Number(entry.quantity || 1),
                     notes: normalizeText(entry.notes) || "",
-                    file_id: "",
+                    file_ids: [] as FileRef[],
                   })),
                   disbursements: voucherRows,
                 })
@@ -934,11 +948,11 @@ function FinanceManualEntryPage() {
       setNotice(null);
       const defaultDate = form.created_at || undefined;
       const approvals = [
-        { role: "team_lead", name: form.approvals.team_lead_name, date: form.approvals.team_lead_date || defaultDate, done: !!form.approvals.team_lead_name },
-        { role: "accountant", name: form.approvals.accountant_name, date: form.approvals.accountant_date || defaultDate, done: !!form.approvals.accountant_name },
-        { role: "coo", name: form.approvals.coo_name, date: form.approvals.coo_date || defaultDate, done: !!form.approvals.coo_name },
+        { role: "team_lead", name: form.approvals.team_lead_name, date: form.approvals.team_lead_date || defaultDate, done: !!form.approvals.team_lead_name, comment: form.approvals.team_lead_comment || undefined },
+        { role: "accountant", name: form.approvals.accountant_name, date: form.approvals.accountant_date || defaultDate, done: !!form.approvals.accountant_name, comment: form.approvals.accountant_comment || undefined },
+        { role: "coo", name: form.approvals.coo_name, date: form.approvals.coo_date || defaultDate, done: !!form.approvals.coo_name, comment: form.approvals.coo_comment || undefined },
         ...(form.approvals.include_ed
-          ? [{ role: "ed", name: form.approvals.ed_name, date: form.approvals.ed_date || defaultDate, done: !!form.approvals.ed_name }]
+          ? [{ role: "ed", name: form.approvals.ed_name, date: form.approvals.ed_date || defaultDate, done: !!form.approvals.ed_name, comment: form.approvals.ed_comment || undefined }]
           : []),
       ];
       const selectedProjectName =
@@ -990,14 +1004,10 @@ function FinanceManualEntryPage() {
               transaction_ref: d.transaction_ref || undefined,
               note: d.note || undefined,
               disbursed_at: d.disbursed_at || undefined,
-              evidence_file_id: d.evidence_file_id || undefined,
-              evidence_file_ids: d.evidence_file_ids?.length ? d.evidence_file_ids : undefined,
+              evidence_file_ids: d.evidence_file_ids.length ? d.evidence_file_ids.map((f) => f.id) : undefined,
               retired_amount: Number(d.retired_amount || 0),
               retirement_status: d.retirement_status || undefined,
-              retirement_file_ids: (d.retirement_file_ids_text || "")
-                .split(",")
-                .map((x) => x.trim())
-                .filter(Boolean),
+              retirement_file_ids: d.retirement_file_ids.map((f) => f.id),
               contact_id: d.contact_id || undefined,
               deductions: deductions.length > 0 ? deductions : undefined,
               refund_amount: d.refund_amount ? Number(d.refund_amount) : undefined,
@@ -1016,6 +1026,7 @@ function FinanceManualEntryPage() {
       const firstVoucher = (created as any)?.payment_vouchers?.[0]?.id || "";
       setVoucherId(firstVoucher);
       setNotice({ tone: "success", message: editingId ? "Manual request updated successfully." : "Manual request saved successfully." });
+      getRequestThread(created.id).then(setThread).catch(() => {});
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to save manual request." });
     } finally {
@@ -1077,12 +1088,16 @@ function FinanceManualEntryPage() {
         approvals: {
           team_lead_name: findApproval("team_lead")?.name || "",
           team_lead_date: findApproval("team_lead")?.date ? String(findApproval("team_lead").date).slice(0, 10) : (req.created_at ? String(req.created_at).slice(0, 10) : ""),
+          team_lead_comment: findApproval("team_lead")?.comment || "Approved.",
           accountant_name: findApproval("accountant")?.name || signatoryDefaults.prepared_by.name,
           accountant_date: findApproval("accountant")?.date ? String(findApproval("accountant").date).slice(0, 10) : (req.created_at ? String(req.created_at).slice(0, 10) : ""),
+          accountant_comment: findApproval("accountant")?.comment || "Cleared.",
           coo_name: findApproval("coo")?.name || signatoryDefaults.reviewed_by.name,
           coo_date: findApproval("coo")?.date ? String(findApproval("coo").date).slice(0, 10) : (req.created_at ? String(req.created_at).slice(0, 10) : ""),
+          coo_comment: findApproval("coo")?.comment || "Approved.",
           ed_name: findApproval("ed")?.name || signatoryDefaults.approved_by.name,
           ed_date: findApproval("ed")?.date ? String(findApproval("ed").date).slice(0, 10) : (req.created_at ? String(req.created_at).slice(0, 10) : ""),
+          ed_comment: findApproval("ed")?.comment || "Approved.",
           include_ed: Boolean(findApproval("ed")),
         },
       }));
@@ -1093,8 +1108,7 @@ function FinanceManualEntryPage() {
           amount: Number(item.amount || 0),
           quantity: Number(item.quantity || 1),
           notes: item.notes || "",
-          file_id: item.file_id || "",
-          file_ids: (item.files || item.item_files || []).map((f: any) => f.id || f.file_id || f.fileId || "").filter(Boolean),
+          file_ids: (item.files || item.item_files || []).map((f: any) => ({ id: String(f.id || f.file_id || f.fileId || ""), name: String(f.file_name || f.fileName || f.name || f.id || "") })).filter((f: FileRef) => f.id),
         }))
       );
       setDisbursements(
@@ -1106,11 +1120,10 @@ function FinanceManualEntryPage() {
           transaction_ref: pv.transaction_ref || "",
           note: pv.note || "",
           disbursed_at: pv.disbursed_at ? String(pv.disbursed_at).slice(0, 10) : "",
-          evidence_file_id: pv.evidence_file?.id || (pv.evidence_files?.[0]?.id ?? ""),
-          evidence_file_ids: (pv.evidence_files || []).map((f: any) => f.id || "").filter(Boolean),
+          evidence_file_ids: (pv.evidence_files || (pv.evidence_file ? [pv.evidence_file] : [])).map((f: any) => ({ id: String(f.id || ""), name: String(f.file_name || f.fileName || f.name || f.id || "") })).filter((f: FileRef) => f.id),
           retired_amount: Number(pv.retired_amount || 0),
           retirement_status: pv.retirement_status || "not_retired",
-          retirement_file_ids_text: (pv.retirement_files || []).map((f: any) => f.id).join(", "),
+          retirement_file_ids: (pv.retirement_files || []).map((f: any) => ({ id: String(f.id || ""), name: String(f.file_name || f.fileName || f.name || f.id || "") })).filter((f: FileRef) => f.id),
           contact_id: "",
           deductions: (pv.deductions || []).map((d: any) => ({
             deduction_type_id: d.deduction_type_id ?? d.deductionTypeId ?? "",
@@ -1135,6 +1148,7 @@ function FinanceManualEntryPage() {
       const deductionRes = await financeApi.listRequestDeductions({ request_id: String(req.id), per_page: 200 })
         .catch(() => ({ items: [] as FinanceRequestDeductionRecord[] }));
       setRequestDeductions(deductionRes.items);
+      getRequestThread(req.id).then(setThread).catch(() => {});
       setNotice({ tone: "success", message: `Loaded request ${req.id} for edit.` });
     } catch (error: any) {
       setNotice({ tone: "error", message: error?.response?.data?.error?.message || "Unable to find request by ID." });
@@ -1163,26 +1177,28 @@ function FinanceManualEntryPage() {
 
   const selectedMediaIds = mediaPickerTarget
     ? mediaPickerTarget.kind === "item"
-      ? [items[mediaPickerTarget.index]?.file_id].filter(Boolean) as string[]
+      ? items[mediaPickerTarget.index]?.file_ids.map((f) => f.id) ?? []
       : mediaPickerTarget.kind === "pv"
-        ? [disbursements[mediaPickerTarget.index]?.evidence_file_id].filter(Boolean) as string[]
-        : (disbursements[mediaPickerTarget.index]?.retirement_file_ids_text || "")
-            .split(",")
-            .map((value) => value.trim())
-            .filter(Boolean)
+        ? disbursements[mediaPickerTarget.index]?.evidence_file_ids.map((f) => f.id) ?? []
+        : disbursements[mediaPickerTarget.index]?.retirement_file_ids.map((f) => f.id) ?? []
     : [];
 
-  const applySelectedMedia = (target: ManualEntryPickerTarget, fileIds: string[]) => {
+  const applySelectedMedia = (target: ManualEntryPickerTarget, fileRefs: FileRef[]) => {
     if (target.kind === "item") {
-      setItems((prev) => prev.map((row, index) => (index === target.index ? { ...row, file_id: fileIds[0] || "" } : row)));
+      setItems((prev) => prev.map((row, index) => (index === target.index ? { ...row, file_ids: fileRefs.slice(0, 1) } : row)));
       return;
     }
     if (target.kind === "pv") {
-      setDisbursements((prev) => prev.map((row, index) => (index === target.index ? { ...row, evidence_file_id: fileIds[0] || "" } : row)));
+      setDisbursements((prev) => prev.map((row, index) => (index === target.index ? { ...row, evidence_file_ids: fileRefs.slice(0, 1) } : row)));
       return;
     }
     setDisbursements((prev) =>
-      prev.map((row, index) => (index === target.index ? { ...row, retirement_file_ids_text: fileIds.join(", ") } : row))
+      prev.map((row, index) => {
+        if (index !== target.index) return row;
+        const existingIds = new Set(row.retirement_file_ids.map((f) => f.id));
+        const merged = [...row.retirement_file_ids, ...fileRefs.filter((f) => !existingIds.has(f.id))];
+        return { ...row, retirement_file_ids: merged };
+      })
     );
   };
 
@@ -1297,19 +1313,24 @@ function FinanceManualEntryPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Items</h4><Button variant="secondary" onClick={() => setItems((p) => [...p, { description: "", amount: 0, quantity: 1, notes: "", file_id: "" }])}>Add Item</Button></div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Items</h4><Button variant="secondary" onClick={() => setItems((p) => [...p, { description: "", amount: 0, quantity: 1, notes: "", file_ids: [] }])}>Add Item</Button></div>
           {items.map((item, idx) => (
             <div key={`item-${idx}`} className="grid grid-cols-12 gap-3 mb-3">
               <div className="col-span-12 md:col-span-4"><TextField label="" placeholder="Item" value={item.description} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, description: e.target.value } : row))} /></div>
               <div className="col-span-6 md:col-span-2"><TextField label="" type="number" placeholder="Qty" value={item.quantity as number} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, quantity: Number(e.target.value || 1) } : row))} /></div>
               <div className="col-span-6 md:col-span-2"><TextField label="" type="number" placeholder="Price" value={item.amount} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, amount: Number(e.target.value || 0) } : row))} /></div>
               <div className="col-span-12 md:col-span-3">
-                <TextField label="" placeholder="Invoice file_id" value={item.file_id || ""} onChange={(e) => setItems((p) => p.map((row, i) => i === idx ? { ...row, file_id: e.target.value } : row))} />
-                <div className="mt-2">
-                  <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "item", index: idx })}>
-                    Select / Upload File
-                  </Button>
+                <div className="flex flex-wrap gap-1 mb-1">
+                  {item.file_ids.map((f) => (
+                    <span key={f.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-700">
+                      {f.name || f.id}
+                      <button type="button" className="ml-1 text-slate-400 hover:text-red-500" onClick={() => setItems((p) => p.map((row, i) => i === idx ? { ...row, file_ids: row.file_ids.filter((x) => x.id !== f.id) } : row))}>×</button>
+                    </span>
+                  ))}
                 </div>
+                <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "item", index: idx })}>
+                  {item.file_ids.length ? "Change File" : "Add Invoice"}
+                </Button>
               </div>
               <div className="col-span-12 md:col-span-1"><Button variant="danger" onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}>×</Button></div>
             </div>
@@ -1318,7 +1339,7 @@ function FinanceManualEntryPage() {
         </div>
 
         <div>
-          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_id: "", retired_amount: 0, retirement_status: "not_retired", retirement_file_ids_text: "", contact_id: "", deductions: [], refund_amount: "", refund_method: "bank_transfer", refund_reference: "", refund_date: "", certificate_staff_name: requestCreatorName, certificate_amount: "", certificate_declaration: "", certificate_reason: "" }])}>Add PV</Button></div>
+          <div className="flex items-center justify-between mb-2"><h4 className="font-medium">Disbursement / Retirement</h4><Button variant="secondary" onClick={() => setDisbursements((p) => [...p, { voucher_number: "", amount: 0, paid_from_account_id: "", method: "bank_transfer", transaction_ref: "", note: "", disbursed_at: "", evidence_file_ids: [], retired_amount: 0, retirement_status: "not_retired", retirement_file_ids: [], contact_id: "", deductions: [], refund_amount: "", refund_method: "bank_transfer", refund_reference: "", refund_date: "", certificate_staff_name: requestCreatorName, certificate_amount: "", certificate_declaration: "", certificate_reason: "" }])}>Add PV</Button></div>
           {disbursements.map((row, idx) => (
             <div key={`pv-${idx}`} className="grid grid-cols-12 gap-3 mb-4 p-3 border rounded">
               <div className="col-span-12 md:col-span-3">
@@ -1344,12 +1365,18 @@ function FinanceManualEntryPage() {
               <div className="col-span-12 md:col-span-3"><label>Transaction Ref</label><TextField label="" value={row.transaction_ref} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, transaction_ref: e.target.value } : x))} /></div>
               <div className="col-span-12 md:col-span-2"><label>Date</label><TextField label="" type="date" value={row.disbursed_at} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, disbursed_at: e.target.value } : x))} /></div>
               <div className="col-span-12 md:col-span-3"><label>Vendor / Payee</label><SelectField label="" value={row.contact_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, contact_id: e.target.value } : x))}><option value="">— None —</option>{vendorOptions.map((v) => <option key={v.id} value={v.id}>{v.name}{v.company_name ? ` — ${v.company_name}` : ""}</option>)}</SelectField></div>
-              <div className="col-span-12 md:col-span-3"><label>PV evidence file_id</label><TextField label="" value={row.evidence_file_id || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, evidence_file_id: e.target.value } : x))} />
-                <div className="mt-2">
-                  <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "pv", index: idx })}>
-                    Select / Upload File
-                  </Button>
+              <div className="col-span-12 md:col-span-3"><label>PV Evidence</label>
+                <div className="flex flex-wrap gap-1 mb-1">
+                  {row.evidence_file_ids.map((f) => (
+                    <span key={f.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-700">
+                      {f.name || f.id}
+                      <button type="button" className="ml-1 text-slate-400 hover:text-red-500" onClick={() => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, evidence_file_ids: x.evidence_file_ids.filter((e) => e.id !== f.id) } : x))}>×</button>
+                    </span>
+                  ))}
                 </div>
+                <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "pv", index: idx })}>
+                  {row.evidence_file_ids.length ? "Change Evidence" : "Add Evidence"}
+                </Button>
               </div>
 
               {/* Per-PV Statutory Deduction */}
@@ -1423,12 +1450,18 @@ function FinanceManualEntryPage() {
 
               <div className="col-span-6 md:col-span-2"><label>Retired Amount</label><TextField label="" type="number" value={row.retired_amount || 0} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retired_amount: Number(e.target.value || 0) } : x))} /></div>
               <div className="col-span-6 md:col-span-2"><label>Retirement Status</label><SelectField label="" value={row.retirement_status || "not_retired"} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_status: e.target.value } : x))}><option value="not_retired">Pending</option><option value="partial">Partial</option><option value="retired">Retired</option><option value="verified">Confirmed</option></SelectField></div>
-              <div className="col-span-12 md:col-span-5"><label>Retirement file ids (comma separated)</label><TextField label="" value={row.retirement_file_ids_text || ""} onChange={(e) => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_file_ids_text: e.target.value } : x))} />
-                <div className="mt-2">
-                  <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "retirement", index: idx })}>
-                    Select / Upload Files
-                  </Button>
+              <div className="col-span-12 md:col-span-5"><label>Retirement Files</label>
+                <div className="flex flex-wrap gap-1 mb-1">
+                  {row.retirement_file_ids.map((f) => (
+                    <span key={f.id} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-700">
+                      {f.name || f.id}
+                      <button type="button" className="ml-1 text-slate-400 hover:text-red-500" onClick={() => setDisbursements((p) => p.map((x, i) => i === idx ? { ...x, retirement_file_ids: x.retirement_file_ids.filter((r) => r.id !== f.id) } : x))}>×</button>
+                    </span>
+                  ))}
                 </div>
+                <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "retirement", index: idx })}>
+                  Add Retirement Files
+                </Button>
               </div>
 
               {/* Refund section — shown when retired < disbursed */}
@@ -1488,8 +1521,9 @@ function FinanceManualEntryPage() {
                             const asset = await resourceApi.uploadFile(certFile, { metadata: { source: "manual_retirement_certificate", request_id: editingId } });
                             const newDisbursements = disbursements.map((x, i) => {
                               if (i !== idx) return x;
-                              const existing = (x.retirement_file_ids_text || "").split(",").map((s) => s.trim()).filter(Boolean);
-                              return { ...x, retirement_file_ids_text: Array.from(new Set([...existing, asset.id])).join(", ") };
+                              const alreadyHas = x.retirement_file_ids.some((r) => r.id === asset.id);
+                              if (alreadyHas) return x;
+                              return { ...x, retirement_file_ids: [...x.retirement_file_ids, { id: asset.id, name: asset.file_name }] };
                             });
                             setDisbursements(newDisbursements);
                             setCertAssetsByIndex((prev) => ({
@@ -1562,17 +1596,24 @@ function FinanceManualEntryPage() {
         <div>
           <h4 className="font-medium mb-2">Manual Approvals</h4>
           <div className="grid grid-cols-12 gap-3">
+            {/* Team Lead */}
             <div className="col-span-6 md:col-span-3"><label>Team Lead Name</label><SelectField label="" value={form.approvals.team_lead_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.team_lead_name && !approvalNameOptions.includes(form.approvals.team_lead_name) ? <option value={form.approvals.team_lead_name}>{form.approvals.team_lead_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-team-lead-${name}`} value={name}>{name}</option>)}</SelectField></div>
             <div className="col-span-6 md:col-span-3"><label>Team Lead Date</label><TextField label="" type="date" value={form.approvals.team_lead_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_date: e.target.value } }))} /></div>
+            <div className="col-span-12 md:col-span-6"><TextAreaField label="Team Lead Comment" rows={1} value={form.approvals.team_lead_comment} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, team_lead_comment: e.target.value } }))} placeholder="Approved." /></div>
+            {/* Accountant */}
             <div className="col-span-6 md:col-span-3"><label>Accountant Name</label><SelectField label="" value={form.approvals.accountant_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.accountant_name && !approvalNameOptions.includes(form.approvals.accountant_name) ? <option value={form.approvals.accountant_name}>{form.approvals.accountant_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-accountant-${name}`} value={name}>{name}</option>)}</SelectField></div>
             <div className="col-span-6 md:col-span-3"><label>Accountant Date</label><TextField label="" type="date" value={form.approvals.accountant_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_date: e.target.value } }))} /></div>
+            <div className="col-span-12 md:col-span-6"><TextAreaField label="Accountant Comment" rows={1} value={form.approvals.accountant_comment} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, accountant_comment: e.target.value } }))} placeholder="Cleared." /></div>
+            {/* COO */}
             <div className="col-span-6 md:col-span-3"><label>COO Name</label><SelectField label="" value={form.approvals.coo_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.coo_name && !approvalNameOptions.includes(form.approvals.coo_name) ? <option value={form.approvals.coo_name}>{form.approvals.coo_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-coo-${name}`} value={name}>{name}</option>)}</SelectField></div>
             <div className="col-span-6 md:col-span-3"><label>COO Date</label><TextField label="" type="date" value={form.approvals.coo_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_date: e.target.value } }))} /></div>
+            <div className="col-span-12 md:col-span-6"><TextAreaField label="COO Comment" rows={1} value={form.approvals.coo_comment} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, coo_comment: e.target.value } }))} placeholder="Approved." /></div>
             <div className="col-span-12 md:col-span-3 flex items-end"><label className="inline-flex items-center gap-2"><input type="checkbox" checked={form.approvals.include_ed} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, include_ed: e.target.checked } }))} /><span>Include ED</span></label></div>
             {form.approvals.include_ed ? (
               <>
                 <div className="col-span-6 md:col-span-3"><label>ED Name</label><SelectField label="" value={form.approvals.ed_name} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_name: e.target.value } }))}><option value="">Select name</option>{form.approvals.ed_name && !approvalNameOptions.includes(form.approvals.ed_name) ? <option value={form.approvals.ed_name}>{form.approvals.ed_name}</option> : null}{approvalNameOptions.map((name) => <option key={`approval-ed-${name}`} value={name}>{name}</option>)}</SelectField></div>
                 <div className="col-span-6 md:col-span-3"><label>ED Date</label><TextField label="" type="date" value={form.approvals.ed_date} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_date: e.target.value } }))} /></div>
+                <div className="col-span-12 md:col-span-6"><TextAreaField label="ED Comment" rows={1} value={form.approvals.ed_comment} onChange={(e) => setForm((p) => ({ ...p, approvals: { ...p.approvals, ed_comment: e.target.value } }))} placeholder="Approved." /></div>
               </>
             ) : null}
           </div>
@@ -1656,6 +1697,48 @@ function FinanceManualEntryPage() {
             <TextField label="" value={voucherId} onChange={(e) => setVoucherId(e.target.value)} placeholder="Paste voucher UUID" />
           </div>
         ) : null}
+
+        {thread.length > 0 && (
+          <div className="mt-6">
+            <h4 className="font-medium mb-3">Approval Thread</h4>
+            <div className="space-y-3">
+              {thread.map((entry, i) => {
+                const badgeClass =
+                  entry.type === "submission" ? "bg-blue-100 text-blue-700" :
+                  entry.type === "clearance" ? "bg-cyan-100 text-cyan-700" :
+                  entry.type === "approval" ? "bg-green-100 text-green-700" :
+                  entry.type === "rejection" ? "bg-red-100 text-red-700" :
+                  "bg-amber-100 text-amber-700";
+                const badgeLabel =
+                  entry.type === "submission" ? "Submitted" :
+                  entry.type === "clearance" ? "Cleared" :
+                  entry.type === "approval" ? "Approved" :
+                  entry.type === "rejection" ? "Rejected" :
+                  "Returned";
+                return (
+                  <div key={i} className="flex gap-3 p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap mb-1">
+                        <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${badgeClass}`}>{badgeLabel}</span>
+                        <span className="text-sm font-medium text-slate-800">{entry.actor_name}</span>
+                        <span className="text-xs text-slate-500">{entry.role_label}</span>
+                        <span className="text-xs text-slate-400 ml-auto">{entry.at ? new Date(entry.at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}</span>
+                      </div>
+                      {entry.comment && <p className="text-sm text-slate-600">{entry.comment}</p>}
+                      {entry.attachments && entry.attachments.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {entry.attachments.map((att) => (
+                            <span key={att.id} className="text-xs px-2 py-0.5 bg-white border rounded text-slate-500">{att.name}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </div>
 
       <SlideOver open={showImportDialog} onClose={() => setShowImportDialog(false)} size="xl">
@@ -1777,14 +1860,15 @@ function FinanceManualEntryPage() {
             });
           }
 
-          const nextIds = mediaPickerTarget.kind === "retirement"
-            ? Array.from(new Set([...selectedMediaIds, ...uploadedIds]))
-            : uploadedIds.slice(-1);
-          applySelectedMedia(mediaPickerTarget, nextIds);
+          const uploadedRefs: FileRef[] = uploadedIds.map((id, i) => ({ id, name: (Array.from(files as FileList)[i] as File)?.name || id }));
+          const nextRefs = mediaPickerTarget.kind === "retirement"
+            ? [...(disbursements[mediaPickerTarget.index]?.retirement_file_ids ?? []), ...uploadedRefs.filter((r) => !(disbursements[mediaPickerTarget.index]?.retirement_file_ids ?? []).some((x) => x.id === r.id))]
+            : uploadedRefs.slice(-1);
+          applySelectedMedia(mediaPickerTarget, nextRefs);
         }}
-        onSelect={(files) => {
+        onSelect={(fileRecords) => {
           if (!mediaPickerTarget) return;
-          applySelectedMedia(mediaPickerTarget, files.map((file) => file.id));
+          applySelectedMedia(mediaPickerTarget, (fileRecords as any[]).map((file) => ({ id: file.id, name: file.file_name || file.fileName || file.name || file.id })));
         }}
       />
     </AppShell>

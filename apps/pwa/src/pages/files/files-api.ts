@@ -62,6 +62,30 @@ export async function listFileAssets(params?: {
   );
 }
 
+export async function getFileAsset(id: string): Promise<FileAssetRecord | null> {
+  try {
+    const res = await httpRequest<any>(`/files/${id}`);
+    const row = (res as any)?.data ?? res;
+    if (!row?.id) return null;
+    return {
+      id: row.id,
+      file_name: row.file_name ?? row.fileName ?? "",
+      mime_type: row.mime_type ?? row.mimeType ?? null,
+      file_size: row.file_size ?? row.fileSize ?? null,
+      storage_path: row.storage_path ?? row.storagePath ?? "",
+      public_url: row.public_url ?? row.publicUrl ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function getFileAssets(ids: string[]): Promise<FileAssetRecord[]> {
+  if (!ids.length) return [];
+  const results = await Promise.all(ids.map((id) => getFileAsset(id)));
+  return results.filter((r): r is FileAssetRecord => r !== null);
+}
+
 export async function uploadFileAsset(
   file: File,
   payload?: { organization_id?: string; metadata?: Record<string, unknown> }
