@@ -69,6 +69,7 @@ export function MediaPickerModal({
     total: number;
     current_file_name?: string;
   } | null>(null);
+  const [newlyUploadedIds, setNewlyUploadedIds] = useState<Set<string>>(new Set());
 
   const selectedRows = useMemo(() => items.filter((item) => selected.includes(item.id)), [items, selected]);
 
@@ -89,6 +90,7 @@ export function MediaPickerModal({
   useEffect(() => {
     if (!open) return;
     setSelected(selectedIds);
+    setNewlyUploadedIds(new Set());
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -103,6 +105,7 @@ export function MediaPickerModal({
         total: files.length,
         current_file_name: files[0]?.name,
       });
+      const existingIds = new Set(items.map((item) => item.id));
       await uploadFiles(files, (state) => {
         setUploadProgress({
           uploaded: Math.min(Math.max(0, state.uploaded), state.total),
@@ -110,7 +113,13 @@ export function MediaPickerModal({
           current_file_name: state.current_file_name,
         });
       });
-      await load(search);
+      const refreshed = await loadFiles(search?.trim() || undefined);
+      const refreshedItems = Array.isArray(refreshed) ? refreshed : [];
+      setItems(refreshedItems);
+      const freshIds = refreshedItems.filter((item) => !existingIds.has(item.id)).map((item) => item.id);
+      if (freshIds.length) {
+        setNewlyUploadedIds((prev) => new Set([...prev, ...freshIds]));
+      }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Upload failed.");
     } finally {
@@ -179,7 +188,7 @@ export function MediaPickerModal({
                     id={uploadId}
                     type="file"
                     className="sr-only"
-                    multiple={multiple}
+                    multiple
                     onChange={(event) => {
                       void handleUpload(event.target.files);
                       event.target.value = "";
@@ -243,6 +252,11 @@ export function MediaPickerModal({
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="truncate text-sm font-semibold text-slate-950">{item.file_name}</p>
+                        {newlyUploadedIds.has(item.id) ? (
+                          <span className="rounded-full bg-green-100 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-green-700">
+                            New
+                          </span>
+                        ) : null}
                         {item.usage?.attached ? (
                           <span className="rounded-full bg-warning/10 px-2 py-0.5 text-[0.68rem] font-semibold uppercase tracking-[0.12em] text-warning">
                             Attached
