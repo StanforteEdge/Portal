@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Headers, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Headers, Param, Patch, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { Permissions } from '../../common/auth/permissions.decorator';
@@ -278,6 +278,13 @@ export class FinanceController {
     return this.financeService.updateDonor(id, dto, req.user?.id);
   }
 
+  @Delete('donors/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Delete finance donor' })
+  deleteDonor(@Param('id') id: string) {
+    return this.financeService.deleteDonor(id);
+  }
+
   @Get('funds')
   @Permissions('finance.view')
   @ApiOperation({ summary: 'List finance funds' })
@@ -299,6 +306,13 @@ export class FinanceController {
     return this.financeService.updateFund(id, dto, req.user?.id);
   }
 
+  @Delete('funds/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Delete finance fund' })
+  deleteFund(@Param('id') id: string) {
+    return this.financeService.deleteFund(id);
+  }
+
   @Get('grants')
   @Permissions('finance.view')
   @ApiOperation({ summary: 'List finance grants' })
@@ -318,6 +332,13 @@ export class FinanceController {
   @ApiOperation({ summary: 'Update finance grant' })
   updateGrant(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinanceGrantDto) {
     return this.financeService.updateGrant(id, dto, req.user?.id);
+  }
+
+  @Delete('grants/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Delete finance grant' })
+  deleteGrant(@Param('id') id: string) {
+    return this.financeService.deleteGrant(id);
   }
 
   @Get('budgets')

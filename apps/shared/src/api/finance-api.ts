@@ -658,14 +658,50 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return ((res as any)?.data?.items ?? []) as FinancePartyRecord[];
     },
 
+    createDonor(dto: Record<string, unknown>) {
+      return httpRequest<FinancePartyRecord>("/finance/donors", { method: "POST", body: dto });
+    },
+
+    updateDonor(id: string, dto: Record<string, unknown>) {
+      return httpRequest<FinancePartyRecord>(`/finance/donors/${id}`, { method: "POST", body: dto });
+    },
+
+    deleteDonor(id: string) {
+      return httpRequest<{ success: boolean }>(`/finance/donors/${id}`, { method: "DELETE" });
+    },
+
     async listFunds(params?: Record<string, unknown>) {
       const res = await httpRequest<any>(`/finance/funds${toQuery(params)}`);
       return ((res as any)?.data?.items ?? []) as FinancePartyRecord[];
     },
 
+    createFund(dto: Record<string, unknown>) {
+      return httpRequest<FinancePartyRecord>("/finance/funds", { method: "POST", body: dto });
+    },
+
+    updateFund(id: string, dto: Record<string, unknown>) {
+      return httpRequest<FinancePartyRecord>(`/finance/funds/${id}`, { method: "POST", body: dto });
+    },
+
+    deleteFund(id: string) {
+      return httpRequest<{ success: boolean }>(`/finance/funds/${id}`, { method: "DELETE" });
+    },
+
     async listGrants(params?: Record<string, unknown>) {
       const res = await httpRequest<any>(`/finance/grants${toQuery(params)}`);
       return ((res as any)?.data?.items ?? []) as FinancePartyRecord[];
+    },
+
+    createGrant(dto: Record<string, unknown>) {
+      return httpRequest<FinancePartyRecord>("/finance/grants", { method: "POST", body: dto });
+    },
+
+    updateGrant(id: string, dto: Record<string, unknown>) {
+      return httpRequest<FinancePartyRecord>(`/finance/grants/${id}`, { method: "POST", body: dto });
+    },
+
+    deleteGrant(id: string) {
+      return httpRequest<{ success: boolean }>(`/finance/grants/${id}`, { method: "DELETE" });
     },
 
     getSettings() {

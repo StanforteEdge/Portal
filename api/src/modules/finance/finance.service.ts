@@ -3035,6 +3035,13 @@ export class FinanceService {
     return this.serializeDonor(row);
   }
 
+  async deleteDonor(id: string) {
+    const existing = await this.prisma.financeDonor.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Donor not found');
+    await this.prisma.financeDonor.delete({ where: { id } });
+    return { success: true };
+  }
+
   async listFunds(query: Record<string, any>) {
     const rows = await this.prisma.financeFund.findMany({
       where: {
@@ -3097,6 +3104,13 @@ export class FinanceService {
     return this.serializeFund(row);
   }
 
+  async deleteFund(id: string) {
+    const existing = await this.prisma.financeFund.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Fund not found');
+    await this.prisma.financeFund.delete({ where: { id } });
+    return { success: true };
+  }
+
   async listGrants(query: Record<string, any>) {
     const rows = await this.prisma.financeGrant.findMany({
       where: {
@@ -3140,6 +3154,13 @@ export class FinanceService {
       include: { donor: true, fund: true }
     });
     return this.serializeGrant(row);
+  }
+
+  async deleteGrant(id: string) {
+    const existing = await this.prisma.financeGrant.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Grant not found');
+    await this.prisma.financeGrant.delete({ where: { id } });
+    return { success: true };
   }
 
   async updateGrant(id: string, dto: any, actorId?: string) {
