@@ -17,7 +17,7 @@ import { getRequestThread, type ThreadEntry } from "@/pages/requests/requests-ap
 import type { FinanceAccountRecord, FinanceRequestDeductionRecord } from "@/shared";
 
 type Option = { id: string; name: string };
-type RequestTypeOption = Option & { categoryKey?: string | null };
+type RequestTypeOption = Option & { categoryKey?: string | null; taxonomyKeys?: string[] | null; taxonomy_keys?: string[] | null };
 type FileRef = { id: string; name: string };
 type ImportAction = "create" | "update" | "skip";
 type ImportPreviewRow = {
@@ -438,7 +438,7 @@ function FinanceManualEntryPage() {
         );
         const financeGroup = groups.find((g: any) => g.code?.toLowerCase() === "fin" || g.name?.toLowerCase() === "finance");
         const requestTypes = await requestApi.listTypes(financeGroup ? { group_id: financeGroup.id } : undefined);
-        setTypeOptions(requestTypes.map((t: any) => ({ id: t.id, name: t.name, categoryKey: t.category_key })));
+        setTypeOptions(requestTypes.map((t: any) => ({ id: t.id, name: t.name, categoryKey: t.category_key, taxonomyKeys: t.taxonomyKeys ?? t.taxonomy_keys ?? [], taxonomy_keys: t.taxonomy_keys ?? t.taxonomyKeys ?? [] })));
         setTeamOptions(teams.map((t: any) => ({ id: t.id, name: t.name })));
         setOrganizationOptions(orgs.map((o: any) => ({ id: o.id, name: o.name })));
         setProjectOptions(projects.map((p: any) => ({ id: p.id, name: p.name })));
@@ -522,8 +522,12 @@ function FinanceManualEntryPage() {
 
   useEffect(() => {
     const selectedType = typeOptions.find((item: any) => item.id === form.request_type_id);
-    const preferredTaxonomyKey = selectedType?.categoryKey || "finance_request_category";
-    const preferred = taxonomyOptions.find((item: any) => item.key === preferredTaxonomyKey);
+    const preferredTaxonomyKey =
+      selectedType?.taxonomyKeys?.[0] ??
+      selectedType?.taxonomy_keys?.[0] ??
+      selectedType?.categoryKey ??
+      "finance_request_category";
+    const preferred = taxonomyOptions.find((item: any) => item.key.trim().toLowerCase() === String(preferredTaxonomyKey).trim().toLowerCase());
     const fallback = taxonomyOptions.find((item: any) => item.key === "finance_request_category") ?? taxonomyOptions[0];
     const activeTaxonomy = preferred ?? fallback;
     const options = (activeTaxonomy?.terms ?? []).map((term: any) => ({ id: term.id, name: term.label }));
