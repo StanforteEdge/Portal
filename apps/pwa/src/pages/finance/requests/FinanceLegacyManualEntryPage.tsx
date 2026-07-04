@@ -1189,11 +1189,19 @@ function FinanceManualEntryPage() {
 
   const applySelectedMedia = (target: ManualEntryPickerTarget, fileRefs: FileRef[]) => {
     if (target.kind === "item") {
-      setItems((prev) => prev.map((row, index) => (index === target.index ? { ...row, file_ids: fileRefs.slice(0, 1) } : row)));
+      setItems((prev) => prev.map((row, index) => {
+        if (index !== target.index) return row;
+        const existingIds = new Set(row.file_ids.map((f) => f.id));
+        return { ...row, file_ids: [...row.file_ids, ...fileRefs.filter((f) => !existingIds.has(f.id))] };
+      }));
       return;
     }
     if (target.kind === "pv") {
-      setDisbursements((prev) => prev.map((row, index) => (index === target.index ? { ...row, evidence_file_ids: fileRefs.slice(0, 1) } : row)));
+      setDisbursements((prev) => prev.map((row, index) => {
+        if (index !== target.index) return row;
+        const existingIds = new Set(row.evidence_file_ids.map((f) => f.id));
+        return { ...row, evidence_file_ids: [...row.evidence_file_ids, ...fileRefs.filter((f) => !existingIds.has(f.id))] };
+      }));
       return;
     }
     setDisbursements((prev) =>
@@ -1333,7 +1341,7 @@ function FinanceManualEntryPage() {
                   ))}
                 </div>
                 <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "item", index: idx })}>
-                  {item.file_ids.length ? "Change File" : "Add Invoice"}
+                  Add Files
                 </Button>
               </div>
               <div className="col-span-12 md:col-span-1"><Button variant="danger" onClick={() => setItems((p) => p.filter((_, i) => i !== idx))}>×</Button></div>
@@ -1379,7 +1387,7 @@ function FinanceManualEntryPage() {
                   ))}
                 </div>
                 <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "pv", index: idx })}>
-                  {row.evidence_file_ids.length ? "Change Evidence" : "Add Evidence"}
+                  Add Files
                 </Button>
               </div>
 
@@ -1464,7 +1472,7 @@ function FinanceManualEntryPage() {
                   ))}
                 </div>
                 <Button variant="secondary" onClick={() => setMediaPickerTarget({ kind: "retirement", index: idx })}>
-                  Add Retirement Files
+                  Add Files
                 </Button>
               </div>
 
@@ -1827,7 +1835,7 @@ function FinanceManualEntryPage() {
               ? "Select PV Evidence"
               : "Select Retirement Files"
         }
-        multiple={mediaPickerTarget?.kind === "retirement"}
+        multiple
         selectedIds={selectedMediaIds}
         loadFiles={async (search) =>
           listFileAssets({
@@ -1866,9 +1874,7 @@ function FinanceManualEntryPage() {
           }
 
           const uploadedRefs: FileRef[] = uploadedIds.map((id, i) => ({ id, name: (Array.from(files as FileList)[i] as File)?.name || id }));
-          const nextRefs = mediaPickerTarget.kind === "retirement"
-            ? [...(disbursements[mediaPickerTarget.index]?.retirement_file_ids ?? []), ...uploadedRefs.filter((r) => !(disbursements[mediaPickerTarget.index]?.retirement_file_ids ?? []).some((x) => x.id === r.id))]
-            : uploadedRefs.slice(-1);
+          const nextRefs = uploadedRefs;
           applySelectedMedia(mediaPickerTarget, nextRefs);
         }}
         onSelect={(fileRecords) => {
