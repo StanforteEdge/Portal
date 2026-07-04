@@ -103,11 +103,16 @@ export const financeHelpEntries: FinanceHelpEntry[] = [
   {
     key: "budgets",
     title: "Budgets",
-    summary: "Budgets define planned amounts by project, fund, or grant so actual spending can be compared against plan.",
+    summary: "Budgets now support draft revisions, approval workflow, and copy-from-existing flows so teams can reuse monthly or annual templates without overwriting approved baselines.",
     actions: [
-      "Create budgets before reporting periods begin where possible.",
-      "Use budgets for reporting variance, not to override actual accounting amounts.",
+      "Create or edit the current draft revision instead of overwriting an approved budget baseline.",
+      "Submit draft revisions for approval, then approve, return, or reject them from the revision workflow.",
+      "Use Copy Budget to seed the next month, quarter, or fiscal year without rebuilding recurring lines by hand.",
       "Review budget vs actual reports after new expenses or receipts are posted."
+    ],
+    tips: [
+      "Approved revisions should stay immutable. Make changes by creating or updating a new draft revision.",
+      "Use copy modes carefully: header-only for fresh planning, fuller copies for recurring operating budgets."
     ]
   },
   {

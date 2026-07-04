@@ -3195,7 +3195,9 @@ export class FinanceService {
         grant: true,
         assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
         portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
-        lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
+        currentActiveRevision: { include: { lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } } },
+        draftRevision: { include: { lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } } },
+        revisions: { orderBy: [{ revisionNumber: 'desc' }] },
       },
       orderBy: [{ startDate: 'desc' }, { createdAt: 'desc' }]
     });
@@ -3211,7 +3213,9 @@ export class FinanceService {
         grant: true,
         assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
         portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
-        lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] }
+        currentActiveRevision: { include: { lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } } },
+        draftRevision: { include: { lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } } },
+        revisions: { orderBy: [{ revisionNumber: 'desc' }] },
       }
     });
     if (!row) throw new NotFoundException('Budget not found');
@@ -3322,6 +3326,33 @@ export class FinanceService {
     return this.getBudget(id);
   }
 
+  private async ensureBudgetDraftRevisionTx(tx: Prisma.TransactionClient, budgetId: string, actorId?: string) {
+    const budget = await tx.financeBudget.findUnique({ where: { id: budgetId } });
+    if (!budget) throw new NotFoundException('Budget not found');
+    if (budget.draftRevisionId) return budget.draftRevisionId;
+
+    const latest = await tx.financeBudgetRevision.findFirst({
+      where: { budgetId },
+      orderBy: { revisionNumber: 'desc' },
+    });
+
+    const revision = await tx.financeBudgetRevision.create({
+      data: {
+        budgetId,
+        revisionNumber: (latest?.revisionNumber ?? 0) + 1,
+        status: 'draft',
+        copiedFromRevisionId: budget.currentActiveRevisionId ?? null,
+      },
+    });
+
+    await tx.financeBudget.update({
+      where: { id: budgetId },
+      data: { draftRevisionId: revision.id, updatedBy: actorId ? toBigInt(actorId) : null },
+    });
+
+    return revision.id;
+  }
+
   private async upsertBudget(id: string | null, dto: any, actorId?: string) {
     const scopeType = String(dto.scope_type || dto.budget_type || 'project').trim();
     const budgetType = String(dto.budget_type || scopeType || 'project').trim();
@@ -3419,31 +3450,55 @@ export class FinanceService {
             }
           });
 
-      await tx.financeBudgetLine.deleteMany({ where: { budgetId: budget.id } });
-      await tx.financeBudgetAssumption.deleteMany({ where: { budgetId: budget.id } });
-      await tx.financeBudgetPortfolio.deleteMany({ where: { budgetId: budget.id } });
-      if (lines.length) {
-        await tx.financeBudgetLine.createMany({
-          data: lines.map((line: any, index: number) => ({
-            budgetId: budget.id,
-            chartAccountId: line.chart_account_id || null,
-            projectId: line.project_id ? this.parseId(String(line.project_id), 'line project_id') : null,
-            fundId: line.fund_id || null,
-            grantId: line.grant_id || null,
-            section: String(line.section || 'expenditure').trim(),
-            groupName: line.group_name ? String(line.group_name).trim() : null,
-            lineLabel: String(line.line_name || line.line_label || '').trim(),
-            amount: this.resolveLineTotal(line),
-            period1Amount: line.period_1_amount !== undefined && line.period_1_amount !== null ? Number(line.period_1_amount) : null,
-            period2Amount: line.period_2_amount !== undefined && line.period_2_amount !== null ? Number(line.period_2_amount) : null,
-            period3Amount: line.period_3_amount !== undefined && line.period_3_amount !== null ? Number(line.period_3_amount) : null,
-            period4Amount: line.period_4_amount !== undefined && line.period_4_amount !== null ? Number(line.period_4_amount) : null,
-            totalAmount: this.resolveLineTotal(line),
-            notes: line.notes ? String(line.notes).trim() : null,
-            sortOrder: Number(line.sort_order ?? index),
-          }))
+      const revisionId = id
+        ? await this.ensureBudgetDraftRevisionTx(tx, id, actorId)
+        : (await tx.financeBudgetRevision.create({
+            data: {
+              budgetId: budget.id,
+              revisionNumber: 1,
+              status: 'draft',
+            },
+          })).id;
+
+      if (!id) {
+        await tx.financeBudget.update({
+          where: { id: budget.id },
+          data: { draftRevisionId: revisionId },
         });
       }
+
+      await tx.financeBudgetRevision.update({
+        where: { id: revisionId },
+        data: {
+          status: 'draft',
+          justification: dto.justification?.trim() || null,
+          submissionNote: dto.submission_note?.trim() || null,
+        },
+      });
+
+      await tx.financeBudgetRevisionLine.deleteMany({ where: { budgetRevisionId: revisionId } });
+      await tx.financeBudgetRevisionLine.createMany({
+        data: lines.map((line: any, index: number) => ({
+          budgetRevisionId: revisionId,
+          chartAccountId: line.chart_account_id || null,
+          projectId: line.project_id ? this.parseId(String(line.project_id), 'line project_id') : null,
+          fundId: line.fund_id || null,
+          grantId: line.grant_id || null,
+          section: String(line.section || 'expenditure').trim(),
+          groupName: line.group_name ? String(line.group_name).trim() : null,
+          lineLabel: String(line.line_name || line.line_label || '').trim(),
+          amount: this.resolveLineTotal(line),
+          period1Amount: line.period_1_amount !== undefined && line.period_1_amount !== null ? Number(line.period_1_amount) : null,
+          period2Amount: line.period_2_amount !== undefined && line.period_2_amount !== null ? Number(line.period_2_amount) : null,
+          period3Amount: line.period_3_amount !== undefined && line.period_3_amount !== null ? Number(line.period_3_amount) : null,
+          period4Amount: line.period_4_amount !== undefined && line.period_4_amount !== null ? Number(line.period_4_amount) : null,
+          totalAmount: this.resolveLineTotal(line),
+          notes: line.notes ? String(line.notes).trim() : null,
+          sortOrder: Number(line.sort_order ?? index),
+        })),
+      });
+
+      await tx.financeBudgetAssumption.deleteMany({ where: { budgetId: budget.id } });
       if (assumptions.length) {
         await tx.financeBudgetAssumption.createMany({
           data: assumptions.map((entry: any, index: number) => ({
@@ -3457,6 +3512,7 @@ export class FinanceService {
         });
       }
       if (portfolio.length) {
+        await tx.financeBudgetPortfolio.deleteMany({ where: { budgetId: budget.id } });
         await tx.financeBudgetPortfolio.createMany({
           data: portfolio.map((entry: any, index: number) => ({
             budgetId: budget.id,
@@ -3490,6 +3546,179 @@ export class FinanceService {
 
     if (!row) throw new NotFoundException('Budget not found');
     return this.serializeBudget(row);
+  }
+
+  async listBudgetRevisions(budgetId: string) {
+    const revisions = await this.prisma.financeBudgetRevision.findMany({
+      where: { budgetId },
+      include: { lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } },
+      orderBy: [{ revisionNumber: 'desc' }],
+    });
+    return revisions.map((revision) => this.serializeBudgetRevision(revision));
+  }
+
+  async submitBudgetRevision(revisionId: string, actorId?: string, dto?: { comment?: string }) {
+    const revision = await this.prisma.financeBudgetRevision.findUnique({ where: { id: revisionId } });
+    if (!revision) throw new NotFoundException('Budget revision not found');
+    if (revision.status !== 'draft' && revision.status !== 'returned') {
+      throw new BadRequestException('Only draft or returned revisions can be submitted');
+    }
+
+    return this.prisma.financeBudgetRevision.update({
+      where: { id: revisionId },
+      data: {
+        status: 'approval',
+        submissionNote: dto?.comment?.trim() || revision.submissionNote,
+        submittedBy: actorId ? toBigInt(actorId) : null,
+        submittedAt: new Date(),
+      },
+    });
+  }
+
+  async approveBudgetRevision(revisionId: string, actorId?: string, dto?: { action?: string; comment?: string }) {
+    const revision = await this.prisma.financeBudgetRevision.findUnique({ where: { id: revisionId } });
+    if (!revision) throw new NotFoundException('Budget revision not found');
+    if (revision.status !== 'approval') {
+      throw new BadRequestException('Only revisions in approval state can be approved');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const approvedRevision = await tx.financeBudgetRevision.update({
+        where: { id: revisionId },
+        data: {
+          status: 'approved',
+          approvedBy: actorId ? toBigInt(actorId) : null,
+          approvedAt: new Date(),
+        },
+      });
+
+      await tx.financeBudget.update({
+        where: { id: revision.budgetId },
+        data: {
+          currentActiveRevisionId: approvedRevision.id,
+          draftRevisionId: null,
+          status: 'approved',
+          updatedBy: actorId ? toBigInt(actorId) : null,
+        },
+      });
+
+      return approvedRevision;
+    });
+  }
+
+  async rejectBudgetRevision(revisionId: string, actorId?: string, dto?: { action?: string; comment?: string }) {
+    const revision = await this.prisma.financeBudgetRevision.findUnique({ where: { id: revisionId } });
+    if (!revision) throw new NotFoundException('Budget revision not found');
+    if (revision.status !== 'approval') {
+      throw new BadRequestException('Only revisions in approval state can be rejected');
+    }
+
+    return this.prisma.financeBudgetRevision.update({
+      where: { id: revisionId },
+      data: {
+        status: 'rejected',
+        approvedBy: actorId ? toBigInt(actorId) : null,
+        approvedAt: new Date(),
+        justification: dto?.comment?.trim() || null,
+      },
+    });
+  }
+
+  async returnBudgetRevision(revisionId: string, actorId?: string, dto?: { action?: string; comment?: string }) {
+    const revision = await this.prisma.financeBudgetRevision.findUnique({ where: { id: revisionId } });
+    if (!revision) throw new NotFoundException('Budget revision not found');
+    if (revision.status !== 'approval') {
+      throw new BadRequestException('Only revisions in approval state can be returned');
+    }
+
+    return this.prisma.financeBudgetRevision.update({
+      where: { id: revisionId },
+      data: {
+        status: 'returned',
+        approvedBy: actorId ? toBigInt(actorId) : null,
+        approvedAt: new Date(),
+        justification: dto?.comment?.trim() || null,
+      },
+    });
+  }
+
+  async copyBudget(id: string, dto: any, actorId?: string) {
+    const source = await this.prisma.financeBudget.findUnique({
+      where: { id },
+      include: {
+        currentActiveRevision: { include: { lines: true } },
+        assumptions: true,
+        portfolio: true,
+        lines: true,
+        fund: true,
+        grant: true,
+      },
+    });
+    if (!source) throw new NotFoundException('Budget not found');
+
+    const shifted = this.shiftCopiedBudgetPeriod(source, dto.period_shift ?? 'same_period');
+    return this.createBudget(this.buildCopiedBudgetPayload(source, shifted, dto.mode ?? 'full'), actorId);
+  }
+
+  private shiftCopiedBudgetPeriod(source: any, shift: string) {
+    const { startDate, endDate } = source;
+    let nextStart = new Date(startDate);
+    let nextEnd = new Date(endDate);
+
+    if (shift === 'next_month') {
+      nextStart.setMonth(nextStart.getMonth() + 1);
+      nextEnd.setMonth(nextEnd.getMonth() + 1);
+    } else if (shift === 'next_quarter') {
+      nextStart.setMonth(nextStart.getMonth() + 3);
+      nextEnd.setMonth(nextEnd.getMonth() + 3);
+    } else if (shift === 'next_fiscal_year') {
+      nextStart.setFullYear(nextStart.getFullYear() + 1);
+      nextEnd.setFullYear(nextEnd.getFullYear() + 1);
+    }
+
+    return { startDate: nextStart, endDate: nextEnd };
+  }
+
+  private buildCopiedBudgetPayload(source: any, shifted: { startDate: Date; endDate: Date }, mode: string) {
+    const activeRev = source.currentActiveRevision;
+    const lines = activeRev?.lines || source.lines || [];
+
+    return {
+      name: `${source.name} (Copy)`,
+      scope_type: source.scopeType,
+      budget_type: source.budgetType,
+      period_type: source.periodType,
+      fiscal_year: shifted.startDate.getFullYear(),
+      currency: source.currency,
+      exchange_rate: source.exchangeRate,
+      start_date: shifted.startDate.toISOString(),
+      end_date: shifted.endDate.toISOString(),
+      organization_id: source.organizationId?.toString(),
+      team_id: source.teamId?.toString(),
+      project_id: source.projectId?.toString(),
+      fund_id: source.fundId,
+      grant_id: source.grantId,
+      notes: source.notes,
+      assumptions: mode === 'full' || mode === 'header_lines_assumptions' ? source.assumptions : [],
+      portfolio: mode === 'full' ? source.portfolio : [],
+      lines: mode === 'full' || mode === 'header_lines_assumptions'
+        ? lines.map((l: any) => ({
+            section: l.section,
+            group_name: l.groupName,
+            line_name: l.lineLabel,
+            chart_account_id: l.chartAccountId,
+            project_id: l.projectId?.toString(),
+            fund_id: l.fundId,
+            grant_id: l.grantId,
+            period_1_amount: l.period1Amount,
+            period_2_amount: l.period2Amount,
+            period_3_amount: l.period3Amount,
+            period_4_amount: l.period4Amount,
+            total_amount: l.totalAmount,
+            notes: l.notes,
+          }))
+        : [],
+    };
   }
 
   async listSalesInvoices(query: Record<string, any>) {
@@ -5102,9 +5331,7 @@ export class FinanceService {
     };
   }
 
-  private serializeBudget(
-    row: Prisma.FinanceBudgetGetPayload<{ include: { fund: true; grant: true; lines: true; assumptions: true; portfolio: true } }>
-  ) {
+  private serializeBudget(row: any) {
     return {
       id: row.id,
       organization_id: row.organizationId ? row.organizationId.toString() : null,
@@ -5141,10 +5368,10 @@ export class FinanceService {
       exchange_rate: row.exchangeRate != null ? Number(row.exchangeRate) : null,
       start_date: row.startDate,
       end_date: row.endDate,
-      status: row.status,
+      status: row.currentActiveRevision?.status ?? row.status,
       total_budget: Number(row.totalBudget),
       notes: row.notes,
-      assumptions: row.assumptions.map((entry) => ({
+      assumptions: row.assumptions.map((entry: any) => ({
         id: entry.id,
         section: entry.section,
         label: entry.label,
@@ -5152,7 +5379,7 @@ export class FinanceService {
         notes: entry.notes,
         sort_order: entry.sortOrder,
       })),
-      portfolio: row.portfolio.map((entry) => ({
+      portfolio: row.portfolio.map((entry: any) => ({
         id: entry.id,
         project_id: entry.projectId.toString(),
         fund_id: entry.fundId,
@@ -5168,12 +5395,39 @@ export class FinanceService {
         notes: entry.notes,
         sort_order: entry.sortOrder,
       })),
+      current_active_revision: row.currentActiveRevision ? this.serializeBudgetRevision(row.currentActiveRevision) : null,
+      draft_revision: row.draftRevision ? this.serializeBudgetRevision(row.draftRevision) : null,
+      revisions: (row.revisions || []).map((revision: any) => this.serializeBudgetRevisionSummary(revision)),
+      lines: row.draftRevision?.lines?.length
+        ? row.draftRevision.lines.map((line: any) => this.serializeBudgetRevisionLine(line))
+        : row.currentActiveRevision?.lines?.map((line: any) => this.serializeBudgetRevisionLine(line)) ?? [],
+      approved_by: row.approvedBy ? row.approvedBy.toString() : null,
+      approved_at: row.approvedAt,
+      created_at: row.createdAt,
+      updated_at: row.updatedAt,
+    };
+  }
+
+  private serializeBudgetRevision(
+    row: Prisma.FinanceBudgetRevisionGetPayload<{ include: { lines: true } }>
+  ) {
+    return {
+      id: row.id,
+      budgetId: row.budgetId,
+      revisionNumber: row.revisionNumber,
+      status: row.status,
+      submissionNote: row.submissionNote,
+      justification: row.justification,
+      materialChangeSummary: row.materialChangeSummary,
+      submittedBy: row.submittedBy?.toString() ?? null,
+      submittedAt: row.submittedAt,
+      approvedBy: row.approvedBy?.toString() ?? null,
+      approvedAt: row.approvedAt,
       lines: row.lines.map((line) => ({
         id: line.id,
         section: line.section,
         group_name: line.groupName,
         line_label: line.lineLabel,
-        line_name: line.lineLabel,
         chart_account_id: line.chartAccountId,
         project_id: line.projectId ? line.projectId.toString() : null,
         fund_id: line.fundId,
@@ -5183,17 +5437,45 @@ export class FinanceService {
         period_3_amount: line.period3Amount != null ? Number(line.period3Amount) : null,
         period_4_amount: line.period4Amount != null ? Number(line.period4Amount) : null,
         total_amount: line.totalAmount != null ? Number(line.totalAmount) : Number(line.amount),
-        revised_total_amount: line.revisedTotalAmount != null ? Number(line.revisedTotalAmount) : null,
-        actual_total_amount: line.actualTotalAmount != null ? Number(line.actualTotalAmount) : null,
-        variance_amount: line.varianceAmount != null ? Number(line.varianceAmount) : null,
-        amount: Number(line.amount),
         notes: line.notes,
         sort_order: line.sortOrder,
       })),
-      approved_by: row.approvedBy ? row.approvedBy.toString() : null,
-      approved_at: row.approvedAt,
-      created_at: row.createdAt,
-      updated_at: row.updatedAt,
+      createdAt: row.createdAt,
+      updatedAt: row.updatedAt,
+    };
+  }
+
+  private serializeBudgetRevisionLine(
+    line: Prisma.FinanceBudgetRevisionLineGetPayload<{}>
+  ) {
+    return {
+      id: line.id,
+      section: line.section,
+      group_name: line.groupName,
+      line_label: line.lineLabel,
+      chart_account_id: line.chartAccountId,
+      project_id: line.projectId ? line.projectId.toString() : null,
+      fund_id: line.fundId,
+      grant_id: line.grantId,
+      period_1_amount: line.period1Amount != null ? Number(line.period1Amount) : null,
+      period_2_amount: line.period2Amount != null ? Number(line.period2Amount) : null,
+      period_3_amount: line.period3Amount != null ? Number(line.period3Amount) : null,
+      period_4_amount: line.period4Amount != null ? Number(line.period4Amount) : null,
+      total_amount: line.totalAmount != null ? Number(line.totalAmount) : Number(line.amount),
+      notes: line.notes,
+      sort_order: line.sortOrder,
+    };
+  }
+
+  private serializeBudgetRevisionSummary(
+    row: Prisma.FinanceBudgetRevisionGetPayload<{}>
+  ) {
+    return {
+      id: row.id,
+      revisionNumber: row.revisionNumber,
+      status: row.status,
+      submittedAt: row.submittedAt,
+      approvedAt: row.approvedAt,
     };
   }
 

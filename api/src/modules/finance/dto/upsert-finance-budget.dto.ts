@@ -303,6 +303,22 @@ export class UpsertFinanceBudgetDto {
   @IsString()
   notes?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  justification?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  submission_note?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  supporting_file_ids?: string[];
+
   @ApiPropertyOptional({ type: [UpsertFinanceBudgetAssumptionDto] })
   @IsOptional()
   @IsArray()

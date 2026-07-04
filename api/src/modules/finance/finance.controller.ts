@@ -26,6 +26,9 @@ import { UpsertFinanceDonorDto } from './dto/upsert-finance-donor.dto';
 import { UpsertFinanceFundDto } from './dto/upsert-finance-fund.dto';
 import { UpsertFinanceGrantDto } from './dto/upsert-finance-grant.dto';
 import { UpsertFinanceBudgetDto } from './dto/upsert-finance-budget.dto';
+import { CopyFinanceBudgetDto } from './dto/copy-finance-budget.dto';
+import { SubmitFinanceBudgetRevisionDto } from './dto/submit-finance-budget-revision.dto';
+import { ActionFinanceBudgetRevisionDto } from './dto/action-finance-budget-revision.dto';
 import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
 import { UpsertFinanceItemDto } from './dto/upsert-finance-item.dto';
 import { CreateFinanceExpenseDto } from './dto/create-finance-expense.dto';
@@ -371,6 +374,48 @@ export class FinanceController {
   @ApiOperation({ summary: 'Recalculate finance budget totals and variance' })
   recalculateBudget(@Param('id') id: string) {
     return this.financeService.recalculateBudget(id);
+  }
+
+  @Get('budgets/:id/revisions')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List budget revisions' })
+  listBudgetRevisions(@Param('id') id: string) {
+    return this.financeService.listBudgetRevisions(id);
+  }
+
+  @Post('budget-revisions/:revisionId/submit')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Submit budget revision' })
+  submitBudgetRevision(@Param('revisionId') revisionId: string, @Req() req: any, @Body() dto: SubmitFinanceBudgetRevisionDto) {
+    return this.financeService.submitBudgetRevision(revisionId, req.user?.id, dto);
+  }
+
+  @Post('budget-revisions/:revisionId/approve')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Approve budget revision' })
+  approveBudgetRevision(@Param('revisionId') revisionId: string, @Req() req: any, @Body() dto: ActionFinanceBudgetRevisionDto) {
+    return this.financeService.approveBudgetRevision(revisionId, req.user?.id, dto);
+  }
+
+  @Post('budget-revisions/:revisionId/reject')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Reject budget revision' })
+  rejectBudgetRevision(@Param('revisionId') revisionId: string, @Req() req: any, @Body() dto: ActionFinanceBudgetRevisionDto) {
+    return this.financeService.rejectBudgetRevision(revisionId, req.user?.id, dto);
+  }
+
+  @Post('budget-revisions/:revisionId/return')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Return budget revision' })
+  returnBudgetRevision(@Param('revisionId') revisionId: string, @Req() req: any, @Body() dto: ActionFinanceBudgetRevisionDto) {
+    return this.financeService.returnBudgetRevision(revisionId, req.user?.id, dto);
+  }
+
+  @Post('budgets/:id/copy')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Copy budget into a new draft' })
+  copyBudget(@Param('id') id: string, @Req() req: any, @Body() dto: CopyFinanceBudgetDto) {
+    return this.financeService.copyBudget(id, dto, req.user?.id);
   }
 
   @Get('accounts/:id')

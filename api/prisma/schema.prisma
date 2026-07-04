@@ -1677,13 +1677,22 @@ model FinanceBudget {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  fund         FinanceFund?              @relation(fields: [fundId], references: [id], onDelete: SetNull)
-  grant        FinanceGrant?             @relation(fields: [grantId], references: [id], onDelete: SetNull)
-  parentBudget FinanceBudget?            @relation("FinanceBudgetChildren", fields: [parentBudgetId], references: [id], onDelete: SetNull)
-  childBudgets FinanceBudget[]           @relation("FinanceBudgetChildren")
-  lines        FinanceBudgetLine[]
-  assumptions  FinanceBudgetAssumption[]
-  portfolio    FinanceBudgetPortfolio[]
+  currentActiveRevisionId String?   @unique @map("current_active_revision_id") @db.Uuid
+  draftRevisionId         String?   @unique @map("draft_revision_id") @db.Uuid
+  ownerType               String?   @map("owner_type") @db.VarChar(30)
+  ownerId                 BigInt?   @map("owner_id")
+  preparedBy              BigInt?   @map("prepared_by")
+
+  fund                    FinanceFund?                @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  grant                   FinanceGrant?               @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  parentBudget            FinanceBudget?              @relation("FinanceBudgetChildren", fields: [parentBudgetId], references: [id], onDelete: SetNull)
+  childBudgets            FinanceBudget[]             @relation("FinanceBudgetChildren")
+  lines                   FinanceBudgetLine[]
+  assumptions             FinanceBudgetAssumption[]
+  portfolio               FinanceBudgetPortfolio[]
+  revisions               FinanceBudgetRevision[]
+  currentActiveRevision   FinanceBudgetRevision?      @relation("BudgetActiveRevision", fields: [currentActiveRevisionId], references: [id], onDelete: SetNull)
+  draftRevision           FinanceBudgetRevision?      @relation("BudgetDraftRevision", fields: [draftRevisionId], references: [id], onDelete: SetNull)
 
   @@index([organizationId])
   @@index([teamId])
@@ -1778,6 +1787,62 @@ model FinanceBudgetPortfolio {
   @@index([fundId])
   @@index([grantId])
   @@map("sta_finance_budget_portfolio")
+}
+
+model FinanceBudgetRevision {
+  id                    String    @id @default(uuid()) @db.Uuid
+  budgetId              String    @map("budget_id") @db.Uuid
+  revisionNumber        Int       @map("revision_number")
+  status                String    @default("draft") @db.VarChar(30)
+  submissionNote        String?   @map("submission_note")
+  justification         String?
+  materialChangeSummary String?   @map("material_change_summary")
+  copiedFromRevisionId  String?   @map("copied_from_revision_id") @db.Uuid
+  submittedBy           BigInt?   @map("submitted_by")
+  submittedAt           DateTime? @map("submitted_at")
+  approvedBy            BigInt?   @map("approved_by")
+  approvedAt            DateTime? @map("approved_at")
+  workflowInstanceId    String?   @map("workflow_instance_id") @db.Uuid
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  budget                   FinanceBudget               @relation(fields: [budgetId], references: [id], onDelete: Cascade)
+  activeForBudget          FinanceBudget?              @relation("BudgetActiveRevision")
+  draftForBudget           FinanceBudget?              @relation("BudgetDraftRevision")
+  copiedFromRevision       FinanceBudgetRevision?      @relation("BudgetRevisionCopySource", fields: [copiedFromRevisionId], references: [id], onDelete: SetNull)
+  copiedToRevisions        FinanceBudgetRevision[]     @relation("BudgetRevisionCopySource")
+  lines                    FinanceBudgetRevisionLine[]
+
+  @@unique([budgetId, revisionNumber])
+  @@index([budgetId, status])
+  @@map("sta_finance_budget_revisions")
+}
+
+model FinanceBudgetRevisionLine {
+  id               String   @id @default(uuid()) @db.Uuid
+  budgetRevisionId String   @map("budget_revision_id") @db.Uuid
+  chartAccountId   String?  @map("chart_account_id") @db.Uuid
+  projectId        BigInt?  @map("project_id")
+  fundId           String?  @map("fund_id") @db.Uuid
+  grantId          String?  @map("grant_id") @db.Uuid
+  section          String   @default("expenditure") @db.VarChar(20)
+  groupName        String?  @map("group_name") @db.VarChar(120)
+  lineLabel        String   @map("line_label") @db.VarChar(180)
+  amount           Decimal  @db.Decimal(15, 2)
+  period1Amount    Decimal? @map("period_1_amount") @db.Decimal(15, 2)
+  period2Amount    Decimal? @map("period_2_amount") @db.Decimal(15, 2)
+  period3Amount    Decimal? @map("period_3_amount") @db.Decimal(15, 2)
+  period4Amount    Decimal? @map("period_4_amount") @db.Decimal(15, 2)
+  totalAmount      Decimal? @map("total_amount") @db.Decimal(15, 2)
+  notes            String?
+  sortOrder        Int      @default(0) @map("sort_order")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  revision FinanceBudgetRevision @relation(fields: [budgetRevisionId], references: [id], onDelete: Cascade)
+
+  @@index([budgetRevisionId, sortOrder])
+  @@map("sta_finance_budget_revision_lines")
 }
 
 model PayrollWorker {

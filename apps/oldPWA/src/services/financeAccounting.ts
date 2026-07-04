@@ -236,3 +236,33 @@ export async function exportFinanceBudget(id: string, params?: { format?: string
   const response = await apiClient.get(`/finance/budgets/${id}/export`, { params });
   return response.data?.data as { file_name: string; mime_type: string; content_base64: string };
 }
+
+export async function listFinanceBudgetRevisions(id: string) {
+  const response = await apiClient.get(`/finance/budgets/${id}/revisions`);
+  return (response.data?.data ?? []) as any[];
+}
+
+export async function submitFinanceBudgetRevision(revisionId: string, payload?: { comment?: string }) {
+  const response = await apiClient.post(`/finance/budget-revisions/${revisionId}/submit`, payload || {});
+  return response.data?.data;
+}
+
+export async function approveFinanceBudgetRevision(revisionId: string, payload?: { action?: string; comment?: string }) {
+  const response = await apiClient.post(`/finance/budget-revisions/${revisionId}/approve`, payload || { action: 'approve' });
+  return response.data?.data;
+}
+
+export async function rejectFinanceBudgetRevision(revisionId: string, payload?: { action?: string; comment?: string }) {
+  const response = await apiClient.post(`/finance/budget-revisions/${revisionId}/reject`, payload || { action: 'reject' });
+  return response.data?.data;
+}
+
+export async function returnFinanceBudgetRevision(revisionId: string, payload?: { action?: string; comment?: string }) {
+  const response = await apiClient.post(`/finance/budget-revisions/${revisionId}/return`, payload || { action: 'return' });
+  return response.data?.data;
+}
+
+export async function copyFinanceBudget(id: string, payload?: { mode?: string; period_shift?: string }) {
+  const response = await apiClient.post(`/finance/budgets/${id}/copy`, payload || {});
+  return response.data?.data;
+}

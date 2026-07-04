@@ -16,6 +16,12 @@ import {
   recalculateFinanceBudget,
   reopenFinanceBudget,
   updateFinanceBudget,
+  listFinanceBudgetRevisions,
+  submitFinanceBudgetRevision,
+  approveFinanceBudgetRevision,
+  rejectFinanceBudgetRevision,
+  returnFinanceBudgetRevision,
+  copyFinanceBudget,
 } from "@/services/financeAccounting";
 import { listOrganizations } from "@/services/organizations";
 import { listTeams } from "@/services/teams";
@@ -79,6 +85,8 @@ const emptyForm = {
   parent_budget_id: "",
   start_date: "",
   end_date: "",
+  justification: "",
+  submission_note: "",
   notes: "",
   assumptions: [emptyAssumption],
   portfolio: [],
@@ -325,6 +333,10 @@ function FinanceBudgetsPage() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [actingId, setActingId] = useState("");
+  const [selectedRevisionId, setSelectedRevisionId] = useState("");
+  const [revisionActionLoading, setRevisionActionLoading] = useState("");
+  const [copyMode, setCopyMode] = useState<'full' | 'header_only' | 'header_lines_assumptions'>('full');
+  const [copyShift, setCopyShift] = useState<'same_period' | 'next_month' | 'next_quarter' | 'next_fiscal_year'>('same_period');
   const [showEditor, setShowEditor] = useState(false);
   const [editingId, setEditingId] = useState("");
   const [selectedBudgetId, setSelectedBudgetId] = useState("");
@@ -335,6 +347,7 @@ function FinanceBudgetsPage() {
   const [projects, setProjects] = useState<any[]>([]);
   const [funds, setFunds] = useState<any[]>([]);
   const [grants, setGrants] = useState<any[]>([]);
+  const [revisionDetails, setRevisionDetails] = useState<any[]>([]);
   const [form, setForm] = useState<any>(emptyForm);
 
   const load = async () => {
@@ -391,11 +404,26 @@ function FinanceBudgetsPage() {
   });
   const periodLabels = getPeriodLabels(form.period_type, form.quarter, form.month);
   const selectedBudget = budgets.find((row) => row.id === selectedBudgetId) ?? budgets[0] ?? null;
-  const selectedBudgetSections = useMemo(() => summarizeBudgetSections(selectedBudget), [selectedBudget]);
+  const editableRevision = selectedBudget?.draft_revision ?? selectedBudget?.current_active_revision ?? null;
+  const selectedRevision = useMemo(() => {
+    if (!selectedBudget) return null;
+    if (selectedRevisionId) {
+      return revisionDetails.find((revision: any) => revision.id === selectedRevisionId)
+        ?? (selectedBudget.draft_revision?.id === selectedRevisionId ? selectedBudget.draft_revision : null)
+        ?? (selectedBudget.current_active_revision?.id === selectedRevisionId ? selectedBudget.current_active_revision : null)
+        ?? null;
+    }
+    return editableRevision;
+  }, [editableRevision, revisionDetails, selectedBudget, selectedRevisionId]);
+  const detailBudget = useMemo(
+    () => (selectedBudget ? { ...selectedBudget, lines: selectedRevision?.lines ?? selectedBudget.lines ?? [] } : null),
+    [selectedBudget, selectedRevision]
+  );
+  const selectedBudgetSections = useMemo(() => summarizeBudgetSections(detailBudget), [detailBudget]);
   const draftLineSections = useMemo(() => summarizeDraftLines(form.lines || []), [form.lines]);
-  const selectedBudgetLineGroups = useMemo(() => groupBudgetLines(selectedBudget?.lines || []), [selectedBudget]);
+  const selectedBudgetLineGroups = useMemo(() => groupBudgetLines(detailBudget?.lines || []), [detailBudget]);
   const selectedBudgetMetrics = useMemo(() => {
-    if (!selectedBudget) {
+    if (!detailBudget) {
       return {
         netPosition: 0,
         incomeCoveragePct: 0,
@@ -408,18 +436,74 @@ function FinanceBudgetsPage() {
     const expenditurePlanned = selectedBudgetSections.expenditure.planned;
     const netPosition = incomePlanned - expenditurePlanned;
     const incomeCoveragePct = expenditurePlanned > 0 ? (incomePlanned / expenditurePlanned) * 100 : 0;
-    const projectTaggedLines = (selectedBudget.lines || []).filter(
+    const projectTaggedLines = (detailBudget.lines || []).filter(
       (line: any) => line.project_id || line.fund_id || line.grant_id
     ).length;
-    const totalLines = Math.max(1, (selectedBudget.lines || []).length);
+    const totalLines = Math.max(1, (detailBudget.lines || []).length);
     return {
       netPosition,
       incomeCoveragePct,
       projectTaggedSharePct: (projectTaggedLines / totalLines) * 100,
-      assumptionsCount: (selectedBudget.assumptions || []).length,
-      portfolioCount: (selectedBudget.portfolio || []).length,
+      assumptionsCount: (detailBudget.assumptions || []).length,
+      portfolioCount: (detailBudget.portfolio || []).length,
     };
-  }, [selectedBudget, selectedBudgetSections]);
+  }, [detailBudget, selectedBudgetSections]);
+
+  useEffect(() => {
+    if (!selectedBudget?.id) {
+      setRevisionDetails([]);
+      setSelectedRevisionId("");
+      return;
+    }
+
+    let cancelled = false;
+
+    void listFinanceBudgetRevisions(selectedBudget.id)
+      .then((rows) => {
+        if (cancelled) return;
+        setRevisionDetails(rows);
+        const defaultRevisionId = selectedBudget.draft_revision?.id || selectedBudget.current_active_revision?.id || rows[0]?.id || "";
+        const validRevisionIds = new Set(rows.map((revision: any) => revision.id));
+        setSelectedRevisionId((current) => (current && validRevisionIds.has(current) ? current : defaultRevisionId));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRevisionDetails([]);
+        setSelectedRevisionId(selectedBudget.draft_revision?.id || selectedBudget.current_active_revision?.id || "");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBudget]);
+
+  const runRevisionAction = async (revisionId: string, action: 'submit' | 'approve' | 'reject' | 'return') => {
+    try {
+      setRevisionActionLoading(`${revisionId}:${action}`);
+      if (action === 'submit') await submitFinanceBudgetRevision(revisionId);
+      if (action === 'approve') await approveFinanceBudgetRevision(revisionId, { action: 'approve' });
+      if (action === 'reject') await rejectFinanceBudgetRevision(revisionId, { action: 'reject' });
+      if (action === 'return') await returnFinanceBudgetRevision(revisionId, { action: 'return' });
+      setNotice({ tone: 'success', message: `Revision ${action}ed successfully.` });
+      await load();
+    } catch (error: any) {
+      setNotice({ tone: 'error', message: error?.response?.data?.error?.message || `Unable to ${action} revision.` });
+    } finally {
+      setRevisionActionLoading('');
+    }
+  };
+
+  const handleCopyBudget = async () => {
+    if (!selectedBudget) return;
+    try {
+      const copied = await copyFinanceBudget(selectedBudget.id, { mode: copyMode, period_shift: copyShift });
+      setNotice({ tone: 'success', message: 'Budget copied into a new draft.' });
+      await load();
+      setSelectedBudgetId(copied.id);
+    } catch (error: any) {
+      setNotice({ tone: 'error', message: error?.response?.data?.error?.message || 'Unable to copy budget.' });
+    }
+  };
 
   const openCreate = () => {
     setEditingId("");
@@ -503,6 +587,8 @@ function FinanceBudgetsPage() {
       parent_budget_id: toText(budget.parent_budget_id),
       start_date: toText(budget.start_date),
       end_date: toText(budget.end_date),
+      justification: "",
+      submission_note: "",
       notes: toText(budget.notes),
       assumptions: assumptionRows.length
         ? assumptionRows
@@ -859,6 +945,7 @@ function FinanceBudgetsPage() {
 
   const openEdit = (row: any) => {
     setEditingId(row.id);
+    const rev = row.draft_revision ?? row.current_active_revision;
     setForm({
       name: row.name || "",
       scope_type: row.scope_type || row.budget_type || "organization",
@@ -879,6 +966,8 @@ function FinanceBudgetsPage() {
       start_date: row.start_date ? String(row.start_date).slice(0, 10) : "",
       end_date: row.end_date ? String(row.end_date).slice(0, 10) : "",
       notes: row.notes || "",
+      justification: rev?.justification || "",
+      submission_note: rev?.submissionNote || "",
       assumptions: row.assumptions?.length
         ? row.assumptions.map((entry: any) => ({
             section: entry.section || "",
@@ -903,8 +992,8 @@ function FinanceBudgetsPage() {
             notes: entry.notes || "",
           }))
         : [],
-      lines: row.lines?.length
-        ? row.lines.map((line: any) => ({
+      lines: (rev?.lines || row.lines)?.length
+        ? (rev?.lines || row.lines).map((line: any) => ({
             section: line.section || "expenditure",
             group_name: line.group_name || "",
             line_name: line.line_name || line.line_label || "",
@@ -940,6 +1029,8 @@ function FinanceBudgetsPage() {
         fiscal_year: form.fiscal_year ? Number(form.fiscal_year) : undefined,
         quarter: form.quarter ? Number(form.quarter) : undefined,
         month: form.month ? Number(form.month) : undefined,
+        justification: form.justification?.trim() || undefined,
+        submission_note: form.submission_note?.trim() || undefined,
         assumptions: (form.assumptions || [])
           .filter((entry: any) => entry.label?.trim() && entry.value?.trim())
           .map((entry: any, index: number) => ({
@@ -1080,6 +1171,10 @@ function FinanceBudgetsPage() {
         </div>
       </div>
 
+      <div className="box p-4 mt-5 text-sm text-slate-600">
+        Approved revisions stay as the reporting baseline. Keep edits in the draft revision, submit that revision for approval, and use Copy Budget when you want to seed a new month, quarter, or fiscal year from an existing plan.
+      </div>
+
       <div className="grid grid-cols-12 gap-4 mt-5 box p-5">
         <div className="col-span-12 md:col-span-3">
           <FormLabel>Scope</FormLabel>
@@ -1199,7 +1294,105 @@ function FinanceBudgetsPage() {
               </div>
               <div className="text-right">
                 <div className="text-slate-500 text-sm">Budget Value</div>
-                <div className="text-xl font-medium mt-1">{formatMoney(selectedBudget.total_budget)}</div>
+                <div className="text-xl font-medium mt-1">{formatMoney(selectedBudgetSections.income.planned + selectedBudgetSections.expenditure.planned)}</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-12 gap-4 mt-5 border rounded-md p-4">
+              <div className="col-span-12 lg:col-span-4">
+                <FormLabel>Revision</FormLabel>
+                <FormSelect value={selectedRevisionId} onChange={(e) => setSelectedRevisionId(e.target.value)}>
+                  {revisionDetails.map((revision: any) => (
+                    <option key={revision.id} value={revision.id}>
+                      Rev {revision.revisionNumber} · {revision.status}
+                    </option>
+                  ))}
+                </FormSelect>
+              </div>
+              <div className="col-span-12 lg:col-span-4">
+                <div className="text-slate-500 text-sm">Revision Status</div>
+                <div className="font-medium mt-2">{selectedRevision?.status || "No revision selected"}</div>
+                {selectedRevision?.submittedAt ? (
+                  <div className="text-xs text-slate-500 mt-1">Submitted {formatDisplayDate(selectedRevision.submittedAt)}</div>
+                ) : null}
+                {selectedRevision?.approvedAt ? (
+                  <div className="text-xs text-slate-500 mt-1">Approved {formatDisplayDate(selectedRevision.approvedAt)}</div>
+                ) : null}
+                {selectedRevision?.justification ? (
+                  <div className="text-xs text-slate-500 mt-2">Justification: {selectedRevision.justification}</div>
+                ) : null}
+                {selectedRevision?.submissionNote ? (
+                  <div className="text-xs text-slate-500 mt-1">Submission note: {selectedRevision.submissionNote}</div>
+                ) : null}
+              </div>
+              <div className="col-span-12 lg:col-span-4">
+                <div className="text-slate-500 text-sm">Revision Actions</div>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {selectedRevision?.status === "draft" || selectedRevision?.status === "returned" ? (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => void runRevisionAction(selectedRevision.id, "submit")}
+                      disabled={revisionActionLoading === `${selectedRevision.id}:submit`}
+                    >
+                      <Lucide icon="Send" className="w-4 h-4 mr-1" /> Submit
+                    </Button>
+                  ) : null}
+                  {selectedRevision?.status === "submitted" ? (
+                    <>
+                      <Button
+                        size="sm"
+                        variant="outline-success"
+                        onClick={() => void runRevisionAction(selectedRevision.id, "approve")}
+                        disabled={revisionActionLoading === `${selectedRevision.id}:approve`}
+                      >
+                        <Lucide icon="BadgeCheck" className="w-4 h-4 mr-1" /> Approve
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline-warning"
+                        onClick={() => void runRevisionAction(selectedRevision.id, "return")}
+                        disabled={revisionActionLoading === `${selectedRevision.id}:return`}
+                      >
+                        <Lucide icon="Undo2" className="w-4 h-4 mr-1" /> Return
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline-danger"
+                        onClick={() => void runRevisionAction(selectedRevision.id, "reject")}
+                        disabled={revisionActionLoading === `${selectedRevision.id}:reject`}
+                      >
+                        <Lucide icon="XCircle" className="w-4 h-4 mr-1" /> Reject
+                      </Button>
+                    </>
+                  ) : null}
+                </div>
+              </div>
+              <div className="col-span-12">
+                <div className="grid grid-cols-12 gap-4 items-end border-t pt-4 mt-2">
+                  <div className="col-span-12 md:col-span-4">
+                    <FormLabel>Copy Mode</FormLabel>
+                    <FormSelect value={copyMode} onChange={(e) => setCopyMode(e.target.value as typeof copyMode)}>
+                      <option value="full">Full copy</option>
+                      <option value="header_only">Header only</option>
+                      <option value="header_lines_assumptions">Header, lines, assumptions</option>
+                    </FormSelect>
+                  </div>
+                  <div className="col-span-12 md:col-span-4">
+                    <FormLabel>Shift Period</FormLabel>
+                    <FormSelect value={copyShift} onChange={(e) => setCopyShift(e.target.value as typeof copyShift)}>
+                      <option value="same_period">Same period</option>
+                      <option value="next_month">Next month</option>
+                      <option value="next_quarter">Next quarter</option>
+                      <option value="next_fiscal_year">Next fiscal year</option>
+                    </FormSelect>
+                  </div>
+                  <div className="col-span-12 md:col-span-4">
+                    <Button variant="outline-primary" className="w-full" onClick={() => void handleCopyBudget()}>
+                      <Lucide icon="FileText" className="w-4 h-4 mr-1" /> Copy Budget
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
 
@@ -1605,6 +1798,16 @@ function FinanceBudgetsPage() {
                   </div>
                 ))}
               </div>
+            </div>
+
+            <div className="col-span-12">
+              <FormLabel>Revision Justification</FormLabel>
+              <FormTextarea rows={3} value={form.justification || ""} onChange={(e) => setForm((prev: any) => ({ ...prev, justification: e.target.value }))} />
+            </div>
+
+            <div className="col-span-12">
+              <FormLabel>Submission Note</FormLabel>
+              <FormTextarea rows={3} value={form.submission_note || ""} onChange={(e) => setForm((prev: any) => ({ ...prev, submission_note: e.target.value }))} />
             </div>
 
             <div className="col-span-12">
