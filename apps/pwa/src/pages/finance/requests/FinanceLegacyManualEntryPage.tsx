@@ -1063,7 +1063,8 @@ function FinanceManualEntryPage() {
     try {
       setLoading(true);
       const req = await httpRequest<any>(`/requests/${lookupId}`);
-      const pvs = await financeApi.listPaymentVouchers({ request_id: lookupId }).catch(() => []);
+      const pvsResponse = await financeApi.listPaymentVouchers({ request_id: lookupId }).catch(() => ({ result: [] }));
+      const pvs = Array.isArray((pvsResponse as any)?.result) ? (pvsResponse as any).result : [];
       const data = (req.data || {}) as Record<string, any>;
       const manualApprovals = Array.isArray(data.manual_approvals) ? data.manual_approvals : [];
       const findApproval = (role: string) =>

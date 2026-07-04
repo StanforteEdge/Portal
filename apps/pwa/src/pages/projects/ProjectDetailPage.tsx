@@ -24,6 +24,7 @@ import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { resourceApi } from "@/shared/lib/core";
 import { useParams } from "react-router";
+import BudgetWorkspace from "@/features/budgets/BudgetWorkspace";
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -117,21 +118,10 @@ export default function ProjectDetailPage() {
           </SectionCard>
         )}
 
-        {/* Budget & Expenses - Placeholder */}
-        <div className="grid gap-4 md:grid-cols-3">
-          <SectionCard title="Budget" description="Project budget allocation">
-            <div className="text-2xl font-bold text-slate-900">{formatCurrency(0)}</div>
-            <p className="text-sm text-slate-500 mt-1">Not configured</p>
-          </SectionCard>
-          <SectionCard title="Expenses" description="Total project expenses">
-            <div className="text-2xl font-bold text-slate-900">{formatCurrency(0)}</div>
-            <p className="text-sm text-slate-500 mt-1">No expenses recorded</p>
-          </SectionCard>
-          <SectionCard title="Remaining" description="Budget minus expenses">
-            <div className="text-2xl font-bold text-slate-900">{formatCurrency(0)}</div>
-            <p className="text-sm text-slate-500 mt-1">No budget set</p>
-          </SectionCard>
-        </div>
+        {/* Budget Workspace */}
+        <SectionCard title="Budgets" description="Project-scoped budgets, revisions, and submissions.">
+          <BudgetWorkspace context={{ scopeType: "project", scopeId: id, mode: "owner" }} layout="embedded" />
+        </SectionCard>
 
         {/* Team Members - Placeholder */}
         <SectionCard

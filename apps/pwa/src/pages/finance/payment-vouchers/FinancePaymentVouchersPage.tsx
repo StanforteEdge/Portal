@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   Chip,
   EmptyState,
   PageHeader,
+  PaginationControls,
   SectionCard,
   Table,
   TableBody,
@@ -24,10 +25,10 @@ import {
 } from "@/pages/requests/requests-data";
 import {
   formatRequestStatus,
-  requestStatusTone,
 } from "@/pages/requests/request-helpers";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
+import type { FinancePaymentVoucherRecord } from "@stanforte/shared";
 
 function retirementLabel(value: string) {
   const key = String(value || "")
@@ -51,48 +52,78 @@ function retirementTone(
   return "neutral";
 }
 
+type Filters = {
+  voucher_number: string;
+  retirement_status: string;
+  method: string;
+  from: string;
+  to: string;
+};
+
+const EMPTY_FILTERS: Filters = {
+  voucher_number: "",
+  retirement_status: "",
+  method: "",
+  from: "",
+  to: "",
+};
+
 export default function FinancePaymentVouchersPage() {
   const { user } = useAuth();
   const [deductionsPV, setDeductionsPV] = useState<Record<string, any> | null>(null);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
+  const [filters, setFilters] = useState<Filters>(EMPTY_FILTERS);
+  const [rows, setRows] = useState<FinancePaymentVoucherRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const { data: profile } = useCachedQuery(
     "finance-vouchers:profile",
     () => getWorkspaceProfile(),
-    {
-      ttlMs: 1000 * 60,
-      storage: "memory",
-    },
-  );
-  const {
-    data: vouchers,
-    loading,
-    error,
-  } = useCachedQuery(
-    "finance-vouchers:list",
-    () => financeApi.listPaymentVouchers(),
-    {
-      ttlMs: 1000 * 30,
-      storage: "memory",
-    },
+    { ttlMs: 1000 * 60, storage: "memory" },
   );
 
-  const rows = vouchers ?? [];
-  const totalAmount = rows.reduce(
-    (sum, row) => sum + Number(row.amount || 0),
-    0,
-  );
-  const retiredAmount = rows.reduce(
-    (sum, row) => sum + Number(row.retired_amount || 0),
-    0,
-  );
+  const fetchVouchers = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const params: Record<string, unknown> = { page, per_page: perPage };
+      if (filters.voucher_number) params.voucher_number = filters.voucher_number;
+      if (filters.retirement_status) params.retirement_status = filters.retirement_status;
+      if (filters.method) params.method = filters.method;
+      if (filters.from) params.from = filters.from;
+      if (filters.to) params.to = filters.to;
+
+      const result = await financeApi.listPaymentVouchers(params);
+      setRows((result as any)?.result ?? []);
+      setTotal(Number((result as any)?.total ?? 0));
+    } catch (e: any) {
+      setError(e?.message ?? "Failed to load payment vouchers");
+    } finally {
+      setLoading(false);
+    }
+  }, [page, perPage, filters]);
+
+  useEffect(() => { fetchVouchers(); }, [fetchVouchers]);
+
+  const updateFilter = (key: keyof Filters, value: string) => {
+    setPage(1);
+    setFilters((f) => ({ ...f, [key]: value }));
+  };
+
+  const clearFilters = () => { setPage(1); setFilters(EMPTY_FILTERS); };
+
+  const hasFilters = Object.values(filters).some(Boolean);
+  const totalPages = Math.max(1, Math.ceil(total / perPage));
   const pendingRetirement = rows.filter(
-    (row) =>
-      !["verified", "retired"].includes(
-        String(row.retirement_status || "").toLowerCase(),
-      ),
+    (row) => !["verified", "retired"].includes(String(row.retirement_status || "").toLowerCase()),
   ).length;
   const confirmed = rows.filter(
     (row) => String(row.retirement_status || "").toLowerCase() === "verified",
   ).length;
+
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
@@ -119,21 +150,16 @@ export default function FinancePaymentVouchersPage() {
       />
 
       <div className="grid gap-6">
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-3">
           <StatCard
             label="Total Vouchers"
-            value={String(rows.length)}
+            value={String(total)}
             tone="neutral"
           />
           <StatCard
-            label="Disbursed Amount"
-            value={formatCurrency(totalAmount, "NGN")}
+            label="Pending Retirement"
+            value={String(pendingRetirement)}
             tone="warning"
-          />
-          <StatCard
-            label="Retired Amount"
-            value={formatCurrency(retiredAmount, "NGN")}
-            tone="pending"
           />
           <StatCard
             label="Confirmed"
@@ -151,6 +177,73 @@ export default function FinancePaymentVouchersPage() {
             </Chip>
           }
         >
+          {/* Filter bar */}
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <div className="flex-1 min-w-[160px]">
+              <label className="block text-xs text-slate-500 mb-1">Voucher Number</label>
+              <input
+                type="text"
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                placeholder="Search..."
+                value={filters.voucher_number}
+                onChange={(e) => updateFilter("voucher_number", e.target.value)}
+              />
+            </div>
+            <div className="min-w-[160px]">
+              <label className="block text-xs text-slate-500 mb-1">Retirement Status</label>
+              <select
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                value={filters.retirement_status}
+                onChange={(e) => updateFilter("retirement_status", e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="pending">Pending</option>
+                <option value="retired">Retired</option>
+                <option value="partial">Partial</option>
+                <option value="verified">Confirmed</option>
+              </select>
+            </div>
+            <div className="min-w-[140px]">
+              <label className="block text-xs text-slate-500 mb-1">Method</label>
+              <select
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                value={filters.method}
+                onChange={(e) => updateFilter("method", e.target.value)}
+              >
+                <option value="">All</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="cash">Cash</option>
+                <option value="cheque">Cheque</option>
+              </select>
+            </div>
+            <div className="min-w-[130px]">
+              <label className="block text-xs text-slate-500 mb-1">From</label>
+              <input
+                type="date"
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                value={filters.from}
+                onChange={(e) => updateFilter("from", e.target.value)}
+              />
+            </div>
+            <div className="min-w-[130px]">
+              <label className="block text-xs text-slate-500 mb-1">To</label>
+              <input
+                type="date"
+                className="w-full rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                value={filters.to}
+                onChange={(e) => updateFilter("to", e.target.value)}
+              />
+            </div>
+            {hasFilters && (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-sm text-slate-500 hover:text-slate-800 underline pb-1"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
           {loading ? (
             <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
               Loading payment vouchers...
@@ -236,6 +329,17 @@ export default function FinancePaymentVouchersPage() {
             <EmptyState
               title="No payment vouchers yet"
               description="Disbursed finance requests will create payment vouchers that appear here."
+            />
+          )}
+          {total > 0 && (
+            <PaginationControls
+              page={page}
+              totalPages={totalPages}
+              totalCount={total}
+              perPage={perPage}
+              itemLabel="voucher"
+              onPageChange={setPage}
+              onPerPageChange={(v) => { setPage(1); setPerPage(v); }}
             />
           )}
         </SectionCard>

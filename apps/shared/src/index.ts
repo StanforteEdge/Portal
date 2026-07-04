@@ -80,3 +80,14 @@ export type MobileNavItem = {
   path?: string;
   active?: boolean;
 };
+
+export { createProcurementApi } from "./api/procurement-api";
+export type {
+  PrItem,
+  PoItem,
+  Milestone,
+  GrnItem,
+  PurchaseRequisitionRecord,
+  PurchaseOrderRecord,
+  GrnRecord,
+} from "./api/procurement-api";

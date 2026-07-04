@@ -5420,7 +5420,7 @@ export class FinanceService {
       exchange_rate: row.exchangeRate != null ? Number(row.exchangeRate) : null,
       start_date: row.startDate,
       end_date: row.endDate,
-      status: row.currentActiveRevision?.status ?? row.status,
+      status: row.draftRevision?.status ?? row.currentActiveRevision?.status ?? row.status,
       total_budget: Number(row.totalBudget),
       notes: row.notes,
       assumptions: row.assumptions.map((entry: any) => ({
@@ -5449,6 +5449,8 @@ export class FinanceService {
       })),
       current_active_revision: row.currentActiveRevision ? this.serializeBudgetRevision(row.currentActiveRevision) : null,
       draft_revision: row.draftRevision ? this.serializeBudgetRevision(row.draftRevision) : null,
+      current_active_revision_id: row.currentActiveRevisionId ?? null,
+      draft_revision_id: row.draftRevisionId ?? null,
       revisions: (row.revisions || []).map((revision: any) => this.serializeBudgetRevisionSummary(revision)),
       lines: row.draftRevision?.lines?.length
         ? row.draftRevision.lines.map((line: any) => this.serializeBudgetRevisionLine(line))
@@ -5467,14 +5469,20 @@ export class FinanceService {
       id: row.id,
       budgetId: row.budgetId,
       revisionNumber: row.revisionNumber,
+      revision_number: row.revisionNumber,
       status: row.status,
       submissionNote: row.submissionNote,
+      submission_note: row.submissionNote,
       justification: row.justification,
       materialChangeSummary: row.materialChangeSummary,
       submittedBy: row.submittedBy?.toString() ?? null,
+      submitted_by: row.submittedBy?.toString() ?? null,
       submittedAt: row.submittedAt,
+      submitted_at: row.submittedAt,
       approvedBy: row.approvedBy?.toString() ?? null,
+      approved_by: row.approvedBy?.toString() ?? null,
       approvedAt: row.approvedAt,
+      approved_at: row.approvedAt,
       lines: row.lines.map((line) => ({
         id: line.id,
         section: line.section,
@@ -5525,9 +5533,14 @@ export class FinanceService {
     return {
       id: row.id,
       revisionNumber: row.revisionNumber,
+      revision_number: row.revisionNumber,
       status: row.status,
       submittedAt: row.submittedAt,
+      submitted_at: row.submittedAt,
       approvedAt: row.approvedAt,
+      approved_at: row.approvedAt,
+      submissionNote: row.submissionNote,
+      submission_note: row.submissionNote,
     };
   }
 

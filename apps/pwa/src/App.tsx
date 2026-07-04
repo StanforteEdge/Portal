@@ -74,8 +74,11 @@ import AdminProjectsPage from "@/pages/admin/projects/AdminProjectsPage";
 import AdminFilesPage from "@/pages/admin/files/AdminFilesPage";
 import ProjectsPage from "@/pages/projects/ProjectsPage";
 import ProjectDetailPage from "@/pages/projects/ProjectDetailPage";
+import TeamsPage from "@/pages/teams/TeamsPage";
+import TeamDetailPage from "@/pages/teams/TeamDetailPage";
 import TasksPage from "@/pages/tasks/TasksPage";
 import FilesPage from "@/pages/files/FilesPage";
+
 import {
   ProtectedRoute,
   PublicOnlyRoute,
@@ -200,6 +203,7 @@ export default function App() {
           element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/requests" />}
         />
         <Route path="/requests/financial" element={<RequestFormPage />} />
+        
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/help" element={<HelpPage />} />
@@ -352,6 +356,8 @@ export default function App() {
             element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/leave" />}
           />
           <Route path="/tasks" element={<TasksPage />} />
+          <Route path="/teams" element={<TeamsPage />} />
+          <Route path="/teams/:id" element={<TeamDetailPage />} />
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/files" element={<FilesPage />} />

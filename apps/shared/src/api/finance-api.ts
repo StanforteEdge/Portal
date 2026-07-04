@@ -381,7 +381,7 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<PaginatedResponse<FinancePaymentVoucherRecord>>(
         `/finance/payment-vouchers${suffix}`,
       ).then((response) =>
-        asPaginatedResponse<FinancePaymentVoucherRecord>(response, "/finance/payment-vouchers").result,
+        asPaginatedResponse<FinancePaymentVoucherRecord>(response, "/finance/payment-vouchers"),
       );
     },
 
@@ -475,6 +475,47 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     recalculateBudget(id: string) {
       return httpRequest<void>(`/finance/budgets/${id}/recalculate`, {
         method: "POST",
+      });
+    },
+
+    // ── Budget Revision Workflow ────────────────────────────────────────────
+
+    listBudgetRevisions(budgetId: string) {
+      return httpRequest<Record<string, unknown>[]>(`/finance/budgets/${budgetId}/revisions`);
+    },
+
+    submitBudgetRevision(revisionId: string, payload?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/budget-revisions/${revisionId}/submit`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    approveBudgetRevision(revisionId: string, payload?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/budget-revisions/${revisionId}/approve`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    rejectBudgetRevision(revisionId: string, payload?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/budget-revisions/${revisionId}/reject`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    returnBudgetRevision(revisionId: string, payload?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/budget-revisions/${revisionId}/return`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    copyBudget(id: string, payload?: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/budgets/${id}/copy`, {
+        method: "POST",
+        body: payload,
       });
     },
 

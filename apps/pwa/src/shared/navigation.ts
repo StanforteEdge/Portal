@@ -57,6 +57,7 @@ export function buildAppNavigation(options?: {
       ],
     },
     { label: "Leave", icon: "event_available", path: "/leave", section: "Staff" },
+    { label: "Teams", icon: "groups", path: "/teams", section: "Staff" },
     { label: "Projects", icon: "assignment", path: "/projects", section: "Staff" },
     { label: "Files", icon: "folder", path: "/files", section: "Staff" },
     {
@@ -143,7 +144,6 @@ export function buildAppNavigation(options?: {
         },
       ],
     },
-
     // HR section - filtered by AppShell using permissions
     {
       label: "HR",
