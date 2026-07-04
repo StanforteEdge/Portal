@@ -94,6 +94,11 @@ class ManualApprovalDto {
   @ApiPropertyOptional({ default: true })
   @IsOptional()
   done?: boolean;
+
+  @ApiPropertyOptional({ example: 'Approved.' })
+  @IsOptional()
+  @IsString()
+  comment?: string;
 }
 
 class ManualVoucherDto {

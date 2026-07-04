@@ -368,7 +368,7 @@ export async function createManualRequestEntry(payload: {
   currency?: string;
   total_amount?: number;
   data?: Record<string, unknown>;
-  approvals?: Array<{ role: string; name?: string; date?: string; done?: boolean }>;
+  approvals?: Array<{ role: string; name?: string; date?: string; done?: boolean; comment?: string }>;
   items?: RequestItemInput[];
   disbursements?: ManualDisbursementInput[];
 }) {
@@ -389,7 +389,7 @@ export async function updateManualRequestEntry(
     currency?: string;
     total_amount?: number;
     data?: Record<string, unknown>;
-    approvals?: Array<{ role: string; name?: string; date?: string; done?: boolean }>;
+    approvals?: Array<{ role: string; name?: string; date?: string; done?: boolean; comment?: string }>;
     items?: RequestItemInput[];
     disbursements?: ManualDisbursementInput[];
   }

@@ -557,7 +557,8 @@ export class RequestsService {
         role: row.role,
         name: row.name ?? null,
         date: row.date ?? null,
-        done: row.done ?? true
+        done: row.done ?? true,
+        comment: row.comment ?? null
       })),
       imported_at: new Date().toISOString(),
       imported_by: userId
@@ -769,7 +770,8 @@ export class RequestsService {
         role: row.role,
         name: row.name ?? null,
         date: row.date ?? null,
-        done: row.done ?? true
+        done: row.done ?? true,
+        comment: row.comment ?? null
       })),
       imported_at: new Date().toISOString(),
       imported_by: userId

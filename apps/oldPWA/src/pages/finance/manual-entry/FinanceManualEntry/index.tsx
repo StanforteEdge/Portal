@@ -867,6 +867,7 @@ function FinanceManualEntryPage() {
           quantity: Number(item.quantity || 1),
           notes: item.notes,
           file_id: item.file_ids[0]?.id || undefined,
+          file_ids: item.file_ids.length ? item.file_ids.map((file) => file.id) : undefined,
         })),
         disbursements: disbursements
           .filter((d) => d.voucher_number && Number(d.amount) > 0)
@@ -979,7 +980,11 @@ function FinanceManualEntryPage() {
           amount: Number(item.amount || 0),
           quantity: Number(item.quantity || 1),
           notes: item.notes || "",
-          file_ids: item.file_id ? [{ id: item.file_id, name: item.file_id }] : [],
+          file_ids: (item.files || []).length
+            ? (item.files || []).map((file) => ({ id: file.id, name: file.file_name || file.id }))
+            : item.file_id
+              ? [{ id: item.file_id, name: item.file_id }]
+              : [],
         }))
       );
       setDisbursements(

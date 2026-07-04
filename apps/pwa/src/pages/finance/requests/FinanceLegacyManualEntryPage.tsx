@@ -992,8 +992,8 @@ function FinanceManualEntryPage() {
           amount: Number(item.amount || 0),
           quantity: Number(item.quantity || 1),
           notes: item.notes,
-          file_id: item.file_id || undefined,
-          file_ids: item.file_ids?.length ? item.file_ids : undefined,
+          file_id: item.file_ids?.[0]?.id || undefined,
+          file_ids: item.file_ids?.length ? item.file_ids.map((file: FileRef) => file.id) : undefined,
         })),
         disbursements: dibs
           .filter((d) => d.voucher_number && Number(d.amount) > 0)
