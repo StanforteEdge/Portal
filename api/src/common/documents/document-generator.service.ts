@@ -866,8 +866,21 @@ export class DocumentGeneratorService {
       },
     ];
 
-    // For manual imports: build thread from data.manual_approvals
-    if (!request.workflowInstanceId) {
+    // Fetch all workflow instances for this request to gather history across returns/resubmissions
+    const instances = await this.prisma.workflowInstance.findMany({
+      where: {
+        entityType: 'request',
+        entityId: requestId,
+      },
+      include: {
+        history: { orderBy: { createdAt: 'asc' } },
+        workflow: { include: { steps: true } },
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    // If no workflow instances, we only have submission entry and manual approvals (if any)
+    if (instances.length === 0) {
       const manualApprovals = Array.isArray(data.manual_approvals) ? (data.manual_approvals as any[]) : [];
       const roleOrder = ['team_lead', 'accountant', 'coo', 'ed'];
       const roleLabelMap: Record<string, string> = {
@@ -893,19 +906,19 @@ export class DocumentGeneratorService {
       return thread;
     }
 
-    const instance = await this.prisma.workflowInstance.findUnique({
-      where: { id: request.workflowInstanceId },
-      include: {
-        history: { orderBy: { createdAt: 'asc' } },
-        workflow: { include: { steps: true } },
-      },
-    });
-    if (!instance) return thread;
+    const stepMap = new Map<string, string>();
+    const historyEntries: any[] = [];
 
-    const stepMap = new Map(instance.workflow.steps.map((s) => [s.id, s.name]));
+    for (const inst of instances) {
+      for (const step of inst.workflow.steps) {
+        stepMap.set(step.id, step.name);
+      }
+      historyEntries.push(...inst.history);
+    }
+
     const performerIds = [
       ...new Set(
-        instance.history.map((e) => e.performedBy?.toString()).filter((id): id is string => Boolean(id)),
+        historyEntries.map((e) => e.performedBy?.toString()).filter((id): id is string => Boolean(id)),
       ),
     ];
     const performers = performerIds.length
@@ -921,8 +934,18 @@ export class DocumentGeneratorService {
       }),
     );
 
-    const relevantActions = new Set(['approve', 'reject', 'auto_approve', 'return']);
-    for (const entry of instance.history) {
+    const stateEvents = Array.isArray(data.state_events) ? (data.state_events as any[]) : [];
+    const stateEventsByUser = new Map<string, any[]>();
+    for (const se of stateEvents) {
+      if (se.by && se.comment && typeof se.comment === 'string') {
+        const existing = stateEventsByUser.get(se.by) ?? [];
+        existing.push(se);
+        stateEventsByUser.set(se.by, existing);
+      }
+    }
+
+    const relevantActions = new Set(['approve', 'reject', 'auto_approve', 'return', 'cancel']);
+    for (const entry of historyEntries) {
       if (!relevantActions.has(entry.action)) continue;
       const performer = entry.performedBy ? performerMap.get(entry.performedBy.toString()) : null;
       const step = entry.fromStepId ? stepMap.get(entry.fromStepId) ?? null : null;
@@ -932,12 +955,28 @@ export class DocumentGeneratorService {
           : entry.action === 'reject'
             ? 'rejection'
             : 'return';
+      let comment: string | null = entry.comment ?? null;
+      if (!comment && performer && entry.action !== 'cancel') {
+        const userSe = stateEventsByUser.get(entry.performedBy?.toString());
+        if (userSe) {
+          const entryTime = entry.createdAt.getTime();
+          const closest = userSe.reduce((best, se) => {
+            const seTime = new Date(se.at).getTime();
+            return Math.abs(seTime - entryTime) < Math.abs(best.diff)
+              ? { se, diff: seTime - entryTime }
+              : best;
+          }, { se: userSe[0], diff: Infinity });
+          if (closest.diff !== Infinity && Math.abs(closest.diff) < 10000) {
+            comment = closest.se.comment;
+          }
+        }
+      }
       thread.push({
         type: entryType,
         actor_name: performer?.name ?? 'System',
         actor_email: performer?.email ?? null,
         role_label: step ?? (entry.action === 'auto_approve' ? 'System' : 'Approver'),
-        comment: entry.comment ?? null,
+        comment,
         at: entry.createdAt,
       });
     }
