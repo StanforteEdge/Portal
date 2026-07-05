@@ -364,6 +364,63 @@ export class AuthService {
     return { success: true };
   }
 
+  async googleAuthUrl(): Promise<string> {
+    const { google } = await import('googleapis');
+    const client = new google.auth.OAuth2(
+      process.env.GOOGLE_CLIENT_ID,
+      process.env.GOOGLE_CLIENT_SECRET,
+      process.env.GOOGLE_AUTH_REDIRECT_URI,
+    );
+    return client.generateAuthUrl({
+      access_type: 'offline',
+      scope: ['openid', 'email', 'profile'],
+      prompt: 'select_account',
+    });
+  }
+
+  async handleGoogleCallback(code: string, res?: Response): Promise<string> {
+    const appUrl = process.env.APP_BASE_URL || 'http://localhost:5173';
+    try {
+      const { google } = await import('googleapis');
+      const client = new google.auth.OAuth2(
+        process.env.GOOGLE_CLIENT_ID,
+        process.env.GOOGLE_CLIENT_SECRET,
+        process.env.GOOGLE_AUTH_REDIRECT_URI,
+      );
+      const { tokens } = await client.getToken(code);
+      if (!tokens.id_token) return `${appUrl}/login?error=google_failed`;
+
+      const ticket = await client.verifyIdToken({
+        idToken: tokens.id_token,
+        audience: process.env.GOOGLE_CLIENT_ID!,
+      });
+      const payload = ticket.getPayload();
+      const email = payload?.email?.trim().toLowerCase();
+      if (!email) return `${appUrl}/login?error=google_no_email`;
+
+      const profile = await this.prisma.profile.findUnique({ where: { email } });
+      if (!profile) return `${appUrl}/login?error=no_account`;
+
+      if (profile.lockoutUntil && profile.lockoutUntil > new Date()) {
+        return `${appUrl}/login?error=account_locked`;
+      }
+      if (profile.status !== 'active') return `${appUrl}/login?error=account_inactive`;
+
+      const authContext = await this.buildAuthContext(profile.id);
+      const issued = await this.issueTokens(profile.id, authContext.permissions, authContext.roles);
+      this.setAuthCookies(res, issued.accessToken, issued.refreshToken, issued.expiresIn);
+
+      await this.prisma.profile.update({
+        where: { id: profile.id },
+        data: { lastLogin: new Date(), failedLoginAttempts: 0, lockoutUntil: null },
+      });
+
+      return `${appUrl}/`;
+    } catch {
+      return `${appUrl}/login?error=google_failed`;
+    }
+  }
+
   async validateJwtPayload(payload: any) {
     const profileId = payload?.sub ? toBigInt(payload.sub) : null;
     if (!profileId) return null;

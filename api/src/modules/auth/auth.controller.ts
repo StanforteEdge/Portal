@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -101,6 +101,18 @@ export class AuthController {
   })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto);
+  }
+
+  @Get('google')
+  async googleLogin(@Res() res: Response) {
+    const url = await this.authService.googleAuthUrl();
+    (res as any).redirect(url);
+  }
+
+  @Get('google/callback')
+  async googleCallback(@Query('code') code: string, @Res() res: Response) {
+    const redirectUrl = await this.authService.handleGoogleCallback(code, res as any);
+    (res as any).redirect(redirectUrl);
   }
 
   @Post('accept-invite')
