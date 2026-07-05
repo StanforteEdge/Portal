@@ -25,6 +25,7 @@ import { UpsertFinanceReportNoteDto } from './dto/upsert-finance-report-note.dto
 import { UpsertFinanceDonorDto } from './dto/upsert-finance-donor.dto';
 import { UpsertFinanceFundDto } from './dto/upsert-finance-fund.dto';
 import { UpsertFinanceGrantDto } from './dto/upsert-finance-grant.dto';
+import { UpsertFinancePledgeDto } from './dto/upsert-finance-pledge.dto';
 import { UpsertFinanceBudgetDto } from './dto/upsert-finance-budget.dto';
 import { CopyFinanceBudgetDto } from './dto/copy-finance-budget.dto';
 import { SubmitFinanceBudgetRevisionDto } from './dto/submit-finance-budget-revision.dto';
@@ -341,6 +342,48 @@ export class FinanceController {
     return this.financeService.deleteGrant(id);
   }
 
+  @Get('pledges')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List finance pledges' })
+  listPledges(@Query() query: Record<string, any>) {
+    return this.financeService.listPledges(query);
+  }
+
+  @Get('pledges/:id')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Get finance pledge' })
+  getPledge(@Param('id') id: string) {
+    return this.financeService.getPledge(id);
+  }
+
+  @Post('pledges')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Create finance pledge' })
+  createPledge(@Req() req: any, @Body() dto: UpsertFinancePledgeDto) {
+    return this.financeService.createPledge(dto, req.user?.id);
+  }
+
+  @Post('pledges/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update finance pledge' })
+  updatePledge(@Req() req: any, @Param('id') id: string, @Body() dto: UpsertFinancePledgeDto) {
+    return this.financeService.updatePledge(id, dto, req.user?.id);
+  }
+
+  @Delete('pledges/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Delete finance pledge (pending only)' })
+  deletePledge(@Param('id') id: string) {
+    return this.financeService.deletePledge(id);
+  }
+
+  @Get('pledges/:id/acknowledgment')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Download Pledge Acknowledgment PDF' })
+  downloadPledgeAcknowledgment(@Param('id') id: string) {
+    return this.financeService.generatePledgeAcknowledgmentPdf(id);
+  }
+
   @Get('budgets')
   @Permissions('finance.view')
   @ApiOperation({ summary: 'List finance budgets' })
@@ -489,6 +532,13 @@ export class FinanceController {
   @ApiOperation({ summary: 'List income entries' })
   listIncome(@Query() query: Record<string, any>) {
     return this.financeService.listIncome(query);
+  }
+
+  @Get('income/:id/receipt')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Download Funder Receipt PDF for an income entry' })
+  downloadFunderReceipt(@Param('id') id: string) {
+    return this.financeService.generateFunderReceiptPdf(id);
   }
 
   @Get('manual-entry')

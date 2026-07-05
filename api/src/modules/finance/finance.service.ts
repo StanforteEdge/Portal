@@ -7316,6 +7316,14 @@ export class FinanceService {
     return pledge;
   }
 
+  async generatePledgeAcknowledgmentPdf(_id: string): Promise<{ file_name: string; mime_type: string; content_base64: string }> {
+    throw new Error('Not implemented yet — will be added in Task 5');
+  }
+
+  async generateFunderReceiptPdf(_id: string): Promise<{ file_name: string; mime_type: string; content_base64: string }> {
+    throw new Error('Not implemented yet — will be added in Task 5');
+  }
+
   private async recomputePledgeStatus(pledgeId: string, pledgedAmount: number, tx: any) {
     const agg = await tx.financeIncomeEntry.aggregate({
       where: { pledgeId },
