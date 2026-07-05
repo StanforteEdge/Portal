@@ -209,6 +209,16 @@ export function DesktopTopBar({
           <Icon name="download" />
         </NavLink>
 
+        <NavLink
+          to="/mail"
+          className={({ isActive }) =>
+            `${iconButtonClass(isActive)} focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10`
+          }
+          aria-label="Mail"
+        >
+          <Icon name="mail" />
+        </NavLink>
+
         <div className="text-on-surface-variant">
           <div className="relative" ref={notificationRef}>
             <button
@@ -450,6 +460,19 @@ export function MobileTopBar({
         />
       </NavLink>
       <div className="flex items-center gap-2">
+        <NavLink
+          to="/mail"
+          className={[
+            "relative rounded-full p-2 transition-all active:scale-95 active:opacity-80 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+            location.pathname === "/mail"
+              ? "bg-brand-900/10 text-brand-900"
+              : "",
+          ].join(" ")}
+          aria-label="Mail"
+        >
+          <Icon name="mail" />
+        </NavLink>
+
         <NavLink
           to="/notifications"
           className={[
