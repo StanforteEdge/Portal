@@ -1024,8 +1024,9 @@ model FinanceDonor {
   createdAt      DateTime @default(now()) @map("created_at")
   updatedAt      DateTime @updatedAt @map("updated_at")
 
-  funds  FinanceFund[]
-  grants FinanceGrant[]
+  funds   FinanceFund[]
+  grants  FinanceGrant[]
+  pledges FinancePledge[]
 
   @@index([organizationId])
   @@index([isActive])
@@ -1051,6 +1052,7 @@ model FinanceFund {
 
   donor                          FinanceDonor?                   @relation(fields: [donorId], references: [id], onDelete: SetNull)
   grants                         FinanceGrant[]
+  pledges                        FinancePledge[]
   journalLines                   FinanceJournalLine[]
   incomeEntries                  FinanceIncomeEntry[]
   salesInvoices                  FinanceSalesInvoice[]
@@ -1114,6 +1116,8 @@ model FinanceGrant {
   workItems                      WorkItem[]
   workLogs                       WorkLog[]
 
+  pledges                        FinancePledge[]
+
   @@unique([organizationId, code], name: "unique_finance_grant_code_per_org")
   @@index([organizationId])
   @@index([projectId])
@@ -1121,6 +1125,37 @@ model FinanceGrant {
   @@index([fundId])
   @@index([status])
   @@map("sta_finance_grants")
+}
+
+model FinancePledge {
+  id             String    @id @default(uuid()) @db.Uuid
+  pledgeNumber   String    @map("pledge_number") @db.VarChar(60)
+  organizationId BigInt?   @map("organization_id")
+  donorId        String    @map("donor_id") @db.Uuid
+  grantId        String?   @map("grant_id") @db.Uuid
+  fundId         String?   @map("fund_id") @db.Uuid
+  amount         Decimal   @db.Decimal(15, 2)
+  currency       String    @default("NGN") @db.VarChar(3)
+  receivedAmount Decimal   @default(0) @map("received_amount") @db.Decimal(15, 2)
+  pledgedAt      DateTime  @map("pledged_at")
+  expectedAt     DateTime? @map("expected_at")
+  status         String    @default("pending") @db.VarChar(20)
+  purpose        String?
+  notes          String?
+  createdBy      BigInt?   @map("created_by")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  donor         FinanceDonor      @relation(fields: [donorId], references: [id], onDelete: Restrict)
+  grant         FinanceGrant?     @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  fund          FinanceFund?      @relation(fields: [fundId], references: [id], onDelete: SetNull)
+  incomeEntries FinanceIncomeEntry[]
+
+  @@unique([organizationId, pledgeNumber], name: "unique_finance_pledge_number_per_org")
+  @@index([donorId])
+  @@index([grantId])
+  @@index([status])
+  @@map("sta_finance_pledges")
 }
 
 model FinanceChartAccount {
@@ -1286,6 +1321,8 @@ model FinanceIncomeEntry {
   revenueAccountId String?  @map("revenue_account_id") @db.Uuid
   fundId           String?  @map("fund_id") @db.Uuid
   grantId          String?  @map("grant_id") @db.Uuid
+  pledgeId         String?  @map("pledge_id") @db.Uuid
+  receiptNumber    String?  @unique @map("receipt_number") @db.VarChar(60)
   amount           Decimal  @db.Decimal(15, 2)
   currency         String   @default("NGN") @db.VarChar(3)
   receivedAt       DateTime @map("received_at")
@@ -1303,6 +1340,7 @@ model FinanceIncomeEntry {
   revenueAccount FinanceChartAccount? @relation(fields: [revenueAccountId], references: [id], onDelete: SetNull)
   fund           FinanceFund?         @relation(fields: [fundId], references: [id], onDelete: SetNull)
   grant          FinanceGrant?        @relation(fields: [grantId], references: [id], onDelete: SetNull)
+  pledge         FinancePledge?       @relation(fields: [pledgeId], references: [id], onDelete: SetNull)
   file           FileAsset?           @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
   @@index([accountId])
@@ -1311,6 +1349,7 @@ model FinanceIncomeEntry {
   @@index([revenueAccountId])
   @@index([fundId])
   @@index([grantId])
+  @@index([pledgeId])
   @@map("sta_finance_income_entries")
 }
 
