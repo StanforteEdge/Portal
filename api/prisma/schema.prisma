@@ -261,6 +261,8 @@ model Profile {
   grnRaised                       ProcurementGRN[]                  @relation("GrnRaisedBy")
   grnConfirmed                    ProcurementGRN[]                  @relation("GrnConfirmedBy")
 
+  mailAccounts                    MailAccount[]
+
   @@map("sta_profiles")
 }
 
@@ -3621,4 +3623,51 @@ model SystemVersion {
 
   @@unique([platform, module])
   @@map("sta_system_versions")
+}
+
+// ── Mail Module ───────────────────────────────────────────────────────────────
+
+enum MailProvider {
+  GOOGLE
+  MICROSOFT
+}
+
+model MailAccount {
+  id             BigInt       @id @default(autoincrement())
+  profileId      BigInt       @map("profile_id")
+  profile        Profile      @relation(fields: [profileId], references: [id])
+  provider       MailProvider
+  emailAddress   String       @map("email_address") @db.VarChar(255)
+  displayName    String?      @map("display_name") @db.VarChar(255)
+  accessToken    String       @map("access_token") @db.Text
+  refreshToken   String       @map("refresh_token") @db.Text
+  tokenExpiresAt DateTime     @map("token_expires_at")
+  isShared       Boolean      @default(false) @map("is_shared")
+  label          String?      @db.VarChar(100)
+  lastSyncedAt   DateTime?    @map("last_synced_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  headers        MailHeader[]
+
+  @@index([profileId])
+  @@map("mail_accounts")
+}
+
+model MailHeader {
+  id            BigInt      @id @default(autoincrement())
+  accountId     BigInt      @map("account_id")
+  account       MailAccount @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  uid           String      @db.VarChar(255)
+  folder        String      @db.VarChar(500)
+  subject       String?     @db.VarChar(998)
+  fromName      String?     @map("from_name") @db.VarChar(255)
+  fromEmail     String?     @map("from_email") @db.VarChar(255)
+  date          DateTime?
+  isRead        Boolean     @default(false) @map("is_read")
+  hasAttachment Boolean     @default(false) @map("has_attachment")
+  snippet       String?     @db.VarChar(500)
+  syncedAt      DateTime    @default(now()) @map("synced_at")
+
+  @@unique([accountId, folder, uid])
+  @@index([accountId, folder])
+  @@map("mail_headers")
 }
