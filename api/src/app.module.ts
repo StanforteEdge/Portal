@@ -25,6 +25,7 @@ import { PoliciesModule } from './modules/policies/policies.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { WorkModule } from './modules/work/work.module';
 import { VersionModule } from './modules/version/version.module';
+import { MailModule } from './modules/mail/mail.module';
 
 @Module({
   imports: [
@@ -53,7 +54,8 @@ import { VersionModule } from './modules/version/version.module';
     PoliciesModule,
     PayrollModule,
     WorkModule,
-    VersionModule
+    VersionModule,
+    MailModule,
   ],
   providers: [],
 })
