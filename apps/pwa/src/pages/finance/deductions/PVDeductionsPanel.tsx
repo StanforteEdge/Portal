@@ -4,6 +4,16 @@ import { Button, useToast } from "@/shared";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 
+function downloadBase64Pdf(res: { file_name: string; content_base64: string }) {
+  const bytes = Uint8Array.from(atob(res.content_base64), (c) => c.charCodeAt(0));
+  const url = URL.createObjectURL(new Blob([bytes], { type: "application/pdf" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = res.file_name;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 type DeductionLine = {
   deduction_type_id: string;
   rate: number;
@@ -20,6 +30,19 @@ type Props = {
 export default function PVDeductionsPanel({ pv, onClose, onSaved }: Props) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
+  const [downloadingCert, setDownloadingCert] = useState<string | null>(null);
+
+  const handleDownloadWhtCert = async (pvDeductionId: string) => {
+    setDownloadingCert(pvDeductionId);
+    try {
+      const res = await financeApi.downloadWhtCertificate(pvDeductionId);
+      downloadBase64Pdf(res as any);
+    } catch {
+      showToast({ tone: "danger", title: "Download failed", message: "Could not generate WHT certificate." });
+    } finally {
+      setDownloadingCert(null);
+    }
+  };
   const [lines, setLines] = useState<DeductionLine[]>([]);
   const [grossAmount, setGrossAmount] = useState<string>(String(pv.gross_amount ?? pv.amount ?? ""));
 
@@ -124,7 +147,17 @@ export default function PVDeductionsPanel({ pv, onClose, onSaved }: Props) {
                       {d.deductionType?.name ?? d.deduction_type?.name ?? "—"}
                       <span className="ml-2 text-xs text-slate-400">({(Number(d.rate) * 100).toFixed(1)}%)</span>
                     </span>
-                    <span className="font-semibold text-danger">{formatCurrency(d.deduction_amount, "NGN")}</span>
+                    <div className="flex items-center gap-3">
+                      <span className="font-semibold text-danger">{formatCurrency(d.deduction_amount, "NGN")}</span>
+                      <button
+                        type="button"
+                        disabled={downloadingCert === d.id}
+                        onClick={() => void handleDownloadWhtCert(d.id)}
+                        className="text-xs font-semibold text-brand-700 hover:underline disabled:opacity-50 whitespace-nowrap"
+                      >
+                        {downloadingCert === d.id ? "Generating…" : "WHT Certificate"}
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>

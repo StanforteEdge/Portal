@@ -998,7 +998,8 @@ model FinanceAccount {
   vendorPayments  FinanceVendorPayment[]
   payrollRuns     PayrollRun[]
   expenses        FinanceExpense[]
-  whtRemittances  FinanceWHTRemittance[]  @relation("WHTRemittanceAccount")
+  whtRemittances     FinanceWHTRemittance[]       @relation("WHTRemittanceAccount")
+  requestDeductions  FinanceRequestDeduction[]    @relation("RequestDeductionAccount")
 
   @@unique([organizationId, name], name: "unique_finance_account_name_per_org")
   @@index([organizationId])
@@ -2720,6 +2721,7 @@ model FileAsset {
   financeIncomeEntries   FinanceIncomeEntry[]
   documents              Document[]
   profileSignatures      Profile[]                   @relation("ProfileSignatureFile")
+  requestDeductions      FinanceRequestDeduction[]   @relation("RequestDeductionEvidence")
 
   @@index([organizationId])
   @@index([uploadedBy])
@@ -3352,27 +3354,33 @@ model FinancePVDeduction {
 }
 
 model FinanceRequestDeduction {
-  id              String   @id @default(uuid()) @db.Uuid
-  requestId       BigInt   @map("request_id")
-  deductionTypeId String   @map("deduction_type_id") @db.Uuid
-  amount          Decimal  @db.Decimal(15, 2)
-  rate            Decimal  @db.Decimal(6, 4)
-  grossAmount     Decimal  @map("gross_amount") @db.Decimal(15, 2)
-  status          String   @default("pending") @db.VarChar(20)
-  remittedAt      DateTime? @map("remitted_at")
-  remittanceRef   String?  @map("remittance_ref") @db.VarChar(255)
-  notes           String?
-  createdBy       BigInt   @map("created_by")
-  createdAt       DateTime @default(now()) @map("created_at")
-  updatedAt       DateTime @updatedAt @map("updated_at")
+  id                String    @id @default(uuid()) @db.Uuid
+  requestId         BigInt    @map("request_id")
+  deductionTypeId   String    @map("deduction_type_id") @db.Uuid
+  amount            Decimal   @db.Decimal(15, 2)
+  rate              Decimal   @db.Decimal(6, 4)
+  grossAmount       Decimal   @map("gross_amount") @db.Decimal(15, 2)
+  status            String    @default("pending") @db.VarChar(20)
+  remittanceNumber  String?   @map("remittance_number") @db.VarChar(60)
+  remittedAt        DateTime? @map("remitted_at")
+  remittanceRef     String?   @map("remittance_ref") @db.VarChar(255)
+  paidFromAccountId String?   @map("paid_from_account_id") @db.Uuid
+  evidenceFileId    String?   @map("evidence_file_id") @db.Uuid
+  notes             String?
+  createdBy         BigInt    @map("created_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
 
-  request       RequestInstance      @relation("RequestDeductions", fields: [requestId], references: [id])
-  deductionType FinanceDeductionType @relation("DeductionTypeRequestDeductions", fields: [deductionTypeId], references: [id])
-  createdByUser Profile              @relation("RequestDeductionCreatedBy", fields: [createdBy], references: [id])
+  request         RequestInstance      @relation("RequestDeductions", fields: [requestId], references: [id])
+  deductionType   FinanceDeductionType @relation("DeductionTypeRequestDeductions", fields: [deductionTypeId], references: [id])
+  createdByUser   Profile              @relation("RequestDeductionCreatedBy", fields: [createdBy], references: [id])
+  paidFromAccount FinanceAccount?      @relation("RequestDeductionAccount", fields: [paidFromAccountId], references: [id], onDelete: SetNull)
+  evidenceFile    FileAsset?           @relation("RequestDeductionEvidence", fields: [evidenceFileId], references: [id], onDelete: SetNull)
 
   @@index([requestId])
   @@index([status])
   @@index([deductionTypeId])
+  @@index([remittanceNumber])
   @@map("sta_finance_request_deductions")
 }
 

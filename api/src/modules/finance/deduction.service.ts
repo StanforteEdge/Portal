@@ -12,12 +12,64 @@ import { UpsertDeductionTypeDto } from './dto/upsert-deduction-type.dto';
 import { ApplyPVDeductionsDto } from './dto/apply-pv-deductions.dto';
 import { CreateWHTRemittanceDto } from './dto/create-wht-remittance.dto';
 import { StatutoryDeductionsQueryDto, RemitStatutoryDeductionsDto } from './dto/statutory-deductions.dto';
+import { PdfService } from '../../common/pdf/pdf.service';
 
 @Injectable()
 export class DeductionService {
   private readonly logger = new Logger(DeductionService.name);
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pdfService: PdfService,
+  ) {}
+
+  // ── PDF Helpers ───────────────────────────────────────────────────────────
+
+  private fmtMoney(amount: any, currency = 'NGN'): string {
+    const n = Number(amount ?? 0);
+    return new Intl.NumberFormat('en-NG', { style: 'currency', currency, minimumFractionDigits: 2 }).format(n);
+  }
+
+  private fmtDate(d: Date | string | null | undefined): string {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-NG', { day: '2-digit', month: 'long', year: 'numeric' });
+  }
+
+  private esc(s: string | null | undefined): string {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  private async fetchOrgSettings(): Promise<{ org_name: string; prepared_by: string; prepared_title: string }> {
+    const row = await this.prisma.financeSetting.findUnique({ where: { key: 'default' }, select: { config: true } });
+    const cfg: any = (row?.config && typeof row.config === 'object' && !Array.isArray(row.config)) ? row.config : {};
+    return {
+      org_name: cfg?.org_name ?? cfg?.organization_name ?? 'The Organisation',
+      prepared_by: cfg?.prepared_by?.name ?? '',
+      prepared_title: cfg?.prepared_by?.title ?? 'Accountant',
+    };
+  }
+
+  private pdfDocStyle(): string {
+    return `
+      @page { size: A4; margin: 14mm; }
+      body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+      h1 { font-size: 18px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 4px; }
+      .subtitle { text-align: center; font-size: 11px; color: #475569; margin: 0 0 16px; }
+      .ref-badge { display: inline-block; background: #0f172a; color: #fff; font-size: 14px; font-weight: 700; padding: 4px 14px; border-radius: 4px; letter-spacing: 1px; margin-bottom: 16px; }
+      .section { margin-bottom: 16px; }
+      .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 1px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; }
+      table.fields { width: 100%; border-collapse: collapse; }
+      table.fields td { padding: 6px 8px; vertical-align: top; }
+      table.fields td:first-child { width: 38%; font-weight: 600; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; }
+      table.fields td:last-child { border: 1px solid #e2e8f0; }
+      .amount-box { background: #f0fdf4; border: 2px solid #16a34a; border-radius: 6px; padding: 10px 14px; margin: 16px 0; text-align: center; }
+      .amount-box .label { font-size: 10px; text-transform: uppercase; color: #15803d; font-weight: 600; }
+      .amount-box .value { font-size: 22px; font-weight: 700; color: #15803d; }
+      .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #64748b; text-align: center; }
+      .sig-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; }
+      .sig-box { border-top: 1px solid #111; padding-top: 6px; font-size: 10px; }
+    `;
+  }
 
   // ── Deduction Types ──────────────────────────────────────────────────────
 
@@ -321,6 +373,8 @@ export class DeductionService {
           deductionType: { select: { id: true, name: true, code: true } },
           request: { select: { id: true, createdAt: true, status: true, data: true } },
           createdByUser: { select: { id: true, firstName: true, lastName: true } },
+          paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
+          evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
         },
         orderBy: { createdAt: 'desc' },
         skip,
@@ -331,7 +385,37 @@ export class DeductionService {
 
     return {
       data: {
-        items: rows,
+        items: rows.map((d: any) => ({
+          id: d.id,
+          request_id: String(d.requestId),
+          request_number: (d.request?.data as any)?.request_number ?? String(d.requestId),
+          deduction_type_id: d.deductionTypeId,
+          deduction_type_name: d.deductionType?.name ?? '',
+          deduction_type_code: d.deductionType?.code ?? '',
+          amount: Number(d.amount),
+          rate: Number(d.rate),
+          gross_amount: Number(d.grossAmount),
+          status: d.status,
+          remittance_number: d.remittanceNumber ?? null,
+          remitted_at: d.remittedAt?.toISOString() ?? null,
+          remittance_ref: d.remittanceRef ?? null,
+          paid_from_account: d.paidFromAccount ? {
+            id: d.paidFromAccount.id,
+            name: d.paidFromAccount.name,
+            bank_name: d.paidFromAccount.bankName ?? null,
+            account_number: d.paidFromAccount.accountNumber ?? null,
+          } : null,
+          evidence_file: d.evidenceFile ? {
+            id: d.evidenceFile.id,
+            file_name: d.evidenceFile.fileName,
+            public_url: d.evidenceFile.publicUrl ?? null,
+          } : null,
+          notes: d.notes ?? null,
+          created_by_name: d.createdByUser
+            ? `${d.createdByUser.firstName || ''} ${d.createdByUser.lastName || ''}`.trim()
+            : '',
+          created_at: d.createdAt.toISOString(),
+        })),
         pagination: { page, per_page: perPage, total, total_pages: Math.ceil(total / perPage) },
       },
     };
@@ -340,6 +424,7 @@ export class DeductionService {
   async batchRemitDeductions(dto: RemitStatutoryDeductionsDto, userId: number) {
     const ids = dto.deduction_ids;
     const now = dto.remitted_at ? new Date(dto.remitted_at) : new Date();
+    const year = now.getFullYear();
 
     const existing = await this.prisma.financeRequestDeduction.findMany({
       where: { id: { in: ids } },
@@ -354,11 +439,206 @@ export class DeductionService {
       throw new BadRequestException(`${alreadyRemitted.length} deduction(s) already remitted`);
     }
 
-    await this.prisma.financeRequestDeduction.updateMany({
-      where: { id: { in: ids } },
-      data: { status: 'remitted', remittedAt: now, remittanceRef: dto.reference, notes: dto.notes ?? null },
+    // Count existing remittances this year to generate sequential TRM numbers
+    const existingCount = await this.prisma.financeRequestDeduction.count({
+      where: { remittanceNumber: { not: null }, remittedAt: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      for (let i = 0; i < ids.length; i++) {
+        const remittanceNumber = `TRM/${year}/${String(existingCount + i + 1).padStart(3, '0')}`;
+        await tx.financeRequestDeduction.update({
+          where: { id: ids[i] },
+          data: {
+            status: 'remitted',
+            remittanceNumber,
+            remittedAt: now,
+            remittanceRef: dto.reference,
+            paidFromAccountId: dto.paid_from_account_id ?? null,
+            evidenceFileId: dto.evidence_file_id ?? null,
+            notes: dto.notes ?? null,
+          },
+        });
+      }
     });
 
     return { updated: ids.length };
+  }
+
+  // ── TRM Slip PDF ──────────────────────────────────────────────────────────
+
+  async generateTrmSlipPdf(id: string) {
+    const d = await this.prisma.financeRequestDeduction.findUnique({
+      where: { id },
+      include: {
+        deductionType: true,
+        request: { select: { id: true, status: true, data: true, createdAt: true } },
+        createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+        paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
+        evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
+      },
+    });
+    if (!d) throw new NotFoundException('Deduction not found');
+    if (d.status !== 'remitted') throw new BadRequestException('Deduction has not been remitted yet — no TRM slip available');
+
+    const org = await this.fetchOrgSettings();
+    const requestNumber = (d.request?.data as any)?.request_number ?? String(d.requestId);
+    const creatorName = d.createdByUser
+      ? `${d.createdByUser.firstName ?? ''} ${d.createdByUser.lastName ?? ''}`.trim() || d.createdByUser.email
+      : '—';
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/>
+<style>${this.pdfDocStyle()}</style></head><body>
+<h1>${this.esc(org.org_name)}</h1>
+<p class="subtitle">Tax Remittance Slip</p>
+<div style="text-align:center;"><span class="ref-badge">${this.esc(d.remittanceNumber ?? '—')}</span></div>
+
+<div class="section">
+  <div class="section-title">Remittance Details</div>
+  <table class="fields"><tbody>
+    <tr><td>Remittance Date</td><td>${this.fmtDate(d.remittedAt)}</td></tr>
+    <tr><td>Remittance Reference</td><td>${this.esc(d.remittanceRef ?? '—')}</td></tr>
+    <tr><td>Paid From Account</td><td>${d.paidFromAccount ? `${this.esc(d.paidFromAccount.name)}${d.paidFromAccount.bankName ? ` — ${this.esc(d.paidFromAccount.bankName)}` : ''}${d.paidFromAccount.accountNumber ? ` (${this.esc(d.paidFromAccount.accountNumber)})` : ''}` : '—'}</td></tr>
+  </tbody></table>
+</div>
+
+<div class="section">
+  <div class="section-title">Deduction Detail</div>
+  <table class="fields"><tbody>
+    <tr><td>Deduction Type</td><td>${this.esc(d.deductionType.name)} (${this.esc(d.deductionType.code)})</td></tr>
+    <tr><td>Rate</td><td>${(Number(d.rate) * 100).toFixed(1)}%</td></tr>
+    <tr><td>Gross Invoice Amount</td><td>${this.fmtMoney(d.grossAmount)}</td></tr>
+    <tr><td>Amount Withheld</td><td><strong>${this.fmtMoney(d.amount)}</strong></td></tr>
+  </tbody></table>
+</div>
+
+<div class="amount-box">
+  <div class="label">Total Remitted</div>
+  <div class="value">${this.fmtMoney(d.amount)}</div>
+</div>
+
+<div class="section">
+  <div class="section-title">Source Transaction</div>
+  <table class="fields"><tbody>
+    <tr><td>Request Number</td><td>${this.esc(requestNumber)}</td></tr>
+    <tr><td>Created By</td><td>${this.esc(creatorName)}</td></tr>
+    <tr><td>Deduction Created</td><td>${this.fmtDate(d.createdAt)}</td></tr>
+  </tbody></table>
+</div>
+
+${d.notes ? `<div class="section"><div class="section-title">Notes</div><p style="margin:0;">${this.esc(d.notes)}</p></div>` : ''}
+
+<div class="sig-row">
+  <div class="sig-box">${org.prepared_by ? this.esc(org.prepared_by) : '____________________'}<br/>${this.esc(org.prepared_title)}</div>
+  <div class="sig-box">Date: ${this.fmtDate(d.remittedAt)}</div>
+</div>
+<div class="footer">This document was generated on ${this.fmtDate(new Date())}. TRM Reference: ${this.esc(d.remittanceNumber ?? '—')}</div>
+</body></html>`;
+
+    const buffer = await this.pdfService.renderPdfFromHtml(html);
+    const fileName = `TRM-${(d.remittanceNumber ?? id).replace(/\//g, '-')}.pdf`;
+    return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
+  }
+
+  // ── WHT Certificate PDF ───────────────────────────────────────────────────
+
+  async generateWhtCertificatePdf(pvDeductionId: string) {
+    const pvd = await this.prisma.financePVDeduction.findUnique({
+      where: { id: pvDeductionId },
+      include: {
+        deductionType: true,
+        paymentVoucher: {
+          include: {
+            request: { select: { id: true, data: true, createdAt: true, creator: { select: { firstName: true, lastName: true, email: true } } } },
+            contact: { select: { id: true, name: true, email: true, phone: true } },
+          },
+        },
+      },
+    });
+    if (!pvd) throw new NotFoundException('PV deduction not found');
+
+    const pv = pvd.paymentVoucher;
+    const request = pv.request;
+    const requestNumber = (request?.data as any)?.request_number ?? String(pv.requestId);
+    const org = await this.fetchOrgSettings();
+
+    // Look up the corresponding FinanceRequestDeduction for TRM number
+    const trmRecord = await this.prisma.financeRequestDeduction.findFirst({
+      where: { requestId: pv.requestId, deductionTypeId: pvd.deductionTypeId, status: 'remitted' },
+      select: { remittanceNumber: true, remittedAt: true, remittanceRef: true },
+      orderBy: { remittedAt: 'desc' },
+    });
+
+    const vendorName = pv.contact?.name ?? (request?.creator ? `${request.creator.firstName ?? ''} ${request.creator.lastName ?? ''}`.trim() : '—');
+    const vendorEmail = pv.contact?.email ?? request?.creator?.email ?? '';
+
+    const pvDate = this.fmtDate(pv.disbursedAt);
+    const certDate = trmRecord?.remittedAt ? this.fmtDate(trmRecord.remittedAt) : this.fmtDate(new Date());
+
+    const html = `<!doctype html><html><head><meta charset="utf-8"/>
+<style>${this.pdfDocStyle()}</style></head><body>
+<h1>${this.esc(org.org_name)}</h1>
+<p class="subtitle">Withholding Tax Certificate</p>
+${trmRecord?.remittanceNumber ? `<div style="text-align:center;"><span class="ref-badge">${this.esc(trmRecord.remittanceNumber)}</span></div>` : ''}
+
+<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#475569;">
+  This certificate confirms that ${this.esc(org.org_name)} has withheld and remitted
+  <strong>${this.esc(pvd.deductionType.name)}</strong> on payment made to the party named below, in accordance with applicable tax regulations.
+</div>
+
+<div class="section">
+  <div class="section-title">Vendor / Payee</div>
+  <table class="fields"><tbody>
+    <tr><td>Name</td><td><strong>${this.esc(vendorName)}</strong></td></tr>
+    ${vendorEmail ? `<tr><td>Email</td><td>${this.esc(vendorEmail)}</td></tr>` : ''}
+    ${pv.contact?.phone ? `<tr><td>Phone</td><td>${this.esc(pv.contact.phone)}</td></tr>` : ''}
+  </tbody></table>
+</div>
+
+<div class="section">
+  <div class="section-title">Payment Details</div>
+  <table class="fields"><tbody>
+    <tr><td>Request Number</td><td>${this.esc(requestNumber)}</td></tr>
+    <tr><td>Payment Voucher</td><td>${this.esc(pv.voucherNumber)}</td></tr>
+    <tr><td>Payment Date</td><td>${pvDate}</td></tr>
+    <tr><td>Gross Invoice Amount</td><td>${this.fmtMoney(pvd.grossAmount)}</td></tr>
+    <tr><td>Net Amount Paid</td><td>${this.fmtMoney(pv.amount)}</td></tr>
+  </tbody></table>
+</div>
+
+<div class="section">
+  <div class="section-title">Tax Deduction</div>
+  <table class="fields"><tbody>
+    <tr><td>Deduction Type</td><td>${this.esc(pvd.deductionType.name)} (${this.esc(pvd.deductionType.code)})</td></tr>
+    <tr><td>Rate Applied</td><td>${(Number(pvd.rate) * 100).toFixed(1)}%</td></tr>
+    <tr><td>Amount Withheld</td><td><strong>${this.fmtMoney(pvd.deductionAmount)}</strong></td></tr>
+  </tbody></table>
+</div>
+
+<div class="amount-box">
+  <div class="label">Tax Withheld &amp; Remitted</div>
+  <div class="value">${this.fmtMoney(pvd.deductionAmount)}</div>
+</div>
+
+${trmRecord ? `
+<div class="section">
+  <div class="section-title">Remittance Confirmation</div>
+  <table class="fields"><tbody>
+    <tr><td>TRM Reference</td><td><strong>${this.esc(trmRecord.remittanceNumber ?? '—')}</strong></td></tr>
+    <tr><td>Remittance Reference</td><td>${this.esc(trmRecord.remittanceRef ?? '—')}</td></tr>
+    <tr><td>Remitted On</td><td>${this.fmtDate(trmRecord.remittedAt)}</td></tr>
+  </tbody></table>
+</div>` : '<p style="color:#b45309;font-size:11px;">Note: Remittance to tax authority is pending.</p>'}
+
+<div class="sig-row">
+  <div class="sig-box">${org.prepared_by ? this.esc(org.prepared_by) : '____________________'}<br/>${this.esc(org.prepared_title)}<br/>Date: ${certDate}</div>
+  <div class="sig-box">Authorised Signatory<br/>____________________<br/>Date: _______________</div>
+</div>
+<div class="footer">This certificate is issued for tax credit purposes. ${trmRecord?.remittanceNumber ? `TRM Ref: ${this.esc(trmRecord.remittanceNumber)}` : ''} — ${this.fmtDate(new Date())}</div>
+</body></html>`;
+
+    const buffer = await this.pdfService.renderPdfFromHtml(html);
+    const fileName = `WHT-Certificate-${pv.voucherNumber.replace(/\//g, '-')}.pdf`;
+    return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
   }
 }

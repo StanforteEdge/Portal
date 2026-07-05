@@ -102,9 +102,10 @@ class ManualApprovalDto {
 }
 
 class ManualVoucherDto {
-  @ApiProperty({ example: 'PV/2025/016' })
+  @ApiPropertyOptional({ example: 'PV/2025/016' })
+  @IsOptional()
   @IsString()
-  voucher_number!: string;
+  voucher_number?: string;
 
   @ApiProperty()
   @IsNumber()

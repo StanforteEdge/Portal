@@ -550,6 +550,23 @@ export class RequestsService {
       if (taken) throw new BadRequestException(`request_id ${dto.request_id} already exists`);
     }
 
+    // Pre-generate PV numbers for disbursements that don't have one
+    let pvSeqOffset = 0;
+    const resolvedDisbursements: NonNullable<typeof dto.disbursements> = [];
+    for (const row of (dto.disbursements ?? [])) {
+      const vn = (row.voucher_number ?? '').trim();
+      if (vn) {
+        resolvedDisbursements.push(row);
+      } else {
+        const disbDate = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
+        const year = disbDate.getFullYear();
+        const count = await this.prisma.financePaymentVoucher.count({
+          where: { disbursedAt: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } }
+        });
+        resolvedDisbursements.push({ ...row, voucher_number: `PV/${year}/${String(count + 1 + pvSeqOffset++).padStart(3, '0')}` });
+      }
+    }
+
     const baseData: Record<string, unknown> = {
       ...(dto.data ?? {}),
       manual_import: true,
@@ -610,8 +627,8 @@ export class RequestsService {
         }
       }
 
-      if (dto.disbursements?.length) {
-        for (const row of dto.disbursements) {
+      if (resolvedDisbursements.length) {
+        for (const row of resolvedDisbursements) {
           const amount = Number(row.amount);
           const retiredAmount = Number(row.retired_amount ?? 0);
           const disbursedAt = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
@@ -624,7 +641,7 @@ export class RequestsService {
           const createdVoucher = await tx.financePaymentVoucher.create({
             data: {
               requestId: request.id,
-              voucherNumber: row.voucher_number,
+              voucherNumber: row.voucher_number!,
               amount,
               retiredAmount,
               retirementStatus: row.retirement_status ?? (retiredAmount > 0 ? (retiredAmount >= amount ? 'retired' : 'partial') : 'not_retired'),
@@ -763,6 +780,23 @@ export class RequestsService {
       if (taken) throw new BadRequestException(`request_id ${dto.request_id} already exists`);
     }
 
+    // Pre-generate PV numbers for disbursements that don't have one
+    let pvSeqOffsetU = 0;
+    const resolvedDisbursements: NonNullable<typeof dto.disbursements> = [];
+    for (const row of (dto.disbursements ?? [])) {
+      const vn = (row.voucher_number ?? '').trim();
+      if (vn) {
+        resolvedDisbursements.push(row);
+      } else {
+        const disbDate = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
+        const year = disbDate.getFullYear();
+        const count = await this.prisma.financePaymentVoucher.count({
+          where: { disbursedAt: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } }
+        });
+        resolvedDisbursements.push({ ...row, voucher_number: `PV/${year}/${String(count + 1 + pvSeqOffsetU++).padStart(3, '0')}` });
+      }
+    }
+
     const baseData: Record<string, unknown> = {
       ...(dto.data ?? {}),
       manual_import: true,
@@ -846,8 +880,8 @@ export class RequestsService {
 
       await tx.financePaymentVoucher.deleteMany({ where: { requestId: existing.id } });
       await tx.financeRequestDeduction.deleteMany({ where: { requestId: existing.id } });
-      if (dto.disbursements?.length) {
-        for (const row of dto.disbursements) {
+      if (resolvedDisbursements.length) {
+        for (const row of resolvedDisbursements) {
           const amount = Number(row.amount);
           const retiredAmount = Number(row.retired_amount ?? 0);
           const disbursedAt = row.disbursed_at ? new Date(row.disbursed_at) : createdAt;
@@ -860,7 +894,7 @@ export class RequestsService {
           const createdVoucher = await tx.financePaymentVoucher.create({
             data: {
               requestId: desiredRequestId,
-              voucherNumber: row.voucher_number,
+              voucherNumber: row.voucher_number!,
               amount,
               retiredAmount,
               retirementStatus: row.retirement_status ?? (retiredAmount > 0 ? (retiredAmount >= amount ? 'retired' : 'partial') : 'not_retired'),

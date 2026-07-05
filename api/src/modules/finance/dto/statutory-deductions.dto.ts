@@ -54,9 +54,19 @@ export class RemitStatutoryDeductionsDto {
   @IsDateString()
   remitted_at?: string;
 
-  @ApiProperty({ example: 'WHT-2026-Q1-remittance' })
+  @ApiProperty({ example: 'FIRS/WHT/2026/Q1' })
   @IsString()
   reference!: string;
+
+  @ApiPropertyOptional({ description: 'Account the tax was paid from' })
+  @IsOptional()
+  @IsUUID()
+  paid_from_account_id?: string;
+
+  @ApiPropertyOptional({ description: 'Remittance receipt file ID' })
+  @IsOptional()
+  @IsUUID()
+  evidence_file_id?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

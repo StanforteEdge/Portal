@@ -938,4 +938,18 @@ export class FinanceController {
   batchRemitDeductions(@Req() req: any, @Body() dto: RemitStatutoryDeductionsDto) {
     return this.deductionService.batchRemitDeductions(dto, req.user?.id);
   }
+
+  @Post('statutory-deductions/:id/pdf')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Download TRM slip PDF for a remitted deduction' })
+  downloadTrmSlip(@Param('id') id: string) {
+    return this.deductionService.generateTrmSlipPdf(id);
+  }
+
+  @Post('payment-vouchers/:pvDeductionId/wht-certificate')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'Download WHT certificate PDF for a PV deduction' })
+  downloadWhtCertificate(@Param('pvDeductionId') pvDeductionId: string) {
+    return this.deductionService.generateWhtCertificatePdf(pvDeductionId);
+  }
 }

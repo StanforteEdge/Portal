@@ -971,6 +971,12 @@ export class DocumentGeneratorService {
           }
         }
       }
+      // Fallback for historical approvals where comment was never recorded
+      if (!comment) {
+        if (entry.action === 'approve' || entry.action === 'auto_approve') comment = 'Approved.';
+        else if (entry.action === 'reject') comment = 'Rejected.';
+        else if (entry.action === 'return') comment = 'Returned for revision.';
+      }
       thread.push({
         type: entryType,
         actor_name: performer?.name ?? 'System',

@@ -220,6 +220,7 @@ export type FinancePVDeductionRecord = {
 export type FinanceRequestDeductionRecord = {
   id: string;
   request_id: string;
+  request_number: string;
   deduction_type_id: string;
   deduction_type_name: string;
   deduction_type_code: string;
@@ -227,8 +228,11 @@ export type FinanceRequestDeductionRecord = {
   rate: number;
   gross_amount: number;
   status: "pending" | "remitted";
+  remittance_number: string | null;
   remitted_at: string | null;
   remittance_ref: string | null;
+  paid_from_account: { id: string; name: string; bank_name: string | null; account_number: string | null } | null;
+  evidence_file: { id: string; file_name: string; public_url: string | null } | null;
   notes: string | null;
   created_by_name: string;
   created_at: string;
@@ -861,6 +865,20 @@ export function createFinanceApi(httpRequest: HttpRequest) {
         method: 'PATCH',
         body,
       });
+    },
+
+    downloadTrmSlip(deductionId: string) {
+      return httpRequest<{ file_name: string; mime_type: string; content_base64: string }>(
+        `/finance/statutory-deductions/${deductionId}/pdf`,
+        { method: 'POST' },
+      );
+    },
+
+    downloadWhtCertificate(pvDeductionId: string) {
+      return httpRequest<{ file_name: string; mime_type: string; content_base64: string }>(
+        `/finance/payment-vouchers/${pvDeductionId}/wht-certificate`,
+        { method: 'POST' },
+      );
     },
   };
 }
