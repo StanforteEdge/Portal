@@ -13,6 +13,7 @@ import { SendMessageDto } from './dto/send-message.dto';
 import type { Response } from 'express';
 
 @ApiTags('Mail')
+@Controller('mail')
 export class MailController {
   constructor(
     private readonly accountService: MailAccountService,
