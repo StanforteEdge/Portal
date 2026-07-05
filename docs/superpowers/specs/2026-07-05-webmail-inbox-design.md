@@ -9,7 +9,7 @@
 
 Embed a full business webmail inbox client directly in the portal PWA. Staff connect their Google Workspace or Microsoft 365 accounts via OAuth. Email is fetched via IMAP (XOAUTH2), sent via SMTP (XOAUTH2), and headers are cached in PostgreSQL for fast loads. Email bodies are cached locally in IndexedDB (browser-side only — never on the server).
 
-**Out of scope for Phase 1:** push notifications (Gmail Pub/Sub / Graph webhooks), folder management (create/rename/delete), attachment upload, full-text body search, mobile push, Microsoft IMAP (if time-constrained — Google first).
+**Out of scope for Phase 1:** push notifications (Gmail Pub/Sub / Graph webhooks), folder management (create/rename/delete), attachment upload, full-text body search, mobile push.
 
 **Phase 2 additions (not designed here):** real-time push via webhooks, IMAP IDLE connection, attachment management, body-level search.
 
@@ -51,8 +51,8 @@ NestJS API  (api/src/modules/mail/)
     │     → upsert MailHeader cache → return list to frontend
     │
     ├── Body fetch (on message open):
-    │     Fetch full body live from IMAP → sanitize HTML
-    │     Frontend stores in IndexedDB
+    │     Fetch full body live from IMAP → return raw HTML to frontend
+    │     Frontend sanitizes with DOMPurify → stores in IndexedDB
     │
     └── Send / Reply / Forward:
           Nodemailer (SMTP + XOAUTH2) → append to Sent via IMAP
@@ -150,9 +150,9 @@ api/src/modules/mail/
 
 **OAuth**
 ```
-GET  /mail/auth/:provider/url         → consent screen URL
-GET  /mail/auth/:provider/callback    → exchange code, save MailAccount
-POST /mail/auth/refresh/:accountId    → refresh expired token (internal)
+GET  /mail/auth/:provider/url         → returns consent screen URL (frontend redirects user)
+GET  /mail/auth/:provider/callback    → exchange code, save MailAccount, redirect to /mail in PWA
+     (internal) token refresh handled automatically inside mail-account.service.ts — no public endpoint
 ```
 
 **Accounts**
