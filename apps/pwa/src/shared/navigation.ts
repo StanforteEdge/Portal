@@ -116,6 +116,7 @@ export function buildAppNavigation(options?: {
             { key: "finance-vendors", label: "Vendors", icon: "local_shipping", path: "/finance/vendors", permissions: ["finance.manage"] },
             { key: "finance-contacts", label: "All Contacts", icon: "contacts", path: "/finance/contacts", permissions: ["finance.manage"] },
             { key: "finance-vouchers", label: "Payment Vouchers", icon: "payments", path: "/finance/payment-vouchers", permissions: ["finance.vouchers"] },
+            { key: "finance-statutory-deductions", label: "Statutory Deductions", icon: "account_balance", path: "/finance/statutory-deductions", permissions: ["finance.manage"] },
           ],
         },
         {
