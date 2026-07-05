@@ -9,6 +9,7 @@ import { UpdateFinanceSettingsDto } from './dto/update-finance-settings.dto';
 import { Prisma } from '@prisma/client';
 import { UpsertFinanceAccountDto } from './dto/upsert-finance-account.dto';
 import { CreateFinanceIncomeDto } from './dto/create-finance-income.dto';
+import { UpsertFinancePledgeDto } from './dto/upsert-finance-pledge.dto';
 import { CreateTransferDto } from './dto/create-transfer.dto';
 import { UpsertFinanceAssetDto } from './dto/upsert-finance-asset.dto';
 import { CreateFinanceAssetVerificationDto } from './dto/create-finance-asset-verification.dto';
@@ -6396,7 +6397,7 @@ export class FinanceService {
   private async nextDocumentSequenceValue(
     prefix: string,
     date: Date,
-    kind: 'sales_invoice' | 'bill' | 'receipt' | 'contact_payment'
+    kind: 'sales_invoice' | 'bill' | 'receipt' | 'contact_payment' | 'pledge' | 'funder_receipt'
   ) {
     const year = date.getFullYear();
     const startsWith = `${prefix}/${year}/`;
@@ -7202,6 +7203,129 @@ export class FinanceService {
         account: { select: { id: true, name: true, code: true, accountType: true } },
         chartAccount: { select: { id: true, name: true, code: true } },
       },
+    });
+  }
+
+  // ─── Pledge CRUD ──────────────────────────────────────────────────────────
+
+  async createPledge(dto: UpsertFinancePledgeDto, actorId?: number) {
+    const donor = await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } });
+    if (!donor) throw new NotFoundException(`Donor ${dto.donor_id} not found`);
+
+    const pledgedAt = new Date(dto.pledged_at);
+    const pledgeNumber = await this.nextDocumentSequenceValue('PLG', pledgedAt, 'pledge');
+
+    return this.prisma.financePledge.create({
+      data: {
+        pledgeNumber,
+        donorId: dto.donor_id,
+        grantId: dto.grant_id ?? null,
+        fundId: dto.fund_id ?? null,
+        amount: dto.amount,
+        currency: (dto.currency ?? 'NGN').toUpperCase(),
+        receivedAmount: 0,
+        pledgedAt,
+        expectedAt: dto.expected_at ? new Date(dto.expected_at) : null,
+        status: (dto.status ?? 'pending').toLowerCase(),
+        purpose: dto.purpose?.trim() ?? null,
+        notes: dto.notes?.trim() ?? null,
+        createdBy: actorId ? BigInt(actorId) : null,
+      },
+      include: { donor: true, grant: true },
+    });
+  }
+
+  async updatePledge(id: string, dto: UpsertFinancePledgeDto, actorId?: number) {
+    const existing = await this.prisma.financePledge.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException(`Pledge ${id} not found`);
+
+    const donor = await this.prisma.financeDonor.findUnique({ where: { id: dto.donor_id } });
+    if (!donor) throw new NotFoundException(`Donor ${dto.donor_id} not found`);
+
+    return this.prisma.financePledge.update({
+      where: { id },
+      data: {
+        donorId: dto.donor_id,
+        grantId: dto.grant_id ?? null,
+        fundId: dto.fund_id ?? null,
+        amount: dto.amount,
+        currency: (dto.currency ?? existing.currency).toUpperCase(),
+        pledgedAt: new Date(dto.pledged_at),
+        expectedAt: dto.expected_at ? new Date(dto.expected_at) : null,
+        status: dto.status ? dto.status.toLowerCase() : existing.status,
+        purpose: dto.purpose?.trim() ?? existing.purpose,
+        notes: dto.notes?.trim() ?? existing.notes,
+      },
+      include: { donor: true, grant: true },
+    });
+  }
+
+  async deletePledge(id: string) {
+    const pledge = await this.prisma.financePledge.findUnique({ where: { id } });
+    if (!pledge) throw new NotFoundException(`Pledge ${id} not found`);
+    if (!['pending', 'cancelled'].includes(pledge.status)) {
+      throw new BadRequestException(`Cannot delete a pledge with status "${pledge.status}". Cancel it first.`);
+    }
+    await this.prisma.financePledge.delete({ where: { id } });
+  }
+
+  async listPledges(query: Record<string, any>) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(100, Math.max(1, Number(query.per_page ?? 20)));
+    const skip = (page - 1) * perPage;
+
+    const where: any = {};
+    if (query.donor_id) where.donorId = query.donor_id;
+    if (query.grant_id) where.grantId = query.grant_id;
+    if (query.status) where.status = query.status;
+    if (query.search) {
+      where.OR = [
+        { pledgeNumber: { contains: query.search, mode: 'insensitive' } },
+        { donor: { name: { contains: query.search, mode: 'insensitive' } } },
+        { purpose: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.financePledge.findMany({
+        where,
+        skip,
+        take: perPage,
+        orderBy: { pledgedAt: 'desc' },
+        include: {
+          donor: { select: { id: true, name: true } },
+          grant: { select: { id: true, name: true } },
+        },
+      }),
+      this.prisma.financePledge.count({ where }),
+    ]);
+
+    return { result: rows, total, page, pages: Math.ceil(total / perPage), per_page: perPage };
+  }
+
+  async getPledge(id: string) {
+    const pledge = await this.prisma.financePledge.findUnique({
+      where: { id },
+      include: {
+        donor: true,
+        grant: true,
+        incomeEntries: { orderBy: { receivedAt: 'desc' } },
+      },
+    });
+    if (!pledge) throw new NotFoundException(`Pledge ${id} not found`);
+    return pledge;
+  }
+
+  private async recomputePledgeStatus(pledgeId: string, pledgedAmount: number, tx: any) {
+    const agg = await tx.financeIncomeEntry.aggregate({
+      where: { pledgeId },
+      _sum: { amount: true },
+    });
+    const received = Number(agg._sum.amount ?? 0);
+    const status = received <= 0 ? 'pending' : received >= pledgedAmount ? 'fulfilled' : 'partial';
+    await tx.financePledge.update({
+      where: { id: pledgeId },
+      data: { receivedAmount: received, status },
     });
   }
 }
