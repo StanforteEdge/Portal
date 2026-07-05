@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
-import { formatDate } from "@/shared/lib/formatting";
+import { formatDate } from "@stanforte/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";

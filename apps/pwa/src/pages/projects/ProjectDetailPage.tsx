@@ -12,11 +12,9 @@ import {
   TableHead,
   TableHeaderCell,
   TableHeaderRow,
-  TableRow,
   useToast,
 } from "@/shared";
-import { formatCurrency } from "@stanforte/shared";
-import { formatDate } from "@/shared/lib/formatting";
+import { formatCurrency, formatDate } from "@stanforte/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { useCachedQuery } from "@/shared/lib/core";
