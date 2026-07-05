@@ -543,6 +543,8 @@ export function createResourceApi(httpRequest: HttpRequest) {
         notes: row.notes ?? null,
         fund_id: row.fund_id ?? null,
         grant_id: row.grant_id ?? null,
+        pledge_id: row.pledge_id ?? null,
+        receipt_number: row.receipt_number ?? null,
         file: row.file ?? null,
       }));
       return {
@@ -566,6 +568,8 @@ export function createResourceApi(httpRequest: HttpRequest) {
       file_id?: string;
       fund_id?: string;
       grant_id?: string;
+      pledge_id?: string;
+      donor_id?: string;
     }) {
       const response = await httpRequest<any>("/finance/income", {
         method: "POST",
@@ -705,6 +709,110 @@ export function createResourceApi(httpRequest: HttpRequest) {
         body: payload,
       });
       return response?.data;
+    },
+
+    // ── Donors ────────────────────────────────────────────────────────────────
+
+    async listFinanceDonors(params?: Record<string, unknown>) {
+      const query = new URLSearchParams();
+      if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
+      const qs = query.toString();
+      const response = await httpRequest<any>(qs ? `/finance/donors?${qs}` : "/finance/donors");
+      const _d = response?.data ?? response;
+      return { result: _d.result ?? [], total: Number(_d.total ?? 0), total_result: Number(_d.total_result ?? 0), per_page: Number(_d.per_page ?? 20), page: Number(_d.page ?? 1), pages: Number(_d.pages ?? 1) };
+    },
+
+    async createFinanceDonor(payload: { name: string; donor_type?: string; email?: string; phone?: string; address?: string }) {
+      const response = await httpRequest<any>("/finance/donors", { method: "POST", body: payload });
+      return response?.data;
+    },
+
+    async updateFinanceDonor(id: string, payload: Record<string, unknown>) {
+      const response = await httpRequest<any>(`/finance/donors/${id}`, { method: "PUT", body: payload });
+      return response?.data;
+    },
+
+    async deleteFinanceDonor(id: string) {
+      const response = await httpRequest<any>(`/finance/donors/${id}`, { method: "DELETE" });
+      return response?.data;
+    },
+
+    // ── Grants ────────────────────────────────────────────────────────────────
+
+    async listFinanceGrants(params?: Record<string, unknown>) {
+      const query = new URLSearchParams();
+      if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
+      const qs = query.toString();
+      const response = await httpRequest<any>(qs ? `/finance/grants?${qs}` : "/finance/grants");
+      const _g = response?.data ?? response;
+      return { result: _g.result ?? [], total: Number(_g.total ?? 0), total_result: Number(_g.total_result ?? 0), per_page: Number(_g.per_page ?? 20), page: Number(_g.page ?? 1), pages: Number(_g.pages ?? 1) };
+    },
+
+    async createFinanceGrant(payload: Record<string, unknown>) {
+      const response = await httpRequest<any>("/finance/grants", { method: "POST", body: payload });
+      return response?.data;
+    },
+
+    async updateFinanceGrant(id: string, payload: Record<string, unknown>) {
+      const response = await httpRequest<any>(`/finance/grants/${id}`, { method: "PUT", body: payload });
+      return response?.data;
+    },
+
+    // ── Funds ─────────────────────────────────────────────────────────────────
+
+    async listFinanceFunds(params?: Record<string, unknown>) {
+      const query = new URLSearchParams();
+      if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
+      const qs = query.toString();
+      const response = await httpRequest<any>(qs ? `/finance/funds?${qs}` : "/finance/funds");
+      const _f = response?.data ?? response;
+      return { result: _f.result ?? [], total: Number(_f.total ?? 0), total_result: Number(_f.total_result ?? 0), per_page: Number(_f.per_page ?? 20), page: Number(_f.page ?? 1), pages: Number(_f.pages ?? 1) };
+    },
+
+    // ── Pledges ───────────────────────────────────────────────────────────────
+
+    async listFinancePledges(params?: Record<string, unknown>) {
+      const query = new URLSearchParams();
+      if (params) Object.entries(params).forEach(([k, v]) => { if (v != null && v !== "") query.set(k, String(v)); });
+      const qs = query.toString();
+      const response = await httpRequest<any>(qs ? `/finance/pledges?${qs}` : "/finance/pledges");
+      const _p = response?.data ?? response;
+      return { result: _p.result ?? [], total: Number(_p.total ?? 0), total_result: Number(_p.total_result ?? 0), per_page: Number(_p.per_page ?? 20), page: Number(_p.page ?? 1), pages: Number(_p.pages ?? 1) };
+    },
+
+    async createFinancePledge(payload: {
+      donor_id: string;
+      amount: number;
+      pledged_at: string;
+      grant_id?: string;
+      fund_id?: string;
+      currency?: string;
+      expected_at?: string;
+      purpose?: string;
+      notes?: string;
+    }) {
+      const response = await httpRequest<any>("/finance/pledges", { method: "POST", body: payload });
+      return response?.data;
+    },
+
+    async updateFinancePledge(id: string, payload: Record<string, unknown>) {
+      const response = await httpRequest<any>(`/finance/pledges/${id}`, { method: "PUT", body: payload });
+      return response?.data;
+    },
+
+    async deleteFinancePledge(id: string) {
+      const response = await httpRequest<any>(`/finance/pledges/${id}`, { method: "DELETE" });
+      return response?.data;
+    },
+
+    async downloadPledgeAcknowledgment(id: string) {
+      const response = await httpRequest<any>(`/finance/pledges/${id}/acknowledgment`);
+      return response?.data as { file_name: string; mime_type: string; content_base64: string };
+    },
+
+    async downloadFunderReceipt(id: string) {
+      const response = await httpRequest<any>(`/finance/income/${id}/receipt`);
+      return response?.data as { file_name: string; mime_type: string; content_base64: string };
     },
   };
 }

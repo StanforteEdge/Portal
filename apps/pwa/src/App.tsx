@@ -38,6 +38,9 @@ import FinanceAccountDetailPage from "@/pages/finance/accounts/FinanceAccountDet
 import FinanceItemsPage from "@/pages/finance/items/FinanceItemsPage";
 import FinanceExpensesPage from "@/pages/finance/expenses/FinanceExpensesPage";
 import FinanceIncomePage from "@/pages/finance/income/FinanceIncomePage";
+import FinanceDonorsPage from "@/pages/finance/donors/FinanceDonorsPage";
+import FinanceGrantsPage from "@/pages/finance/grants/FinanceGrantsPage";
+import FinancePledgesPage from "@/pages/finance/pledges/FinancePledgesPage";
 import FinanceBillsPage from "@/pages/finance/bills/FinanceBillsPage";
 import FinanceSalesInvoicesPage from "@/pages/finance/invoices/FinanceSalesInvoicesPage";
 import FinanceManualEntryPage from "@/pages/finance/ledger/FinanceManualEntryPage";
@@ -281,6 +284,9 @@ export default function App() {
             <Route path="/finance/items" element={<FinanceItemsPage />} />
             <Route path="/finance/expenses" element={<FinanceExpensesPage />} />
             <Route path="/finance/income" element={<FinanceIncomePage />} />
+            <Route path="/finance/donors" element={<FinanceDonorsPage />} />
+            <Route path="/finance/grants" element={<FinanceGrantsPage />} />
+            <Route path="/finance/pledges" element={<FinancePledgesPage />} />
             <Route path="/finance/bills" element={<FinanceBillsPage />} />
             <Route path="/finance/sales-invoices" element={<FinanceSalesInvoicesPage />} />
             <Route path="/finance/budgets" element={<FinanceBudgetsPage />} />

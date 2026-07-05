@@ -116,6 +116,16 @@ export function buildAppNavigation(options?: {
           ],
         },
         {
+          key: "finance-group-funding",
+          label: "Funding",
+          icon: "volunteer_activism",
+          children: [
+            { key: "finance-donors", label: "Donors", icon: "people", path: "/finance/donors", permissions: ["finance.manage"] },
+            { key: "finance-grants", label: "Grants", icon: "workspace_premium", path: "/finance/grants", permissions: ["finance.manage"] },
+            { key: "finance-pledges", label: "Pledges", icon: "handshake", path: "/finance/pledges", permissions: ["finance.manage"] },
+          ],
+        },
+        {
           key: "finance-group-money-out",
           label: "Money Out",
           icon: "trending_down",
