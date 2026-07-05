@@ -10,13 +10,8 @@ import {
   SelectField,
   StatCard,
   useToast,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { resourceApi, useCachedQuery } from "@/shared/lib/core";
@@ -167,6 +162,59 @@ export default function FinanceItemsPage() {
 
   const userName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.email || "Finance";
 
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Code",
+      cell: (item: any) => item.code || "-"
+    },
+    {
+      header: "Name",
+      cell: (item: any) => (
+        <div>
+          <p className="font-medium text-slate-900">{item.name}</p>
+          {item.description ? <p className="text-xs text-slate-500">{item.description}</p> : null}
+        </div>
+      )
+    },
+    {
+      header: "Type",
+      cell: (item: any) => (
+        <span className="capitalize">
+          {item.itemType ?? item.item_type ?? "service"}
+        </span>
+      )
+    },
+    {
+      header: "Unit",
+      cell: (item: any) => item.unit || "-"
+    },
+    {
+      header: "Unit Price",
+      cell: (item: any) => formatCurrency(Number(item.unitPrice ?? item.unit_price ?? 0), item.currency || "NGN"),
+      className: "text-right text-slate-900 font-medium"
+    },
+    {
+      header: "Status",
+      cell: (item: any) => {
+        const active = Boolean(item.isActive ?? item.is_active ?? true);
+        return (
+          <Chip variant={active ? "success" : "neutral"}>
+            {active ? "Active" : "Inactive"}
+          </Chip>
+        );
+      }
+    },
+    {
+      header: "Actions",
+      cell: (item: any) => (
+        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEdit(item); }}>
+          <Icon name="edit" />
+        </Button>
+      ),
+      className: "text-right"
+    }
+  ], [openEdit]);
+
   return (
     <AppShell
       navigation={buildAppNavigation({ requestDetailsParent: "finance" })}
@@ -240,67 +288,27 @@ export default function FinanceItemsPage() {
             )
           }
         >
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">Loading items...</div>
-          ) : items.length === 0 ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-8 text-sm text-slate-500">No items found.</div>
-          ) : (
-            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Code</TableHeaderCell>
-                    <TableHeaderCell>Name</TableHeaderCell>
-                    <TableHeaderCell>Type</TableHeaderCell>
-                    <TableHeaderCell>Unit</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Unit Price</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {items.map((item: any) => {
-                    const type = item.itemType ?? item.item_type ?? "service";
-                    const unitPrice = Number(item.unitPrice ?? item.unit_price ?? 0);
-                    const active = Boolean(item.isActive ?? item.is_active ?? true);
-                    return (
-                      <TableRow key={item.id}>
-                        <TableCell className="text-slate-600">{item.code || "-"}</TableCell>
-                        <TableCell>
-                          <p className="font-medium text-slate-900">{item.name}</p>
-                          {item.description ? <p className="text-xs text-slate-500">{item.description}</p> : null}
-                        </TableCell>
-                        <TableCell className="capitalize text-slate-600">{type}</TableCell>
-                        <TableCell className="text-slate-600">{item.unit || "-"}</TableCell>
-                        <TableCell className="text-right text-slate-900">{formatCurrency(unitPrice, item.currency || "NGN")}</TableCell>
-                        <TableCell>
-                          <Chip variant={active ? "success" : "neutral"}>{active ? "Active" : "Inactive"}</Chip>
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(item)}>
-                            <Icon name="edit" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          <PaginationControls
-            page={Number(pagination.page || page)}
-            totalPages={Number(pagination.pages || 1)}
-            totalCount={Number(pagination.total_result || 0)}
-            showStatus={false}
-            perPage={Number(pagination.per_page || perPage)}
-            onPerPageChange={(value) => {
+        <DataTable
+          columns={columns}
+          data={items}
+          loading={loading}
+          error={null}
+          caption="Items"
+          emptyTitle="No items found"
+          emptyDescription="There are no catalog items to display."
+          onRowClick={(item) => openEdit(item)}
+          pagination={{
+            page: Number(pagination.page || page),
+            totalPages: Number(pagination.pages || 1),
+            totalCount: Number(pagination.total_result || 0),
+            perPage: Number(pagination.per_page || perPage),
+            onPageChange: setPage,
+            onPerPageChange: (value) => {
               setPerPage(value);
               setPage(1);
-            }}
-            onPageChange={setPage}
-          />
+            },
+          }}
+        />
         </SectionCard>
       </div>
 

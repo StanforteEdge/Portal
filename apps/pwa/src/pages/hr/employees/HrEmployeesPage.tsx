@@ -7,14 +7,9 @@ import {
   SectionCard,
   SelectField,
   StatCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
   usePermission,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -109,6 +104,74 @@ export default function HrEmployeesPage() {
   const safePage = Math.min(currentPage, totalPages);
   const pageStart = totalEmployees === 0 ? 0 : (safePage - 1) * perPage + 1;
   const pageEnd = totalEmployees === 0 ? 0 : Math.min(totalEmployees, safePage * perPage);
+
+  const columns: ColumnDef<EmployeeSummary>[] = useMemo(() => [
+    {
+      header: "Name",
+      cell: (employee) => (
+        <div>
+          <Link
+            to={`/hr/employees/${employee.id}`}
+            className="text-sm font-semibold text-brand-900 transition hover:underline"
+          >
+            {employee.first_name} {employee.last_name}
+          </Link>
+          <div className="mt-1 text-xs text-slate-500">
+            {employee.email}
+          </div>
+        </div>
+      )
+    },
+    {
+      header: "Employee Code",
+      cell: (employee) => employee.employee_code || "-",
+      className: "text-sm text-slate-700"
+    },
+    {
+      header: "Job Title",
+      cell: (employee) => employee.job_title || "-",
+      className: "text-sm text-slate-700"
+    },
+    {
+      header: "Organization",
+      cell: (employee) => {
+        const org = employee.primary_organization ? orgMap.get(employee.primary_organization.id) : null;
+        return org ? org.name : (employee.primary_organization?.name || "-");
+      },
+      className: "text-sm text-slate-700"
+    },
+    {
+      header: "Type",
+      cell: (employee) => <Chip variant="neutral">{humanize(employee.employment_type || "draft")}</Chip>
+    },
+    {
+      header: "Status",
+      cell: (employee) => (
+        <Chip variant={
+          employee.employment_status === 'active' ? 'success' :
+              employee.employment_status === 'draft' ? 'pending' :
+                  employee.employment_status === 'suspended' ? 'danger' :
+                      employee.employment_status === 'exited' ? 'neutral' :
+                          'neutral'
+        }>
+          {humanize(employee.employment_status || "draft")}
+        </Chip>
+      )
+    },
+    {
+      header: "Hire Date",
+      cell: (employee) => formatDate(employee.hire_date ?? undefined),
+      className: "text-sm text-slate-700"
+    },
+    {
+      header: "Actions",
+      cell: (employee) => (
+        <Link to={`/hr/employees/${employee.id}`} onClick={(e) => e.stopPropagation()}>
+          <Icon name="open_in_new" className="text-[18px] text-brand-900" />
+        </Link>
+      )
+    }
+  ], [orgMap]);
 
   return (
     <AppShell
@@ -232,114 +295,26 @@ export default function HrEmployeesPage() {
           ) : undefined
         }
       >
-        {loading ? (
-          <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-            Loading employees...
-          </div>
-        ) : error ? (
-          <div className="mb-4 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
-            {error}
-            <button type="button" onClick={() => void refetch()} className="ml-3 font-semibold underline">
-              Retry
-            </button>
-          </div>
-        ) : employees.length === 0 ? (
-          <EmptyState
-            title="No employees found"
-            description="Try adjusting your filters or add a new employee."
-          />
-        ) : (
-          <>
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <Table caption="Employee directory">
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Name</TableHeaderCell>
-                    <TableHeaderCell>Employee Code</TableHeaderCell>
-                    <TableHeaderCell>Job Title</TableHeaderCell>
-                    <TableHeaderCell>Organization</TableHeaderCell>
-                    <TableHeaderCell>Type</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell>Hire Date</TableHeaderCell>
-                    <TableHeaderCell>Actions</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {employees.map((employee: EmployeeSummary) => {
-                    const org = employee.primary_organization ? orgMap.get(employee.primary_organization.id) : null;
-                    return (
-                      <TableRow key={employee.id}>
-                        <TableCell className="rounded-l-2xl">
-                          <Link
-                            to={`/hr/employees/${employee.id}`}
-                            className="text-sm font-semibold text-brand-900 transition hover:underline"
-                          >
-                            {employee.first_name} {employee.last_name}
-                          </Link>
-                          <div className="mt-1 text-xs text-slate-500">
-                            {employee.email}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-700">
-                          {employee.employee_code || "-"}
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-700">
-                          {employee.job_title || "-"}
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-700">
-                          {org ? org.name : (employee.primary_organization?.name || "-")}
-                        </TableCell>
-                        <TableCell>
-                          <Chip variant="neutral">{humanize(employee.employment_type || "draft")}</Chip>
-                        </TableCell>
-                        <TableCell>
-                          <Chip variant={
-                            employee.employment_status === 'active' ? 'success' :
-                                employee.employment_status === 'draft' ? 'pending' :
-                                    employee.employment_status === 'suspended' ? 'danger' :
-                                        employee.employment_status === 'exited' ? 'neutral' :
-                                            'neutral'
-                          }>
-                            {humanize(employee.employment_status || "draft")}
-                          </Chip>
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-700">
-                          {formatDate(employee.hire_date ?? undefined)}
-                        </TableCell>
-                        <TableCell className="rounded-r-2xl">
-                          <Link to={`/hr/employees/${employee.id}`}>
-                            <Icon name="open_in_new" className="text-[18px] text-brand-900" />
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <SelectField
-                label=""
-                value={String(perPage)}
-                onChange={(e) => setPerPage(Number(e.target.value))}
-                className="w-[110px]"
-              >
-                <option value={10}>10 / page</option>
-                <option value={25}>25 / page</option>
-                <option value={50}>50 / page</option>
-              </SelectField>
-              <PaginationControls
-                page={safePage}
-                totalPages={totalPages}
-                totalCount={totalEmployees}
-                itemLabel="employee"
-                showStatus={false}
-                onPageChange={setCurrentPage}
-              />
-            </div>
-          </>
-        )}
+        <DataTable
+          columns={columns}
+          data={employees}
+          loading={loading}
+          error={error}
+          caption="Employees"
+          emptyTitle="No employees found"
+          emptyDescription="Try adjusting your filters or add a new employee."
+          pagination={{
+            page: safePage,
+            totalPages: totalPages,
+            totalCount: totalEmployees,
+            perPage,
+            onPageChange: setCurrentPage,
+            onPerPageChange: (value) => {
+              setPerPage(value);
+              setCurrentPage(1);
+            },
+          }}
+        />
       </SectionCard>
     </AppShell>
   );

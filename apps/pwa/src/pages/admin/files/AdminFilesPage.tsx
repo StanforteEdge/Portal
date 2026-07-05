@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo } from "react";
 import {
   Button,
   Chip,
@@ -9,13 +9,8 @@ import {
   SelectField,
   PaginationControls,
   useToast,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -23,7 +18,7 @@ import { useCachedQuery } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { resourceApi } from "@/shared/lib/core";
-import { formatFileSize } from "@/shared/lib/formatting";
+import { formatFileSize } from "@stanforte/shared";
 
 type ViewMode = "grid" | "list";
 
@@ -105,6 +100,55 @@ export default function AdminFilesPage() {
       setDeletingId(null);
     }
   };
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Name",
+      cell: (file: any) => (
+        <div>
+          <p className="font-medium text-slate-900 truncate max-w-[200px]">{file.file_name}</p>
+          <p className="text-xs text-slate-400 truncate max-w-[200px]">{file.storage_path}</p>
+        </div>
+      )
+    },
+    {
+      header: "Type",
+      cell: (file: any) => (
+        <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+          {file.mime_type || "-"}
+        </code>
+      )
+    },
+    {
+      header: "Size",
+      cell: (file: any) => formatFileSize(file.file_size)
+    },
+    {
+      header: "Usage",
+      cell: (file: any) => (
+        file.usage?.attached ? (
+          <span className="text-xs text-green-600">
+            Attached ({file.usage.request_items} req, {file.usage.pv_evidence} PV, {file.usage.retirement_refs} ret)
+          </span>
+        ) : (
+          <span className="text-xs text-slate-400">Not attached</span>
+        )
+      )
+    },
+    {
+      header: "Actions",
+      cell: (file: any) => (
+        <Button
+          variant="danger"
+          size="sm"
+          onClick={() => void handleDelete(file.id, file.file_name)}
+          disabled={deletingId === file.id || Boolean(file.usage?.attached)}
+        >
+          {deletingId === file.id ? "..." : "Delete"}
+        </Button>
+      ),
+      className: "text-right"
+    }
+  ], [deletingId]);
 
   return (
     <AppShell
@@ -265,65 +309,33 @@ export default function AdminFilesPage() {
               ))}
             </div>
           ) : (
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Name</TableHeaderCell>
-                    <TableHeaderCell>Type</TableHeaderCell>
-                    <TableHeaderCell>Size</TableHeaderCell>
-                    <TableHeaderCell>Usage</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-{files.map((file: any) => (
-                    <TableRow key={file.id}>
-                      <TableCell>
-                        <p className="font-medium text-slate-900 truncate max-w-[200px]">{file.file_name}</p>
-                        <p className="text-xs text-slate-400 truncate max-w-[200px]">{file.storage_path}</p>
-                      </TableCell>
-                      <TableCell>
-                        <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
-                          {file.mime_type || "-"}
-                        </code>
-                      </TableCell>
-                      <TableCell className="text-slate-600">{formatFileSize(file.file_size)}</TableCell>
-                      <TableCell>
-                        {file.usage?.attached ? (
-                          <span className="text-xs text-green-600">
-                            Attached ({file.usage.request_items} req, {file.usage.pv_evidence} PV, {file.usage.retirement_refs} ret)
-                          </span>
-                        ) : (
-                          <span className="text-xs text-slate-400">Not attached</span>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button
-                          variant="danger"
-                          size="sm"
-                          onClick={() => void handleDelete(file.id, file.file_name)}
-                          disabled={deletingId === file.id || Boolean(file.usage?.attached)}
-                        >
-                          {deletingId === file.id ? "..." : "Delete"}
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+            <DataTable
+              columns={columns}
+              data={files}
+              loading={loading}
+              error={null}
+              pagination={{
+                page,
+                totalPages,
+                totalCount,
+                perPage,
+                onPageChange: setPage,
+                onPerPageChange: setPerPage,
+              }}
+            />
           )}
 
-          <PaginationControls
-            page={page}
-            totalPages={totalPages}
-            totalCount={totalCount}
-            showStatus={false}
-            perPage={perPage}
-            onPerPageChange={setPerPage}
-            onPageChange={setPage}
-          />
+          {viewMode === "grid" && (
+            <PaginationControls
+              page={page}
+              totalPages={totalPages}
+              totalCount={totalCount}
+              showStatus={false}
+              perPage={perPage}
+              onPerPageChange={setPerPage}
+              onPageChange={setPage}
+            />
+          )}
         </SectionCard>
       </div>
     </AppShell>

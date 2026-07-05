@@ -27,6 +27,7 @@ export { Chip } from "./components/ui/Chip";
 export { Icon } from "./components/ui/Icon";
 export { PaginationControls } from "./components/ui/PaginationControls";
 export { StatCard } from "./components/ui/StatCard";
+export { StatsGrid } from "./components/ui/StatsGrid";
 export {
   Table,
   TableHead,
@@ -39,6 +40,8 @@ export {
 export { TextField, SelectField, Select, TextAreaField } from "./components/ui/fields";
 export { TextInput } from "./components/ui/TextInput";
 export { SlideOver, SlideOverPanel, SlideOverHeader, SlideOverContent, SlideOverFooter } from "./components/ui/SlideOver";
+export { DataTable } from "./components/ui/DataTable";
+export type { ColumnDef } from "./components/ui/DataTable";
 export { SidebarTabs } from "./components/ui/SidebarTabs";
 export {
   ApprovalFlowBuilder,

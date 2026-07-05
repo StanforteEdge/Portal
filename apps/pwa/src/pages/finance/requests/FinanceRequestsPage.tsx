@@ -8,15 +8,10 @@ import {
   PageHeader,
   SelectField,
   SectionCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
   StatCard,
   TextField,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
 import { Link } from "react-router-dom";
@@ -286,6 +281,102 @@ export default function FinanceRequestsPage() {
   const requestRangeStart = total > 0 ? (page - 1) * perPage + 1 : 0;
   const requestRangeEnd = total > 0 ? requestRangeStart + queueRows.length - 1 : 0;
 
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Request No",
+      cell: (entry: any) => (
+        <Link
+          to={`/finance/requests/${entry.id}`}
+          className="text-sm font-semibold text-brand-900 transition hover:underline"
+        >
+          {entry.request_number || entry.id}
+        </Link>
+      )
+    },
+    {
+      header: "Team",
+      cell: (entry: any) => entry.team_name || "-",
+      className: "text-sm text-slate-700"
+    },
+    {
+      header: "Staff",
+      cell: (entry: any) => formatPersonName(entry.creator),
+      className: "capitalize text-sm text-slate-700"
+    },
+    {
+      header: "Due Date",
+      cell: (entry: any) => formatDisplayDate(
+        String(
+          (
+            (entry.data as Record<
+              string,
+              unknown
+            > | null) || {}
+          )?.due_date || "",
+        ),
+      ),
+      className: "text-sm text-slate-700"
+    },
+    {
+      header: "Total",
+      cell: (entry: any) => formatCurrency(
+        requestTotal(entry),
+        entry.currency || "NGN",
+      ),
+      className: "text-sm text-slate-700"
+    },
+    {
+      header: "Status",
+      cell: (entry: any) => {
+        const effectiveStatus = resolveFinanceStatus(entry);
+        return (
+          <Chip
+            variant={requestStatusTone(effectiveStatus)}
+          >
+            {toTitleCase(
+              formatRequestStatus(effectiveStatus),
+            )}
+          </Chip>
+        );
+      }
+    },
+    {
+      header: "Action",
+      cell: (entry: any) => {
+        const effectiveStatus = resolveFinanceStatus(entry);
+        const showVouchers = [
+          "disbursed",
+          "confirmed",
+          "retired",
+          "completed",
+        ].includes(effectiveStatus);
+        return (
+          <div className="inline-flex items-center gap-3" onClick={(e) => e.stopPropagation()}>
+            <Link
+              to={`/finance/requests/${entry.id}`}
+              className="inline-flex items-center gap-1 text-sm font-semibold text-brand-900 transition hover:underline"
+            >
+              <Icon
+                name="arrow_forward"
+                className="text-[16px]"
+              />
+              {financeActionLabel(effectiveStatus)}
+            </Link>
+            {showVouchers ? (
+              <Link
+                to="/finance/payment-vouchers"
+                className="text-sm hidden font-semibold text-slate-600 transition hover:underline"
+              >
+                Vouchers
+              </Link>
+            ) : null}
+          </div>
+        );
+      },
+      className: "text-right"
+    }
+  ], []);
+
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
@@ -505,138 +596,25 @@ export default function FinanceRequestsPage() {
             </div>
           ) : null}
 
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              Loading finance requests...
-            </div>
-          ) : error ? (
-            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
-              {error}
-            </div>
-          ) : queueRows.length ? (
-            <>
-             
-              <div className="rounded-[22px] border border-slate-200 bg-white">
-                <Table caption="Finance requests">
-                  <TableHead>
-                    <TableHeaderRow>
-                      <TableHeaderCell>Request No</TableHeaderCell>
-                      <TableHeaderCell>Team</TableHeaderCell>
-                      <TableHeaderCell>Staff</TableHeaderCell>
-                      <TableHeaderCell>Due Date</TableHeaderCell>
-                      <TableHeaderCell>Total</TableHeaderCell>
-                      <TableHeaderCell>Status</TableHeaderCell>
-                      <TableHeaderCell className="text-right">
-                        Action
-                      </TableHeaderCell>
-                    </TableHeaderRow>
-                  </TableHead>
-                  <TableBody>
-                    {queueRows.map((entry) => (
-                      <TableRow key={entry.id}>
-                        <TableCell>
-                          <Link
-                            to={`/finance/requests/${entry.id}`}
-                            className="text-sm font-semibold text-brand-900 transition hover:underline"
-                          >
-                            {entry.request_number || entry.id}
-                          </Link>
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-700">
-                          {entry.team_name || "-"}
-                        </TableCell>
-                        <TableCell className="capitalize text-sm text-slate-700">
-                          {formatPersonName(entry.creator)}
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-700">
-                          {formatDisplayDate(
-                            String(
-                              (
-                                (entry.data as Record<
-                                  string,
-                                  unknown
-                                > | null) || {}
-                              )?.due_date || "",
-                            ),
-                          )}
-                        </TableCell>
-                        <TableCell className="text-sm text-slate-700">
-                          {formatCurrency(
-                            requestTotal(entry),
-                            entry.currency || "NGN",
-                          )}
-                        </TableCell>
-                        <TableCell>
-                          {(() => {
-                            const effectiveStatus = resolveFinanceStatus(entry);
-                            return (
-                              <Chip
-                                variant={requestStatusTone(effectiveStatus)}
-                              >
-                                {toTitleCase(
-                                  formatRequestStatus(effectiveStatus),
-                                )}
-                              </Chip>
-                            );
-                          })()}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {(() => {
-                            const effectiveStatus = resolveFinanceStatus(entry);
-                            const showVouchers = [
-                              "disbursed",
-                              "confirmed",
-                              "retired",
-                              "completed",
-                            ].includes(effectiveStatus);
-                            return (
-                              <div className="inline-flex items-center gap-3">
-                                <Link
-                                  to={`/finance/requests/${entry.id}`}
-                                  className="inline-flex items-center gap-1 text-sm font-semibold text-brand-900 transition hover:underline"
-                                >
-                                  <Icon
-                                    name="arrow_forward"
-                                    className="text-[16px]"
-                                  />
-                                  {financeActionLabel(effectiveStatus)}
-                                </Link>
-                                {showVouchers ? (
-                                  <Link
-                                    to="/finance/payment-vouchers"
-                                    className="text-sm hidden font-semibold text-slate-600 transition hover:underline"
-                                  >
-                                    Vouchers
-                                  </Link>
-                                ) : null}
-                              </div>
-                            );
-                          })()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
-              {isRequestsView ? (
-                <PaginationControls
-                  page={page}
-                  totalPages={lastPage}
-                  totalCount={total}
-                  itemLabel="request"
-                  perPage={perPage}
-                  showStatus={false}
-                  onPerPageChange={setPerPage}
-                  onPageChange={setPage}
-                />
-              ) : null}
-            </>
-          ) : (
-            <EmptyState
-              title="No finance requests yet"
-              description="Once cleared requests reach finance, they'll appear here for disbursement and voucher handling."
-            />
-          )}
+        <DataTable
+          columns={columns}
+          data={queueRows}
+          loading={loading}
+          error={error}
+          caption="Finance requests"
+          emptyTitle="No finance requests yet"
+          emptyDescription="Once cleared requests reach finance, they'll appear here for disbursement and voucher handling."
+          pagination={
+            isRequestsView ? {
+              page,
+              totalPages: lastPage,
+              totalCount: total,
+              perPage,
+              onPageChange: setPage,
+              onPerPageChange: setPerPage,
+            } : undefined
+          }
+        />
         </SectionCard>
 
         {!isRequestsView ? (

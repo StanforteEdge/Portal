@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   AppShell,
   Button,
@@ -10,20 +10,14 @@ import {
   SelectField,
   StatCard,
   useToast,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppMobileNav, buildAppNavigation } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { formatCurrency } from "@stanforte/shared";
-import { formatDate } from "@/shared/lib/formatting";
+import { formatCurrency, formatDate } from "@stanforte/shared";
 
 export default function FinanceSalesInvoicesPage() {
   const { user } = useAuth();
@@ -183,6 +177,49 @@ export default function FinanceSalesInvoicesPage() {
     user?.email ||
     "Finance";
 
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Date",
+      cell: (inv: any) => formatDate(inv.invoiceDate ?? inv.invoice_date)
+    },
+    {
+      header: "Invoice Number",
+      cell: (inv: any) => inv.invoiceNumber ?? inv.invoice_number ?? "-"
+    },
+    {
+      header: "Customer",
+      cell: (inv: any) => inv.customer?.name ?? "-"
+    },
+    {
+      header: "Status",
+      cell: (inv: any) => (
+        <Chip
+          variant={
+            inv.status === "paid"
+              ? "success"
+              : inv.status === "draft"
+                ? "neutral"
+                : "warning"
+          }
+        >
+          {inv.status || "draft"}
+        </Chip>
+      )
+    },
+    {
+      header: "Amount",
+      cell: (inv: any) => formatCurrency(
+        Number(inv.totalAmount ?? inv.total_amount ?? 0),
+        inv.currency || "NGN"
+      ),
+      className: "text-right font-medium text-slate-900"
+    },
+    {
+      header: "Due Date",
+      cell: (inv: any) => formatDate(inv.dueDate ?? inv.due_date) || "-"
+    }
+  ], []);
+
   return (
     <AppShell
       navigation={buildAppNavigation({ requestDetailsParent: "finance" })}
@@ -276,80 +313,26 @@ export default function FinanceSalesInvoicesPage() {
             )
           }
         >
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              Loading invoices...
-            </div>
-          ) : invoices.length === 0 ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-8 text-sm text-slate-500">
-              No invoices found.
-            </div>
-          ) : (
-            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Date</TableHeaderCell>
-                    <TableHeaderCell>Invoice Number</TableHeaderCell>
-                    <TableHeaderCell>Customer</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Amount</TableHeaderCell>
-                    <TableHeaderCell>Due Date</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {invoices.map((inv: any) => (
-                    <TableRow key={inv.id}>
-                      <TableCell className="text-slate-600">
-                        {formatDate(inv.invoiceDate ?? inv.invoice_date)}
-                      </TableCell>
-                      <TableCell className="font-medium text-slate-900">
-                        {inv.invoiceNumber ?? inv.invoice_number ?? "-"}
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        {inv.customer?.name ?? "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          variant={
-                            inv.status === "paid"
-                              ? "success"
-                              : inv.status === "draft"
-                                ? "neutral"
-                                : "warning"
-                          }
-                        >
-                          {inv.status || "draft"}
-                        </Chip>
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-slate-900">
-                        {formatCurrency(
-                          Number(inv.totalAmount ?? inv.total_amount ?? 0),
-                          inv.currency || "NGN",
-                        )}
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        {formatDate(inv.dueDate ?? inv.due_date) || "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          <PaginationControls
-            page={Number(pagination.page || page)}
-            totalPages={Number(pagination.pages || 1)}
-            totalCount={Number(pagination.total_result || 0)}
-            showStatus={false}
-            perPage={perPage}
-            onPerPageChange={(value) => {
+        <DataTable
+          columns={columns}
+          data={invoices}
+          loading={loading}
+          error={null}
+          caption="Invoices"
+          emptyTitle="No invoices found"
+          emptyDescription="There are no sales invoices to display."
+          pagination={{
+            page: Number(pagination.page || page),
+            totalPages: Number(pagination.pages || 1),
+            totalCount: Number(pagination.total_result || 0),
+            perPage,
+            onPageChange: setPage,
+            onPerPageChange: (value) => {
               setPerPage(value);
               setPage(1);
-            }}
-            onPageChange={setPage}
-          />
+            },
+          }}
+        />
         </SectionCard>
       </div>
 

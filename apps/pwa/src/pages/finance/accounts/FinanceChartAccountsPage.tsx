@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Button,
   Chip,
@@ -9,13 +9,8 @@ import {
   SelectField,
   PaginationControls,
   useToast,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -155,6 +150,61 @@ export default function FinanceChartAccountsPage() {
     }
   };
 
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Code",
+      cell: (account: any) => (
+        <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
+          {account.code || "-"}
+        </code>
+      )
+    },
+    {
+      header: "Name",
+      cell: (account: any) => (
+        <div>
+          <p className="font-medium text-slate-900">{account.name}</p>
+          {account.is_control_account && (
+            <span className="text-xs text-brand-600">Control account</span>
+          )}
+        </div>
+      )
+    },
+    {
+      header: "Type",
+      cell: (account: any) => (
+        <Chip variant="neutral" className="capitalize">
+          {account.type}
+        </Chip>
+      )
+    },
+    {
+      header: "Category",
+      cell: (account: any) => account.category || "-"
+    },
+    {
+      header: "Normal",
+      cell: (account: any) => <span className="capitalize">{account.normal_balance}</span>
+    },
+    {
+      header: "Status",
+      cell: (account: any) => (
+        <Chip variant={account.is_active ? "success" : "neutral"}>
+          {account.is_active ? "Active" : "Inactive"}
+        </Chip>
+      )
+    },
+    {
+      header: "Actions",
+      cell: (account: any) => (
+        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEdit(account); }}>
+          <Icon name="edit" />
+        </Button>
+      ),
+      className: "text-right"
+    }
+  ], [openEdit]);
+
   return (
     <AppShell
       navigation={buildAppNavigation()}
@@ -248,80 +298,24 @@ export default function FinanceChartAccountsPage() {
             )
           }
         >
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              Loading accounts...
-            </div>
-          ) : accounts.length === 0 ? (
-            <div className="text-center py-10">
-              <Icon name="account_balance" className="text-4xl text-slate-300 mx-auto mb-2" />
-              <p className="text-slate-500">No accounts found.</p>
-            </div>
-          ) : (
-            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Code</TableHeaderCell>
-                    <TableHeaderCell>Name</TableHeaderCell>
-                    <TableHeaderCell>Type</TableHeaderCell>
-                    <TableHeaderCell>Category</TableHeaderCell>
-                    <TableHeaderCell>Normal</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {accounts.map((account: any) => (
-                    <TableRow key={account.id}>
-                      <TableCell>
-                        <code className="text-xs bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">
-                          {account.code || "-"}
-                        </code>
-                      </TableCell>
-                      <TableCell>
-                        <p className="font-medium text-slate-900">{account.name}</p>
-                        {account.is_control_account && (
-                          <span className="text-xs text-brand-600">Control account</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <Chip variant="neutral" className="capitalize">
-                          {account.type}
-                        </Chip>
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        {account.category || "-"}
-                      </TableCell>
-                      <TableCell className="capitalize text-slate-600">
-                        {account.normal_balance}
-                      </TableCell>
-                      <TableCell>
-                        <Chip variant={account.is_active ? "success" : "neutral"}>
-                          {account.is_active ? "Active" : "Inactive"}
-                        </Chip>
-                      </TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(account)}>
-                          <Icon name="edit" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          <PaginationControls
-            page={page}
-            totalPages={totalPages}
-            totalCount={totalCount}
-            showStatus={false}
-            perPage={perPage}
-            onPerPageChange={setPerPage}
-            onPageChange={setPage}
-          />
+        <DataTable
+          columns={columns}
+          data={accounts}
+          loading={loading}
+          error={null}
+          caption="Chart of Accounts"
+          emptyTitle="No accounts found"
+          emptyDescription="There are no chart of accounts records to display."
+          onRowClick={(account) => openEdit(account)}
+          pagination={{
+            page,
+            totalPages,
+            totalCount,
+            perPage,
+            onPageChange: setPage,
+            onPerPageChange: setPerPage,
+          }}
+        />
         </SectionCard>
       </div>
 

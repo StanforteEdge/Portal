@@ -7,15 +7,11 @@ import {
   SectionCard,
   SelectField,
   StatCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  StatsGrid,
   TextField,
   useToast,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -201,6 +197,116 @@ export default function HrAttendancePage() {
     }
   };
 
+  const dailyColumns: ColumnDef<StaffDailyRow>[] = useMemo(() => [
+    {
+      header: "Staff",
+      cell: (row) => (
+        <div>
+          <p className="font-semibold text-slate-900">{row.user_name}</p>
+          <p className="text-xs text-slate-500">{row.email}</p>
+        </div>
+      )
+    },
+    {
+      header: "Date",
+      cell: (row) => formatDate(row.work_date)
+    },
+    {
+      header: "Clock In",
+      cell: (row) => formatTime(row.first_in_at)
+    },
+    {
+      header: "Clock Out",
+      cell: (row) => <TimeWithNextDay time={row.last_out_at} referenceDate={row.first_in_at} />
+    },
+    {
+      header: "Worked",
+      cell: (row) => formatDuration(row.worked_minutes)
+    },
+    {
+      header: "Late",
+      cell: (row) => row.late_minutes > 0 ? formatDuration(row.late_minutes) : "-"
+    },
+    {
+      header: "Mode",
+      cell: (row) => <Chip variant="neutral">{row.attendance_mode ?? "-"}</Chip>
+    },
+    {
+      header: "Status",
+      cell: (row) => (
+        <Chip variant={toneFromStatus(deriveAttendanceStatus(row))}>
+          {humanize(deriveAttendanceStatus(row))}
+        </Chip>
+      )
+    },
+    {
+      header: "",
+      cell: (row) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSlideOver({ userId: row.user_id, userName: row.user_name, workDate: row.work_date });
+          }}
+        >
+          Detail
+        </Button>
+      ),
+      className: "text-right"
+    }
+  ], []);
+
+  const correctionColumns: ColumnDef<AdminCorrectionRow>[] = useMemo(() => [
+    {
+      header: "Staff",
+      cell: (c) => (
+        <div>
+          <p className="font-semibold text-slate-900">{c.user_name}</p>
+          <p className="text-xs text-slate-500">{c.email}</p>
+        </div>
+      )
+    },
+    {
+      header: "Date",
+      cell: (c) => formatDate(c.work_date)
+    },
+    {
+      header: "Type",
+      cell: (c) => <span className="capitalize">{c.request_type.replace(/_/g, " ")}</span>
+    },
+    {
+      header: "Reason",
+      cell: (c) => c.reason,
+      className: "max-w-xs truncate"
+    },
+    {
+      header: "Status",
+      cell: (c) => (
+        <Chip variant={corrStatusVariant[c.status] ?? "neutral"}>
+          {c.status}
+        </Chip>
+      )
+    },
+    {
+      header: "",
+      cell: (c) => c.status === "pending" ? (
+        <Button
+          size="sm"
+          variant="ghost"
+          requiredPermissions={["attendance.approve"]}
+          onClick={(e) => {
+            e.stopPropagation();
+            setReviewingItem(c);
+          }}
+        >
+          Review
+        </Button>
+      ) : null,
+      className: "text-right"
+    }
+  ], []);
+
   return (
     <AppShell
       navigation={buildAppNavigation()}
@@ -222,32 +328,34 @@ export default function HrAttendancePage() {
           <h3 className="text-sm font-semibold text-slate-500 uppercase tracking-wider mb-3">
             Today's Stats ({formatDate(todayStr)})
           </h3>
-          <div className="grid gap-4 md:grid-cols-4">
-            <StatCard
-            label="Total Staff"
-            value={String(stats?.total_staff ?? 0)}
-            tone="neutral"
-            icon="group"
+          <StatsGrid
+            items={[
+              {
+                label: "Total Staff",
+                value: String(stats?.total_staff ?? 0),
+                tone: "neutral",
+                icon: "group",
+              },
+              {
+                label: "Clocked In",
+                value: String(stats?.clocked_in ?? 0),
+                tone: "success",
+                icon: "login",
+              },
+              {
+                label: "Late",
+                value: String(stats?.late ?? 0),
+                tone: "warning",
+                icon: "schedule",
+              },
+              {
+                label: "Absent / Not In",
+                value: String(stats?.absent ?? 0),
+                tone: "danger",
+                icon: "person_off",
+              },
+            ]}
           />
-          <StatCard
-            label="Clocked In"
-            value={String(stats?.clocked_in ?? 0)}
-            tone="success"
-            icon="login"
-          />
-          <StatCard
-            label="Late"
-            value={String(stats?.late ?? 0)}
-            tone="warning"
-            icon="schedule"
-          />
-          <StatCard
-            label="Absent / Not In"
-            value={String(stats?.absent ?? 0)}
-            tone="danger"
-            icon="person_off"
-          />
-        </div>
         </div>
 
         {/* Attendance Trend: last 30 days */}
@@ -350,84 +458,27 @@ export default function HrAttendancePage() {
                 </SelectField>
               </div>
 
-              {attLoading ? (
-                <div className="text-sm text-slate-500">Loading attendance...</div>
-              ) : (
-                <>
-                  <Table>
-                    <TableHead>
-                      <TableHeaderRow>
-                        <TableHeaderCell>Staff</TableHeaderCell>
-                        <TableHeaderCell>Date</TableHeaderCell>
-                        <TableHeaderCell>Clock In</TableHeaderCell>
-                        <TableHeaderCell>Clock Out</TableHeaderCell>
-                        <TableHeaderCell>Worked</TableHeaderCell>
-                        <TableHeaderCell>Late</TableHeaderCell>
-                        <TableHeaderCell>Mode</TableHeaderCell>
-                        <TableHeaderCell>Status</TableHeaderCell>
-                        <TableHeaderCell>{""}</TableHeaderCell>
-                      </TableHeaderRow>
-                    </TableHead>
-                    <TableBody>
-                      {pagedRows.map((row) => (
-                        <TableRow key={`${row.user_id}-${row.work_date}`}>
-                          <TableCell>
-                            <p className="font-semibold text-slate-900">{row.user_name}</p>
-                            <p className="text-xs text-slate-500">{row.email}</p>
-                          </TableCell>
-                          <TableCell>{formatDate(row.work_date)}</TableCell>
-                          <TableCell>{formatTime(row.first_in_at)}</TableCell>
-                          <TableCell><TimeWithNextDay time={row.last_out_at} referenceDate={row.first_in_at} /></TableCell>
-                          <TableCell>{formatDuration(row.worked_minutes)}</TableCell>
-                          <TableCell>
-                            {row.late_minutes > 0 ? formatDuration(row.late_minutes) : "-"}
-                          </TableCell>
-                          <TableCell>
-                            <Chip variant="neutral">{row.attendance_mode ?? "-"}</Chip>
-                          </TableCell>
-                          <TableCell>
-                            <Chip variant={toneFromStatus(deriveAttendanceStatus(row))}>
-                              {humanize(deriveAttendanceStatus(row))}
-                            </Chip>
-                          </TableCell>
-                          <TableCell>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => setSlideOver({ userId: row.user_id, userName: row.user_name, workDate: row.work_date })}
-                            >
-                              Detail
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                      {!pagedRows.length ? (
-                        <TableRow>
-                          <TableCell colSpan={9} className="py-10 text-center text-slate-500">
-                            No attendance records for this period.
-                          </TableCell>
-                        </TableRow>
-                      ) : null}
-                    </TableBody>
-                  </Table>
-                  {attTotalCount > attPerPage && (
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                      <SelectField label="" value={String(attPerPage)} onChange={(e) => { setAttPerPage(Number(e.target.value)); setAttPage(1); }} className="w-[110px]">
-                        <option value="10">10 / page</option>
-                        <option value="25">25 / page</option>
-                        <option value="50">50 / page</option>
-                      </SelectField>
-                      <PaginationControls
-                        page={attSafePage}
-                        totalPages={attTotalPages}
-                        totalCount={attTotalCount}
-                        itemLabel="record"
-                        onPageChange={setAttPage}
-                      />
-                    </div>
-                  )}
-                </>
-              )}
+              <DataTable
+                columns={dailyColumns}
+                data={pagedRows}
+                loading={attLoading}
+                error={null}
+                caption="Daily Attendance"
+                emptyTitle="No attendance records"
+                emptyDescription="No attendance records for this period."
+                onRowClick={(row) => setSlideOver({ userId: row.user_id, userName: row.user_name, workDate: row.work_date })}
+                pagination={{
+                  page: attSafePage,
+                  totalPages: attTotalPages,
+                  totalCount: attTotalCount,
+                  perPage: attPerPage,
+                  onPageChange: setAttPage,
+                  onPerPageChange: (value) => {
+                    setAttPerPage(value);
+                    setAttPage(1);
+                  },
+                }}
+              />
             </SectionCard>
           )}
 
@@ -449,70 +500,26 @@ export default function HrAttendancePage() {
                 </SelectField>
               }
             >
-              {corrLoading ? (
-                <div className="text-sm text-slate-500">Loading corrections...</div>
-              ) : pagedCorrections.length ? (
-                <>
-                  <Table>
-                    <TableHead>
-                      <TableHeaderRow>
-                        <TableHeaderCell>Staff</TableHeaderCell>
-                        <TableHeaderCell>Date</TableHeaderCell>
-                        <TableHeaderCell>Type</TableHeaderCell>
-                        <TableHeaderCell>Reason</TableHeaderCell>
-                        <TableHeaderCell>Status</TableHeaderCell>
-                        <TableHeaderCell>{""}</TableHeaderCell>
-                      </TableHeaderRow>
-                    </TableHead>
-                    <TableBody>
-                      {pagedCorrections.map((c) => (
-                        <TableRow key={c.id}>
-                          <TableCell>
-                            <p className="font-semibold text-slate-900">{c.user_name}</p>
-                            <p className="text-xs text-slate-500">{c.email}</p>
-                          </TableCell>
-                          <TableCell>{formatDate(c.work_date)}</TableCell>
-                          <TableCell className="capitalize">{c.request_type.replace(/_/g, " ")}</TableCell>
-                          <TableCell className="max-w-xs truncate">{c.reason}</TableCell>
-                          <TableCell>
-                            <Chip variant={corrStatusVariant[c.status] ?? "neutral"}>
-                              {c.status}
-                            </Chip>
-                          </TableCell>
-                          <TableCell>
-                            {c.status === "pending" ? (
-                              <Button size="sm" variant="ghost" requiredPermissions={["attendance.approve"]} onClick={() => setReviewingItem(c)}>
-                                Review
-                              </Button>
-                            ) : null}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                  {corrTotalCount > corrPerPage && (
-                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-                      <SelectField label="" value={String(corrPerPage)} onChange={(e) => { setCorrPerPage(Number(e.target.value)); setCorrPage(1); }} className="w-[110px]">
-                        <option value="10">10 / page</option>
-                        <option value="25">25 / page</option>
-                        <option value="50">50 / page</option>
-                      </SelectField>
-                      <PaginationControls
-                        page={corrSafePage}
-                        totalPages={corrTotalPages}
-                        totalCount={corrTotalCount}
-                        itemLabel="request"
-                        onPageChange={setCorrPage}
-                      />
-                    </div>
-                  )}
-                </>
-              ) : (
-                <EmptyState
-                  title="No correction requests"
-                  description="Staff correction requests will appear here."
-                />
-              )}
+              <DataTable
+                columns={correctionColumns}
+                data={pagedCorrections}
+                loading={corrLoading}
+                error={null}
+                caption="Correction Requests"
+                emptyTitle="No correction requests"
+                emptyDescription="Staff correction requests will appear here."
+                pagination={{
+                  page: corrSafePage,
+                  totalPages: corrTotalPages,
+                  totalCount: corrTotalCount,
+                  perPage: corrPerPage,
+                  onPageChange: setCorrPage,
+                  onPerPageChange: (value) => {
+                    setCorrPerPage(value);
+                    setCorrPage(1);
+                  },
+                }}
+              />
             </SectionCard>
           )}
         </SidebarTabs>

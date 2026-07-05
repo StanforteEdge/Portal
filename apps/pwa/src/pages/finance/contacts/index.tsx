@@ -17,24 +17,32 @@ import {
   TableHead,
   TableHeaderCell,
   TableHeaderRow,
-  TableRow,
   TextField,
   useToast,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { buildAppMobileNav, buildRequestsNavigation } from "@/pages/requests/requests-data";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
-import type { ContactRecord } from "@stanforte/shared";
-import { asMoney as _asMoney, emptyForm } from "./helpers";
+import { ContactRecord, asMoney } from "@stanforte/shared";
+import { emptyForm } from "./helpers";
 import { ContactDetailView } from "./ContactDetailView";
 import { ContactFormSlideOver } from "./ContactFormSlideOver";
 
-export default function FinanceContactsPage() {
+interface FinanceContactsPageProps {
+  defaultType?: "customer" | "vendor" | "both";
+}
+
+export default function FinanceContactsPage({ defaultType = "both" }: FinanceContactsPageProps) {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [searchParams, setSearchParams] = useSearchParams();
   const contactId = searchParams.get("id");
-  const [contactType, setContactType] = useState("all");
+  
+  const [contactType, setContactType] = useState(() => 
+    defaultType !== "both" ? defaultType : "all"
+  );
   const [status, setStatus] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -43,7 +51,9 @@ export default function FinanceContactsPage() {
 
   const [slideOverOpen, setSlideOverOpen] = useState(false);
   const [editing, setEditing] = useState<ContactRecord | null>(null);
-  const [form, setForm] = useState<any>(emptyForm("both"));
+  const [form, setForm] = useState<any>(() => 
+    emptyForm(defaultType !== "both" ? defaultType : "customer")
+  );
   const [saving, setSaving] = useState(false);
 
   const query = useMemo(
@@ -74,18 +84,18 @@ export default function FinanceContactsPage() {
   }, [contacts, totalContacts]);
 
   const userName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.email || "Staff";
-  const asMoney = (value: unknown) => _asMoney(value);
 
-  function openCreate(type: "customer" | "vendor" | "both") {
+  function openCreate(type?: "customer" | "vendor" | "both") {
     setEditing(null);
-    setForm(emptyForm(type));
+    const resolvedType = defaultType !== "both" ? defaultType : (type || "customer");
+    setForm(emptyForm(resolvedType));
     setSlideOverOpen(true);
   }
 
   function openEdit(contact: ContactRecord) {
     setEditing(contact);
     setForm({
-      contact_type: contact.contact_type || "both",
+      contact_type: contact.contact_type || (defaultType !== "both" ? defaultType : "customer"),
       sub_type: contact.sub_type || "business",
       name: contact.name || "",
       company_name: contact.company_name || "",
@@ -176,20 +186,96 @@ export default function FinanceContactsPage() {
     }
   }
 
+  const columns: ColumnDef<ContactRecord>[] = useMemo(() => [
+    {
+      header: "Name",
+      cell: (contact) => (
+        <span 
+          className="font-medium cursor-pointer hover:underline text-brand-900"
+          onClick={(e) => {
+            e.stopPropagation();
+            setSearchParams({ id: contact.id });
+          }}
+        >
+          {contact.name || "-"}
+        </span>
+      )
+    },
+    {
+      header: "Company",
+      cell: (contact) => contact.company_name || "-"
+    },
+    ...(defaultType === "both" ? [{
+      header: "Type",
+      cell: (contact: ContactRecord) => <Chip variant="neutral">{contact.contact_type}</Chip>
+    }] : []),
+    {
+      header: "Outstanding",
+      cell: (contact) => asMoney(contact.outstanding_amount),
+      className: "text-right"
+    },
+    {
+      header: "Status",
+      cell: (contact) => (
+        <Chip variant={contact.is_active ? "success" : "neutral"}>
+          {contact.is_active ? "Active" : "Inactive"}
+        </Chip>
+      )
+    },
+    {
+      header: "Actions",
+      cell: (contact) => (
+        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEdit(contact); }}>
+          <Icon name="edit" />
+        </Button>
+      ),
+      className: "text-right"
+    }
+  ], [defaultType, setSearchParams]);
+
+  const activeLabelMap = {
+    customer: "finance-customers",
+    vendor: "finance-vendors",
+    both: "finance-contacts",
+  };
+  const activeLabel = activeLabelMap[defaultType];
+
+  const typeLabels = {
+    customer: {
+      singular: "Customer",
+      plural: "Customers",
+      description: "Manage customer accounts and track receivables.",
+      breadcrumb: "Customers",
+    },
+    vendor: {
+      singular: "Vendor",
+      plural: "Vendors",
+      description: "Manage vendor accounts and track payables.",
+      breadcrumb: "Vendors",
+    },
+    both: {
+      singular: "Contact",
+      plural: "Contacts",
+      description: "Manage all vendor and customer contacts.",
+      breadcrumb: "Contacts",
+    },
+  };
+  const labels = typeLabels[defaultType];
+
   if (contactId) {
     return (
       <AppShell
         navigation={buildRequestsNavigation()}
-        activeLabel="finance-contacts"
+        activeLabel={activeLabel}
         user={{ name: userName, role: "Finance" }}
         mobileNav={buildAppMobileNav("Finance")}
       >
-        <ContactDetailView contactId={contactId} contactType="both" onEdit={openEdit} />
+        <ContactDetailView contactId={contactId} contactType={defaultType} onEdit={openEdit} />
         <ContactFormSlideOver
           open={slideOverOpen}
           onClose={() => setSlideOverOpen(false)}
           editing={editing}
-          contactType="both"
+          contactType={defaultType}
           form={form}
           setForm={setForm}
           saving={saving}
@@ -202,55 +288,68 @@ export default function FinanceContactsPage() {
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
-      activeLabel="finance-contacts"
+      activeLabel={activeLabel}
       user={{ name: userName, role: "Finance" }}
       mobileNav={buildAppMobileNav("Finance")}
     >
       <PageHeader
         eyebrow="Finance"
-        breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Contacts" }]}
-        title="Contacts"
-        description="Manage all vendor and customer contacts."
+        breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: labels.breadcrumb }]}
+        title={labels.plural}
+        description={labels.description}
         actions={
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={() => openCreate("customer")}>
+          defaultType === "both" ? (
+            <div className="flex gap-2">
+              <Button variant="secondary" onClick={() => openCreate("customer")}>
+                <Icon name="add" className="text-[18px]" />
+                Add Customer
+              </Button>
+              <Button onClick={() => openCreate("vendor")}>
+                <Icon name="add" className="text-[18px]" />
+                Add Vendor
+              </Button>
+            </div>
+          ) : (
+            <Button onClick={() => openCreate(defaultType)}>
               <Icon name="add" className="text-[18px]" />
-              Add Customer
+              Add {labels.singular}
             </Button>
-            <Button onClick={() => openCreate("vendor")}>
-              <Icon name="add" className="text-[18px]" />
-              Add Vendor
-            </Button>
-          </div>
+          )
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-4">
-        <StatCard label="Total Contacts" value={String(stats.count)} tone="neutral" />
+      <div className={`grid gap-4 ${defaultType === "both" ? "md:grid-cols-4" : "md:grid-cols-2"}`}>
+        <StatCard label={`Total ${labels.plural}`} value={String(stats.count)} tone="neutral" />
         <StatCard label="Total Outstanding" value={asMoney(stats.totalOutstanding)} tone="warning" />
-        <StatCard label="Vendors" value={String(stats.vendors)} tone="neutral" />
-        <StatCard label="Customers" value={String(stats.customers)} tone="neutral" />
+        {defaultType === "both" && (
+          <>
+            <StatCard label="Vendors" value={String(stats.vendors)} tone="neutral" />
+            <StatCard label="Customers" value={String(stats.customers)} tone="neutral" />
+          </>
+        )}
       </div>
 
       <SectionCard
-        title="Contact List"
-        description="Manage all contacts."
+        title={`${labels.singular} List`}
+        description={`Manage all ${labels.plural.toLowerCase()}.`}
         action={
           totalContacts > 0 ? (
             <Chip variant="neutral">
               {Math.min(totalContacts, (page - 1) * perPage + 1)}-
-              {Math.min(totalContacts, page * perPage)} of {totalContacts} contact{totalContacts !== 1 ? "s" : ""}
+              {Math.min(totalContacts, page * perPage)} of {totalContacts} {labels.singular.toLowerCase()}{totalContacts !== 1 ? "s" : ""}
             </Chip>
           ) : undefined
         }
       >
         <div className="mb-4 flex flex-wrap items-start gap-3">
-          <SelectField label="Type" value={contactType} onChange={(e) => { setContactType(e.target.value); setPage(1); }} className="min-w-[130px] flex-1 lg:flex-none">
-            <option value="all">All types</option>
-            <option value="customer">Customers</option>
-            <option value="vendor">Vendors</option>
-            <option value="both">Both</option>
-          </SelectField>
+          {defaultType === "both" && (
+            <SelectField label="Type" value={contactType} onChange={(e) => { setContactType(e.target.value); setPage(1); }} className="min-w-[130px] flex-1 lg:flex-none">
+              <option value="all">All types</option>
+              <option value="customer">Customers</option>
+              <option value="vendor">Vendors</option>
+              <option value="both">Both</option>
+            </SelectField>
+          )}
           <SelectField label="Status" value={status} onChange={(e) => { setStatus(e.target.value); setPage(1); }} className="min-w-[130px] flex-1 lg:flex-none">
             <option value="all">All statuses</option>
             <option value="active">Active</option>
@@ -259,60 +358,31 @@ export default function FinanceContactsPage() {
           <TextField label="Search" placeholder="Name, email, company" value={search} onChange={(e) => { setSearch(e.target.value); setPage(1); }} className="min-w-[200px] flex-1 lg:flex-none" />
         </div>
 
-        {loading ? <p className="text-sm text-slate-500">Loading contacts...</p> : null}
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-        {contacts.length ? (
-          <>
-            <Table caption="Contacts">
-              <TableHead>
-                <TableHeaderRow>
-                  <TableHeaderCell>Name</TableHeaderCell>
-                  <TableHeaderCell>Company</TableHeaderCell>
-                  <TableHeaderCell>Type</TableHeaderCell>
-                  <TableHeaderCell>Outstanding</TableHeaderCell>
-                  <TableHeaderCell>Status</TableHeaderCell>
-                  <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-                </TableHeaderRow>
-              </TableHead>
-              <TableBody>
-                {contacts.map((contact: ContactRecord) => (
-                  <TableRow key={contact.id}>
-                    <TableCell className="font-medium cursor-pointer" onClick={() => setSearchParams({ id: contact.id })}>{contact.name || "-"}</TableCell>
-                    <TableCell>{contact.company_name || "-"}</TableCell>
-                    <TableCell><Chip variant="neutral">{contact.contact_type}</Chip></TableCell>
-                    <TableCell className="text-right">{asMoney(contact.outstanding_amount)}</TableCell>
-                    <TableCell>
-                      <Chip variant={contact.is_active ? "success" : "neutral"}>{contact.is_active ? "Active" : "Inactive"}</Chip>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(contact)}>
-                        <Icon name="edit" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-            <PaginationControls
-              page={page}
-              totalPages={totalPages}
-              totalCount={totalContacts}
-              showStatus={false}
-              perPage={perPage}
-              onPerPageChange={setPerPage}
-              onPageChange={setPage}
-            />
-          </>
-        ) : !loading ? (
-          <EmptyState title="No contacts" description="Contacts will appear here once added." />
-        ) : null}
+        <DataTable
+          columns={columns}
+          data={contacts}
+          loading={loading}
+          error={error}
+          caption={labels.plural}
+          emptyTitle={`No ${labels.plural.toLowerCase()}`}
+          emptyDescription={`${labels.plural} will appear here once added.`}
+          onRowClick={(contact) => setSearchParams({ id: contact.id })}
+          pagination={{
+            page,
+            totalPages,
+            totalCount: totalContacts,
+            perPage,
+            onPageChange: setPage,
+            onPerPageChange: setPerPage,
+          }}
+        />
       </SectionCard>
 
       <ContactFormSlideOver
         open={slideOverOpen}
         onClose={() => setSlideOverOpen(false)}
         editing={editing}
-        contactType="both"
+        contactType={defaultType}
         form={form}
         setForm={setForm}
         saving={saving}

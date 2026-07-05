@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Button,
   Chip,
@@ -9,13 +9,8 @@ import {
   SelectField,
   PaginationControls,
   useToast,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -173,6 +168,79 @@ export default function FinanceAccountsPage() {
     }
   };
 
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Name",
+      cell: (account: any) => (
+        <div>
+          <button
+            type="button"
+            onClick={() => navigate(`/finance/accounts/${account.id}`)}
+            className="font-medium text-slate-900 hover:text-brand-700 hover:underline text-left"
+          >
+            {account.name}
+          </button>
+          {account.code && <p className="text-xs text-slate-400">{account.code}</p>}
+        </div>
+      )
+    },
+    {
+      header: "Type",
+      cell: (account: any) => <span className="capitalize">{account.account_type}</span>
+    },
+    {
+      header: "Bank Details",
+      cell: (account: any) => (
+        account.bank_name || account.account_number ? (
+          <>
+            {account.bank_name && <div>{account.bank_name}</div>}
+            {account.account_number && <div>{account.account_number}</div>}
+          </>
+        ) : "-"
+      ),
+      className: "text-xs text-slate-600"
+    },
+    {
+      header: "Currency",
+      cell: (account: any) => account.currency
+    },
+    {
+      header: "Opening",
+      cell: (account: any) => formatCurrency(account.opening_balance),
+      className: "text-right text-slate-600"
+    },
+    {
+      header: "Current",
+      cell: (account: any) => formatCurrency(account.current_balance),
+      className: "text-right font-medium text-slate-900"
+    },
+    {
+      header: "Status",
+      cell: (account: any) => (
+        <Chip variant={account.is_active ? "success" : "neutral"}>
+          {account.is_active ? "Active" : "Inactive"}
+        </Chip>
+      )
+    },
+    {
+      header: "Actions",
+      cell: (account: any) => (
+        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/finance/accounts/${account.id}`)}>
+            <Icon name="visibility" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => openEdit(account)}>
+            <Icon name="edit" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => void handleToggleStatus(account)}>
+            <Icon name={account.is_active ? "toggle_on" : "toggle_off"} />
+          </Button>
+        </div>
+      ),
+      className: "text-right"
+    }
+  ], [navigate, openEdit, handleToggleStatus]);
+
   return (
     <AppShell
       navigation={buildAppNavigation()}
@@ -231,67 +299,24 @@ export default function FinanceAccountsPage() {
             ) : undefined
           }
         >
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">Loading accounts...</div>
-          ) : accounts.length === 0 ? (
-            <div className="text-center py-10"><Icon name="account_balance_wallet" className="text-4xl text-slate-300 mx-auto mb-2" /><p className="text-slate-500">No accounts found.</p></div>
-          ) : (
-            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Name</TableHeaderCell>
-                    <TableHeaderCell>Type</TableHeaderCell>
-                    <TableHeaderCell>Bank Details</TableHeaderCell>
-                    <TableHeaderCell>Currency</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Opening</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Current</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {accounts.map((account: any) => (
-                    <TableRow key={account.id}>
-                      <TableCell>
-                        <button
-                          type="button"
-                          onClick={() => navigate(`/finance/accounts/${account.id}`)}
-                          className="font-medium text-slate-900 hover:text-brand-700 hover:underline"
-                        >
-                          {account.name}
-                        </button>
-                        {account.code && <p className="text-xs text-slate-400">{account.code}</p>}
-                      </TableCell>
-                      <TableCell className="capitalize text-slate-600">{account.account_type}</TableCell>
-                      <TableCell className="text-xs text-slate-600">
-                        {account.bank_name || account.account_number ? (
-                          <>
-                            {account.bank_name && <div>{account.bank_name}</div>}
-                            {account.account_number && <div>{account.account_number}</div>}
-                          </>
-                        ) : "-"}
-                      </TableCell>
-                      <TableCell className="text-slate-600">{account.currency}</TableCell>
-                      <TableCell className="text-right text-slate-600">{formatCurrency(account.opening_balance)}</TableCell>
-                      <TableCell className="text-right font-medium text-slate-900">{formatCurrency(account.current_balance)}</TableCell>
-                      <TableCell><Chip variant={account.is_active ? "success" : "neutral"}>{account.is_active ? "Active" : "Inactive"}</Chip></TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="sm" onClick={() => navigate(`/finance/accounts/${account.id}`)}><Icon name="visibility" /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => openEdit(account)}><Icon name="edit" /></Button>
-                          <Button variant="ghost" size="sm" onClick={() => void handleToggleStatus(account)}>
-                            <Icon name={account.is_active ? "toggle_on" : "toggle_off"} />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-          <PaginationControls page={page} totalPages={totalPages} totalCount={totalCount} showStatus={false} perPage={perPage} onPerPageChange={setPerPage} onPageChange={setPage} />
+        <DataTable
+          columns={columns}
+          data={accounts}
+          loading={loading}
+          error={null}
+          caption="Accounts"
+          emptyTitle="No accounts found"
+          emptyDescription="There are no finance accounts to display."
+          onRowClick={(account) => navigate(`/finance/accounts/${account.id}`)}
+          pagination={{
+            page,
+            totalPages,
+            totalCount,
+            perPage,
+            onPageChange: setPage,
+            onPerPageChange: setPerPage,
+          }}
+        />
         </SectionCard>
       </div>
 

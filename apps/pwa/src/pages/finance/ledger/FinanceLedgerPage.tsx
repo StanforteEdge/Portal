@@ -9,15 +9,10 @@ import {
   SectionCard,
   SelectField,
   StatCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
   TextField,
   useToast,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { buildAppMobileNav, buildRequestsNavigation } from "@/pages/requests/requests-data";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -123,6 +118,41 @@ export default function FinanceLedgerPage() {
     }
   }
 
+  const columns: ColumnDef<FinanceLedgerEntry>[] = useMemo(() => [
+    {
+      header: "Date",
+      cell: (row) => dateText(row.entry_date || row.date)
+    },
+    {
+      header: "Reference",
+      cell: (row) => String(row.reference || row.id).slice(0, 36)
+    },
+    {
+      header: "Account",
+      cell: (row) => String(row.account_name || "-")
+    },
+    {
+      header: "Source",
+      cell: (row) => String(row.source_type || "-")
+    },
+    {
+      header: "Direction",
+      cell: (row) => {
+        const direction = String(row.direction || "-").toLowerCase();
+        return (
+          <Chip variant={direction === "in" ? "success" : direction === "out" ? "warning" : "neutral"}>
+            {direction === "in" ? "Inflow" : direction === "out" ? "Outflow" : direction}
+          </Chip>
+        );
+      }
+    },
+    {
+      header: "Amount",
+      cell: (row) => formatCurrency(Number(row.amount || 0), row.currency || "NGN"),
+      className: "text-right font-medium text-slate-900"
+    }
+  ], []);
+
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
@@ -178,59 +208,26 @@ export default function FinanceLedgerPage() {
             ) : undefined
           }
         >
-        {loading ? <p className="text-sm text-slate-500">Loading ledger...</p> : null}
-        {error ? <p className="text-sm text-danger">{error}</p> : null}
-
-        {rows.length ? (
-          <>
-            <Table caption="Finance ledger">
-              <TableHead>
-                <TableHeaderRow>
-                  <TableHeaderCell>Date</TableHeaderCell>
-                  <TableHeaderCell>Reference</TableHeaderCell>
-                  <TableHeaderCell>Account</TableHeaderCell>
-                  <TableHeaderCell>Source</TableHeaderCell>
-                  <TableHeaderCell>Direction</TableHeaderCell>
-                  <TableHeaderCell className="text-right">Amount</TableHeaderCell>
-                </TableHeaderRow>
-              </TableHead>
-              <TableBody>
-                {rows.map((row: FinanceLedgerEntry) => {
-                  const direction = String(row.direction || "-").toLowerCase();
-                  return (
-                    <TableRow key={row.id}>
-                      <TableCell>{dateText(row.entry_date || row.date)}</TableCell>
-                      <TableCell>{String(row.reference || row.id).slice(0, 36)}</TableCell>
-                      <TableCell>{String(row.account_name || "-")}</TableCell>
-                      <TableCell>{String(row.source_type || "-")}</TableCell>
-                      <TableCell>
-                        <Chip variant={direction === "in" ? "success" : direction === "out" ? "warning" : "neutral"}>
-                          {direction || "-"}
-                        </Chip>
-                      </TableCell>
-                      <TableCell className="text-right">{money(row.amount, String(row.currency || "NGN"))}</TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-            <PaginationControls
-              page={ledgerPage}
-              totalPages={ledgerPages}
-              totalCount={ledgerTotal}
-              itemLabel="entry"
-              perPage={ledgerPerPage}
-              showStatus={false}
-              onPerPageChange={(value) => {
-                setPerPage(value);
-                setPage(1);
-              }}
-              onPageChange={setPage}
-            />
-          </>
-        ) : !loading ? (
-          <EmptyState title="No ledger entries" description="Transactions will appear here once finance entries are posted." />
-        ) : null}
+        <DataTable
+          columns={columns}
+          data={rows}
+          loading={loading}
+          error={error}
+          caption="Finance Ledger"
+          emptyTitle="No ledger entries"
+          emptyDescription="Transactions will appear here once finance entries are posted."
+          pagination={{
+            page: ledgerPage,
+            totalPages: ledgerPages,
+            totalCount: ledgerTotal,
+            perPage: ledgerPerPage,
+            onPageChange: setPage,
+            onPerPageChange: (value) => {
+              setPerPage(value);
+              setPage(1);
+            },
+          }}
+        />
       </SectionCard>
     </AppShell>
   );

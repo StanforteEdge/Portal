@@ -108,3 +108,31 @@ export function formatDisplayDate(value?: string | null) {
     year: "numeric",
   });
 }
+
+import { formatCurrency } from "./currency";
+
+export function asMoney(value: unknown, currency = "NGN"): string {
+  const amount = Number(value || 0);
+  return formatCurrency(Number.isFinite(amount) ? amount : 0, currency);
+}
+
+export function asDate(value: unknown): string {
+  const raw = typeof value === "string" ? value : "";
+  if (!raw) return "-";
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? raw : parsed.toLocaleDateString();
+}
+
+export const formatFileSize = (bytes: number | null | undefined): string => {
+  if (bytes == null || bytes <= 0) return "0 B";
+  if (!Number.isFinite(bytes)) return "Unknown";
+  
+  const units = ["B", "KB", "MB", "GB", "TB"];
+  const k = 1024;
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  const size = bytes / Math.pow(k, i);
+  
+  if (i === 0) return `${bytes} B`;
+  return `${size.toFixed(i >= 2 ? 1 : 0)} ${units[i]}`;
+};
+

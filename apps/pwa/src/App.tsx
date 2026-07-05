@@ -32,8 +32,6 @@ import FinanceSettingsPage from "@/pages/finance/settings/FinanceSettingsPage";
 import FinanceDeductionTypesPage from "@/pages/finance/deductions/FinanceDeductionTypesPage";
 import StatutoryDeductionsPage from "@/pages/finance/deductions/StatutoryDeductionsPage";
 import FinanceChartAccountsPage from "@/pages/finance/accounts/FinanceChartAccountsPage";
-import FinanceCustomersPage from "@/pages/finance/customers";
-import FinanceVendorsPage from "@/pages/finance/vendors";
 import FinanceContactsPage from "@/pages/finance/contacts";
 import FinanceAccountsPage from "@/pages/finance/accounts/FinanceAccountsPage";
 import FinanceAccountDetailPage from "@/pages/finance/accounts/FinanceAccountDetailPage";
@@ -269,9 +267,9 @@ export default function App() {
             <Route path="/finance/reports" element={<FinanceReportsPage />} />
             <Route path="/finance/reports/:reportKey" element={<FinanceReportDetailPage />} />
             <Route path="/finance/deduction-types" element={<FinanceDeductionTypesPage />} />
-            <Route path="/finance/customers" element={<FinanceCustomersPage />} />
-            <Route path="/finance/vendors" element={<FinanceVendorsPage />} />
-            <Route path="/finance/contacts" element={<FinanceContactsPage />} />
+            <Route path="/finance/customers" element={<FinanceContactsPage defaultType="customer" />} />
+            <Route path="/finance/vendors" element={<FinanceContactsPage defaultType="vendor" />} />
+            <Route path="/finance/contacts" element={<FinanceContactsPage defaultType="both" />} />
 
             <Route element={<PermissionRoute requiredPermissions={["finance.manage"]} any />}>
               <Route path="/finance/settings" element={<FinanceSettingsPage />} />

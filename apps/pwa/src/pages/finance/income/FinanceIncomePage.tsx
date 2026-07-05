@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   AppShell,
   Button,
@@ -10,20 +10,14 @@ import {
   SelectField,
   StatCard,
   useToast,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppMobileNav, buildAppNavigation } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { formatCurrency } from "@stanforte/shared";
-import { formatDate } from "@/shared/lib/formatting";
+import { formatCurrency, formatDate } from "@stanforte/shared";
 
 export default function FinanceIncomePage() {
   const { user } = useAuth();
@@ -151,6 +145,35 @@ export default function FinanceIncomePage() {
     user?.email ||
     "Finance";
 
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Date",
+      cell: (entry: any) => formatDate(entry.received_at)
+    },
+    {
+      header: "Payer",
+      cell: (entry: any) => entry.payer || "-"
+    },
+    {
+      header: "Account",
+      cell: (entry: any) => entry.account_name || "-"
+    },
+    {
+      header: "Reference",
+      cell: (entry: any) => entry.reference || "-"
+    },
+    {
+      header: "Amount",
+      cell: (entry: any) => formatCurrency(Number(entry.amount ?? 0), entry.currency || "NGN"),
+      className: "text-right font-medium text-slate-900"
+    },
+    {
+      header: "Notes",
+      cell: (entry: any) => entry.notes || "-",
+      className: "max-w-[200px] truncate text-slate-500"
+    }
+  ], []);
+
   return (
     <AppShell
       navigation={buildAppNavigation({ requestDetailsParent: "finance" })}
@@ -230,70 +253,26 @@ export default function FinanceIncomePage() {
             )
           }
         >
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              Loading income...
-            </div>
-          ) : income.length === 0 ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-8 text-sm text-slate-500">
-              No income entries found.
-            </div>
-          ) : (
-            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Date</TableHeaderCell>
-                    <TableHeaderCell>Payer</TableHeaderCell>
-                    <TableHeaderCell>Account</TableHeaderCell>
-                    <TableHeaderCell>Reference</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Amount</TableHeaderCell>
-                    <TableHeaderCell>Notes</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {income.map((entry: any) => (
-                    <TableRow key={entry.id}>
-                      <TableCell className="text-slate-600">
-                        {formatDate(entry.received_at)}
-                      </TableCell>
-                      <TableCell className="font-medium text-slate-900">
-                        {entry.payer || "-"}
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        {entry.account_name || "-"}
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        {entry.reference || "-"}
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-slate-900">
-                        {formatCurrency(
-                          Number(entry.amount ?? 0),
-                          entry.currency || "NGN",
-                        )}
-                      </TableCell>
-                      <TableCell className="text-slate-500 max-w-[200px] truncate">
-                        {entry.notes || "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          <PaginationControls
-            page={Number(pagination.page || page)}
-            totalPages={Number(pagination.pages || 1)}
-            totalCount={Number(pagination.total_result || 0)}
-            showStatus={false}
-            perPage={perPage}
-            onPerPageChange={(value) => {
+        <DataTable
+          columns={columns}
+          data={income}
+          loading={loading}
+          error={null}
+          caption="Income"
+          emptyTitle="No income entries found"
+          emptyDescription="There are no income entries to display."
+          pagination={{
+            page: Number(pagination.page || page),
+            totalPages: Number(pagination.pages || 1),
+            totalCount: Number(pagination.total_result || 0),
+            perPage,
+            onPageChange: setPage,
+            onPerPageChange: (value) => {
               setPerPage(value);
               setPage(1);
-            }}
-            onPageChange={setPage}
-          />
+            },
+          }}
+        />
         </SectionCard>
       </div>
 

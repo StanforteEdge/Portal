@@ -6,18 +6,13 @@ import {
   SelectField,
   PageHeader,
   SectionCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
   StatCard,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useCachedQuery } from "@/shared/lib/core";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -518,6 +513,108 @@ function RequestsListTable({
   onPageChange: (page: number) => void;
   isMultiTeam: boolean;
 }) {
+  const navigate = useNavigate();
+  const columns: ColumnDef<UiRequestRow>[] = useMemo(() => {
+    const cols: ColumnDef<UiRequestRow>[] = [
+      {
+        header: "Request ID",
+        cell: (row) => (
+          <div>
+            <Link
+              to={`/requests/${row.requestId}`}
+              className="text-sm font-semibold text-brand-900 transition hover:underline"
+            >
+              {row.id}
+            </Link>
+            <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
+              <Icon name={row.icon} className="text-[16px]" />
+              <span>{row.type}</span>
+            </div>
+          </div>
+        )
+      },
+      {
+        header: "Total",
+        cell: (row) => row.category === "hr"
+          ? formatLeaveDuration(row)
+          : row.totalAmount > 0
+            ? row.detail
+            : "-",
+        className: "text-sm text-slate-700 font-medium"
+      }
+    ];
+
+    if (isMultiTeam) {
+      cols.push({
+        header: "Team",
+        cell: (row) => (
+          <div>
+            <p className="text-sm font-medium text-slate-800 capitalize">
+              {row.teamName || "-"}
+            </p>
+            {row.organizationName ? (
+              <p className="mt-0.5 text-xs text-slate-400">
+                {row.organizationName}
+              </p>
+            ) : null}
+          </div>
+        )
+      });
+    }
+
+    if (activeCategory === "financial") {
+      cols.push({
+        header: "Project",
+        cell: (row) => row.projectName || "-",
+        className: "text-sm text-slate-600"
+      });
+    }
+
+    if (activeCategory === "hr") {
+      cols.push({
+        header: "Leave Dates",
+        cell: (row) => formatLeaveDateRange(row),
+        className: "text-sm text-slate-600"
+      });
+    }
+
+    cols.push(
+      {
+        header: "Submitted",
+        cell: (row) => row.submitted,
+        className: "text-sm text-slate-600"
+      },
+      {
+        header: "Status",
+        cell: (row) => <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
+      },
+      {
+        header: "Action",
+        cell: (row) => row.statusKey === "draft" || row.statusKey === "returned" ? (
+          <Link
+            to={`${row.category === "hr" ? "/leave/new/form" : "/requests/new/form"}?edit=${row.requestId}&typeId=${row.requestTypeId}`}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <Icon name="edit" className="text-[14px]" />
+            Edit
+          </Link>
+        ) : (
+          <Link
+            to={`/requests/${row.requestId}`}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:underline"
+            onClick={(e) => e.stopPropagation()}
+          >
+            View
+          </Link>
+        ),
+        className: "text-right"
+      }
+    );
+
+    return cols;
+  }, [activeCategory, isMultiTeam]);
+
   const pageStart = totalCount === 0 ? 0 : (currentPage - 1) * perPage + 1;
   const pageEnd =
     totalCount === 0 ? 0 : Math.min(totalCount, currentPage * perPage);
@@ -538,136 +635,24 @@ function RequestsListTable({
         </Chip>
       }
     >
-      {loading ? (
-        <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-          Loading requests...
-        </div>
-      ) : null}
-      {error ? (
-        <div className="mb-4 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
-          {error}
-          <button
-            type="button"
-            onClick={onRetry}
-            className="ml-3 font-semibold underline"
-          >
-            Retry
-          </button>
-        </div>
-      ) : null}
-      <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-        <Table caption="Requests list">
-          <TableHead>
-            <TableHeaderRow>
-              <TableHeaderCell>Request ID</TableHeaderCell>
-              <TableHeaderCell>Total</TableHeaderCell>
-              {isMultiTeam ? <TableHeaderCell>Team</TableHeaderCell> : null}
-              {activeCategory === "financial" ? (
-                <TableHeaderCell>Project</TableHeaderCell>
-              ) : null}
-              {activeCategory === "hr" ? (
-                <TableHeaderCell>Leave Dates</TableHeaderCell>
-              ) : null}
-              <TableHeaderCell>Submitted</TableHeaderCell>
-              <TableHeaderCell>Status</TableHeaderCell>
-              <TableHeaderCell className="text-right">Action</TableHeaderCell>
-            </TableHeaderRow>
-          </TableHead>
-          <TableBody>
-            {rows.map((row) => (
-              <TableRow key={row.id}>
-                <TableCell className="rounded-l-2xl">
-                  <Link
-                    to={`/requests/${row.requestId}`}
-                    className="text-sm font-semibold text-brand-900 transition hover:underline"
-                  >
-                    {row.id}
-                  </Link>
-                  <div className="mt-1 flex items-center gap-2 text-xs text-slate-500">
-                    <Icon name={row.icon} className="text-[16px]" />
-                    <span>{row.type}</span>
-                  </div>
-                </TableCell>
-                <TableCell className="text-sm text-slate-700 font-medium">
-                  {row.category === "hr"
-                    ? formatLeaveDuration(row)
-                    : row.totalAmount > 0
-                      ? row.detail
-                      : "-"}
-                </TableCell>
-                {isMultiTeam ? (
-                  <TableCell>
-                    <p className="text-sm font-medium text-slate-800 capitalize">
-                      {row.teamName || "-"}
-                    </p>
-                    {row.organizationName ? (
-                      <p className="mt-0.5 text-xs text-slate-400">
-                        {row.organizationName}
-                      </p>
-                    ) : null}
-                  </TableCell>
-                ) : null}
-                {activeCategory === "financial" ? (
-                  <TableCell className="text-sm text-slate-600">
-                    {row.projectName || "-"}
-                  </TableCell>
-                ) : null}
-                {activeCategory === "hr" ? (
-                  <TableCell className="text-sm text-slate-600">
-                    {formatLeaveDateRange(row)}
-                  </TableCell>
-                ) : null}
-                <TableCell className="text-sm text-slate-600">
-                  {row.submitted}
-                </TableCell>
-                <TableCell>
-                  <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
-                </TableCell>
-                <TableCell className="rounded-r-2xl text-right">
-                  {row.statusKey === "draft" || row.statusKey === "returned" ? (
-                    <Link
-                      to={`${row.category === "hr" ? "/leave/new/form" : "/requests/new/form"}?edit=${row.requestId}&typeId=${row.requestTypeId}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-brand-700 hover:underline"
-                    >
-                      <Icon name="edit" className="text-[14px]" />
-                      Edit
-                    </Link>
-                  ) : (
-                    <Link
-                      to={`/requests/${row.requestId}`}
-                      className="inline-flex items-center gap-1 text-xs font-semibold text-slate-600 hover:underline"
-                    >
-                      View
-                    </Link>
-                  )}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-        <SelectField
-          label=""
-          value={String(perPage)}
-          onChange={(event) => onPerPageChange(Number(event.target.value))}
-          className="w-[110px]"
-        >
-          <option value={10}>10 / page</option>
-          <option value={25}>25 / page</option>
-          <option value={50}>50 / page</option>
-        </SelectField>
-        <PaginationControls
-          page={currentPage}
-          totalPages={totalPages}
-          totalCount={totalCount}
-          itemLabel="request"
-          showStatus={false}
-          onPerPageChange={onPerPageChange}
-          onPageChange={onPageChange}
-        />
-      </div>
+      <DataTable
+        columns={columns}
+        data={rows}
+        loading={loading}
+        error={error}
+        caption="Requests list"
+        emptyTitle="No requests found"
+        emptyDescription="Try adjusting your filters or search query."
+        onRowClick={(row) => navigate(`/requests/${row.requestId}`)}
+        pagination={{
+          page: currentPage,
+          totalPages: totalPages,
+          totalCount: totalCount,
+          perPage: perPage,
+          onPageChange: onPageChange,
+          onPerPageChange: onPerPageChange,
+        }}
+      />
     </SectionCard>
   );
 }

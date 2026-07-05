@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   AppShell,
   Button,
@@ -10,20 +10,14 @@ import {
   SelectField,
   StatCard,
   useToast,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppMobileNav, buildAppNavigation } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { formatCurrency } from "@stanforte/shared";
-import { formatDate } from "@/shared/lib/formatting";
+import { formatCurrency, formatDate } from "@stanforte/shared";
 
 export default function FinanceBillsPage() {
   const { user } = useAuth();
@@ -176,6 +170,49 @@ export default function FinanceBillsPage() {
     user?.email ||
     "Finance";
 
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Date",
+      cell: (bill: any) => formatDate(bill.billDate ?? bill.bill_date)
+    },
+    {
+      header: "Number",
+      cell: (bill: any) => bill.billNumber ?? bill.bill_number ?? "-"
+    },
+    {
+      header: "Vendor",
+      cell: (bill: any) => bill.vendor?.name ?? "-"
+    },
+    {
+      header: "Status",
+      cell: (bill: any) => (
+        <Chip
+          variant={
+            bill.status === "paid"
+              ? "success"
+              : bill.status === "draft"
+                ? "neutral"
+                : "warning"
+          }
+        >
+          {bill.status || "draft"}
+        </Chip>
+      )
+    },
+    {
+      header: "Total",
+      cell: (bill: any) => formatCurrency(
+        Number(bill.totalAmount ?? bill.total_amount ?? 0),
+        bill.currency || "NGN"
+      ),
+      className: "text-right font-medium text-slate-900"
+    },
+    {
+      header: "Due Date",
+      cell: (bill: any) => formatDate(bill.dueDate ?? bill.due_date) || "-"
+    }
+  ], []);
+
   return (
     <AppShell
       navigation={buildAppNavigation({ requestDetailsParent: "finance" })}
@@ -269,80 +306,26 @@ export default function FinanceBillsPage() {
             )
           }
         >
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-              Loading bills...
-            </div>
-          ) : bills.length === 0 ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-8 text-sm text-slate-500">
-              No bills found.
-            </div>
-          ) : (
-            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Date</TableHeaderCell>
-                    <TableHeaderCell>Bill Number</TableHeaderCell>
-                    <TableHeaderCell>Vendor</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Amount</TableHeaderCell>
-                    <TableHeaderCell>Due Date</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {bills.map((bill: any) => (
-                    <TableRow key={bill.id}>
-                      <TableCell className="text-slate-600">
-                        {formatDate(bill.billDate ?? bill.bill_date)}
-                      </TableCell>
-                      <TableCell className="font-medium text-slate-900">
-                        {bill.billNumber ?? bill.bill_number ?? "-"}
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        {bill.vendor?.name ?? "-"}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          variant={
-                            bill.status === "paid"
-                              ? "success"
-                              : bill.status === "draft"
-                                ? "neutral"
-                                : "warning"
-                          }
-                        >
-                          {bill.status || "draft"}
-                        </Chip>
-                      </TableCell>
-                      <TableCell className="text-right font-medium text-slate-900">
-                        {formatCurrency(
-                          Number(bill.totalAmount ?? bill.total_amount ?? 0),
-                          bill.currency || "NGN",
-                        )}
-                      </TableCell>
-                      <TableCell className="text-slate-600">
-                        {formatDate(bill.dueDate ?? bill.due_date) || "-"}
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          <PaginationControls
-            page={Number(pagination.page || page)}
-            totalPages={Number(pagination.pages || 1)}
-            totalCount={Number(pagination.total_result || 0)}
-            showStatus={false}
-            perPage={perPage}
-            onPerPageChange={(value) => {
+        <DataTable
+          columns={columns}
+          data={bills}
+          loading={loading}
+          error={null}
+          caption="Bills"
+          emptyTitle="No bills found"
+          emptyDescription="There are no bills to display."
+          pagination={{
+            page: Number(pagination.page || page),
+            totalPages: Number(pagination.pages || 1),
+            totalCount: Number(pagination.total_result || 0),
+            perPage,
+            onPageChange: setPage,
+            onPerPageChange: (value) => {
               setPerPage(value);
               setPage(1);
-            }}
-            onPageChange={setPage}
-          />
+            },
+          }}
+        />
         </SectionCard>
       </div>
 

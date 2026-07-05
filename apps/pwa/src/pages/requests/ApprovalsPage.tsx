@@ -7,18 +7,13 @@ import {
   PageHeader,
   SectionCard,
   StatCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { formatCurrency } from "@stanforte/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { sendNativeNotification } from "@/lib/tauri-bridge";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useCachedQuery } from "@/shared/lib/core";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -135,6 +130,7 @@ function isPendingLike(row: UiApprovalRow) {
 
 export function ApprovalsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const { data: profile } = useCachedQuery(
     "approvals:profile",
     () => getWorkspaceProfile(),
@@ -253,6 +249,76 @@ export function ApprovalsPage() {
     user?.email ||
     "Staff";
 
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Request No",
+      cell: (row: any) => (
+        <div>
+          <Link
+            to={`/requests/approvals/${row.requestId}`}
+            className="text-sm font-semibold text-brand-900 transition hover:underline"
+          >
+            {row.requestNo}
+          </Link>
+          {row.pendingStep ? (
+            <p className="mt-0.5 text-xs text-slate-400">{row.pendingStep}</p>
+          ) : null}
+        </div>
+      )
+    },
+    {
+      header: "Staff",
+      cell: (row: any) => row.staff,
+      className: "capitalize text-sm text-slate-700"
+    },
+    {
+      header: "Module",
+      cell: (row: any) => row.categoryLabel,
+      className: "text-sm text-slate-600"
+    },
+    {
+      header: "Team",
+      cell: (row: any) => (
+        <div>
+          <p className="text-sm font-medium text-slate-800 capitalize">
+            {row.teamName || "-"}
+          </p>
+          {row.organizationName ? (
+            <p className="mt-0.5 text-xs text-slate-400">{row.organizationName}</p>
+          ) : null}
+        </div>
+      )
+    },
+    {
+      header: "Amount",
+      cell: (row: any) => formatCurrency(row.totalAmount, row.currency),
+      className: "text-sm text-slate-600"
+    },
+    {
+      header: "Due Date",
+      cell: (row: any) => row.dueDate,
+      className: "text-sm text-slate-600"
+    },
+    {
+      header: "Status",
+      cell: (row: any) => <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
+    },
+    {
+      header: "Actions",
+      cell: (row: any) => (
+        <Link
+          to={`/requests/approvals/${row.requestId}`}
+          className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-brand-900 transition hover:bg-brand-900/5"
+          onClick={(e) => e.stopPropagation()}
+        >
+          Review
+          <Icon name="arrow_forward" className="text-[18px]" />
+        </Link>
+      ),
+      className: "text-right"
+    }
+  ], []);
+
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
@@ -359,105 +425,27 @@ export function ApprovalsPage() {
               ) : undefined
             }
           >
-            {loading ? (
-              <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
-                Loading approvals...
-              </div>
-            ) : error ? (
-              <div className="mb-4 rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
-                {error}
-                <button type="button" onClick={() => { void refetch(); }} className="ml-3 font-semibold underline">
-                  Retry
-                </button>
-              </div>
-            ) : null}
-
-            <div className="overflow-x-auto rounded-[22px] border border-slate-200 bg-white">
-              <Table caption="Approvals list">
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Request No</TableHeaderCell>
-                    <TableHeaderCell>Staff</TableHeaderCell>
-                    <TableHeaderCell>Module</TableHeaderCell>
-                    <TableHeaderCell>Team</TableHeaderCell>
-                    <TableHeaderCell>Amount</TableHeaderCell>
-                    <TableHeaderCell>Due Date</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {pagedRows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell className="rounded-l-2xl">
-                        <Link
-                          to={`/requests/approvals/${row.requestId}`}
-                          className="text-sm font-semibold text-brand-900 transition hover:underline"
-                        >
-                          {row.requestNo}
-                        </Link>
-                        {row.pendingStep ? (
-                          <p className="mt-0.5 text-xs text-slate-400">{row.pendingStep}</p>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="capitalize text-sm text-slate-700">
-                        {row.staff}
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        {row.categoryLabel}
-                      </TableCell>
-                      <TableCell>
-                        <p className="text-sm font-medium text-slate-800 capitalize">
-                          {row.teamName || "-"}
-                        </p>
-                        {row.organizationName ? (
-                          <p className="mt-0.5 text-xs text-slate-400">{row.organizationName}</p>
-                        ) : null}
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        {formatCurrency(row.totalAmount, row.currency)}
-                      </TableCell>
-                      <TableCell className="text-sm text-slate-600">
-                        {row.dueDate}
-                      </TableCell>
-                      <TableCell>
-                        <Chip variant={row.tone}>{row.status.toUpperCase()}</Chip>
-                      </TableCell>
-                      <TableCell className="rounded-r-2xl text-right">
-                        <Link
-                          to={`/requests/approvals/${row.requestId}`}
-                          className="inline-flex items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-brand-900 transition hover:bg-brand-900/5"
-                        >
-                          Review
-                          <Icon name="arrow_forward" className="text-[18px]" />
-                        </Link>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
-              <SelectField
-                label=""
-                value={String(perPage)}
-                onChange={(e) => setPerPage(Number(e.target.value))}
-                className="w-[110px]"
-              >
-                <option value={10}>10 / page</option>
-                <option value={25}>25 / page</option>
-                <option value={50}>50 / page</option>
-              </SelectField>
-              <PaginationControls
-                page={safePage}
-                totalPages={totalPages}
-                totalCount={filteredRows.length}
-                itemLabel="request"
-                showStatus={false}
-                onPageChange={setCurrentPage}
-              />
-            </div>
+            <DataTable
+              columns={columns}
+              data={pagedRows}
+              loading={loading}
+              error={error}
+              caption="Pending Approvals"
+              emptyTitle="No approvals pending"
+              emptyDescription="There are no requests in your approval queue."
+              onRowClick={(row) => navigate(`/requests/approvals/${row.requestId}`)}
+              pagination={{
+                page: safePage,
+                totalPages: totalPages,
+                totalCount: filteredRows.length,
+                perPage,
+                onPageChange: setCurrentPage,
+                onPerPageChange: (value) => {
+                  setPerPage(value);
+                  setCurrentPage(1);
+                },
+              }}
+            />
           </SectionCard>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   AppShell,
   Button,
@@ -10,20 +10,14 @@ import {
   SelectField,
   StatCard,
   useToast,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { buildAppMobileNav, buildAppNavigation } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
-import { formatCurrency } from "@stanforte/shared";
-import { formatDate } from "@/shared/lib/formatting";
+import { formatCurrency, formatDate } from "@stanforte/shared";
 
 export default function FinanceExpensesPage() {
   const { user } = useAuth();
@@ -179,6 +173,60 @@ export default function FinanceExpensesPage() {
 
   const userName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.email || "Finance";
 
+  const columns: ColumnDef<any>[] = useMemo(() => [
+    {
+      header: "Date",
+      cell: (entry: any) => formatDate(entry.expenseDate ?? entry.expense_date)
+    },
+    {
+      header: "Reference",
+      cell: (entry: any) => (
+        <div>
+          <p className="font-medium text-slate-900">{entry.expenseNumber ?? entry.expense_number ?? "-"}</p>
+          <p className="text-xs text-slate-500">{entry.reference ?? "-"}</p>
+        </div>
+      )
+    },
+    {
+      header: "Vendor",
+      cell: (entry: any) => entry.vendor?.name ?? "-"
+    },
+    {
+      header: "Account",
+      cell: (entry: any) => entry.account?.name ?? "-"
+    },
+    {
+      header: "Amount",
+      cell: (entry: any) => formatCurrency(Number(entry.totalAmount ?? entry.total_amount ?? entry.amount ?? 0), entry.currency || "NGN"),
+      className: "text-right text-slate-900"
+    },
+    {
+      header: "Status",
+      cell: (entry: any) => (
+        <Chip
+          variant={
+            entry.status === "approved" || entry.status === "paid"
+              ? "success"
+              : entry.status === "draft"
+                ? "neutral"
+                : "warning"
+          }
+        >
+          {entry.status || "draft"}
+        </Chip>
+      )
+    },
+    {
+      header: "Actions",
+      cell: (entry: any) => (
+        <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); openEdit(entry); }}>
+          <Icon name="edit" />
+        </Button>
+      ),
+      className: "text-right"
+    }
+  ], [openEdit]);
+
   return (
     <AppShell
       navigation={buildAppNavigation({ requestDetailsParent: "finance" })}
@@ -252,60 +300,27 @@ export default function FinanceExpensesPage() {
             )
           }
         >
-          {loading ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">Loading expenses...</div>
-          ) : expenses.length === 0 ? (
-            <div className="rounded-2xl bg-slate-50 px-4 py-8 text-sm text-slate-500">No expenses found.</div>
-          ) : (
-            <div className="rounded-[22px] border border-slate-200 bg-white overflow-hidden">
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Date</TableHeaderCell>
-                    <TableHeaderCell>Reference</TableHeaderCell>
-                    <TableHeaderCell>Vendor</TableHeaderCell>
-                    <TableHeaderCell>Account</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Amount</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell className="text-right">Actions</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {expenses.map((entry: any) => (
-                    <TableRow key={entry.id}>
-                      <TableCell className="text-slate-600">{formatDate(entry.expenseDate ?? entry.expense_date)}</TableCell>
-                      <TableCell>
-                        <p className="font-medium text-slate-900">{entry.expenseNumber ?? entry.expense_number ?? "-"}</p>
-                        <p className="text-xs text-slate-500">{entry.reference ?? "-"}</p>
-                      </TableCell>
-                      <TableCell className="text-slate-600">{entry.vendor?.name ?? "-"}</TableCell>
-                      <TableCell className="text-slate-600">{entry.account?.name ?? "-"}</TableCell>
-                      <TableCell className="text-right text-slate-900">{formatCurrency(Number(entry.totalAmount ?? entry.total_amount ?? entry.amount ?? 0), entry.currency || "NGN")}</TableCell>
-                      <TableCell><Chip variant={entry.status === "approved" || entry.status === "paid" ? "success" : entry.status === "draft" ? "neutral" : "warning"}>{entry.status || "draft"}</Chip></TableCell>
-                      <TableCell className="text-right">
-                        <Button variant="ghost" size="sm" onClick={() => openEdit(entry)}>
-                          <Icon name="edit" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-
-          <PaginationControls
-            page={Number(pagination.page || page)}
-            totalPages={Number(pagination.pages || 1)}
-            totalCount={Number(pagination.total_result || 0)}
-            showStatus={false}
-            perPage={Number(pagination.per_page || perPage)}
-            onPerPageChange={(value) => {
+        <DataTable
+          columns={columns}
+          data={expenses}
+          loading={loading}
+          error={null}
+          caption="Expenses"
+          emptyTitle="No expenses found"
+          emptyDescription="There are no expenses to display."
+          onRowClick={(entry) => openEdit(entry)}
+          pagination={{
+            page: Number(pagination.page || page),
+            totalPages: Number(pagination.pages || 1),
+            totalCount: Number(pagination.total_result || 0),
+            perPage: Number(pagination.per_page || perPage),
+            onPageChange: setPage,
+            onPerPageChange: (value) => {
               setPerPage(value);
               setPage(1);
-            }}
-            onPageChange={setPage}
-          />
+            },
+          }}
+        />
         </SectionCard>
       </div>
 

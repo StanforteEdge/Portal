@@ -9,15 +9,10 @@ import {
   SectionCard,
   SelectField,
   StatCard,
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeaderCell,
-  TableHeaderRow,
-  TableRow,
   PaginationControls,
   useToast,
+  DataTable,
+  ColumnDef,
 } from "@/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
@@ -201,6 +196,136 @@ export default function HrLeavePage() {
     user?.email ||
     "HR Staff";
 
+  const pendingColumns: ColumnDef<RequestRecord>[] = useMemo(() => [
+    {
+      header: "Staff",
+      cell: (r) => {
+        const d = r.data ?? {};
+        const name = creatorName(r);
+        return (
+          <div>
+            <p className="font-semibold text-slate-900">{name}</p>
+            <p className="text-xs text-slate-500">{r.creator?.email ?? ""}</p>
+          </div>
+        );
+      }
+    },
+    {
+      header: "Type",
+      cell: (r) => r.request_type?.name ?? "Leave"
+    },
+    {
+      header: "Dates",
+      cell: (r) => {
+        const d = r.data ?? {};
+        const start = formatDate(String(d.start_date ?? ""));
+        const end = formatDate(String(d.end_date ?? ""));
+        return `${start} – ${end}`;
+      }
+    },
+    {
+      header: "Days",
+      cell: (r) => {
+        const d = r.data ?? {};
+        const days = Number(d.days_requested ?? 0);
+        return days > 0 ? `${days}d` : "-";
+      }
+    },
+    {
+      header: "Submitted",
+      cell: (r) => formatDate(r.created_at)
+    },
+    {
+      header: "Action",
+      cell: (r) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          requiredPermissions={["leave.approve"]}
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/hr/requests/${r.id}`);
+          }}
+        >
+          Open Details
+        </Button>
+      )
+    }
+  ], [navigate]);
+
+  const historyColumns: ColumnDef<RequestRecord>[] = useMemo(() => [
+    {
+      header: "Staff",
+      cell: (r) => {
+        const d = r.data ?? {};
+        const name = creatorName(r);
+        return (
+          <div>
+            <p className="font-semibold text-slate-900">{name}</p>
+            <p className="text-xs text-slate-500">{r.creator?.email ?? ""}</p>
+          </div>
+        );
+      }
+    },
+    {
+      header: "Type",
+      cell: (r) => r.request_type?.name ?? "Leave"
+    },
+    {
+      header: "From",
+      cell: (r) => {
+        const d = r.data ?? {};
+        return formatDate(String(d.start_date ?? ""));
+      }
+    },
+    {
+      header: "To",
+      cell: (r) => {
+        const d = r.data ?? {};
+        return formatDate(String(d.end_date ?? ""));
+      }
+    },
+    {
+      header: "Days",
+      cell: (r) => {
+        const d = r.data ?? {};
+        const days = Number(d.days_requested ?? 0);
+        return days > 0 ? `${days}d` : "-";
+      }
+    },
+    {
+      header: "Submitted",
+      cell: (r) => formatDate(r.created_at)
+    },
+    {
+      header: "Status",
+      cell: (r) => {
+        const workflowStatus = deriveRequestWorkflowStatus(r);
+        return (
+          <Chip variant={requestStatusTone(workflowStatus)}>
+            {workflowStatus}
+          </Chip>
+        );
+      }
+    },
+    {
+      header: "",
+      cell: (r) => (
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={(e) => {
+            e.stopPropagation();
+            navigate(`/hr/requests/${r.id}`);
+          }}
+        >
+          Detail
+        </Button>
+      ),
+      className: "text-right"
+    }
+  ], [navigate]);
+
   return (
     <AppShell
       navigation={buildAppNavigation()}
@@ -272,62 +397,16 @@ export default function HrLeavePage() {
           title="Pending Approvals"
           description="Open each request to review details and take approval action."
         >
-          {appLoading ? (
-            <div className="text-sm text-slate-500">Loading approvals...</div>
-          ) : pendingApprovals.length ? (
-            <Table>
-              <TableHead>
-                <TableHeaderRow>
-                  <TableHeaderCell>Staff</TableHeaderCell>
-                  <TableHeaderCell>Type</TableHeaderCell>
-                  <TableHeaderCell>Dates</TableHeaderCell>
-                  <TableHeaderCell>Days</TableHeaderCell>
-                  <TableHeaderCell>Submitted</TableHeaderCell>
-                  <TableHeaderCell>Action</TableHeaderCell>
-                </TableHeaderRow>
-              </TableHead>
-              <TableBody>
-                {pendingApprovals.map((r) => {
-                  const d = r.data ?? {};
-                  const start = formatDate(String(d.start_date ?? ""));
-                  const end = formatDate(String(d.end_date ?? ""));
-                  const days = Number(d.days_requested ?? 0);
-                  const name = creatorName(r);
-                  return (
-                    <TableRow key={r.id}>
-                      <TableCell>
-                        <p className="font-semibold text-slate-900">{name}</p>
-                        <p className="text-xs text-slate-500">
-                          {r.creator?.email ?? ""}
-                        </p>
-                      </TableCell>
-                      <TableCell>{r.request_type?.name ?? "Leave"}</TableCell>
-                      <TableCell>
-                        {start} – {end}
-                      </TableCell>
-                      <TableCell>{days > 0 ? `${days}d` : "-"}</TableCell>
-                      <TableCell>{formatDate(r.created_at)}</TableCell>
-                      <TableCell>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          requiredPermissions={["leave.approve"]}
-                          onClick={() => navigate(`/hr/requests/${r.id}`)}
-                        >
-                          Open Details
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  );
-                })}
-              </TableBody>
-            </Table>
-          ) : (
-            <EmptyState
-              title="No pending approvals"
-              description="All leave requests are up to date."
-            />
-          )}
+          <DataTable
+            columns={pendingColumns}
+            data={pendingApprovals}
+            loading={appLoading}
+            error={null}
+            caption="Pending Approvals"
+            emptyTitle="No pending approvals"
+            emptyDescription="All leave requests are up to date."
+            onRowClick={(r) => navigate(`/hr/requests/${r.id}`)}
+          />
         </SectionCard>
 
         {/* Full leave history */}
@@ -354,98 +433,27 @@ export default function HrLeavePage() {
             </SelectField>
           </div>
 
-          {historyLoading ? (
-            <div className="text-sm text-slate-500">Loading leave history...</div>
-          ) : (
-            <div className="flex flex-col gap-4">
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Staff</TableHeaderCell>
-                    <TableHeaderCell>Type</TableHeaderCell>
-                    <TableHeaderCell>From</TableHeaderCell>
-                    <TableHeaderCell>To</TableHeaderCell>
-                    <TableHeaderCell>Days</TableHeaderCell>
-                    <TableHeaderCell>Submitted</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell>{""}</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {historyLeaveRequests.map((r) => {
-                    const d = r.data ?? {};
-                    const workflowStatus = deriveRequestWorkflowStatus(r);
-                    const days = Number(d.days_requested ?? 0);
-                    const name = creatorName(r);
-                    return (
-                      <TableRow key={r.id}>
-                        <TableCell>
-                          <p className="font-semibold text-slate-900">{name}</p>
-                          <p className="text-xs text-slate-500">
-                            {r.creator?.email ?? ""}
-                          </p>
-                        </TableCell>
-                        <TableCell>{r.request_type?.name ?? "Leave"}</TableCell>
-                        <TableCell>{formatDate(String(d.start_date ?? ""))}</TableCell>
-                        <TableCell>{formatDate(String(d.end_date ?? ""))}</TableCell>
-                        <TableCell>{days > 0 ? `${days}d` : "-"}</TableCell>
-                        <TableCell>{formatDate(r.created_at)}</TableCell>
-                        <TableCell>
-                          <Chip variant={requestStatusTone(workflowStatus)}>
-                            {workflowStatus}
-                          </Chip>
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() =>
-                              navigate(`/hr/requests/${r.id}`)
-                            }
-                          >
-                            Detail
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {!historyLeaveRequests.length ? (
-                    <TableRow>
-                      <TableCell
-                        colSpan={8}
-                        className="py-10 text-center text-slate-500"
-                      >
-                        No leave requests found for this status.
-                      </TableCell>
-                    </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-              
-              <div className="flex items-center justify-between border-t border-slate-100 pt-4">
-                <SelectField
-                  label=""
-                  value={String(historyPerPage)}
-                  onChange={(e) => {
-                    setHistoryPerPage(Number(e.target.value));
-                    setHistoryPage(1);
-                  }}
-                  className="w-32"
-                >
-                  <option value="10">10 / page</option>
-                  <option value="25">25 / page</option>
-                  <option value="50">50 / page</option>
-                </SelectField>
-                <PaginationControls
-                  page={historySafePage}
-                  totalPages={historyTotalPages}
-                  totalCount={historyTotalCount}
-                  itemLabel="request"
-                  onPageChange={setHistoryPage}
-                />
-              </div>
-            </div>
-          )}
+          <DataTable
+            columns={historyColumns}
+            data={historyLeaveRequests}
+            loading={historyLoading}
+            error={null}
+            caption="Leave History"
+            emptyTitle="No leave requests found"
+            emptyDescription="No leave requests found for this status."
+            onRowClick={(r) => navigate(`/hr/requests/${r.id}`)}
+            pagination={{
+              page: historySafePage,
+              totalPages: historyTotalPages,
+              totalCount: historyTotalCount,
+              perPage: historyPerPage,
+              onPageChange: setHistoryPage,
+              onPerPageChange: (value) => {
+                setHistoryPerPage(value);
+                setHistoryPage(1);
+              },
+            }}
+          />
         </SectionCard>
       </div>
 

@@ -251,7 +251,7 @@ export function Sidebar({
               )}
 
               {hasChildren && !collapsed && openItem === item.label ? (
-                <div className="ml-4 space-y-1 border-l border-slate-200 pl-3">
+                <div className="space-y-1">
                   {item.children!.map((child) => {
                     const childIsActive = nodeHasActiveDescendant(child, activeLabel);
                     const nestedChildren = Array.isArray(child.children) && child.children.length > 0;
@@ -260,7 +260,7 @@ export function Sidebar({
                         {child.path ? (
                           <NavLink
                             className={[
-                              "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                              "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
                               childIsActive
                                 ? "bg-brand-900/10 text-brand-900"
                                 : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
@@ -276,7 +276,7 @@ export function Sidebar({
                             <button
                               onClick={() => child.key && toggleGroup(child.key)}
                               className={cn(
-                                "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-[0.65rem] font-bold uppercase tracking-[0.16em] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                "flex w-full items-center justify-between rounded-md px-3 py-1.5 text-xs font-bold uppercase tracking-[0.16em] transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
                                 "text-slate-400 hover:text-slate-600 hover:bg-slate-100",
                               )}
                             >
@@ -289,26 +289,26 @@ export function Sidebar({
                               )}
                             </button>
                             {child.key && openGroups.has(child.key) && nestedChildren && (
-                              <div className="ml-2 space-y-1 border-l border-slate-100 pl-2">
+                              <div className="space-y-1">
                                 {child.children!.map((grandChild) => {
-                                  const grandChildIsActive = nodeHasActiveDescendant(grandChild, activeLabel);
-                                  return grandChild.path ? (
-                                    <NavLink
-                                      key={`${item.label}-${nodeKey(child)}-${nodeKey(grandChild)}`}
-                                      className={[
-                                        "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
-                                        grandChildIsActive
-                                          ? "bg-brand-900/10 text-brand-900"
-                                          : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
-                                      ].join(" ")}
-                                      to={grandChild.path}
-                                      aria-current={grandChildIsActive ? "page" : undefined}
-                                    >
-                                      <Icon name={grandChild.icon || child.icon || item.icon} className="text-[14px]" />
-                                      <span className="flex-1">{grandChild.label}</span>
-                                    </NavLink>
-                                  ) : null;
-                                })}
+                                    const grandChildIsActive = nodeHasActiveDescendant(grandChild, activeLabel);
+                                    return grandChild.path ? (
+                                      <NavLink
+                                        key={`${item.label}-${nodeKey(child)}-${nodeKey(grandChild)}`}
+                                        className={[
+                                          "flex w-full items-center gap-2 rounded-md px-3 py-2 text-left text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10",
+                                          grandChildIsActive
+                                            ? "bg-brand-900/10 text-brand-900"
+                                            : "text-slate-500 hover:bg-slate-100 hover:text-slate-700",
+                                        ].join(" ")}
+                                        to={grandChild.path}
+                                        aria-current={grandChildIsActive ? "page" : undefined}
+                                      >
+                                        <Icon name={grandChild.icon || child.icon || item.icon} className="text-[14px]" />
+                                        <span className="flex-1">{grandChild.label}</span>
+                                      </NavLink>
+                                    ) : null;
+                                  })}
                               </div>
                             )}
                           </>
