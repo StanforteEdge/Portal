@@ -135,7 +135,7 @@ export default function LeavePage() {
         name: userDisplayName(user),
         role: roleLabel(user?.roles?.[0] || "staff"),
       }}
-      mobileNav={buildAppMobileNav("Leave")}
+      mobileNav={buildAppMobileNav("Profile")}
     >
       <div className="space-y-6">
         <PageHeader

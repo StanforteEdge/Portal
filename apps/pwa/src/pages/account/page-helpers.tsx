@@ -3,10 +3,7 @@ import { PageHeader, type BreadcrumbItem } from "@/shared";
 import { roleLabel, userDisplayName } from "@stanforte/shared";
 import { AppShell } from "@/shared/components/layout/AppShell";
 import { useAuth } from "@/shared/context/AuthProvider";
-import {
-  buildRequestsNavigation,
-  requestsMobileNav,
-} from "@/pages/requests/requests-data";
+import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 
 export function AccountShellPage({
   activeLabel,
@@ -27,13 +24,13 @@ export function AccountShellPage({
 
   return (
     <AppShell
-      navigation={buildRequestsNavigation()}
+      navigation={buildAppNavigation()}
       activeLabel={activeLabel}
       user={{
         name: userDisplayName(user),
         role: roleLabel(user?.roles?.[0] || "staff"),
       }}
-      mobileNav={requestsMobileNav}
+      mobileNav={buildAppMobileNav("Profile")}
     >
       <div className="hidden lg:block">
         <PageHeader

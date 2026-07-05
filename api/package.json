@@ -14,6 +14,7 @@
     "seed:version": "node scripts/seed-version.js",
     "seed:first-user": "node scripts/seed-first-user.js",
     "seed:finance-requests": "node scripts/seed-finance-requests.js",
+    "seed:procurement-requests": "node scripts/seed-procurement-requests.js",
     "seed:documents": "node scripts/seed-documents.js",
     "seed:hr-onboarding-forms": "node scripts/seed-hr-onboarding.js",
     "seed:hr-leave-system": "node scripts/seed-hr-leave-system.js",

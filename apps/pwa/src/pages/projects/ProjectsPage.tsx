@@ -48,17 +48,17 @@ export default function ProjectsPage() {
   return (
     <AppShell
       navigation={buildAppNavigation()}
-      activeLabel="projects"
+      activeLabel="workspace-projects"
       user={{
         name: userName,
         role: profile?.employee_profile?.job_title || "Staff",
       }}
-      mobileNav={buildAppMobileNav("Dashboard")}
+      mobileNav={buildAppMobileNav("Workspace")}
     >
       <PageHeader
-        breadcrumbs={[{ label: "Projects" }]}
-        title="My Projects"
-        description="View and manage your project assignments."
+        breadcrumbs={[{ label: "Workspace" }, { label: "Projects" }]}
+        title="Projects"
+        description="Discover projects across the organization and open the ones relevant to your work."
       />
 
       <div className="space-y-6">
@@ -82,9 +82,9 @@ export default function ProjectsPage() {
         </div>
 
         {/* Projects List */}
-        <SectionCard
+          <SectionCard
           title="All Projects"
-          description="Projects you are assigned to or own."
+          description="Browse project workspaces across the organization."
         >
           {projectsLoading ? (
             <div className="rounded-2xl bg-slate-50 px-4 py-6 text-sm text-slate-500">
