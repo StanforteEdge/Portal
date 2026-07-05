@@ -189,6 +189,65 @@ export class WorkflowService {
     });
   }
 
+  async startForEntity(params: {
+    entityId: string;
+    entityType: string;
+    approvalFlowJson: any;
+    initiatedBy: string;
+    amount?: number | null;
+    name?: string;
+  }) {
+    const baseSteps = this.extractApprovalSteps(params.approvalFlowJson, params.amount ?? undefined);
+    if (baseSteps.length === 0) {
+      return { instanceId: null, workflowStatus: 'none' as const };
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const workflow = await tx.workflow.create({
+        data: {
+          name: params.name ?? `${params.entityType} workflow`,
+          entityType: params.entityType,
+          isActive: true,
+          createdBy: toBigInt(params.initiatedBy),
+          updatedBy: toBigInt(params.initiatedBy),
+          config: {},
+        },
+      });
+
+      const workflowSteps = await Promise.all(
+        baseSteps.map((step, index) => {
+          const approver = normalizeWorkflowStepApprover(step);
+          return tx.workflowStep.create({
+            data: {
+              workflowId: workflow.id,
+              name: getWorkflowApproverLabel(approver.approverType, approver.approverId) || `Step ${index + 1}`,
+              stepType: 'approval',
+              order: index + 1,
+              isInitial: index === 0,
+              isFinal: index === baseSteps.length - 1,
+              config: step as any,
+              createdBy: toBigInt(params.initiatedBy),
+              updatedBy: toBigInt(params.initiatedBy),
+            },
+          });
+        }),
+      );
+
+      const instance = await tx.workflowInstance.create({
+        data: {
+          workflowId: workflow.id,
+          entityType: params.entityType,
+          entityId: params.entityId,
+          currentStepId: workflowSteps[0].id,
+          status: 'pending',
+          initiatedBy: toBigInt(params.initiatedBy),
+        },
+      });
+
+      return { instanceId: instance.id, workflowStatus: 'pending' as const };
+    });
+  }
+
   async processDecision(params: {
     instanceId: string;
     action: 'approve' | 'reject';
@@ -315,7 +374,8 @@ export class WorkflowService {
           instanceId,
           action: 'cancel',
           performedBy: toBigInt(performedBy),
-          comment: reason
+          comment: reason,
+          fromStepId: instance.currentStepId
         }
       });
 

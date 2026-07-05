@@ -1,0 +1,125 @@
+import { useEffect, useState } from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { procurementApi } from "@/shared/lib/core";
+import { formatCurrency } from "@stanforte/shared";
+import { Button, SectionCard } from '@/shared';
+
+export default function PrDetail() {
+  const { id } = useParams<{ id: string }>();
+  const [pr, setPr] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (id) {
+      procurementApi.getPr(id)
+        .then(setPr)
+        .finally(() => setLoading(false));
+    }
+  }, [id]);
+
+  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
+  if (!pr) return <div className="p-12 text-center text-slate-500">Requisition not found</div>;
+
+  const statusColor: Record<string, string> = {
+    draft: 'bg-slate-100 text-slate-700 border-slate-200',
+    submitted: 'bg-blue-100 text-blue-700 border-blue-200',
+    approved: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    rejected: 'bg-rose-100 text-rose-700 border-rose-200',
+    returned: 'bg-amber-100 text-amber-700 border-amber-200',
+    converted_to_po: 'bg-violet-100 text-violet-700 border-violet-200',
+  };
+
+  return (
+    <div className="p-6 max-w-5xl mx-auto space-y-6">
+      <div className="flex items-center gap-3">
+        <Link to="/procurement" className="text-slate-400 hover:text-slate-600 transition-colors">
+          <span className="material-symbols-outlined">arrow_back</span>
+        </Link>
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">{pr.title}</h1>
+          <p className="text-sm text-slate-500">{pr.requisitionNumber} · Raised by {pr.requester?.firstName} {pr.requester?.lastName}</p>
+        </div>
+        <div className="ml-auto">
+          <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-sm font-semibold border ${statusColor[pr.status] ?? ''}`}>
+            {pr.status.replace(/_/g, ' ')}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-3">
+        <div className="md:col-span-2 space-y-6">
+          <SectionCard title="Items Requested" description="List of items in this purchase requisition">
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm text-slate-600">
+                <thead>
+                  <tr className="border-b border-slate-100 text-slate-400 text-xs font-semibold uppercase">
+                    <th className="text-left pb-3">Description</th>
+                    <th className="text-center pb-3">Qty</th>
+                    <th className="text-center pb-3">Unit</th>
+                    <th className="text-right pb-3">Est. Unit Cost</th>
+                    <th className="text-right pb-3">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {pr.items?.map((it: any, i: number) => (
+                    <tr key={i}>
+                      <td className="py-3 font-medium text-slate-900">{it.description}</td>
+                      <td className="py-3 text-center">{it.qty}</td>
+                      <td className="py-3 text-center capitalize">{it.unit}</td>
+                      <td className="py-3 text-right">{formatCurrency(it.estimatedUnitCost)}</td>
+                      <td className="py-3 text-right font-semibold text-slate-900">{formatCurrency(it.qty * it.estimatedUnitCost)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div className="flex justify-end pt-4 border-t border-slate-100">
+                <div className="text-right">
+                  <span className="text-xs text-slate-400 font-semibold uppercase">Estimated Total</span>
+                  <div className="text-xl font-bold text-slate-900">{formatCurrency(Number(pr.estimatedTotal))}</div>
+                </div>
+              </div>
+            </div>
+          </SectionCard>
+
+          {pr.justification && (
+            <SectionCard title="Justification" description="Reason for request">
+              <p className="text-sm text-slate-600 leading-relaxed">{pr.justification}</p>
+            </SectionCard>
+          )}
+        </div>
+
+        <div className="space-y-6">
+          <SectionCard title="Details" description="Summary attributes">
+            <div className="space-y-4 text-sm">
+              <div>
+                <span className="text-xs text-slate-400 font-semibold uppercase block">Category</span>
+                <span className="font-semibold text-slate-900 capitalize">{pr.category}</span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-400 font-semibold uppercase block">Payment Pattern</span>
+                <span className="font-semibold text-slate-900 capitalize">{pr.paymentPattern.replace(/_/g, ' ')}</span>
+              </div>
+              <div>
+                <span className="text-xs text-slate-400 font-semibold uppercase block">Date Raised</span>
+                <span className="font-semibold text-slate-900">{new Date(pr.createdAt).toLocaleDateString()}</span>
+              </div>
+            </div>
+          </SectionCard>
+
+          {pr.status === 'approved' && (
+            <div className="bg-brand-900 p-5 rounded-2xl text-white space-y-3">
+              <h3 className="font-bold text-sm uppercase tracking-wider text-white/80">Procurement Action</h3>
+              <p className="text-xs text-white/70 leading-relaxed">This requisition is approved. You can now generate a Purchase Order to send to the vendor.</p>
+              <Link
+                to={`/procurement/orders/create?prId=${pr.id}`}
+                className="w-full inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-brand-900 shadow-sm hover:bg-slate-50 transition-colors"
+              >
+                Generate PO
+              </Link>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

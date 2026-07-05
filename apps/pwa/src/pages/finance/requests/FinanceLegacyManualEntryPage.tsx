@@ -596,7 +596,7 @@ function FinanceManualEntryPage() {
       file_ids: item.file_ids.length ? item.file_ids.map((f: FileRef) => f.id) : undefined,
     })),
     disbursements: (input.disbursements || [])
-      .filter((entry) => entry.voucher_number && Number(entry.amount) > 0)
+      .filter((entry) => Number(entry.amount) > 0)
       .map((entry) => {
         const deductions = (entry.deductions || []).filter((d) => d.deduction_type_id && d.deduction_amount > 0);
         const pvNet = Number(entry.amount);
