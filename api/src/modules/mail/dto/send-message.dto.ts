@@ -4,7 +4,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 export class SendMessageDto {
   @ApiProperty()
   @IsEmail()
-  to: string;
+  to!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -13,11 +13,11 @@ export class SendMessageDto {
 
   @ApiProperty()
   @IsString()
-  subject: string;
+  subject!: string;
 
   @ApiProperty({ description: 'HTML body content' })
   @IsString()
-  body: string;
+  body!: string;
 
   @ApiPropertyOptional()
   @IsOptional()
