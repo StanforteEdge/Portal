@@ -30,10 +30,7 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const apiRoot = useMemo(() => {
-    const base = (import.meta.env.VITE_API_BASE_URL as string) || 'http://localhost:3000/v1';
-    return base.replace(/\/v\d+\/?$/, '');
-  }, []);
+  const apiBase = (import.meta.env.VITE_API_BASE_URL as string)?.replace(/\/$/, '') || 'http://localhost:3000/v1';
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -203,7 +200,7 @@ export default function LoginPage() {
               </div>
 
               <a
-                href={`${apiRoot}/api/auth/google`}
+                href={`${apiBase}/auth/google`}
                 className="flex w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
               >
                 <GoogleIcon />
@@ -366,7 +363,7 @@ export default function LoginPage() {
               </div>
 
               <a
-                href={`${apiRoot}/api/auth/google`}
+                href={`${apiBase}/auth/google`}
                 className="flex h-14 w-full items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
               >
                 <GoogleIcon />
