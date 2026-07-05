@@ -4,9 +4,9 @@ import { ApiProperty } from '@nestjs/swagger';
 export class OAuthCallbackDto {
   @ApiProperty()
   @IsString()
-  code: string;
+  code!: string;
 
   @ApiProperty()
   @IsString()
-  state: string;
+  state!: string;
 }

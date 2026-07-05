@@ -32,12 +32,12 @@ export default function TasksPage() {
   return (
     <AppShell
       navigation={buildAppNavigation()}
-      activeLabel="My Tasks"
+      activeLabel="my-tasks"
       user={{
         name: userName,
         role: "Staff",
       }}
-      mobileNav={buildAppMobileNav("Requests")}
+      mobileNav={buildAppMobileNav("Tasks")}
     >
       <PageHeader title="My Tasks" />
 

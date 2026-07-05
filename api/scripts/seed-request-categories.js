@@ -43,6 +43,13 @@ const categories = [
     description: 'Staff Loans & Salary Advances',
     sortOrder: 30,
   },
+  {
+    code: 'PROCUREMENT',
+    name: 'Procurement',
+    groupCode: 'FIN',
+    description: 'Procurement-related requests for goods, services, and works',
+    sortOrder: 40,
+  },
 ];
 
 async function main() {

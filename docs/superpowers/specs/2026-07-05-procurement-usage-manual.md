@@ -30,7 +30,7 @@ This manual explains how staff, approvers, procurement officers, finance, and ve
 ### Raise a Procurement Request
 
 1. Open `Requests`.
-2. Choose `New Procurement Request`.
+2. Choose a procurement request type such as `Goods Purchase`, `Service Procurement`, or `Works Request`.
 3. Enter the purchase purpose and category.
 4. Select the team/project and budget line where applicable.
 5. Add item lines, specifications, and attachments.
@@ -74,7 +74,7 @@ Review requests that cross threshold or exception rules.
 
 ### Intake Queue
 
-1. Open `Procurement -> Intake`.
+1. Open `Administration -> Procurement -> Intake`.
 2. Review approved procurement requests waiting for action.
 3. Open the request details and supporting documents.
 4. If ready, click `Create Procurement Case`.
