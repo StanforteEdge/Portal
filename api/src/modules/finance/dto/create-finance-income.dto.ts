@@ -55,4 +55,14 @@ export class CreateFinanceIncomeDto {
   @IsOptional()
   @IsUUID()
   file_id?: string;
+
+  @ApiPropertyOptional({ example: 'f3e8b369-0eca-454f-a8f8-46b780bc6264' })
+  @IsOptional()
+  @IsUUID()
+  pledge_id?: string;
+
+  @ApiPropertyOptional({ example: 'f3e8b369-0eca-454f-a8f8-46b780bc6264' })
+  @IsOptional()
+  @IsUUID()
+  donor_id?: string;
 }

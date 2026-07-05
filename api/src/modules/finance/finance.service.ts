@@ -28,6 +28,7 @@ import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
 import { UpsertFinanceItemDto } from './dto/upsert-finance-item.dto';
 import { CreateFinanceExpenseDto } from './dto/create-finance-expense.dto';
 import { MailService } from '../../common/mail/mail.service';
+import { PdfService } from '../../common/pdf/pdf.service';
 import { PDFDocument, StandardFonts } from 'pdf-lib';
 
 @Injectable()
@@ -38,7 +39,8 @@ export class FinanceService {
     private readonly prisma: PrismaService,
     private readonly notificationsService: NotificationsService,
     private readonly mailService: MailService,
-    private readonly payrollService: PayrollService
+    private readonly payrollService: PayrollService,
+    private readonly pdfService: PdfService
   ) {}
 
   async summary(query: Record<string, any>) {
@@ -1961,6 +1963,7 @@ export class FinanceService {
         payer: dto.payer?.trim() || null,
         notes: dto.notes?.trim() || null,
         fileId: dto.file_id ?? null,
+        pledgeId: dto.pledge_id ?? null,
         createdBy: actorId ? toBigInt(actorId) : null
       }
     });
@@ -1992,6 +1995,16 @@ export class FinanceService {
           deferredAmount: { decrement: dto.amount }
         }
       }).catch(() => null);
+    }
+
+    if (dto.pledge_id) {
+      const pledge = await this.prisma.financePledge.findUnique({
+        where: { id: dto.pledge_id },
+        select: { amount: true }
+      });
+      if (pledge) {
+        await this.recomputePledgeStatus(dto.pledge_id, Number(pledge.amount), this.prisma);
+      }
     }
 
     return {
@@ -7316,12 +7329,221 @@ export class FinanceService {
     return pledge;
   }
 
-  async generatePledgeAcknowledgmentPdf(_id: string): Promise<{ file_name: string; mime_type: string; content_base64: string }> {
-    throw new Error('Not implemented yet — will be added in Task 5');
+  private pdfEsc(s: string | null | undefined): string {
+    return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  async generateFunderReceiptPdf(_id: string): Promise<{ file_name: string; mime_type: string; content_base64: string }> {
-    throw new Error('Not implemented yet — will be added in Task 5');
+  private pdfFmtDate(d: Date | string | null | undefined): string {
+    if (!d) return '—';
+    return new Date(d).toLocaleDateString('en-NG', { day: '2-digit', month: 'long', year: 'numeric' });
+  }
+
+  private async pdfFetchOrgSettings(): Promise<{ org_name: string; prepared_by: string; prepared_title: string }> {
+    const row = await this.prisma.financeSetting.findUnique({ where: { key: 'default' }, select: { config: true } });
+    const cfg: any = (row?.config && typeof row.config === 'object' && !Array.isArray(row.config)) ? row.config : {};
+    return {
+      org_name: cfg?.org_name ?? cfg?.organization_name ?? 'The Organisation',
+      prepared_by: cfg?.prepared_by?.name ?? '',
+      prepared_title: cfg?.prepared_by?.title ?? 'Accountant',
+    };
+  }
+
+  private pdfDocStyle(): string {
+    return `
+      @page { size: A4; margin: 14mm; }
+      body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
+      h1 { font-size: 18px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 4px; }
+      .subtitle { text-align: center; font-size: 11px; color: #475569; margin: 0 0 16px; }
+      .ref-badge { display: inline-block; background: #0f172a; color: #fff; font-size: 14px; font-weight: 700; padding: 4px 14px; border-radius: 4px; letter-spacing: 1px; margin-bottom: 16px; }
+      .section { margin-bottom: 16px; }
+      .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 1px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; }
+      table.fields { width: 100%; border-collapse: collapse; }
+      table.fields td { padding: 6px 8px; vertical-align: top; }
+      table.fields td:first-child { width: 38%; font-weight: 600; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; }
+      table.fields td:last-child { border: 1px solid #e2e8f0; }
+      .amount-box { background: #f0fdf4; border: 2px solid #16a34a; border-radius: 6px; padding: 10px 14px; margin: 16px 0; text-align: center; }
+      .amount-box .label { font-size: 10px; text-transform: uppercase; color: #15803d; font-weight: 600; }
+      .amount-box .value { font-size: 22px; font-weight: 700; color: #15803d; }
+      .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #64748b; text-align: center; }
+      .sig-box { border-top: 1px solid #111; padding-top: 6px; font-size: 10px; margin-top: 28px; }
+    `;
+  }
+
+  private pdfNumberToWords(n: number): string {
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine',
+      'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const chunk = (num: number): string => {
+      if (num === 0) return '';
+      if (num < 20) return ones[num] + ' ';
+      if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '') + ' ';
+      return ones[Math.floor(num / 100)] + ' Hundred ' + chunk(num % 100);
+    };
+    const int = Math.floor(Math.abs(n));
+    const dec = Math.round((Math.abs(n) - int) * 100);
+    if (int === 0) return 'Zero';
+    let result = '';
+    if (int >= 1_000_000_000) { result += chunk(Math.floor(int / 1_000_000_000)) + 'Billion '; }
+    if (int >= 1_000_000) { result += chunk(Math.floor((int % 1_000_000_000) / 1_000_000)) + 'Million '; }
+    if (int >= 1_000) { result += chunk(Math.floor((int % 1_000_000) / 1_000)) + 'Thousand '; }
+    result += chunk(int % 1_000);
+    result = result.trim();
+    if (dec > 0) result += ` and ${dec}/100`;
+    return result;
+  }
+
+  async generatePledgeAcknowledgmentPdf(id: string): Promise<{ file_name: string; mime_type: string; content_base64: string }> {
+    const pledge = await this.prisma.financePledge.findUnique({
+      where: { id },
+      include: {
+        donor: { select: { name: true, email: true, phone: true, address: true } },
+        grant: { select: { name: true, code: true } },
+        fund: { select: { name: true, code: true } },
+      },
+    });
+    if (!pledge) throw new NotFoundException(`Pledge ${id} not found`);
+    const org = await this.pdfFetchOrgSettings();
+    const amount = Number(pledge.amount);
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${this.pdfDocStyle()}</style></head><body>
+<h1>${this.pdfEsc(org.org_name)}</h1>
+<p class="subtitle">Pledge Acknowledgment Letter</p>
+<div style="text-align:center;"><span class="ref-badge">${this.pdfEsc(pledge.pledgeNumber)}</span></div>
+
+<div class="section">
+  <div class="section-title">Donor Information</div>
+  <table class="fields">
+    <tr><td>Donor Name</td><td><strong>${this.pdfEsc(pledge.donor.name)}</strong></td></tr>
+    ${pledge.donor.email ? `<tr><td>Email</td><td>${this.pdfEsc(pledge.donor.email)}</td></tr>` : ''}
+    ${pledge.donor.phone ? `<tr><td>Phone</td><td>${this.pdfEsc(pledge.donor.phone)}</td></tr>` : ''}
+    ${pledge.donor.address ? `<tr><td>Address</td><td>${this.pdfEsc(pledge.donor.address)}</td></tr>` : ''}
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-title">Pledge Details</div>
+  <table class="fields">
+    <tr><td>Pledge Number</td><td>${this.pdfEsc(pledge.pledgeNumber)}</td></tr>
+    <tr><td>Pledge Date</td><td>${this.pdfFmtDate(pledge.pledgedAt)}</td></tr>
+    ${pledge.expectedAt ? `<tr><td>Expected By</td><td>${this.pdfFmtDate(pledge.expectedAt)}</td></tr>` : ''}
+    <tr><td>Status</td><td style="text-transform:capitalize;">${this.pdfEsc(pledge.status)}</td></tr>
+    ${pledge.grant ? `<tr><td>Grant</td><td>${this.pdfEsc(pledge.grant.name)} (${this.pdfEsc(pledge.grant.code)})</td></tr>` : ''}
+    ${pledge.fund ? `<tr><td>Fund</td><td>${this.pdfEsc(pledge.fund.name)} (${this.pdfEsc(pledge.fund.code)})</td></tr>` : ''}
+    ${pledge.purpose ? `<tr><td>Purpose</td><td>${this.pdfEsc(pledge.purpose)}</td></tr>` : ''}
+  </table>
+</div>
+
+<div class="amount-box">
+  <div class="label">Pledged Amount</div>
+  <div class="value">${this.pdfEsc(pledge.currency)} ${amount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</div>
+  <div style="font-size:10px;color:#15803d;margin-top:4px;">${this.pdfNumberToWords(amount)} ${this.pdfEsc(pledge.currency)} Only</div>
+</div>
+
+<p style="font-size:11px;line-height:1.6;">
+  We hereby acknowledge receipt of the above pledge commitment from <strong>${this.pdfEsc(pledge.donor.name)}</strong>.
+  This letter serves as confirmation of your pledge and will be updated upon receipt of funds.
+  We deeply appreciate your generous support.
+</p>
+
+${pledge.notes ? `<div class="section"><div class="section-title">Notes</div><p style="margin:0;font-size:11px;">${this.pdfEsc(pledge.notes)}</p></div>` : ''}
+
+<div class="sig-box">
+  ${org.prepared_by ? this.pdfEsc(org.prepared_by) : '____________________'}<br/>
+  ${this.pdfEsc(org.prepared_title)}<br/>
+  Date: ${this.pdfFmtDate(new Date())}
+</div>
+<div class="footer">Acknowledged on ${this.pdfFmtDate(new Date())} — Pledge Ref: ${this.pdfEsc(pledge.pledgeNumber)}</div>
+</body></html>`;
+
+    const buffer = await this.pdfService.renderPdfFromHtml(html);
+    const fileName = `Pledge-Acknowledgment-${pledge.pledgeNumber.replace(/\//g, '-')}.pdf`;
+    return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
+  }
+
+  async generateFunderReceiptPdf(id: string): Promise<{ file_name: string; mime_type: string; content_base64: string }> {
+    const entry = await this.prisma.financeIncomeEntry.findUnique({
+      where: { id },
+      include: {
+        pledge: {
+          include: {
+            donor: { select: { name: true, email: true, phone: true, address: true } },
+            grant: { select: { name: true, code: true } },
+            fund: { select: { name: true, code: true } },
+          },
+        },
+        account: { select: { name: true } },
+      },
+    });
+    if (!entry) throw new NotFoundException(`Income entry ${id} not found`);
+
+    let receiptNumber = entry.receiptNumber;
+    if (!receiptNumber) {
+      receiptNumber = await this.nextDocumentSequenceValue('FRC', entry.receivedAt, 'funder_receipt');
+      await this.prisma.financeIncomeEntry.update({
+        where: { id },
+        data: { receiptNumber },
+      });
+    }
+
+    const org = await this.pdfFetchOrgSettings();
+    const amount = Number(entry.amount);
+    const donorName = entry.pledge?.donor.name ?? entry.payer ?? 'Unknown Donor';
+    const donorEmail = entry.pledge?.donor.email;
+    const donorPhone = entry.pledge?.donor.phone;
+    const donorAddress = entry.pledge?.donor.address;
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8"/><style>${this.pdfDocStyle()}</style></head><body>
+<h1>${this.pdfEsc(org.org_name)}</h1>
+<p class="subtitle">Official Funder Receipt</p>
+<div style="text-align:center;"><span class="ref-badge">${this.pdfEsc(receiptNumber)}</span></div>
+
+<div class="section">
+  <div class="section-title">Received From</div>
+  <table class="fields">
+    <tr><td>Donor / Payer</td><td><strong>${this.pdfEsc(donorName)}</strong></td></tr>
+    ${donorEmail ? `<tr><td>Email</td><td>${this.pdfEsc(donorEmail)}</td></tr>` : ''}
+    ${donorPhone ? `<tr><td>Phone</td><td>${this.pdfEsc(donorPhone)}</td></tr>` : ''}
+    ${donorAddress ? `<tr><td>Address</td><td>${this.pdfEsc(donorAddress)}</td></tr>` : ''}
+  </table>
+</div>
+
+<div class="section">
+  <div class="section-title">Payment Details</div>
+  <table class="fields">
+    <tr><td>Receipt Number</td><td>${this.pdfEsc(receiptNumber)}</td></tr>
+    <tr><td>Date Received</td><td>${this.pdfFmtDate(entry.receivedAt)}</td></tr>
+    <tr><td>Deposited To</td><td>${this.pdfEsc(entry.account.name)}</td></tr>
+    ${entry.reference ? `<tr><td>Reference</td><td>${this.pdfEsc(entry.reference)}</td></tr>` : ''}
+    ${entry.pledge ? `<tr><td>Pledge Ref</td><td>${this.pdfEsc(entry.pledge.pledgeNumber)}</td></tr>` : ''}
+    ${entry.pledge?.grant ? `<tr><td>Grant</td><td>${this.pdfEsc(entry.pledge.grant.name)} (${this.pdfEsc(entry.pledge.grant.code)})</td></tr>` : ''}
+    ${entry.pledge?.fund ? `<tr><td>Fund</td><td>${this.pdfEsc(entry.pledge.fund.name)} (${this.pdfEsc(entry.pledge.fund.code)})</td></tr>` : ''}
+  </table>
+</div>
+
+<div class="amount-box">
+  <div class="label">Amount Received</div>
+  <div class="value">${this.pdfEsc(entry.currency)} ${amount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}</div>
+  <div style="font-size:10px;color:#15803d;margin-top:4px;">${this.pdfNumberToWords(amount)} ${this.pdfEsc(entry.currency)} Only</div>
+</div>
+
+<p style="font-size:11px;line-height:1.6;">
+  This receipt confirms that <strong>${this.pdfEsc(org.org_name)}</strong> has received the above amount from
+  <strong>${this.pdfEsc(donorName)}</strong> on ${this.pdfFmtDate(entry.receivedAt)}.
+  Please retain this receipt for your records.
+</p>
+
+${entry.notes ? `<div class="section"><div class="section-title">Notes</div><p style="margin:0;font-size:11px;">${this.pdfEsc(entry.notes)}</p></div>` : ''}
+
+<div class="sig-box">
+  ${org.prepared_by ? this.pdfEsc(org.prepared_by) : '____________________'}<br/>
+  ${this.pdfEsc(org.prepared_title)}<br/>
+  Date: ${this.pdfFmtDate(new Date())}
+</div>
+<div class="footer">This receipt was issued on ${this.pdfFmtDate(new Date())} — Receipt No: ${this.pdfEsc(receiptNumber)}</div>
+</body></html>`;
+
+    const buffer = await this.pdfService.renderPdfFromHtml(html);
+    const fileName = `Funder-Receipt-${receiptNumber.replace(/\//g, '-')}.pdf`;
+    return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
   }
 
   private async recomputePledgeStatus(pledgeId: string, pledgedAmount: number, tx: any) {

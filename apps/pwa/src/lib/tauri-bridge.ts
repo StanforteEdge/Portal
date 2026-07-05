@@ -1,5 +1,5 @@
 // Thin wrapper around Tauri APIs. All functions no-op when running in browser.
-const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+export const IS_TAURI = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
 export async function setBadgeCount(count: number): Promise<void> {
   if (!IS_TAURI) return;
@@ -28,19 +28,40 @@ export async function sendNativeNotification(
   sendNotification({ title, body });
 }
 
-export async function checkForUpdates(): Promise<void> {
-  if (!IS_TAURI) return;
+export type TauriUpdateInfo = {
+  available: boolean;
+  version?: string;
+  body?: string;
+  downloadAndInstall: () => Promise<void>;
+} | null;
+
+export async function checkTauriUpdate(): Promise<TauriUpdateInfo> {
+  if (!IS_TAURI) return null;
   const { check } = await import("@tauri-apps/plugin-updater");
   const update = await check();
-  if (!update?.available) {
+  if (!update) return { available: false, downloadAndInstall: async () => {} };
+  return {
+    available: update.available,
+    version: update.version,
+    body: update.body,
+    downloadAndInstall: async () => {
+      await update.downloadAndInstall();
+    }
+  };
+}
+
+export async function checkForUpdates(): Promise<void> {
+  if (!IS_TAURI) return;
+  const info = await checkTauriUpdate();
+  if (!info || !info.available) {
     alert("You're on the latest version.");
     return;
   }
   const confirmed = window.confirm(
-    `Update ${update.version} is available.\n\n${update.body ?? ""}\n\nInstall now?`
+    `Update ${info.version} is available.\n\n${info.body ?? ""}\n\nInstall now?`
   );
   if (confirmed) {
-    await update.downloadAndInstall();
+    await info.downloadAndInstall();
   }
 }
 

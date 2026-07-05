@@ -3607,3 +3607,18 @@ model VendorPortalUser {
   @@index([vendorId])
   @@map("sta_vendor_portal_users")
 }
+
+model SystemVersion {
+  id           String   @id @default(uuid()) @db.Uuid
+  platform     String   @db.VarChar(50)
+  module       String   @db.VarChar(50)
+  version      String   @db.VarChar(50)
+  minVersion   String   @map("min_version") @db.VarChar(50)
+  forceUpdate  Boolean  @default(false) @map("force_update")
+  releaseNotes Json?    @map("release_notes")
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@unique([platform, module])
+  @@map("sta_system_versions")
+}

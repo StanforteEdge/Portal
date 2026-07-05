@@ -3,11 +3,16 @@ import { useParams, Link } from 'react-router-dom';
 import { procurementApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { SectionCard } from '@/shared';
+import { AppShell } from '@/shared/components/layout/AppShell';
+import { buildAppNavigation, buildAppMobileNav } from '@/shared/navigation';
+import { useAuth } from '@/shared/context/AuthProvider';
 
 export default function PrDetail() {
+  const { user } = useAuth();
   const { id } = useParams<{ id: string }>();
   const [pr, setPr] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const userName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email || 'Procurement';
 
   useEffect(() => {
     if (id) {
@@ -17,8 +22,16 @@ export default function PrDetail() {
     }
   }, [id]);
 
-  if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
-  if (!pr) return <div className="p-12 text-center text-slate-500">Requisition not found</div>;
+  if (loading) return (
+    <AppShell navigation={buildAppNavigation()} activeLabel="procurement-intake" user={{ name: userName, role: 'Procurement' }} mobileNav={buildAppMobileNav('Dashboard')}>
+      <div className="p-12 text-center text-slate-500">Loading...</div>
+    </AppShell>
+  );
+  if (!pr) return (
+    <AppShell navigation={buildAppNavigation()} activeLabel="procurement-intake" user={{ name: userName, role: 'Procurement' }} mobileNav={buildAppMobileNav('Dashboard')}>
+      <div className="p-12 text-center text-slate-500">Requisition not found</div>
+    </AppShell>
+  );
 
   const linkedCase = pr.procurementCase;
   const linkedRequest = linkedCase?.request;
@@ -34,8 +47,9 @@ export default function PrDetail() {
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
-      <div className="flex items-center gap-3">
+    <AppShell navigation={buildAppNavigation()} activeLabel="procurement-intake" user={{ name: userName, role: 'Procurement' }} mobileNav={buildAppMobileNav('Dashboard')}>
+      <div className="p-6 max-w-5xl mx-auto space-y-6">
+        <div className="flex items-center gap-3">
         <Link to="/procurement" className="text-slate-400 hover:text-slate-600 transition-colors">
           <span className="material-symbols-outlined">arrow_back</span>
         </Link>
@@ -50,7 +64,7 @@ export default function PrDetail() {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-3">
+        <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
           <SectionCard title="Request Handoff" description="How this requisition entered procurement.">
             {linkedCase ? (
@@ -144,7 +158,8 @@ export default function PrDetail() {
             </div>
           )}
         </div>
+        </div>
       </div>
-    </div>
+    </AppShell>
   );
 }

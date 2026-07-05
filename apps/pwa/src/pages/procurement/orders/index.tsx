@@ -3,10 +3,15 @@ import { Link } from 'react-router-dom';
 import { procurementApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { SectionCard } from '@/shared';
+import { AppShell } from '@/shared/components/layout/AppShell';
+import { buildAppNavigation, buildAppMobileNav } from '@/shared/navigation';
+import { useAuth } from '@/shared/context/AuthProvider';
 
 export default function PoIndex() {
+  const { user } = useAuth();
   const [pos, setPos] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const userName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email || 'Procurement';
 
   useEffect(() => {
     procurementApi.listPos()
@@ -24,11 +29,12 @@ export default function PoIndex() {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Purchase Orders</h1>
-        <p className="text-sm text-slate-500">Generate, track, and manage purchase orders issued to vendors.</p>
-      </div>
+    <AppShell navigation={buildAppNavigation()} activeLabel="procurement-orders" user={{ name: userName, role: 'Procurement' }} mobileNav={buildAppMobileNav('Dashboard')}>
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Purchase Orders</h1>
+          <p className="text-sm text-slate-500">Generate, track, and manage purchase orders issued to vendors.</p>
+        </div>
 
       <SectionCard title="All Purchase Orders" description="Overview of generated POs and acknowledgement status">
         {loading ? (
@@ -79,7 +85,8 @@ export default function PoIndex() {
             </table>
           </div>
         )}
-      </SectionCard>
-    </div>
+        </SectionCard>
+      </div>
+    </AppShell>
   );
 }

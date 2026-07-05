@@ -3,8 +3,12 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { procurementApi, financeApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { Button, SectionCard } from '@/shared';
+import { AppShell } from '@/shared/components/layout/AppShell';
+import { buildAppNavigation, buildAppMobileNav } from '@/shared/navigation';
+import { useAuth } from '@/shared/context/AuthProvider';
 
 export default function CreatePo() {
+  const { user } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const prId = searchParams.get('prId') || '';
@@ -18,6 +22,7 @@ export default function CreatePo() {
   const [deliveryDate, setDeliveryDate] = useState('');
   const [deliveryAddress, setDeliveryAddress] = useState('');
   const [saving, setSaving] = useState(false);
+  const userName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email || 'Procurement';
 
   useEffect(() => {
     if (prId) {
@@ -80,14 +85,19 @@ export default function CreatePo() {
     }
   };
 
-  if (!pr) return <div className="p-12 text-center text-slate-500">Loading Requisition details...</div>;
+  if (!pr) return (
+    <AppShell navigation={buildAppNavigation()} activeLabel="procurement-orders" user={{ name: userName, role: 'Procurement' }} mobileNav={buildAppMobileNav('Dashboard')}>
+      <div className="p-12 text-center text-slate-500">Loading Requisition details...</div>
+    </AppShell>
+  );
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Generate Purchase Order</h1>
-        <p className="text-sm text-slate-500">Generate PO for approved requisition: <span className="font-mono">{pr.requisitionNumber}</span></p>
-      </div>
+    <AppShell navigation={buildAppNavigation()} activeLabel="procurement-orders" user={{ name: userName, role: 'Procurement' }} mobileNav={buildAppMobileNav('Dashboard')}>
+      <div className="p-6 max-w-4xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Generate Purchase Order</h1>
+          <p className="text-sm text-slate-500">Generate PO for approved requisition: <span className="font-mono">{pr.requisitionNumber}</span></p>
+        </div>
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
@@ -196,6 +206,7 @@ export default function CreatePo() {
           </Button>
         </div>
       </div>
-    </div>
+      </div>
+    </AppShell>
   );
 }

@@ -3,11 +3,16 @@ import { Link } from 'react-router-dom';
 import { procurementApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { SectionCard, Button } from '@/shared';
+import { AppShell } from '@/shared/components/layout/AppShell';
+import { buildAppNavigation, buildAppMobileNav } from '@/shared/navigation';
+import { useAuth } from '@/shared/context/AuthProvider';
 
 export default function ProcurementIndex() {
+  const { user } = useAuth();
   const [intake, setIntake] = useState<any[]>([]);
   const [prs, setPrs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const userName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email || 'Procurement';
 
   useEffect(() => {
     Promise.all([
@@ -35,20 +40,33 @@ export default function ProcurementIndex() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
-        <div className="py-12 text-center text-slate-500">Loading procurement intake&hellip;</div>
-      </div>
+      <AppShell
+        navigation={buildAppNavigation()}
+        activeLabel="procurement-intake"
+        user={{ name: userName, role: 'Procurement' }}
+        mobileNav={buildAppMobileNav('Dashboard')}
+      >
+        <div className="p-6 max-w-6xl mx-auto">
+          <div className="py-12 text-center text-slate-500">Loading procurement intake&hellip;</div>
+        </div>
+      </AppShell>
     );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Procurement Management</h1>
-        <p className="text-sm text-slate-500">
-          Manage approved procurement requests, purchase requisitions, and orders.
-        </p>
-      </div>
+    <AppShell
+      navigation={buildAppNavigation()}
+      activeLabel="procurement-intake"
+      user={{ name: userName, role: 'Procurement' }}
+      mobileNav={buildAppMobileNav('Dashboard')}
+    >
+      <div className="p-6 max-w-6xl mx-auto space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Procurement Management</h1>
+          <p className="text-sm text-slate-500">
+            Manage approved procurement requests, purchase requisitions, and orders.
+          </p>
+        </div>
 
       <SectionCard title="Intake Queue" description="Approved procurement requests awaiting case creation">
         {intake.length === 0 ? (
@@ -92,7 +110,7 @@ export default function ProcurementIndex() {
         )}
       </SectionCard>
 
-      <SectionCard title="Purchase Requisitions" description="Existing requisitions and their status">
+        <SectionCard title="Purchase Requisitions" description="Existing requisitions and their status">
         {prs.length === 0 ? (
           <div className="py-8 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl">
             <span className="material-symbols-outlined text-4xl text-slate-400">shopping_cart</span>
@@ -135,7 +153,8 @@ export default function ProcurementIndex() {
             </table>
           </div>
         )}
-      </SectionCard>
-    </div>
+        </SectionCard>
+      </div>
+    </AppShell>
   );
 }

@@ -2,34 +2,13 @@ import { useState } from "react";
 import { Button, SectionCard, StatCard, TextField } from "@/shared";
 import { changeWorkspacePassword } from "@/shared/api/workspace-api";
 import { AccountShellPage } from "./page-helpers";
+import { versionService } from "@/lib/VersionService";
 
 type CheckStatus = "idle" | "checking" | "up-to-date" | "update-available";
 
 const appVersion = import.meta.env.VITE_APP_VERSION as string;
 const buildVersion = import.meta.env.VITE_BUILD_VERSION as string;
 const builtAt = import.meta.env.VITE_APP_BUILT_AT as string | undefined;
-
-function toComparableBuildVersion(value: string | null | undefined): number[] | null {
-  const normalized = String(value ?? "").trim();
-  if (!normalized || !/^\d+(?:\.\d+)*$/.test(normalized)) {
-    return null;
-  }
-  return normalized.split(".").map((part) => Number(part));
-}
-
-function compareBuildVersions(current: string | null | undefined, latest: string | null | undefined): number {
-  const currentParts = toComparableBuildVersion(current);
-  const latestParts = toComparableBuildVersion(latest);
-  if (!currentParts || !latestParts) return 0;
-  const maxLength = Math.max(currentParts.length, latestParts.length);
-  for (let index = 0; index < maxLength; index += 1) {
-    const currentValue = currentParts[index] ?? 0;
-    const latestValue = latestParts[index] ?? 0;
-    if (latestValue > currentValue) return 1;
-    if (latestValue < currentValue) return -1;
-  }
-  return 0;
-}
 
 function formatBuiltAt(iso: string | undefined): string {
   if (!iso) return "—";
@@ -79,22 +58,21 @@ export default function SettingsPage() {
   async function handleCheckForUpdates() {
     setCheckStatus("checking");
     try {
-      const res = await fetch(`/version.json?t=${Date.now()}`, { cache: "no-store" });
-      if (!res.ok) throw new Error("fetch failed");
-      const payload = (await res.json()) as { built_at: string; build_version: string };
-      const versionComparison = compareBuildVersions(buildVersion, payload.build_version);
-      const hasNewerBuild = versionComparison > 0;
-      const shouldUseBuiltAtFallback = versionComparison === 0 && !toComparableBuildVersion(buildVersion);
-      const hasNewerBuiltAt = Boolean(
-        shouldUseBuiltAtFallback &&
-        payload.built_at &&
-        builtAt &&
-        payload.built_at !== builtAt
-      );
-
-      if (hasNewerBuild || hasNewerBuiltAt) {
-        setLatestBuild(payload.build_version ?? null);
+      const result = await versionService.checkForUpdates();
+      if (result.hasUpdate) {
+        setLatestBuild(result.latestVersion ?? null);
         setCheckStatus("update-available");
+
+        if (result.isTauri && result.tauriDownloadAndInstall) {
+          const confirmed = window.confirm(
+            `Update ${result.latestVersion} is available. Install now?`
+          );
+          if (confirmed) {
+            await result.tauriDownloadAndInstall();
+          }
+        } else {
+          window.dispatchEvent(new CustomEvent("pwa-force-update", { detail: { latestVersion: result.latestVersion } }));
+        }
       } else {
         setLatestBuild(null);
         setCheckStatus("up-to-date");
@@ -202,7 +180,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex gap-2">
                 {checkStatus === "update-available" && (
-                  <Button size="sm" onClick={() => window.location.reload()}>
+                  <Button size="sm" onClick={() => void versionService.applyUpdate(latestBuild)}>
                     Reload
                   </Button>
                 )}

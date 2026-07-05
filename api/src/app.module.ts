@@ -24,6 +24,7 @@ import { AcknowledgementsModule } from './modules/acknowledgements/acknowledgeme
 import { PoliciesModule } from './modules/policies/policies.module';
 import { PayrollModule } from './modules/payroll/payroll.module';
 import { WorkModule } from './modules/work/work.module';
+import { VersionModule } from './modules/version/version.module';
 
 @Module({
   imports: [
@@ -51,7 +52,8 @@ import { WorkModule } from './modules/work/work.module';
     AcknowledgementsModule,
     PoliciesModule,
     PayrollModule,
-    WorkModule
+    WorkModule,
+    VersionModule
   ],
   providers: [],
 })
