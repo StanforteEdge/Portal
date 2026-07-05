@@ -19,8 +19,7 @@ import {
 import { buildAppMobileNav, buildRequestsNavigation } from "@/pages/requests/requests-data";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
-import { formatCurrency } from "@stanforte/shared";
-import { formatDate } from "@/shared/lib/formatting";
+import { formatCurrency, formatDate } from "@stanforte/shared";
 
 type EntryLine = {
   chart_account_id: string;
@@ -48,7 +47,9 @@ export default function FinanceManualEntryPage() {
     () => financeApi.listChartAccounts({ is_active: true }),
     { ttlMs: 60_000, storage: "memory" },
   );
-  const chartAccounts = Array.isArray(chartAccountsData) ? chartAccountsData : [];
+  const chartAccounts = Array.isArray((chartAccountsData as any)?.result)
+    ? (chartAccountsData as any).result
+    : [];
 
   const { data: entriesPayload, loading } = useCachedQuery(
     `finance:manual-entry:list:${refreshKey}`,

@@ -76,7 +76,16 @@ export class CreateRequestDto {
   @ApiProperty({
     type: 'object',
     additionalProperties: true,
-    example: { purpose: 'Project transport and site feeding', reimbursement: false }
+    example: { purpose: 'Project transport and site feeding', reimbursement: false },
+    description: `Procurement requests use data fields:
+      title: string — item/service name
+      category: 'goods' | 'services' | 'works'
+      needed_by: string (ISO date)
+      budget_id: string (uuid)
+      budget_line_id: string (uuid)
+      justification: string
+      specification: string
+      suggested_vendor_id: string (uuid)`,
   })
   @IsObject()
   data!: Record<string, any>;

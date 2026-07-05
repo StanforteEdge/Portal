@@ -75,6 +75,7 @@ import {
   type RequestDetailsContextValue,
 } from "./details/context";
 import { LeaveRequestDetail } from "./details/LeaveRequestDetail";
+import { ProcurementRequestDetail } from "./details/ProcurementRequestDetail";
 import { LoanRequestDetail } from "./details/LoanRequestDetail";
 import { OtherRequestDetail } from "./details/OtherRequestDetail";
 import { PaymentRequestDetail } from "./details/PaymentRequestDetail";
@@ -1168,7 +1169,8 @@ export function RequestDetailsPage(props: RequestDetailsPageProps = {}) {
             </div>
             {/* Main content — visually left on desktop */}
             <div className="space-y-6 lg:order-1 lg:col-span-8">
-              {workflowType === "leave" ? <LeaveRequestDetail /> :
+              {workflowType === "procurement" ? <ProcurementRequestDetail /> :
+               workflowType === "leave" ? <LeaveRequestDetail /> :
                workflowType === "loan" ? <LoanRequestDetail /> :
                workflowType === "payment" ? <PaymentRequestDetail /> :
                <OtherRequestDetail />}

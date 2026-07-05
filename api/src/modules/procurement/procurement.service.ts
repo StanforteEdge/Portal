@@ -89,23 +89,60 @@ export class ProcurementService {
     return this.prisma.procurementRequisition.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: { requester: { select: { id: true, firstName: true, lastName: true } } },
+      include: {
+        requester: { select: { id: true, firstName: true, lastName: true } },
+        procurementCase: { select: { id: true, status: true, requestId: true } },
+      },
     });
   }
 
   async getPr(id: string) {
     const pr = await this.prisma.procurementRequisition.findUnique({
       where: { id },
-      include: { requester: { select: { id: true, firstName: true, lastName: true } }, purchaseOrders: true },
+      include: {
+        requester: { select: { id: true, firstName: true, lastName: true } },
+        purchaseOrders: true,
+        procurementCase: {
+          include: {
+            request: {
+              select: {
+                id: true,
+                status: true,
+                data: true,
+                createdAt: true,
+                requestType: { select: { id: true, name: true, workflowType: true } },
+              },
+            },
+          },
+        },
+      },
     });
     if (!pr) throw new NotFoundException('Requisition not found');
     return pr;
   }
 
   async createPo(userId: string, dto: CreatePoDto) {
-    const pr = await this.prisma.procurementRequisition.findUnique({ where: { id: dto.requisitionId } });
+    const sourceCase = dto.caseId
+      ? await this.prisma.procurementCase.findUnique({
+          where: { id: dto.caseId },
+          include: { requisition: true, request: true },
+        })
+      : null;
+
+    const requisitionId = dto.requisitionId || sourceCase?.requisitionId;
+    if (!requisitionId) throw new BadRequestException('Requisition or procurement case is required');
+
+    const pr = await this.prisma.procurementRequisition.findUnique({
+      where: { id: requisitionId },
+      include: { procurementCase: true },
+    });
     if (!pr) throw new NotFoundException('Requisition not found');
     if (pr.status !== 'approved') throw new BadRequestException('Requisition must be approved before creating a PO');
+
+    const linkedCase = sourceCase ?? pr.procurementCase;
+    if (!linkedCase || !['new', 'under_review', 'sourcing', 'awaiting_po'].includes(linkedCase.status)) {
+      throw new BadRequestException('PO can only be created from an executable procurement case');
+    }
 
     const number = await this.nextNumber('PO');
     const totalAmount = dto.items.reduce((sum, i) => sum + i.qty * i.unitCost, 0);
@@ -113,7 +150,7 @@ export class ProcurementService {
     const po = await this.prisma.procurementOrder.create({
       data: {
         poNumber: number,
-        requisitionId: dto.requisitionId,
+        requisitionId,
         vendorId: dto.vendorId,
         preparedBy: toBigInt(userId),
         items: dto.items as any,
@@ -183,7 +220,14 @@ export class ProcurementService {
       orderBy: { createdAt: 'desc' },
       include: {
         vendor: { select: { id: true, name: true } },
-        requisition: { select: { id: true, requisitionNumber: true, title: true } },
+        requisition: {
+          select: {
+            id: true,
+            requisitionNumber: true,
+            title: true,
+            procurementCase: { select: { id: true, status: true, requestId: true } },
+          },
+        },
       },
     });
   }
@@ -193,7 +237,22 @@ export class ProcurementService {
       where: { id },
       include: {
         vendor: true,
-        requisition: true,
+        requisition: {
+          include: {
+            procurementCase: {
+              include: {
+                request: {
+                  select: {
+                    id: true,
+                    status: true,
+                    data: true,
+                    requestType: { select: { id: true, name: true, workflowType: true } },
+                  },
+                },
+              },
+            },
+          },
+        },
         preparer: { select: { id: true, firstName: true, lastName: true } },
         grns: true,
       },
@@ -274,5 +333,71 @@ export class ProcurementService {
     }
 
     return updatedGrn;
+  }
+
+  async listIntake(userId: string, role: string) {
+    const where: any = {
+      status: 'approved',
+      requestType: { workflowType: 'procurement' },
+      procurementCase: null,
+    };
+    return this.prisma.requestInstance.findMany({
+      where,
+      include: {
+        requestType: { select: { id: true, name: true, workflowType: true } },
+        creator: { select: { id: true, firstName: true, lastName: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
+  async createCaseFromRequest(requestId: string, userId: string, dto: { note?: string }) {
+    const request = await this.prisma.requestInstance.findUnique({
+      where: { id: toBigInt(requestId) },
+      include: { requestType: true },
+    });
+    if (!request || request.status !== 'approved' || request.requestType?.workflowType !== 'procurement') {
+      throw new BadRequestException('Approved procurement request required');
+    }
+    const data = request.data as Record<string, unknown> | null;
+    const requisitionNumber = await this.nextNumber('PR');
+
+    return this.prisma.$transaction(async (tx) => {
+      const requisition = await tx.procurementRequisition.create({
+        data: {
+          requisitionNumber,
+          title: String(data?.title || request.requestType?.name || `Request ${request.id.toString()}`),
+          category: ['goods', 'services', 'works'].includes(String(data?.category || ''))
+            ? (String(data?.category) as 'goods' | 'services' | 'works')
+            : 'goods',
+          paymentPattern: ['post_delivery', 'pre_payment', 'milestone'].includes(String(data?.payment_pattern || ''))
+            ? (String(data?.payment_pattern) as 'post_delivery' | 'pre_payment' | 'milestone')
+            : 'post_delivery',
+          items: Array.isArray(data?.items) ? data?.items : [],
+          estimatedTotal: Number(request.totalAmount ?? 0),
+          justification: String(data?.justification || ''),
+          budgetLineId: typeof data?.budget_line_id === 'string' ? data.budget_line_id : null,
+          teamId: request.teamId,
+          requestedBy: request.createdBy,
+          status: 'approved',
+        },
+      });
+
+      return tx.procurementCase.create({
+        data: {
+          requestId: request.id,
+          requisitionId: requisition.id,
+          assignedOfficerId: toBigInt(userId),
+          status: 'new',
+          category: String(data?.category || ''),
+          note: dto.note?.trim() || null,
+          createdBy: toBigInt(userId),
+        },
+      });
+    });
+  }
+
+  async createCaseFromApprovedRequest(requestId: string, userId: string, dto: { note?: string }) {
+    return this.createCaseFromRequest(requestId, userId, dto);
   }
 }

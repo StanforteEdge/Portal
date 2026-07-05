@@ -57,6 +57,16 @@ export function buildAppNavigation(options?: {
       ],
     },
     { label: "Leave", icon: "event_available", path: "/leave", section: "Staff" },
+    {
+      label: "Procurement",
+      icon: "shopping_cart",
+      section: "Staff",
+      permissions: ["procurement.view", "procurement.manage"],
+      children: [
+        { key: "procurement-intake", label: "Intake", icon: "inbox", path: "/procurement", permissions: ["procurement.view", "procurement.manage"] },
+        { key: "procurement-orders", label: "Purchase Orders", icon: "description", path: "/procurement/orders", permissions: ["procurement.orders.manage", "finance.manage"] },
+      ],
+    },
     { label: "Teams", icon: "groups", path: "/teams", section: "Staff" },
     { label: "Projects", icon: "assignment", path: "/projects", section: "Staff" },
     { label: "Files", icon: "folder", path: "/files", section: "Staff" },

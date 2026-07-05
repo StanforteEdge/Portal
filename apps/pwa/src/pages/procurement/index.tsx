@@ -2,17 +2,27 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { procurementApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
-import { SectionCard } from '@/shared';
+import { SectionCard, Button } from '@/shared';
 
 export default function ProcurementIndex() {
+  const [intake, setIntake] = useState<any[]>([]);
   const [prs, setPrs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    procurementApi.listPrs()
-      .then((data: any) => setPrs(data))
-      .finally(() => setLoading(false));
+    Promise.all([
+      procurementApi.listIntake(),
+      procurementApi.listPrs(),
+    ]).then(([intakeData, prsData]) => {
+      setIntake(intakeData);
+      setPrs(prsData);
+    }).finally(() => setLoading(false));
   }, []);
+
+  const handleCreateCase = async (requestId: string) => {
+    await procurementApi.createCaseFromRequest(requestId, { note: 'Accepted into procurement' });
+    setIntake(prev => prev.filter(i => i.id !== requestId));
+  };
 
   const statusColor: Record<string, string> = {
     draft: 'bg-slate-100 text-slate-700',
@@ -23,29 +33,71 @@ export default function ProcurementIndex() {
     converted_to_po: 'bg-violet-100 text-violet-700 border-violet-200',
   };
 
+  if (loading) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto">
+        <div className="py-12 text-center text-slate-500">Loading procurement intake&hellip;</div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Purchase Requisitions</h1>
-          <p className="text-sm text-slate-500">Raise and track purchase requisitions for goods, services, or works.</p>
-        </div>
-        <Link
-          to="/procurement/create"
-          className="inline-flex items-center justify-center rounded-xl bg-brand-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-500 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 transition-all"
-        >
-          New Requisition
-        </Link>
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900">Procurement Management</h1>
+        <p className="text-sm text-slate-500">
+          Manage approved procurement requests, purchase requisitions, and orders.
+        </p>
       </div>
 
-      <SectionCard title="All Requisitions" description="Overview of your raised and pending requisitions">
-        {loading ? (
-          <div className="py-12 text-center text-slate-500">Loading requisitions...</div>
-        ) : prs.length === 0 ? (
-          <div className="py-12 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl">
+      <SectionCard title="Intake Queue" description="Approved procurement requests awaiting case creation">
+        {intake.length === 0 ? (
+          <div className="py-8 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl">
+            <span className="material-symbols-outlined text-4xl text-slate-400">check_circle</span>
+            <p className="mt-2 text-sm font-medium">No pending intake</p>
+            <p className="text-xs text-slate-400 mt-1">All approved procurement requests have been actioned.</p>
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm text-slate-600">
+              <thead>
+                <tr className="border-b border-slate-100 text-slate-400 text-xs font-semibold uppercase tracking-wider">
+                  <th className="text-left pb-3 font-semibold">Requester</th>
+                  <th className="text-left pb-3 font-semibold">Title / Data</th>
+                  <th className="text-left pb-3 font-semibold">Submitted</th>
+                  <th className="pb-3"></th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {intake.map(item => (
+                  <tr key={item.id} className="hover:bg-slate-50/50 transition-colors">
+                    <td className="py-3.5 font-medium text-slate-900">
+                      {item.creator ? `${item.creator.firstName || ''} ${item.creator.lastName || ''}`.trim() || 'Unknown' : 'Unknown'}
+                    </td>
+                    <td className="py-3.5 text-slate-900">{item.data?.title || 'Untitled'}</td>
+                    <td className="py-3.5 text-xs text-slate-500">{new Date(item.createdAt).toLocaleDateString()}</td>
+                    <td className="py-3.5 text-right">
+                      <Button
+                        size="sm"
+                        onClick={() => handleCreateCase(item.id)}
+                      >
+                        Create Case
+                      </Button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </SectionCard>
+
+      <SectionCard title="Purchase Requisitions" description="Existing requisitions and their status">
+        {prs.length === 0 ? (
+          <div className="py-8 text-center text-slate-500 border border-dashed border-slate-200 rounded-2xl">
             <span className="material-symbols-outlined text-4xl text-slate-400">shopping_cart</span>
             <p className="mt-2 text-sm font-medium">No requisitions found</p>
-            <p className="text-xs text-slate-400 mt-1">Get started by creating a new purchase requisition.</p>
+            <p className="text-xs text-slate-400 mt-1">Requisitions created from procurement cases appear here.</p>
           </div>
         ) : (
           <div className="overflow-x-auto">

@@ -2,7 +2,7 @@ import { formatCurrency } from "@stanforte/shared";
 import type { RequestGroupOption, RequestRecord, RequestTypeOption } from "@/pages/requests/requests-api";
 import type { WorkflowStep, WorkflowStepStatus } from "@/shared";
 
-export type WorkflowType = "payment" | "leave" | "loan" | "other";
+export type WorkflowType = "payment" | "leave" | "loan" | "procurement" | "other";
 
 /** @deprecated Use WorkflowType */
 export type RequestCategory = WorkflowType;
@@ -52,11 +52,11 @@ export function classifyRequestCategory(
     const g = groupName.toLowerCase();
     if (g.includes("leave") || g === "personnel") return "leave";
     if (g.includes("loan") || g.includes("salary") || g.includes("advance")) return "loan";
+    if (g.includes("procurement")) return "procurement";
     if (
       g.includes("finance") ||
       g.includes("payment") ||
       g.includes("expense") ||
-      g.includes("procurement") ||
       g.includes("reimbursement")
     ) {
       return "payment";
@@ -69,12 +69,12 @@ export function classifyRequestCategory(
   if (category) {
     if (category.includes("leave")) return "leave";
     if (category.includes("loan") || category.includes("salary") || category.includes("advance")) return "loan";
+    if (category.includes("procurement")) return "procurement";
     if (
       category.includes("finance") ||
       category.includes("payment") ||
       category.includes("expense") ||
-      category.includes("reimbursement") ||
-      category.includes("procurement")
+      category.includes("reimbursement")
     ) {
       return "payment";
     }
@@ -82,13 +82,13 @@ export function classifyRequestCategory(
 
   if (name.includes("leave")) return "leave";
   if (name.includes("loan") || name.includes("salary advance") || name.includes("advance")) return "loan";
+  if (name.includes("procurement")) return "procurement";
   if (
     name.includes("cash") ||
     name.includes("expense") ||
     name.includes("financial") ||
     name.includes("payment") ||
-    name.includes("reimbursement") ||
-    name.includes("procurement")
+    name.includes("reimbursement")
   ) {
     return "payment";
   }
@@ -99,6 +99,7 @@ export function workflowTypeLabel(type: WorkflowType) {
   if (type === "leave") return "Leave";
   if (type === "payment") return "Payment";
   if (type === "loan") return "Loan";
+  if (type === "procurement") return "Procurement";
   return "Other";
 }
 

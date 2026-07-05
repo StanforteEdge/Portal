@@ -905,6 +905,7 @@ model RequestInstance {
   leaveBalanceLedger        LeaveBalanceLedger[]
   loans                     PayrollLoan[]
   requestDeductions         FinanceRequestDeduction[] @relation("RequestDeductions")
+  procurementCase           ProcurementCase?
 
   @@index([requestTypeId])
   @@index([groupId])
@@ -3442,6 +3443,26 @@ model FinanceWHTRemittance {
   @@map("sta_finance_wht_remittances")
 }
 
+model ProcurementCase {
+  id               String   @id @default(uuid()) @db.Uuid
+  requestId        BigInt   @unique @map("request_id")
+  requisitionId    String?  @unique @map("requisition_id") @db.Uuid
+  assignedOfficerId BigInt? @map("assigned_officer_id")
+  status           String   @default("new") @db.VarChar(30)
+  category         String?  @db.VarChar(20)
+  note             String?
+  createdBy        BigInt?  @map("created_by")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  request       RequestInstance         @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  requisition   ProcurementRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([assignedOfficerId])
+  @@map("sta_procurement_cases")
+}
+
 model ProcurementRequisition {
   id                 String              @id @default(uuid()) @db.Uuid
   requisitionNumber  String              @unique @map("requisition_number") @db.VarChar(30)
@@ -3460,10 +3481,11 @@ model ProcurementRequisition {
   createdAt          DateTime            @default(now()) @map("created_at")
   updatedAt          DateTime            @updatedAt @map("updated_at")
 
-  requester      Profile              @relation("PrRequestedBy", fields: [requestedBy], references: [id])
-  organization   Organization?        @relation(fields: [organizationId], references: [id])
-  team           Group?               @relation(fields: [teamId], references: [id])
-  purchaseOrders ProcurementOrder[]
+  requester       Profile              @relation("PrRequestedBy", fields: [requestedBy], references: [id])
+  organization    Organization?        @relation(fields: [organizationId], references: [id])
+  team            Group?               @relation(fields: [teamId], references: [id])
+  purchaseOrders  ProcurementOrder[]
+  procurementCase ProcurementCase?
 
   @@index([requestedBy])
   @@index([status])

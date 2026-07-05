@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { procurementApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
-import { Button, SectionCard } from '@/shared';
+import { SectionCard } from '@/shared';
 
 export default function PrDetail() {
   const { id } = useParams<{ id: string }>();
@@ -19,6 +19,10 @@ export default function PrDetail() {
 
   if (loading) return <div className="p-12 text-center text-slate-500">Loading...</div>;
   if (!pr) return <div className="p-12 text-center text-slate-500">Requisition not found</div>;
+
+  const linkedCase = pr.procurementCase;
+  const linkedRequest = linkedCase?.request;
+  const requestTitle = linkedRequest?.data?.title || linkedRequest?.requestType?.name || 'Procurement request';
 
   const statusColor: Record<string, string> = {
     draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -48,6 +52,27 @@ export default function PrDetail() {
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
+          <SectionCard title="Request Handoff" description="How this requisition entered procurement.">
+            {linkedCase ? (
+              <div className="grid gap-4 md:grid-cols-2 text-sm">
+                <div>
+                  <span className="block text-xs font-semibold uppercase text-slate-400">Linked Request</span>
+                  <p className="mt-1 font-semibold text-slate-900">{requestTitle}</p>
+                  <p className="text-xs text-slate-500">Request ID: {String(linkedRequest?.id ?? '-')}</p>
+                </div>
+                <div>
+                  <span className="block text-xs font-semibold uppercase text-slate-400">Procurement Case</span>
+                  <p className="mt-1 font-semibold text-slate-900">{linkedCase.id}</p>
+                  <p className="text-xs text-slate-500">Status: {String(linkedCase.status || 'new').replace(/_/g, ' ')}</p>
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-600">
+                This requisition is not yet linked to a procurement case. Approved request handoff details will appear here once the case is created.
+              </p>
+            )}
+          </SectionCard>
+
           <SectionCard title="Items Requested" description="List of items in this purchase requisition">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-slate-600">
@@ -111,7 +136,7 @@ export default function PrDetail() {
               <h3 className="font-bold text-sm uppercase tracking-wider text-white/80">Procurement Action</h3>
               <p className="text-xs text-white/70 leading-relaxed">This requisition is approved. You can now generate a Purchase Order to send to the vendor.</p>
               <Link
-                to={`/procurement/orders/create?prId=${pr.id}`}
+                to={`/procurement/orders/create?${linkedCase ? `caseId=${linkedCase.id}` : `prId=${pr.id}`}`}
                 className="w-full inline-flex items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-brand-900 shadow-sm hover:bg-slate-50 transition-colors"
               >
                 Generate PO

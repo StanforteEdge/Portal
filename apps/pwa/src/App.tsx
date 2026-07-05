@@ -76,6 +76,15 @@ import TeamsPage from "@/pages/teams/TeamsPage";
 import TeamDetailPage from "@/pages/teams/TeamDetailPage";
 import TasksPage from "@/pages/tasks/TasksPage";
 import FilesPage from "@/pages/files/FilesPage";
+import ProcurementIndex from "@/pages/procurement/index";
+import CreatePr from "@/pages/procurement/create";
+import PrDetail from "@/pages/procurement/detail";
+import PoIndex from "@/pages/procurement/orders/index";
+import CreatePo from "@/pages/procurement/orders/create";
+import PoDetail from "@/pages/procurement/orders/detail";
+import VendorLogin from "@/pages/vendor-portal/login";
+import VendorDashboard from "@/pages/vendor-portal/dashboard";
+import VendorOrderDetail from "@/pages/vendor-portal/detail";
 
 import {
   ProtectedRoute,
@@ -192,6 +201,7 @@ export default function App() {
         <Route path="/requests/new" element={<RequestTypePage />} />
         <Route path="/requests/new/form" element={<RequestFormPage />} />
         <Route path="/requests/:id" element={<RequestDetailsPage />} />
+        <Route path="/procurement/create" element={<CreatePr />} />
         <Route
           path="/requests/details"
           element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/requests" />}
@@ -201,6 +211,26 @@ export default function App() {
           element={<LegacyDetailRedirect toBase="/requests" fallbackPath="/requests" />}
         />
         <Route path="/requests/financial" element={<RequestFormPage />} />
+
+        <Route
+          element={
+            <PermissionRoute
+              requiredPermissions={[
+                "procurement.view",
+                "procurement.manage",
+                "procurement.orders.manage",
+                "procurement.grn.manage",
+              ]}
+              any
+            />
+          }
+        >
+          <Route path="/procurement" element={<ProcurementIndex />} />
+          <Route path="/procurement/:id" element={<PrDetail />} />
+          <Route path="/procurement/orders" element={<PoIndex />} />
+          <Route path="/procurement/orders/create" element={<CreatePo />} />
+          <Route path="/procurement/orders/:id" element={<PoDetail />} />
+        </Route>
         
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/notifications" element={<NotificationsPage />} />
@@ -392,6 +422,10 @@ export default function App() {
           </Route>
         </Route>
       </Route>
+
+      <Route path="/vendor-portal/login" element={<VendorLogin />} />
+      <Route path="/vendor-portal/dashboard" element={<VendorDashboard />} />
+      <Route path="/vendor-portal/orders/:id" element={<VendorOrderDetail />} />
 
       <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

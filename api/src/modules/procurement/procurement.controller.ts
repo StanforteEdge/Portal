@@ -6,6 +6,7 @@ import { CreatePoDto } from './dto/create-po.dto';
 import { ActionPoDto } from './dto/action-po.dto';
 import { CreateGrnDto } from './dto/create-grn.dto';
 import { ConfirmGrnDto } from './dto/confirm-grn.dto';
+import { CreateProcurementCaseDto } from './dto/create-procurement-case.dto';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 
 @Controller('procurement')
@@ -76,5 +77,15 @@ export class ProcurementController {
   @Post('grns/:id/confirm')
   confirmGrn(@Param('id') id: string, @Req() req: any, @Body() dto: ConfirmGrnDto) {
     return this.service.confirmGrn(id, req.user.id, dto);
+  }
+
+  @Get('intake')
+  listIntake(@Req() req: any) {
+    return this.service.listIntake(req.user.id, req.user.role);
+  }
+
+  @Post('intake/:requestId/create-case')
+  createCaseFromRequest(@Param('requestId') requestId: string, @Req() req: any, @Body() dto: CreateProcurementCaseDto) {
+    return this.service.createCaseFromRequest(requestId, req.user.id, dto);
   }
 }

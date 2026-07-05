@@ -76,6 +76,11 @@ export function createProcurementApi(http: HttpRequest) {
     confirmGrn: (id: string, status: 'confirmed' | 'disputed', comment?: string) =>
       http<any>(`/procurement/grns/${id}/confirm`, { method: 'POST', body: { status, comment } }),
 
+    // Procurement Intake
+    listIntake: () => http<any[]>('/procurement/intake'),
+    createCaseFromRequest: (requestId: string, data?: Record<string, unknown>) =>
+      http<any>(`/procurement/intake/${requestId}/create-case`, { method: 'POST', body: data }),
+
     // Vendor portal (uses separate token)
     vendorLogin: (email: string, password: string) =>
       fetch('/api/vendor-portal/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) }).then(r => r.json()),

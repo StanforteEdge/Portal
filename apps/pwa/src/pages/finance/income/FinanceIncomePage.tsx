@@ -64,6 +64,9 @@ export default function FinanceIncomePage() {
     () => resourceApi.listFinanceAccounts({ is_active: true }),
     { ttlMs: 60_000, storage: "memory" },
   );
+  const accountOptions = Array.isArray((accounts as any)?.result)
+    ? (accounts as any).result
+    : [];
 
   const { data: funds } = useCachedQuery(
     "finance:funds:all",
@@ -300,7 +303,7 @@ export default function FinanceIncomePage() {
                 }
               >
                 <option value="">Select account</option>
-                {(Array.isArray(accounts) ? accounts : []).map(
+                {accountOptions.map(
                   (account: any) => (
                     <option key={account.id} value={account.id}>
                       {account.name}

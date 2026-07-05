@@ -44,6 +44,7 @@ import { LeaveRequestFormPage } from "@/pages/requests/new/forms/LeaveRequestFor
 import { PaymentRequestFormPage } from "@/pages/requests/new/forms/PaymentRequestFormPage";
 import { LoanRequestFormPage } from "@/pages/requests/new/forms/LoanRequestFormPage";
 import { OtherRequestFormPage } from "@/pages/requests/new/forms/OtherRequestFormPage";
+import { ProcurementRequestFormPage } from "@/pages/requests/new/forms/ProcurementRequestFormPage";
 import type { RequestFormHandle } from "@/pages/requests/new/forms/category-form-types";
 import {
   listEntityTags,
@@ -526,7 +527,16 @@ export function RequestFormPage() {
         {/* Main content */}
         <div className="space-y-6 lg:order-1 lg:col-span-8">
           {staffDetailsCard}
-          {workflowType === "leave" ? (
+          {workflowType === "procurement" ? (
+            <ProcurementRequestFormPage
+              ref={requestFormRef}
+              selectedType={selectedType}
+              selectedCategory={selectedCategory}
+              editRequest={editRequest}
+              loadingEdit={loadingEdit}
+              onSummary={setSummaryContent}
+            />
+          ) : workflowType === "leave" ? (
             <LeaveRequestFormPage
               ref={requestFormRef}
               selectedType={selectedType}

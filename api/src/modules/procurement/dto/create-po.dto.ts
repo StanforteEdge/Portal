@@ -37,9 +37,13 @@ export class MilestoneDto {
 }
 
 export class CreatePoDto {
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  requisitionId!: string;
+  caseId?: string;
+
+  @IsOptional()
+  @IsString()
+  requisitionId?: string;
 
   @IsString()
   @IsNotEmpty()

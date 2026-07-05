@@ -13,8 +13,12 @@ export default function PartiesTab() {
     () => financeApi.listVendors(),
     { ttlMs: 60_000, storage: "memory" },
   );
-  const customers = Array.isArray(customersData) ? customersData : [];
-  const vendors = Array.isArray(vendorsData) ? vendorsData : [];
+  const customers = Array.isArray((customersData as any)?.result)
+    ? (customersData as any).result
+    : [];
+  const vendors = Array.isArray((vendorsData as any)?.result)
+    ? (vendorsData as any).result
+    : [];
 
   const [showCustomers, setShowCustomers] = useState(true);
 
@@ -62,7 +66,7 @@ export default function PartiesTab() {
               </TableHeaderRow>
             </TableHead>
             <TableBody>
-              {customers.map((party) => (
+              {customers.map((party: any) => (
                 <TableRow key={party.id}>
                   <TableCell className="font-medium">{party.name}</TableCell>
                   <TableCell>{party.email || "-"}</TableCell>
@@ -84,7 +88,7 @@ export default function PartiesTab() {
             </TableHeaderRow>
           </TableHead>
           <TableBody>
-            {vendors.map((party) => (
+            {vendors.map((party: any) => (
               <TableRow key={party.id}>
                 <TableCell className="font-medium">{party.name}</TableCell>
                 <TableCell>{party.email || "-"}</TableCell>

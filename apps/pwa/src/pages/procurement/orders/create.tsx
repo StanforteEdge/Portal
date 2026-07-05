@@ -8,6 +8,7 @@ export default function CreatePo() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const prId = searchParams.get('prId') || '';
+  const caseId = searchParams.get('caseId') || '';
 
   const [pr, setPr] = useState<any>(null);
   const [vendors, setVendors] = useState<any[]>([]);
@@ -30,12 +31,24 @@ export default function CreatePo() {
         }));
         setItems(mappedItems);
       });
+    } else if (caseId) {
+      procurementApi.listPrs().then((rows: any[]) => {
+        const data = rows.find((row) => row.procurementCase?.id === caseId) || null;
+        setPr(data);
+        const mappedItems = (data?.items || []).map((i: any) => ({
+          description: i.description,
+          qty: i.qty,
+          unit: i.unit,
+          unitCost: i.estimatedUnitCost,
+        }));
+        setItems(mappedItems);
+      });
     }
 
     financeApi.listVendors({ per_page: 100 }).then((res) => {
       setVendors(res.result || []);
     });
-  }, [prId]);
+  }, [caseId, prId]);
 
   const updateItemCost = (idx: number, cost: number) => {
     setItems(prev => prev.map((item, i) => i === idx ? { ...item, unitCost: cost } : item));
@@ -49,6 +62,7 @@ export default function CreatePo() {
     try {
       const approvalFlowJson = { steps: [{ approverType: 'finance_manager' }, { approverType: 'coo' }] };
       await procurementApi.createPo({
+        caseId: pr.procurementCase?.id,
         requisitionId: pr.id,
         vendorId: selectedVendorId,
         items,
@@ -165,9 +179,15 @@ export default function CreatePo() {
                 <span className="font-semibold text-slate-900">{formatCurrency(Number(pr.estimatedTotal))}</span>
               </div>
               <div>
-                <span className="text-xs text-slate-400 font-semibold uppercase block">Payment Pattern</span>
+               <span className="text-xs text-slate-400 font-semibold uppercase block">Payment Pattern</span>
                 <span className="font-semibold text-slate-900 capitalize">{pr.paymentPattern}</span>
               </div>
+              {pr.procurementCase ? (
+                <div>
+                  <span className="text-xs text-slate-400 font-semibold uppercase block">Procurement Case</span>
+                  <span className="font-semibold text-slate-900">{pr.procurementCase.id}</span>
+                </div>
+              ) : null}
             </div>
           </SectionCard>
 

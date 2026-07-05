@@ -7,7 +7,9 @@ export default function ChartOfAccountsTab() {
     () => financeApi.listChartAccounts({ is_active: true }),
     { ttlMs: 60_000, storage: "memory" },
   );
-  const accounts = Array.isArray(data) ? data : [];
+  const accounts = Array.isArray((data as any)?.result)
+    ? (data as any).result
+    : [];
 
   return (
     <div className="space-y-4">
@@ -29,7 +31,7 @@ export default function ChartOfAccountsTab() {
             </TableHeaderRow>
           </TableHead>
           <TableBody>
-            {accounts.map((account) => (
+            {accounts.map((account: any) => (
               <TableRow key={account.id}>
                 <TableCell className="font-mono">{account.code}</TableCell>
                 <TableCell className="font-medium">{account.name}</TableCell>

@@ -58,6 +58,9 @@ export default function PoDetail() {
   if (loading) return <div className="p-12 text-center text-slate-500">Loading PO...</div>;
   if (!po) return <div className="p-12 text-center text-slate-500">PO not found</div>;
 
+  const linkedCase = po.requisition?.procurementCase;
+  const linkedRequest = linkedCase?.request;
+
   const statusColor: Record<string, string> = {
     draft: 'bg-slate-100 text-slate-700 border-slate-200',
     pending_approval: 'bg-amber-100 text-amber-700 border-amber-200',
@@ -86,6 +89,27 @@ export default function PoDetail() {
 
       <div className="grid gap-6 md:grid-cols-3">
         <div className="md:col-span-2 space-y-6">
+          <SectionCard title="Source Context" description="Approved request and procurement case that produced this PO.">
+            <div className="grid gap-4 md:grid-cols-3 text-sm">
+              <div>
+                <span className="block text-xs font-semibold uppercase text-slate-400">Request</span>
+                <p className="mt-1 font-semibold text-slate-900">{String(linkedRequest?.id ?? '—')}</p>
+                <p className="text-xs text-slate-500">{linkedRequest?.data?.title || linkedRequest?.requestType?.name || '—'}</p>
+              </div>
+              <div>
+                <span className="block text-xs font-semibold uppercase text-slate-400">Procurement Case</span>
+                <p className="mt-1 font-semibold text-slate-900">{linkedCase?.id || '—'}</p>
+                <p className="text-xs text-slate-500">{linkedCase?.status ? String(linkedCase.status).replace(/_/g, ' ') : '—'}</p>
+              </div>
+              <div>
+                <span className="block text-xs font-semibold uppercase text-slate-400">GRN Readiness</span>
+                <p className="mt-1 font-semibold text-slate-900">
+                  {po.grns?.length ? `${po.grns.length} GRN record(s)` : 'Awaiting delivery'}
+                </p>
+              </div>
+            </div>
+          </SectionCard>
+
           <SectionCard title="PO Items" description="List of negotiated goods or services">
             <div className="overflow-x-auto">
               <table className="w-full text-sm text-slate-600">

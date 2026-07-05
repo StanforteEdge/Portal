@@ -46,6 +46,7 @@ export default function PoIndex() {
                 <tr className="border-b border-slate-100 text-slate-400 text-xs font-semibold uppercase tracking-wider">
                   <th className="text-left pb-3 font-semibold">PO Number</th>
                   <th className="text-left pb-3 font-semibold">Requisition</th>
+                  <th className="text-left pb-3 font-semibold">Case</th>
                   <th className="text-left pb-3 font-semibold">Vendor</th>
                   <th className="text-left pb-3 font-semibold">Amount</th>
                   <th className="text-left pb-3 font-semibold">Status</th>
@@ -59,6 +60,7 @@ export default function PoIndex() {
                     <td className="py-3.5 font-medium text-slate-900">
                       {po.requisition ? `${po.requisition.requisitionNumber} - ${po.requisition.title}` : '—'}
                     </td>
+                    <td className="py-3.5 text-xs text-slate-500">{po.requisition?.procurementCase?.id || '—'}</td>
                     <td className="py-3.5">{po.vendor?.name}</td>
                     <td className="py-3.5 font-semibold text-slate-900">{formatCurrency(Number(po.totalAmount))}</td>
                     <td className="py-3.5">

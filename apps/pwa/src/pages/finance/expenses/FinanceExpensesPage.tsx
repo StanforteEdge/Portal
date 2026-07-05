@@ -77,6 +77,9 @@ export default function FinanceExpensesPage() {
     () => resourceApi.listFinanceAccounts({ is_active: true }),
     { ttlMs: 60_000, storage: "memory" },
   );
+  const accountOptions = Array.isArray((accounts as any)?.result)
+    ? (accounts as any).result
+    : [];
   const { data: chartAccounts } = useCachedQuery(
     "finance:chart-accounts:all",
     () => resourceApi.listChartAccounts({ is_active: true }),
@@ -353,7 +356,7 @@ export default function FinanceExpensesPage() {
               </SelectField>
               <SelectField label="Paid From Account" value={form.account_id} onChange={(event) => setForm((prev) => ({ ...prev, account_id: event.target.value }))}>
                 <option value="">Select account</option>
-                {(Array.isArray(accounts) ? accounts : []).map((account: any) => (
+                {accountOptions.map((account: any) => (
                   <option key={account.id} value={account.id}>{account.name}</option>
                 ))}
               </SelectField>
