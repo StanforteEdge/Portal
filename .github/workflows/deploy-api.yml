@@ -53,7 +53,7 @@ jobs:
           script: |
             set -e
             cd "${{ secrets.API_APP_DIR }}"
-            npm ci
+            npm install --ignore-scripts
             npm run deploy:server
             node api/scripts/seed-rbac.js
             npm run seed:release-baseline -w api
