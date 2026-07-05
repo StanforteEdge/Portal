@@ -866,6 +866,8 @@ export class DocumentGeneratorService {
       },
     ];
 
+    const isManualImport = Boolean(data.manual_import);
+
     // Fetch all workflow instances for this request to gather history across returns/resubmissions
     const instances = await this.prisma.workflowInstance.findMany({
       where: {
@@ -879,8 +881,8 @@ export class DocumentGeneratorService {
       orderBy: { createdAt: 'asc' },
     });
 
-    // If no workflow instances, we only have submission entry and manual approvals (if any)
-    if (instances.length === 0) {
+    // If manual import or no workflow instances, we only have submission entry and manual approvals (if any)
+    if (isManualImport || instances.length === 0) {
       const manualApprovals = Array.isArray(data.manual_approvals) ? (data.manual_approvals as any[]) : [];
       const roleOrder = ['team_lead', 'accountant', 'coo', 'ed'];
       const roleLabelMap: Record<string, string> = {
