@@ -79,6 +79,7 @@ import TeamsPage from "@/pages/teams/TeamsPage";
 import TeamDetailPage from "@/pages/teams/TeamDetailPage";
 import TasksPage from "@/pages/tasks/TasksPage";
 import FilesPage from "@/pages/files/FilesPage";
+import MailPage from "@/pages/mail";
 import ProcurementIndex from "@/pages/procurement/index";
 import CreatePr from "@/pages/procurement/create";
 import PrDetail from "@/pages/procurement/detail";
@@ -395,6 +396,7 @@ export default function App() {
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/:id" element={<ProjectDetailPage />} />
           <Route path="/files" element={<FilesPage />} />
+          <Route path="/mail" element={<MailPage />} />
         </Route>
         <Route element={<ModuleRoute moduleKey="admin" />}>
           <Route element={<PermissionRoute requiredPermissions={["admin.view"]} any />}>

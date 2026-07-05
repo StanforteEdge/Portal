@@ -9,6 +9,7 @@ import {
   createAdminUsersApi,
   createFinanceApi,
   createProcurementApi,
+  createMailApi,
   createCacheStore,
   createHttpClient,
   createSessionStorage,
@@ -34,6 +35,7 @@ export const requestApi = createRequestApi(httpRequest);
 export const adminUsersApi = createAdminUsersApi(httpRequest);
 export const financeApi = createFinanceApi(httpRequest);
 export const procurementApi = createProcurementApi(httpRequest);
+export const mailApi = createMailApi(httpRequest);
 export const cacheStore = createCacheStore(CACHE_PREFIX);
 
 export const useCachedQuery = <T,>(

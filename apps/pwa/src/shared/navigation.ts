@@ -70,6 +70,7 @@ export function buildAppNavigation(options?: {
     { label: "Teams", icon: "groups", path: "/teams", section: "Staff" },
     { label: "Projects", icon: "assignment", path: "/projects", section: "Staff" },
     { label: "Files", icon: "folder", path: "/files", section: "Staff" },
+    { key: "mail", label: "Mail", icon: "mail", path: "/mail", section: "Staff" },
     {
       label: "Profile",
       icon: "person",

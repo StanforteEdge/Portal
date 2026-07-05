@@ -91,3 +91,14 @@ export type {
   PurchaseOrderRecord,
   GrnRecord,
 } from "./api/procurement-api";
+
+export { LocalDB, useLocalDB } from "./lib/local-db";
+
+export { createMailApi } from "./api/mail-api";
+export type {
+  MailAccount,
+  MailHeader,
+  FolderItem,
+  SyncResult,
+  SendMessageDto,
+} from "./api/mail-api";
