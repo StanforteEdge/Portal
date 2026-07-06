@@ -64,7 +64,9 @@ export class NotificationsService {
       }
     });
 
-    const wantsEmail = (input.sentVia ?? ['in-app']).includes('email') || process.env.EMAIL_NOTIFICATIONS_ENABLED === 'true';
+    const wantsEmail = input.sentVia
+      ? input.sentVia.includes('email')
+      : (process.env.EMAIL_NOTIFICATIONS_ENABLED === 'true');
     if (wantsEmail) {
       const recipientEmail =
         input.emailTo ??

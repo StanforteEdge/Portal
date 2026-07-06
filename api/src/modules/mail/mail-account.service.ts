@@ -6,11 +6,20 @@ import type { MailAccount } from '@prisma/client';
 
 const GOOGLE_SCOPES = ['https://mail.google.com/', 'email', 'profile'];
 
-const MICROSOFT_SCOPES = [
+const MICROSOFT_AUTH_SCOPES = [
   'openid',
   'https://outlook.office365.com/IMAP.AccessAsUser.All',
   'https://outlook.office365.com/SMTP.Send',
   'https://graph.microsoft.com/Mail.Read',
+  'offline_access',
+  'email',
+  'profile',
+].join(' ');
+
+const MICROSOFT_IMAP_SCOPES = [
+  'openid',
+  'https://outlook.office365.com/IMAP.AccessAsUser.All',
+  'https://outlook.office365.com/SMTP.Send',
   'offline_access',
   'email',
   'profile',
@@ -113,7 +122,7 @@ export class MailAccountService {
       client_id: process.env.MICROSOFT_CLIENT_ID!,
       response_type: 'code',
       redirect_uri: process.env.MICROSOFT_REDIRECT_URI!,
-      scope: MICROSOFT_SCOPES,
+      scope: MICROSOFT_AUTH_SCOPES,
       response_mode: 'query',
       state: this.encodeState(profileId),
     });
@@ -135,7 +144,7 @@ export class MailAccountService {
           code,
           redirect_uri: process.env.MICROSOFT_REDIRECT_URI!,
           grant_type: 'authorization_code',
-          scope: MICROSOFT_SCOPES,
+          scope: MICROSOFT_IMAP_SCOPES,
         }),
       },
     );
@@ -179,15 +188,42 @@ export class MailAccountService {
     return account;
   }
 
+  async getMicrosoftGraphToken(account: MailAccount): Promise<string> {
+    const tenant = process.env.MICROSOFT_TENANT_ID ?? 'common';
+    const res = await fetch(
+      `https://login.microsoftonline.com/${tenant}/oauth2/v2.0/token`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          client_id: process.env.MICROSOFT_CLIENT_ID!,
+          client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
+          refresh_token: this.crypto.decrypt(account.refreshToken),
+          grant_type: 'refresh_token',
+          scope: 'https://graph.microsoft.com/Mail.Read offline_access',
+        }),
+      },
+    );
+    const tokens = await res.json() as { access_token: string; error?: string };
+    if (tokens.error) throw new Error(`Failed to acquire Graph token: ${tokens.error}`);
+    return tokens.access_token;
+  }
+
   async setupMicrosoftWatch(account: MailAccount): Promise<void> {
-    const accessToken = await this.getDecryptedAccessToken(account);
+    let graphToken: string;
+    try {
+      graphToken = await this.getMicrosoftGraphToken(account);
+    } catch (err) {
+      console.error('Cannot register Microsoft watch - failed to get Graph token:', err);
+      return;
+    }
     const expiration = new Date(Date.now() + 4230 * 60 * 1000); // Max 3 days
 
     try {
       const res = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${accessToken}`,
+          Authorization: `Bearer ${graphToken}`,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
@@ -222,13 +258,13 @@ export class MailAccountService {
       where: { provider: 'MICROSOFT', outlookSubscriptionId: { not: null } },
     });
     for (const a of accounts) {
-      const accessToken = await this.getDecryptedAccessToken(a);
-      const expiration = new Date(Date.now() + 4230 * 60 * 1000);
       try {
+        const graphToken = await this.getMicrosoftGraphToken(a);
+        const expiration = new Date(Date.now() + 4230 * 60 * 1000);
         const res = await fetch(`https://graph.microsoft.com/v1.0/subscriptions/${a.outlookSubscriptionId}`, {
           method: 'PATCH',
           headers: {
-            Authorization: `Bearer ${accessToken}`,
+            Authorization: `Bearer ${graphToken}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
@@ -282,7 +318,7 @@ export class MailAccountService {
           client_secret: process.env.MICROSOFT_CLIENT_SECRET!,
           refresh_token: this.crypto.decrypt(account.refreshToken),
           grant_type: 'refresh_token',
-          scope: MICROSOFT_SCOPES,
+          scope: MICROSOFT_IMAP_SCOPES,
         }),
       },
     );

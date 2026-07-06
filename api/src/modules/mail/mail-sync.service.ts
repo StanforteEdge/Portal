@@ -91,6 +91,7 @@ export class MailSyncService {
             title: `New email from ${h.fromName || h.fromEmail}`,
             message: h.subject || '(No Subject)',
             link: '/mail',
+            sentVia: ['in-app', 'push'],
           });
         } catch (err) {
           console.error('Failed to create system notification for new email', err);
