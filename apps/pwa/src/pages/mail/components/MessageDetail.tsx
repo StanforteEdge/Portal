@@ -2,6 +2,7 @@ import { useState } from 'react';
 import DOMPurify from 'dompurify';
 import { useMailBody } from '../hooks/useMailBody';
 import { mailApi } from '@/shared/lib/core';
+import { Button, Icon } from '@/shared';
 import type { MailHeader } from '@stanforte/shared';
 
 type Props = {
@@ -53,44 +54,51 @@ export function MessageDetail({ accountId, header, onReply, onForward, onDeleted
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
       {/* Top Action Bar (MacBook Mail Style) */}
-      <div style={{ padding: '8px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', gap: 8, alignItems: 'center', background: '#f9fafb' }}>
+      <div className="px-4 py-2 border-b border-slate-200 flex gap-2 items-center bg-slate-50">
         {onBack && (
-          <button
+          <Button
+            variant="secondary"
+            size="sm"
             onClick={onBack}
             className="md:hidden"
-            style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 13, fontWeight: 500 }}
           >
-            ← Back
-          </button>
+            <Icon name="arrow_back" className="mr-1" /> Back
+          </Button>
         )}
-        <button
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onReply}
           disabled={actionLoading}
-          style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}
         >
-          <span>↩</span> Reply
-        </button>
-        <button
+          <Icon name="reply" className="mr-1.5" /> Reply
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onForward}
           disabled={actionLoading}
-          style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 4 }}
         >
-          <span>↪</span> Forward
-        </button>
-        <button
+          <Icon name="forward" className="mr-1.5" /> Forward
+        </Button>
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={handleToggleRead}
           disabled={actionLoading}
-          style={{ padding: '6px 14px', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 13, fontWeight: 500 }}
         >
-          {header.isRead ? '📖 Mark Unread' : '✉ Mark Read'}
-        </button>
-        <button
+          <Icon name={header.isRead ? "mark_as_unread" : "drafts"} className="mr-1.5" />
+          {header.isRead ? 'Mark Unread' : 'Mark Read'}
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
           onClick={handleTrash}
           disabled={actionLoading}
-          style={{ padding: '6px 14px', border: '1px solid #fecaca', color: '#dc2626', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 13, fontWeight: 500, marginLeft: 'auto' }}
+          className="ml-auto text-danger hover:bg-danger/5"
         >
-          🗑 Delete
-        </button>
+          <Icon name="delete" className="mr-1" /> Delete
+        </Button>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>

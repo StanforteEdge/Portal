@@ -9,7 +9,7 @@ import { SyncButton } from './components/SyncButton';
 import { useMailAccounts } from './hooks/useMailAccounts';
 import { useMailSync } from './hooks/useMailSync';
 import { useMailHeaders } from './hooks/useMailHeaders';
-import { SlideOver, SlideOverContent, SlideOverHeader } from '@/shared';
+import { SlideOver, SlideOverContent, SlideOverHeader, Button, Icon } from '@/shared';
 import type { MailHeader } from '@stanforte/shared';
 
 export function MailLayout() {
@@ -90,29 +90,33 @@ export function MailLayout() {
         <div className="px-4 py-2 border-b border-slate-200 flex justify-between items-center shrink-0 bg-slate-50">
           <div className="flex items-center gap-2">
             {/* Toggle folders button on mobile */}
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setMobileSidebarOpen(true)}
-              className="md:hidden p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-sm"
+              className="md:hidden"
               title="Show folders"
             >
-              📂 Folders
-            </button>
-            <button
+              <Icon name="folder" className="mr-1" /> Folders
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
               onClick={() => setCompose({ mode: 'compose' })}
-              className="px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
             >
-              + Compose
-            </button>
+              <Icon name="add" className="mr-1" /> Compose
+            </Button>
           </div>
           <div className="flex items-center gap-2">
             <SyncButton onSync={sync} syncing={syncing} lastSyncedAt={lastSyncedAt} />
-            <button
+            <Button
+              variant="secondary"
+              size="sm"
               onClick={() => setShowSettings(true)}
               title="Mail settings"
-              className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-sm"
             >
-              ⚙
-            </button>
+              <Icon name="settings" />
+            </Button>
           </div>
         </div>
 
