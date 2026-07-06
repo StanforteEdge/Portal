@@ -201,6 +201,7 @@ export function buildAppNavigation(options?: {
       children: [
         { key: "admin-procurement", label: "Procurement", icon: "shopping_cart", path: "/procurement", permissions: ["procurement.view", "procurement.manage"] },
         { key: "admin-users", label: "Users", icon: "people", path: "/admin/users", permissions: ["users.view", "users.manage"] },
+        { key: "admin-organizations", label: "Organizations", icon: "domain", path: "/admin/organizations", permissions: ["admin.manage"] },
         { key: "admin-roles", label: "Roles", icon: "admin_panel_settings", path: "/admin/roles", permissions: ["roles.manage"] },
         { key: "admin-groups", label: "Groups", icon: "groups", path: "/admin/groups", permissions: ["groups.manage"] },
         { key: "admin-projects", label: "Projects", icon: "assignment", path: "/admin/projects", permissions: ["projects.manage"] },

@@ -70,6 +70,7 @@ import HrPayrollLoansPage from "@/pages/hr/payroll/HrPayrollLoansPage";
 import AdminUsersPage from "@/pages/admin/users/AdminUsersPage";
 import AdminUserDetailPage from "@/pages/admin/users/AdminUserDetailPage";
 import AdminSettingsPage from "@/pages/admin/settings/AdminSettingsPage";
+import AdminOrganizationsPage from "@/pages/admin/organizations/AdminOrganizationsPage";
 import AdminGroupsPage from "@/pages/admin/groups/AdminGroupsPage";
 import AdminProjectsPage from "@/pages/admin/projects/AdminProjectsPage";
 import AdminFilesPage from "@/pages/admin/files/AdminFilesPage";
@@ -419,6 +420,7 @@ export default function App() {
 
             <Route element={<PermissionRoute requiredPermissions={["admin.manage"]} any />}>
               <Route path="/admin/settings" element={<AdminSettingsPage />} />
+              <Route path="/admin/organizations" element={<AdminOrganizationsPage />} />
             </Route>
 
             <Route element={<PermissionRoute requiredPermissions={["payroll.authorize"]} any />}>
