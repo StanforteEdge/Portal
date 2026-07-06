@@ -258,12 +258,46 @@ export class MailController {
       include: {
         primaryOrganization: true,
         employeeProfile: true,
+        organizations: {
+          include: {
+            organization: true,
+          },
+        },
       },
     });
+
     if (!profile) return { html: '' };
 
-    const orgMetadata = (profile.primaryOrganization?.metadata && typeof profile.primaryOrganization.metadata === 'object')
-      ? (profile.primaryOrganization.metadata as any)
+    const emailDomain = account.emailAddress.split('@')[1]?.toLowerCase().trim();
+    let matchedOrg = profile.primaryOrganization;
+
+    if (emailDomain && profile.organizations && profile.organizations.length > 0) {
+      for (const membership of profile.organizations) {
+        const org = membership.organization;
+        if (!org) continue;
+        const meta = (org.metadata && typeof org.metadata === 'object') ? (org.metadata as any) : {};
+        const configDomain = meta.domain ? String(meta.domain).toLowerCase().trim() : null;
+        let webDomain = null;
+        if (meta.website) {
+          try {
+            webDomain = meta.website.replace(/^(https?:\/\/)?(www\.)?/, '').split('/')[0].toLowerCase().trim();
+          } catch (e) {
+            // ignore
+          }
+        }
+        if (
+          configDomain === emailDomain ||
+          webDomain === emailDomain ||
+          org.code?.toLowerCase().trim() === emailDomain
+        ) {
+          matchedOrg = org;
+          break;
+        }
+      }
+    }
+
+    const orgMetadata = (matchedOrg?.metadata && typeof matchedOrg.metadata === 'object')
+      ? (matchedOrg.metadata as any)
       : {};
 
     const vars: Record<string, string> = {
@@ -272,7 +306,7 @@ export class MailController {
       email: account.emailAddress ?? profile.email ?? '',
       phone: profile.phone ?? '',
       title: profile.employeeProfile?.jobTitle ?? profile.occupation ?? 'Staff Member',
-      companyName: profile.primaryOrganization?.name ?? orgMetadata.company_name ?? 'The Organisation',
+      companyName: matchedOrg?.name ?? orgMetadata.company_name ?? 'The Organisation',
       logoUrl: orgMetadata.logo_url ?? '',
       website: orgMetadata.website ?? '',
       address: orgMetadata.address ?? '',
