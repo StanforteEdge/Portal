@@ -113,6 +113,15 @@ export function createMailApi(httpRequest: HttpRequest) {
         method: 'POST',
         body: dto as unknown as Record<string, unknown>,
       }),
+
+    saveSignature: (accountId: string, signature: string | null) =>
+      httpRequest<{ ok: boolean }>(`${base}/accounts/${accountId}/signature`, {
+        method: 'PATCH',
+        body: { signature } as any,
+      }),
+
+    getProcessedSignature: (accountId: string) =>
+      httpRequest<{ html: string }>(`${base}/accounts/${accountId}/processed-signature`),
   };
 }
 

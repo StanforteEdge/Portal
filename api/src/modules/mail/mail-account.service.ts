@@ -218,8 +218,17 @@ export class MailAccountService {
         createdAt: true,
         profileId: true,
         tokenExpiresAt: true,
+        signature: true,
       },
       orderBy: { createdAt: 'asc' },
+    });
+  }
+
+  async updateSignature(id: bigint, profileId: bigint, signature: string | null): Promise<void> {
+    const account = await this.findAccountForUser(id, profileId);
+    await this.prisma.mailAccount.update({
+      where: { id: account.id },
+      data: { signature },
     });
   }
 

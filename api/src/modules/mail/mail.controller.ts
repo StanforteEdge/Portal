@@ -232,4 +232,83 @@ export class MailController {
     await this.smtpService.forward(account, accessToken, dto);
     return { ok: true };
   }
+
+  @Patch('accounts/:accountId/signature')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  async saveSignature(
+    @Param('accountId') accountId: string,
+    @Body('signature') signature: string | null,
+    @Req() req: any,
+  ) {
+    await this.accountService.updateSignature(BigInt(accountId), BigInt(req.user.id), signature);
+    return { ok: true };
+  }
+
+  @Get('accounts/:accountId/processed-signature')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth('bearer')
+  async getProcessedSignature(
+    @Param('accountId') accountId: string,
+    @Req() req: any,
+  ) {
+    const account = await this.accountService.findAccountForUser(BigInt(accountId), BigInt(req.user.id));
+    const profile = await this.prisma.profile.findUnique({
+      where: { id: account.profileId },
+      include: {
+        primaryOrganization: true,
+        employeeProfile: true,
+      },
+    });
+    if (!profile) return { html: '' };
+
+    const orgMetadata = (profile.primaryOrganization?.metadata && typeof profile.primaryOrganization.metadata === 'object')
+      ? (profile.primaryOrganization.metadata as any)
+      : {};
+
+    const vars: Record<string, string> = {
+      firstName: profile.firstName ?? '',
+      lastName: profile.lastName ?? '',
+      email: account.emailAddress ?? profile.email ?? '',
+      phone: profile.phone ?? '',
+      title: profile.employeeProfile?.jobTitle ?? profile.occupation ?? 'Staff Member',
+      companyName: profile.primaryOrganization?.name ?? orgMetadata.company_name ?? 'The Organisation',
+      logoUrl: orgMetadata.logo_url ?? '',
+      website: orgMetadata.website ?? '',
+      address: orgMetadata.address ?? '',
+    };
+
+    const defaultTemplate = `
+<div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; line-height: 1.5; border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 16px;">
+  <p style="margin: 0; font-weight: bold; color: #034785;">{{firstName}} {{lastName}}</p>
+  <p style="margin: 2px 0 0; color: #6b7280; font-size: 12px;">{{title}}</p>
+  <p style="margin: 2px 0 0; color: #374151; font-weight: 500;">{{companyName}}</p>
+  <p style="margin: 6px 0 0; color: #6b7280; font-size: 11px;">
+    Email: {{email}} {{#phone}}| Phone: {{phone}}{{/phone}}
+  </p>
+  {{#logoUrl}}
+  <div style="margin-top: 8px;">
+    <img src="{{logoUrl}}" alt="{{companyName}}" style="height: 32px; max-width: 150px; object-fit: contain;" />
+  </div>
+  {{/logoUrl}}
+</div>
+    `.trim();
+
+    const rawTemplate = orgMetadata.signature_template ?? account.signature ?? defaultTemplate;
+
+    let result = rawTemplate;
+    for (const [key, val] of Object.entries(vars)) {
+      result = result.replace(new RegExp(`{{\\s*${key}\\s*}}`, 'g'), val);
+      if (val) {
+        result = result.replace(new RegExp(`{{\\s*#${key}\\s*}}([\\s\\S]*?){{\\s*\\/${key}\\s*}}`, 'g'), '$1');
+      } else {
+        result = result.replace(new RegExp(`{{\\s*#${key}\\s*}}([\\s\\S]*?){{\\s*\\/${key}\\s*}}`, 'g'), '');
+      }
+    }
+
+    result = result.replace(/{{\s*#.*?\s*}}([\s\S]*?){{\s*\/.*?\s*}}/g, '');
+    result = result.replace(/{{\s*.*?\s*}}/g, '');
+
+    return { html: result };
+  }
 }

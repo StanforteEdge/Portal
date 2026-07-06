@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { mailApi } from '@/shared/lib/core';
 import type { MailAccount } from '@stanforte/shared';
 
 type Props = {
@@ -14,6 +16,30 @@ const PROVIDER_LABEL: Record<string, string> = {
 };
 
 export function MailSettingsPanel({ accounts, onClose, onAddGoogle, onAddMicrosoft, onDisconnect }: Props) {
+  const [editingSigId, setEditingSigId] = useState<string | null>(null);
+  const [signatures, setSignatures] = useState<Record<string, string>>(() => {
+    const s: Record<string, string> = {};
+    for (const a of accounts) {
+      s[a.id] = (a as any).signature ?? '';
+    }
+    return s;
+  });
+  const [savingId, setSavingId] = useState<string | null>(null);
+
+  const handleSaveSignature = async (accountId: string) => {
+    setSavingId(accountId);
+    try {
+      const sig = signatures[accountId] || '';
+      await mailApi.saveSignature(accountId, sig);
+      localStorage.setItem(`mail_sig_${accountId}`, sig);
+      setEditingSigId(null);
+    } catch (err) {
+      alert('Failed to save signature');
+    } finally {
+      setSavingId(null);
+    }
+  };
+
   return (
     <>
       {/* Backdrop */}
@@ -51,21 +77,54 @@ export function MailSettingsPanel({ accounts, onClose, onAddGoogle, onAddMicroso
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {accounts.map(a => (
-                  <div key={a.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb' }}>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {a.label ?? a.emailAddress}
+                  <div key={a.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 12px', border: '1px solid #e5e7eb', borderRadius: 8, background: '#f9fafb' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: '#111827', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {a.label ?? a.emailAddress}
+                        </div>
+                        <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
+                          {PROVIDER_LABEL[a.provider] ?? a.provider}
+                        </div>
                       </div>
-                      <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>
-                        {PROVIDER_LABEL[a.provider] ?? a.provider}
+                      <div style={{ display: 'flex', gap: 4 }}>
+                        <button
+                          onClick={() => setEditingSigId(prev => prev === a.id ? null : a.id)}
+                          style={{ padding: '4px 8px', fontSize: 12, fontWeight: 600, color: '#034785', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6, cursor: 'pointer' }}
+                        >
+                          Signature
+                        </button>
+                        <button
+                          onClick={() => onDisconnect(a.id)}
+                          style={{ padding: '4px 8px', fontSize: 12, fontWeight: 600, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer' }}
+                        >
+                          Remove
+                        </button>
                       </div>
                     </div>
-                    <button
-                      onClick={() => onDisconnect(a.id)}
-                      style={{ flexShrink: 0, marginLeft: 10, padding: '4px 10px', fontSize: 12, fontWeight: 600, color: '#ef4444', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 6, cursor: 'pointer' }}
-                    >
-                      Remove
-                    </button>
+
+                    {editingSigId === a.id && (
+                      <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: 8, marginTop: 4, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                        <textarea
+                          placeholder="Write custom signature override (HTML/text)..."
+                          value={signatures[a.id] ?? ''}
+                          onChange={e => setSignatures(prev => ({ ...prev, [a.id]: e.target.value }))}
+                          rows={4}
+                          style={{ width: '100%', fontSize: 12, padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 6, outline: 'none', resize: 'vertical' }}
+                        />
+                        <button
+                          onClick={() => handleSaveSignature(a.id)}
+                          disabled={savingId === a.id}
+                          style={{
+                            padding: '4px 10px', fontSize: 12, fontWeight: 600, color: '#fff',
+                            background: '#034785', border: 'none', borderRadius: 6, cursor: 'pointer',
+                            opacity: savingId === a.id ? 0.6 : 1
+                          }}
+                        >
+                          {savingId === a.id ? 'Saving...' : 'Save Signature'}
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

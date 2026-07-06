@@ -33,6 +33,12 @@ export class OrganizationsController {
     return this.organizationsService.getMyOrganizations(req.user.id);
   }
 
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  getOne(@Param('id') id: string) {
+    return this.organizationsService.getOrganization(id);
+  }
+
   @Put(':id')
   @UseGuards(JwtAuthGuard, PermissionsGuard)
   @Permissions('settings.manage')

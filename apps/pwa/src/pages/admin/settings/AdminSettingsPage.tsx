@@ -15,11 +15,13 @@ import {
   TableRow,
   TextField,
   SelectField,
+  TextAreaField,
   useToast,
 } from "@/shared";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { cacheStore, requestApi } from "@/shared/lib/core";
+import { cacheStore, requestApi, httpRequest } from "@/shared/lib/core";
+import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { type RequestType } from "@stanforte/shared";
 import RequestTypeSlideOver from "@/pages/admin/request-types/RequestTypeSlideOver";
 import { listCategories as apiListCategories, createCategory, updateCategory, deleteCategory, type RequestCategoryOption } from "@/pages/requests/requests-api";
@@ -46,6 +48,75 @@ export default function AdminSettingsPage() {
   const [categoryFilter, setCategoryFilter] = useState("");
   const [taxonomies, setTaxonomies] = useState<ManagedTaxonomy[]>([]);
   const [editingTaxonomy, setEditingTaxonomy] = useState<ManagedTaxonomy | null | boolean>(false);
+
+  // Organization settings states
+  const [orgLoading, setOrgLoading] = useState(false);
+  const [orgId, setOrgId] = useState<string | null>(null);
+  const [orgForm, setOrgForm] = useState({
+    name: "",
+    logo_url: "",
+    address: "",
+    phone: "",
+    website: "",
+    signature_template: "",
+  });
+  const [orgSaving, setOrgSaving] = useState(false);
+
+  const loadOrg = async () => {
+    try {
+      setOrgLoading(true);
+      const profile = await getWorkspaceProfile();
+      const primaryOrg = profile.organizations?.find(o => o.is_primary) ?? profile.organizations?.[0];
+      if (primaryOrg) {
+        setOrgId(primaryOrg.id);
+        const org = await httpRequest<any>(`/organizations/${primaryOrg.id}`);
+        const metadata = org?.metadata && typeof org.metadata === 'object' ? org.metadata : {};
+        setOrgForm({
+          name: org.name ?? "",
+          logo_url: metadata.logo_url ?? "",
+          address: metadata.address ?? "",
+          phone: metadata.phone ?? "",
+          website: metadata.website ?? "",
+          signature_template: metadata.signature_template ?? "",
+        });
+      }
+    } catch (err) {
+      showToast({ tone: "danger", title: "Error", message: "Failed to load organization settings." });
+    } finally {
+      setOrgLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "general") {
+      void loadOrg();
+    }
+  }, [activeTab]);
+
+  const handleSaveOrg = async () => {
+    if (!orgId) return;
+    try {
+      setOrgSaving(true);
+      await httpRequest(`/organizations/${orgId}`, {
+        method: "PUT",
+        body: {
+          name: orgForm.name,
+          metadata: {
+            logo_url: orgForm.logo_url,
+            address: orgForm.address,
+            phone: orgForm.phone,
+            website: orgForm.website,
+            signature_template: orgForm.signature_template,
+          },
+        },
+      });
+      showToast({ tone: "success", title: "Success", message: "Organization settings saved successfully." });
+    } catch (err) {
+      showToast({ tone: "danger", title: "Save failed", message: "Failed to save organization settings." });
+    } finally {
+      setOrgSaving(false);
+    }
+  };
 
   const groupMap = useMemo(() => {
     const map: Record<string, string> = {};
@@ -542,9 +613,68 @@ export default function AdminSettingsPage() {
             )}
 
             {activeTab === "general" && (
-              <div className="py-10 text-center text-slate-400">
-                General system settings coming soon.
-              </div>
+              orgLoading ? (
+                <div className="py-10 text-center text-slate-400">Loading settings...</div>
+              ) : !orgId ? (
+                <div className="py-10 text-center text-slate-400">No primary organization found.</div>
+              ) : (
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Organization Settings</h3>
+                    <p className="text-xs text-slate-500 mt-1">Configure your corporate identity and default branding parameters.</p>
+                  </div>
+                  
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <TextField
+                      label="Company / Organization Name"
+                      value={orgForm.name}
+                      onChange={(e) => setOrgForm((p) => ({ ...p, name: e.target.value }))}
+                      placeholder="e.g., Stanforte Edge"
+                    />
+                    <TextField
+                      label="Logo URL"
+                      value={orgForm.logo_url}
+                      onChange={(e) => setOrgForm((p) => ({ ...p, logo_url: e.target.value }))}
+                      placeholder="e.g., https://example.com/logo.png"
+                    />
+                    <TextField
+                      label="Contact Phone"
+                      value={orgForm.phone}
+                      onChange={(e) => setOrgForm((p) => ({ ...p, phone: e.target.value }))}
+                      placeholder="e.g., +234 800 000 0000"
+                    />
+                    <TextField
+                      label="Website URL"
+                      value={orgForm.website}
+                      onChange={(e) => setOrgForm((p) => ({ ...p, website: e.target.value }))}
+                      placeholder="e.g., https://stanforteedge.com"
+                    />
+                    <div className="md:col-span-2">
+                      <TextField
+                        label="Office Address"
+                        value={orgForm.address}
+                        onChange={(e) => setOrgForm((p) => ({ ...p, address: e.target.value }))}
+                        placeholder="e.g., 123 Innovation Drive, Yaba, Lagos"
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <TextAreaField
+                        label="Global Email Signature Template"
+                        value={orgForm.signature_template}
+                        onChange={(e) => setOrgForm((p) => ({ ...p, signature_template: e.target.value }))}
+                        placeholder="HTML signature template with {{firstName}}, {{lastName}}, {{title}}, {{email}}, {{phone}}, {{companyName}}, {{logoUrl}}"
+                        helpText="Placeholders: {{firstName}}, {{lastName}}, {{title}}, {{email}}, {{phone}}, {{companyName}}, {{logoUrl}}, {{website}}, {{address}}. Use {{#phone}}...{{/phone}} for conditional sections."
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3">
+                    <Button onClick={() => void handleSaveOrg()} disabled={orgSaving}>
+                      {orgSaving ? "Saving..." : "Save Settings"}
+                    </Button>
+                  </div>
+                </div>
+              )
             )}
 
             {activeTab === "security" && (

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { mailApi } from '@/shared/lib/core';
 import type { MailHeader, SendMessageDto } from '@stanforte/shared';
 
@@ -23,6 +23,22 @@ export function ComposeModal({ accountId, mode, originalHeader, onClose, onSent 
   const [body, setBody] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadSignature = async () => {
+      try {
+        const res = await mailApi.getProcessedSignature(accountId);
+        if (res?.html) {
+          // If plain text signature, just convert basic html newlines or keep HTML formatting
+          const cleanSig = res.html.replace(/<br\s*\/?>/gi, '\n').replace(/<[^>]*>/g, '');
+          setBody(prev => prev ? prev + '\n\n' + cleanSig : '\n\n' + cleanSig);
+        }
+      } catch (err) {
+        console.error('Failed to load signature', err);
+      }
+    };
+    void loadSignature();
+  }, [accountId]);
 
   async function handleSend() {
     if (!to.trim() || !subject.trim()) return;
