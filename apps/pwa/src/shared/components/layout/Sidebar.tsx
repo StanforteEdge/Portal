@@ -251,7 +251,7 @@ export function Sidebar({
               )}
 
               {hasChildren && !collapsed && openItem === item.label ? (
-                <div className="space-y-1 pl-11">
+                <div className="space-y-1 pl-4">
                   {item.children!.map((child) => {
                     const childIsActive = nodeHasActiveDescendant(child, activeLabel);
                     const nestedChildren = Array.isArray(child.children) && child.children.length > 0;
