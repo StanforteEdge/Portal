@@ -9,6 +9,7 @@ import { SyncButton } from './components/SyncButton';
 import { useMailAccounts } from './hooks/useMailAccounts';
 import { useMailSync } from './hooks/useMailSync';
 import { useMailHeaders } from './hooks/useMailHeaders';
+import { SlideOver, SlideOverContent, SlideOverHeader } from '@/shared';
 import type { MailHeader } from '@stanforte/shared';
 
 export function MailLayout() {
@@ -18,6 +19,7 @@ export function MailLayout() {
   const [selectedHeader, setSelectedHeader] = useState<MailHeader | null>(null);
   const [compose, setCompose] = useState<{ mode: 'compose' | 'reply' | 'forward'; header?: MailHeader } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
 
   // Which account IDs to show in the message list
   const listAccountIds = selectedAccountId === 'all'
@@ -45,7 +47,7 @@ export function MailLayout() {
     ?? (selectedAccountId === 'all' ? (accounts[0]?.id ?? null) : selectedAccountId);
 
   if (loading) {
-    return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9ca3af' }}>Loading…</div>;
+    return <div className="flex items-center justify-center h-full text-slate-400 text-sm">Loading…</div>;
   }
 
   if (accounts.length === 0) {
@@ -53,76 +55,111 @@ export function MailLayout() {
   }
 
   return (
-    <div style={{ display: 'flex', flex: 1, height: '100%', fontFamily: 'Segoe UI, Arial, sans-serif', overflow: 'hidden', borderRadius: 8, border: '1px solid #e5e7eb', background: '#fff' }}>
-      <AccountSidebar
-        accounts={accounts}
-        selectedAccountId={selectedAccountId}
-        selectedFolder={selectedFolder}
-        onSelectAccount={id => { setSelectedAccountId(id); setSelectedHeader(null); }}
-        onSelectFolder={f => { setSelectedFolder(f); setSelectedHeader(null); }}
-        onDisconnect={disconnect}
-      />
+    <div className="flex flex-1 h-full overflow-hidden rounded-xl border border-slate-200 bg-white font-sans shadow-sm">
+      {/* Desktop Sidebar */}
+      <div className="hidden md:block">
+        <AccountSidebar
+          accounts={accounts}
+          selectedAccountId={selectedAccountId}
+          selectedFolder={selectedFolder}
+          onSelectAccount={id => { setSelectedAccountId(id); setSelectedHeader(null); }}
+          onSelectFolder={f => { setSelectedFolder(f); setSelectedHeader(null); }}
+          onDisconnect={disconnect}
+        />
+      </div>
 
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
+      {/* Mobile Sidebar (SlideOver Drawer) */}
+      {mobileSidebarOpen && (
+        <SlideOver open={mobileSidebarOpen} onClose={() => setMobileSidebarOpen(false)}>
+          <SlideOverHeader title="Accounts & Folders" onClose={() => setMobileSidebarOpen(false)} />
+          <SlideOverContent>
+            <AccountSidebar
+              accounts={accounts}
+              selectedAccountId={selectedAccountId}
+              selectedFolder={selectedFolder}
+              onSelectAccount={id => { setSelectedAccountId(id); setSelectedHeader(null); setMobileSidebarOpen(false); }}
+              onSelectFolder={f => { setSelectedFolder(f); setSelectedHeader(null); setMobileSidebarOpen(false); }}
+              onDisconnect={disconnect}
+            />
+          </SlideOverContent>
+        </SlideOver>
+      )}
+
+      <div className="flex-1 flex flex-col overflow-hidden min-w-0">
         {/* Toolbar */}
-        <div style={{ padding: '8px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-          <button
-            onClick={() => setCompose({ mode: 'compose' })}
-            style={{ padding: '6px 18px', background: '#034785', color: '#fff', border: 'none', borderRadius: 6, cursor: 'pointer', fontWeight: 600, fontSize: 13 }}
-          >
-            + Compose
-          </button>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <div className="px-4 py-2 border-b border-slate-200 flex justify-between items-center shrink-0 bg-slate-50">
+          <div className="flex items-center gap-2">
+            {/* Toggle folders button on mobile */}
+            <button
+              onClick={() => setMobileSidebarOpen(true)}
+              className="md:hidden p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-sm"
+              title="Show folders"
+            >
+              📂 Folders
+            </button>
+            <button
+              onClick={() => setCompose({ mode: 'compose' })}
+              className="px-4 py-1.5 bg-brand-600 hover:bg-brand-700 text-white font-semibold rounded-lg text-sm transition-colors shadow-sm"
+            >
+              + Compose
+            </button>
+          </div>
+          <div className="flex items-center gap-2">
             <SyncButton onSync={sync} syncing={syncing} lastSyncedAt={lastSyncedAt} />
             <button
               onClick={() => setShowSettings(true)}
               title="Mail settings"
-              style={{ padding: '6px 10px', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, cursor: 'pointer', fontSize: 16, color: '#6b7280', lineHeight: 1 }}
+              className="p-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 text-sm"
             >
               ⚙
             </button>
           </div>
         </div>
 
-        {/* Content */}
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
+        {/* Content Area */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Message List Pane */}
           {listAccountIds.length === 0 ? (
-            <div style={{ width: 320, borderRight: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+            <div className="w-full md:w-80 border-r border-slate-200 flex items-center justify-center text-slate-400 text-sm">
               Select an account
             </div>
           ) : (
-            <MessageList
-              headers={headers}
-              loading={headersLoading}
-              hasMore={hasMore}
-              loadMore={loadMore}
-              selectedUid={selectedHeader?.uid ?? null}
-              onSelect={h => {
-                setSelectedHeader(h);
-              }}
-            />
-          )}
-
-          {selectedHeader && activeAccountId ? (
-            <MessageDetail
-              accountId={activeAccountId}
-              header={selectedHeader}
-              onReply={() => setCompose({ mode: 'reply', header: selectedHeader })}
-              onForward={() => setCompose({ mode: 'forward', header: selectedHeader })}
-              onDeleted={() => {
-                setSelectedHeader(null);
-                refreshHeaders();
-              }}
-              onToggleRead={(isRead: boolean) => {
-                setSelectedHeader(prev => prev ? { ...prev, isRead } : null);
-                refreshHeaders();
-              }}
-            />
-          ) : (
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
-              Select a message to read
+            <div className={`w-full md:w-80 border-r border-slate-200 flex flex-col ${selectedHeader ? 'hidden md:flex' : 'flex'}`}>
+              <MessageList
+                headers={headers}
+                loading={headersLoading}
+                hasMore={hasMore}
+                loadMore={loadMore}
+                selectedUid={selectedHeader?.uid ?? null}
+                onSelect={h => setSelectedHeader(h)}
+              />
             </div>
           )}
+
+          {/* Message Detail Pane */}
+          <div className={`flex-1 flex flex-col ${selectedHeader ? 'flex' : 'hidden md:flex'}`}>
+            {selectedHeader && activeAccountId ? (
+              <MessageDetail
+                accountId={activeAccountId}
+                header={selectedHeader}
+                onReply={() => setCompose({ mode: 'reply', header: selectedHeader })}
+                onForward={() => setCompose({ mode: 'forward', header: selectedHeader })}
+                onDeleted={() => {
+                  setSelectedHeader(null);
+                  refreshHeaders();
+                }}
+                onToggleRead={(isRead: boolean) => {
+                  setSelectedHeader(prev => prev ? { ...prev, isRead } : null);
+                  refreshHeaders();
+                }}
+                onBack={() => setSelectedHeader(null)} // Mobile back button handler
+              />
+            ) : (
+              <div className="flex-1 flex items-center justify-center text-slate-400 text-sm bg-slate-50">
+                Select a message to read
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -11,9 +11,10 @@ type Props = {
   onForward: () => void;
   onDeleted?: () => void;
   onToggleRead?: (isRead: boolean) => void;
+  onBack?: () => void;
 };
 
-export function MessageDetail({ accountId, header, onReply, onForward, onDeleted, onToggleRead }: Props) {
+export function MessageDetail({ accountId, header, onReply, onForward, onDeleted, onToggleRead, onBack }: Props) {
   const { html, text, loading } = useMailBody(accountId, header.uid, header.folder);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -53,6 +54,15 @@ export function MessageDetail({ accountId, header, onReply, onForward, onDeleted
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: '#fff' }}>
       {/* Top Action Bar (MacBook Mail Style) */}
       <div style={{ padding: '8px 16px', borderBottom: '1px solid #e5e7eb', display: 'flex', gap: 8, alignItems: 'center', background: '#f9fafb' }}>
+        {onBack && (
+          <button
+            onClick={onBack}
+            className="md:hidden"
+            style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', background: '#fff', fontSize: 13, fontWeight: 500 }}
+          >
+            ← Back
+          </button>
+        )}
         <button
           onClick={onReply}
           disabled={actionLoading}
