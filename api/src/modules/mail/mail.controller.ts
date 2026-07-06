@@ -313,19 +313,48 @@ export class MailController {
     };
 
     const defaultTemplate = `
-<div style="font-family: Arial, sans-serif; font-size: 13px; color: #333; line-height: 1.5; border-top: 1px solid #e5e7eb; padding-top: 8px; margin-top: 16px;">
-  <p style="margin: 0; font-weight: bold; color: #034785;">{{firstName}} {{lastName}}</p>
-  <p style="margin: 2px 0 0; color: #6b7280; font-size: 12px;">{{title}}</p>
-  <p style="margin: 2px 0 0; color: #374151; font-weight: 500;">{{companyName}}</p>
-  <p style="margin: 6px 0 0; color: #6b7280; font-size: 11px;">
-    Email: {{email}} {{#phone}}| Phone: {{phone}}{{/phone}}
-  </p>
-  {{#logoUrl}}
-  <div style="margin-top: 8px;">
-    <img src="{{logoUrl}}" alt="{{companyName}}" style="height: 32px; max-width: 150px; object-fit: contain;" />
-  </div>
-  {{/logoUrl}}
-</div>
+<table cellpadding="0" cellspacing="0" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 13px; color: #334155; line-height: 1.6; margin-top: 24px; border-collapse: collapse; border-top: 1px solid #e2e8f0; padding-top: 16px; width: 100%; max-width: 500px;">
+  <tr>
+    {{#logoUrl}}
+    <td style="vertical-align: top; padding-right: 16px; padding-top: 8px; width: 80px;">
+      <img src="{{logoUrl}}" alt="{{companyName}}" style="width: 70px; height: 70px; border-radius: 8px; object-fit: contain; display: block;" />
+    </td>
+    <td style="vertical-align: top; padding-left: 16px; border-left: 2px solid #034785; padding-top: 4px;">
+    {{/logoUrl}}
+    {{^logoUrl}}
+    <td style="vertical-align: top; border-left: 3px solid #034785; padding-left: 16px; padding-top: 4px;">
+    {{/logoUrl}}
+      <div style="font-size: 15px; font-weight: 700; color: #0f172a; letter-spacing: -0.01em;">{{firstName}} {{lastName}}</div>
+      <div style="font-size: 11px; color: #64748b; font-weight: 600; margin-top: 2px; text-transform: uppercase; letter-spacing: 0.05em;">{{title}}</div>
+      <div style="font-size: 13px; color: #034785; font-weight: 600; margin-top: 4px;">{{companyName}}</div>
+      
+      <table cellpadding="0" cellspacing="0" style="font-size: 12px; color: #475569; margin-top: 8px; border-collapse: collapse;">
+        {{#phone}}
+        <tr>
+          <td style="padding: 1px 0; color: #64748b; font-weight: 600; width: 18px; vertical-align: middle;">P:</td>
+          <td style="padding: 1px 0; vertical-align: middle;"><a href="tel:{{phone}}" style="color: #475569; text-decoration: none;">{{phone}}</a></td>
+        </tr>
+        {{/phone}}
+        <tr>
+          <td style="padding: 1px 0; color: #64748b; font-weight: 600; width: 18px; vertical-align: middle;">E:</td>
+          <td style="padding: 1px 0; vertical-align: middle;"><a href="mailto:{{email}}" style="color: #034785; text-decoration: none; font-weight: 500;">{{email}}</a></td>
+        </tr>
+        {{#website}}
+        <tr>
+          <td style="padding: 1px 0; color: #64748b; font-weight: 600; width: 18px; vertical-align: middle;">W:</td>
+          <td style="padding: 1px 0; vertical-align: middle;"><a href="{{website}}" target="_blank" style="color: #475569; text-decoration: none;">{{website}}</a></td>
+        </tr>
+        {{/website}}
+        {{#address}}
+        <tr>
+          <td style="padding: 1px 0; color: #64748b; font-weight: 600; width: 18px; vertical-align: top; padding-top: 3px;">A:</td>
+          <td style="padding: 1px 0; color: #475569; line-height: 1.4; vertical-align: top; padding-top: 2px;">{{address}}</td>
+        </tr>
+        {{/address}}
+      </table>
+    </td>
+  </tr>
+</table>
     `.trim();
 
     const rawTemplate = orgMetadata.signature_template ?? account.signature ?? defaultTemplate;
