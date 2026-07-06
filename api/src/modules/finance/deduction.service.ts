@@ -49,25 +49,51 @@ export class DeductionService {
     };
   }
 
+  private getPdfLogoDataUri(): string | null {
+    try {
+      const logoPath = process.env.PDF_LOGO_PATH || 'public/branding/logo.png';
+      if (require('fs').existsSync(logoPath)) {
+        const fileBuffer = require('fs').readFileSync(logoPath);
+        const ext = require('path').extname(logoPath).toLowerCase();
+        const mime = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : null;
+        if (mime) {
+          return `data:${mime};base64,${fileBuffer.toString('base64')}`;
+        }
+      }
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
   private pdfDocStyle(): string {
     return `
-      @page { size: A4; margin: 14mm; }
+      @page { size: A4; margin: 10mm; }
       body { font-family: Arial, sans-serif; font-size: 12px; color: #111; margin: 0; }
-      h1 { font-size: 18px; font-weight: 700; text-align: center; text-transform: uppercase; letter-spacing: 1px; margin: 0 0 4px; }
-      .subtitle { text-align: center; font-size: 11px; color: #475569; margin: 0 0 16px; }
-      .ref-badge { display: inline-block; background: #0f172a; color: #fff; font-size: 14px; font-weight: 700; padding: 4px 14px; border-radius: 4px; letter-spacing: 1px; margin-bottom: 16px; }
-      .section { margin-bottom: 16px; }
-      .section-title { font-size: 10px; font-weight: 700; text-transform: uppercase; color: #64748b; letter-spacing: 1px; border-bottom: 1px solid #e2e8f0; padding-bottom: 4px; margin-bottom: 8px; }
-      table.fields { width: 100%; border-collapse: collapse; }
-      table.fields td { padding: 6px 8px; vertical-align: top; }
-      table.fields td:first-child { width: 38%; font-weight: 600; color: #334155; background: #f8fafc; border: 1px solid #e2e8f0; }
-      table.fields td:last-child { border: 1px solid #e2e8f0; }
+      .card { border: 1px solid #000; border-radius: 6px; margin-bottom: 14px; }
+      .rowpad { padding: 12px; border-bottom: 1px solid #000; }
+      .rowpad:last-child { border-bottom: 0; }
+      .header-row { display: flex; justify-content: space-between; align-items: flex-start; }
+      .doc-title { font-size: 18px; font-weight: 700; text-align: right; text-decoration: underline; text-transform: uppercase; letter-spacing: 1px; }
+      .doc-subtitle { font-size: 11px; color: #475569; text-align: right; margin-top: 4px; }
+      .ref-badge { display: inline-block; background: #000; color: #fff; font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 4px; letter-spacing: 1px; }
+      .two-col { display: table; width: 100%; }
+      .two-col > div { display: table-cell; width: 50%; vertical-align: top; padding: 12px; }
+      .two-col > div:first-child { border-right: 1px solid #000; }
+      .detail-list div { margin-bottom: 5px; }
+      .muted { color: #475569; font-size: 11px; }
+      .section-title { font-weight: 700; margin-bottom: 6px; font-size: 12px; }
+      .tbl { width: 100%; border-collapse: collapse; }
+      .tbl th, .tbl td { border: 1px solid #000; padding: 7px; text-align: left; }
+      .tbl th { background: #f3f4f6; }
       .amount-box { background: #f0fdf4; border: 2px solid #16a34a; border-radius: 6px; padding: 10px 14px; margin: 16px 0; text-align: center; }
       .amount-box .label { font-size: 10px; text-transform: uppercase; color: #15803d; font-weight: 600; }
       .amount-box .value { font-size: 22px; font-weight: 700; color: #15803d; }
-      .footer { margin-top: 28px; padding-top: 12px; border-top: 1px solid #e2e8f0; font-size: 10px; color: #64748b; text-align: center; }
-      .sig-row { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; }
-      .sig-box { border-top: 1px solid #111; padding-top: 6px; font-size: 10px; }
+      .sig-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 10px; }
+      .sig-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: #475569; margin-bottom: 4px; margin-top: 8px; }
+      .sig-line { border-bottom: 1.5px solid #111; height: 36px; margin-bottom: 4px; }
+      .sig-name { font-size: 12px; font-weight: 600; }
+      .footer-note { font-size: 10px; color: #475569; text-align: center; margin-top: 20px; }
     `;
   }
 
@@ -487,53 +513,110 @@ export class DeductionService {
       ? `${d.createdByUser.firstName ?? ''} ${d.createdByUser.lastName ?? ''}`.trim() || d.createdByUser.email
       : '—';
 
-    const html = `<!doctype html><html><head><meta charset="utf-8"/>
-<style>${this.pdfDocStyle()}</style></head><body>
-<h1>${this.esc(org.org_name)}</h1>
-<p class="subtitle">Tax Remittance Slip</p>
-<div style="text-align:center;"><span class="ref-badge">${this.esc(d.remittanceNumber ?? '—')}</span></div>
+    const logoDataUri = this.getPdfLogoDataUri();
 
-<div class="section">
-  <div class="section-title">Remittance Details</div>
-  <table class="fields"><tbody>
-    <tr><td>Remittance Date</td><td>${this.fmtDate(d.remittedAt)}</td></tr>
-    <tr><td>Remittance Reference</td><td>${this.esc(d.remittanceRef ?? '—')}</td></tr>
-    <tr><td>Paid From Account</td><td>${d.paidFromAccount ? `${this.esc(d.paidFromAccount.name)}${d.paidFromAccount.bankName ? ` — ${this.esc(d.paidFromAccount.bankName)}` : ''}${d.paidFromAccount.accountNumber ? ` (${this.esc(d.paidFromAccount.accountNumber)})` : ''}` : '—'}</td></tr>
-  </tbody></table>
-</div>
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <style>${this.pdfDocStyle()}</style>
+</head>
+<body>
+  <div class="card">
+    <div class="rowpad">
+      <div class="header-row">
+        <div>${logoDataUri ? `<img src="${logoDataUri}" alt="Logo" style="height:42px;" />` : `<strong>${this.esc(org.org_name)}</strong>`}</div>
+        <div>
+          <div class="doc-title">Tax Remittance Slip</div>
+          <div class="doc-subtitle" style="text-align:right; margin-top:4px;">
+            <span class="ref-badge">${this.esc(d.remittanceNumber ?? '—')}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="two-col">
+      <div>
+        <h3 style="margin:0 0 8px;">Remittance Details</h3>
+        <div class="detail-list">
+          <div><strong>Remittance Date:</strong> ${this.fmtDate(d.remittedAt)}</div>
+          <div><strong>Reference Number:</strong> ${this.esc(d.remittanceNumber ?? '—')}</div>
+          <div><strong>Payment Reference:</strong> ${this.esc(d.remittanceRef ?? '—')}</div>
+          <div><strong>Paid From:</strong> ${d.paidFromAccount ? `${this.esc(d.paidFromAccount.name)}${d.paidFromAccount.bankName ? ` — ${this.esc(d.paidFromAccount.bankName)}` : ''}` : '—'}</div>
+        </div>
+      </div>
+      <div>
+        <h3 style="margin:0 0 8px;">Source Transaction</h3>
+        <div class="detail-list">
+          <div><strong>Request Number:</strong> ${this.esc(requestNumber)}</div>
+          <div><strong>Created By:</strong> ${this.esc(creatorName)}</div>
+          <div><strong>Deduction Created:</strong> ${this.fmtDate(d.createdAt)}</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<div class="section">
-  <div class="section-title">Deduction Detail</div>
-  <table class="fields"><tbody>
-    <tr><td>Deduction Type</td><td>${this.esc(d.deductionType.name)} (${this.esc(d.deductionType.code)})</td></tr>
-    <tr><td>Rate</td><td>${(Number(d.rate) * 100).toFixed(1)}%</td></tr>
-    <tr><td>Gross Invoice Amount</td><td>${this.fmtMoney(d.grossAmount)}</td></tr>
-    <tr><td>Amount Withheld</td><td><strong>${this.fmtMoney(d.amount)}</strong></td></tr>
-  </tbody></table>
-</div>
+  <div class="card">
+    <div class="rowpad">
+      <h3 style="margin:0 0 8px;">Deduction Detail</h3>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Deduction Type</th>
+            <th>Rate</th>
+            <th>Gross Invoice Amount</th>
+            <th>Amount Withheld</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${this.esc(d.deductionType.name)} (${this.esc(d.deductionType.code)})</td>
+            <td>${(Number(d.rate) * 100).toFixed(1)}%</td>
+            <td>${this.fmtMoney(d.grossAmount)}</td>
+            <td><strong>${this.fmtMoney(d.amount)}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 
-<div class="amount-box">
-  <div class="label">Total Remitted</div>
-  <div class="value">${this.fmtMoney(d.amount)}</div>
-</div>
+  <div class="amount-box">
+    <div class="label">Total Remitted</div>
+    <div class="value">${this.fmtMoney(d.amount)}</div>
+  </div>
 
-<div class="section">
-  <div class="section-title">Source Transaction</div>
-  <table class="fields"><tbody>
-    <tr><td>Request Number</td><td>${this.esc(requestNumber)}</td></tr>
-    <tr><td>Created By</td><td>${this.esc(creatorName)}</td></tr>
-    <tr><td>Deduction Created</td><td>${this.fmtDate(d.createdAt)}</td></tr>
-  </tbody></table>
-</div>
+  ${d.notes ? `
+  <div class="card">
+    <div class="rowpad">
+      <h3 style="margin:0 0 6px;">Notes</h3>
+      <p style="margin:0; line-height:1.6;">${this.esc(d.notes)}</p>
+    </div>
+  </div>` : ''}
 
-${d.notes ? `<div class="section"><div class="section-title">Notes</div><p style="margin:0;">${this.esc(d.notes)}</p></div>` : ''}
+  <div class="card">
+    <div class="rowpad">
+      <strong>Signatures</strong>
+      <div class="sig-grid" style="margin-top:10px;">
+        <div>
+          <div class="sig-label">Prepared By</div>
+          <div class="sig-line"></div>
+          <div class="sig-name">${org.prepared_by ? this.esc(org.prepared_by) : '____________________'}</div>
+          <div class="muted">${this.esc(org.prepared_title)}</div>
+        </div>
+        <div>
+          <div class="sig-label">Date</div>
+          <div class="sig-line"></div>
+          <div class="sig-name">${this.fmtDate(d.remittedAt)}</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<div class="sig-row">
-  <div class="sig-box">${org.prepared_by ? this.esc(org.prepared_by) : '____________________'}<br/>${this.esc(org.prepared_title)}</div>
-  <div class="sig-box">Date: ${this.fmtDate(d.remittedAt)}</div>
-</div>
-<div class="footer">This document was generated on ${this.fmtDate(new Date())}. TRM Reference: ${this.esc(d.remittanceNumber ?? '—')}</div>
-</body></html>`;
+  <div class="footer-note">
+    This document was generated on ${this.fmtDate(new Date())}. TRM Reference: ${this.esc(d.remittanceNumber ?? '—')}
+  </div>
+</body>
+</html>`;
 
     const buffer = await this.pdfService.renderPdfFromHtml(html);
     const fileName = `TRM-${(d.remittanceNumber ?? id).replace(/\//g, '-')}.pdf`;
@@ -575,67 +658,132 @@ ${d.notes ? `<div class="section"><div class="section-title">Notes</div><p style
     const pvDate = this.fmtDate(pv.disbursedAt);
     const certDate = trmRecord?.remittedAt ? this.fmtDate(trmRecord.remittedAt) : this.fmtDate(new Date());
 
-    const html = `<!doctype html><html><head><meta charset="utf-8"/>
-<style>${this.pdfDocStyle()}</style></head><body>
-<h1>${this.esc(org.org_name)}</h1>
-<p class="subtitle">Withholding Tax Certificate</p>
-${trmRecord?.remittanceNumber ? `<div style="text-align:center;"><span class="ref-badge">${this.esc(trmRecord.remittanceNumber)}</span></div>` : ''}
+    const logoDataUri = this.getPdfLogoDataUri();
 
-<div style="background:#fafafa;border:1px solid #e2e8f0;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#475569;">
-  This certificate confirms that ${this.esc(org.org_name)} has withheld and remitted
-  <strong>${this.esc(pvd.deductionType.name)}</strong> on payment made to the party named below, in accordance with applicable tax regulations.
-</div>
+    const html = `<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <style>${this.pdfDocStyle()}</style>
+</head>
+<body>
+  <div class="card">
+    <div class="rowpad">
+      <div class="header-row">
+        <div>${logoDataUri ? `<img src="${logoDataUri}" alt="Logo" style="height:42px;" />` : `<strong>${this.esc(org.org_name)}</strong>`}</div>
+        <div>
+          <div class="doc-title">Withholding Tax Certificate</div>
+          <div class="doc-subtitle" style="text-align:right; margin-top:4px;">
+            ${trmRecord?.remittanceNumber ? `<span class="ref-badge">${this.esc(trmRecord.remittanceNumber)}</span>` : ''}
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="rowpad" style="background:#fafafa; font-size:11px; color:#475569; line-height:1.6;">
+      This certificate confirms that ${this.esc(org.org_name)} has withheld and remitted
+      <strong>${this.esc(pvd.deductionType.name)}</strong> on payment made to the party named below, in accordance with applicable tax regulations.
+    </div>
 
-<div class="section">
-  <div class="section-title">Vendor / Payee</div>
-  <table class="fields"><tbody>
-    <tr><td>Name</td><td><strong>${this.esc(vendorName)}</strong></td></tr>
-    ${vendorEmail ? `<tr><td>Email</td><td>${this.esc(vendorEmail)}</td></tr>` : ''}
-    ${pv.contact?.phone ? `<tr><td>Phone</td><td>${this.esc(pv.contact.phone)}</td></tr>` : ''}
-  </tbody></table>
-</div>
+    <div class="two-col">
+      <div>
+        <h3 style="margin:0 0 8px;">Vendor / Payee</h3>
+        <div class="detail-list">
+          <div><strong>Name:</strong> <strong>${this.esc(vendorName)}</strong></div>
+          ${vendorEmail ? `<div><strong>Email:</strong> ${this.esc(vendorEmail)}</div>` : ''}
+          ${pv.contact?.phone ? `<div><strong>Phone:</strong> ${this.esc(pv.contact.phone)}</div>` : ''}
+        </div>
+      </div>
+      <div>
+        <h3 style="margin:0 0 8px;">Payment Details</h3>
+        <div class="detail-list">
+          <div><strong>Request Number:</strong> ${this.esc(requestNumber)}</div>
+          <div><strong>Payment Voucher:</strong> ${this.esc(pv.voucherNumber)}</div>
+          <div><strong>Payment Date:</strong> ${pvDate}</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<div class="section">
-  <div class="section-title">Payment Details</div>
-  <table class="fields"><tbody>
-    <tr><td>Request Number</td><td>${this.esc(requestNumber)}</td></tr>
-    <tr><td>Payment Voucher</td><td>${this.esc(pv.voucherNumber)}</td></tr>
-    <tr><td>Payment Date</td><td>${pvDate}</td></tr>
-    <tr><td>Gross Invoice Amount</td><td>${this.fmtMoney(pvd.grossAmount)}</td></tr>
-    <tr><td>Net Amount Paid</td><td>${this.fmtMoney(pv.amount)}</td></tr>
-  </tbody></table>
-</div>
+  <div class="card">
+    <div class="rowpad">
+      <h3 style="margin:0 0 8px;">Tax Deduction</h3>
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Deduction Type</th>
+            <th>Rate</th>
+            <th>Gross Invoice Amount</th>
+            <th>Amount Withheld</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>${this.esc(pvd.deductionType.name)} (${this.esc(pvd.deductionType.code)})</td>
+            <td>${(Number(pvd.rate) * 100).toFixed(1)}%</td>
+            <td>${this.fmtMoney(pvd.grossAmount)}</td>
+            <td><strong>${this.fmtMoney(pvd.deductionAmount)}</strong></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 
-<div class="section">
-  <div class="section-title">Tax Deduction</div>
-  <table class="fields"><tbody>
-    <tr><td>Deduction Type</td><td>${this.esc(pvd.deductionType.name)} (${this.esc(pvd.deductionType.code)})</td></tr>
-    <tr><td>Rate Applied</td><td>${(Number(pvd.rate) * 100).toFixed(1)}%</td></tr>
-    <tr><td>Amount Withheld</td><td><strong>${this.fmtMoney(pvd.deductionAmount)}</strong></td></tr>
-  </tbody></table>
-</div>
+  <div class="amount-box">
+    <div class="label">Tax Withheld &amp; Remitted</div>
+    <div class="value">${this.fmtMoney(pvd.deductionAmount)}</div>
+  </div>
 
-<div class="amount-box">
-  <div class="label">Tax Withheld &amp; Remitted</div>
-  <div class="value">${this.fmtMoney(pvd.deductionAmount)}</div>
-</div>
+  <div class="card">
+    <div class="rowpad">
+      <h3 style="margin:0 0 8px;">Remittance Confirmation</h3>
+      ${trmRecord ? `
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>TRM Reference</th>
+            <th>Remittance Reference</th>
+            <th>Remitted On</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>${this.esc(trmRecord.remittanceNumber ?? '—')}</strong></td>
+            <td>${this.esc(trmRecord.remittanceRef ?? '—')}</td>
+            <td>${this.fmtDate(trmRecord.remittedAt)}</td>
+          </tr>
+        </tbody>
+      </table>
+      ` : '<p style="color:#b45309; font-size:11px; margin:0;">Note: Remittance to tax authority is pending.</p>'}
+    </div>
+  </div>
 
-${trmRecord ? `
-<div class="section">
-  <div class="section-title">Remittance Confirmation</div>
-  <table class="fields"><tbody>
-    <tr><td>TRM Reference</td><td><strong>${this.esc(trmRecord.remittanceNumber ?? '—')}</strong></td></tr>
-    <tr><td>Remittance Reference</td><td>${this.esc(trmRecord.remittanceRef ?? '—')}</td></tr>
-    <tr><td>Remitted On</td><td>${this.fmtDate(trmRecord.remittedAt)}</td></tr>
-  </tbody></table>
-</div>` : '<p style="color:#b45309;font-size:11px;">Note: Remittance to tax authority is pending.</p>'}
+  <div class="card">
+    <div class="rowpad">
+      <strong>Signatures</strong>
+      <div class="sig-grid" style="margin-top:10px;">
+        <div>
+          <div class="sig-label">Prepared By</div>
+          <div class="sig-line"></div>
+          <div class="sig-name">${org.prepared_by ? this.esc(org.prepared_by) : '____________________'}</div>
+          <div class="muted">${this.esc(org.prepared_title)}</div>
+          <div class="muted">Date: ${certDate}</div>
+        </div>
+        <div>
+          <div class="sig-label">Authorised Signatory</div>
+          <div class="sig-line"></div>
+          <div class="sig-name">&nbsp;</div>
+          <div class="muted">Date: _______________</div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-<div class="sig-row">
-  <div class="sig-box">${org.prepared_by ? this.esc(org.prepared_by) : '____________________'}<br/>${this.esc(org.prepared_title)}<br/>Date: ${certDate}</div>
-  <div class="sig-box">Authorised Signatory<br/>____________________<br/>Date: _______________</div>
-</div>
-<div class="footer">This certificate is issued for tax credit purposes. ${trmRecord?.remittanceNumber ? `TRM Ref: ${this.esc(trmRecord.remittanceNumber)}` : ''} — ${this.fmtDate(new Date())}</div>
-</body></html>`;
+  <div class="footer-note">
+    This certificate is issued for tax credit purposes. ${trmRecord?.remittanceNumber ? `TRM Ref: ${this.esc(trmRecord.remittanceNumber)}` : ''} — ${this.fmtDate(new Date())}
+  </div>
+</body>
+</html>`;
 
     const buffer = await this.pdfService.renderPdfFromHtml(html);
     const fileName = `WHT-Certificate-${pv.voucherNumber.replace(/\//g, '-')}.pdf`;
