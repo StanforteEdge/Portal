@@ -7,6 +7,7 @@ import type { MailAccount } from '@prisma/client';
 const GOOGLE_SCOPES = ['https://mail.google.com/'];
 
 const MICROSOFT_SCOPES = [
+  'openid',
   'https://outlook.office365.com/IMAP.AccessAsUser.All',
   'https://outlook.office365.com/SMTP.Send',
   'offline_access',
