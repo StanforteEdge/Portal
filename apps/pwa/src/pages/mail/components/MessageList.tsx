@@ -2,17 +2,17 @@ import { useMailHeaders } from '../hooks/useMailHeaders';
 import type { MailHeader } from '@stanforte/shared';
 
 type Props = {
-  accountId: string | null;
+  accountIds: string[];
   folder: string;
   selectedUid: string | null;
   onSelect: (header: MailHeader) => void;
   onRefreshed?: () => void;
 };
 
-export function MessageList({ accountId, folder, selectedUid, onSelect }: Props) {
-  const { headers, loading, loadMore, hasMore } = useMailHeaders(accountId, folder);
+export function MessageList({ accountIds, folder, selectedUid, onSelect }: Props) {
+  const { headers, loading, loadMore, hasMore } = useMailHeaders(accountIds, folder);
 
-  if (!accountId) {
+  if (accountIds.length === 0) {
     return (
       <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
         Select an account

@@ -4,6 +4,7 @@ import { MessageList } from './components/MessageList';
 import { MessageDetail } from './components/MessageDetail';
 import { ComposeModal } from './components/ComposeModal';
 import { AccountConnectPrompt } from './components/AccountConnectPrompt';
+import { MailSettingsPanel } from './components/MailSettingsPanel';
 import { SyncButton } from './components/SyncButton';
 import { useMailAccounts } from './hooks/useMailAccounts';
 import { useMailSync } from './hooks/useMailSync';
@@ -15,6 +16,7 @@ export function MailLayout() {
   const [selectedFolder, setSelectedFolder] = useState('INBOX');
   const [selectedHeader, setSelectedHeader] = useState<MailHeader | null>(null);
   const [compose, setCompose] = useState<{ mode: 'compose' | 'reply' | 'forward'; header?: MailHeader } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
 
   const handleSyncComplete = useCallback(() => {
     // Headers will reload on next render via useMailHeaders
@@ -29,9 +31,15 @@ export function MailLayout() {
     void sync();
   }
 
-  const activeAccountId: string | null = selectedAccountId === 'all'
-    ? (accounts[0]?.id ?? null)
-    : selectedAccountId;
+  // Which account IDs to show in the message list
+  const listAccountIds = selectedAccountId === 'all'
+    ? accounts.map(a => a.id)
+    : accounts.map(a => a.id).filter(id => id === selectedAccountId);
+
+  // Which account to use for message detail — prefer the header's own accountId
+  const activeAccountId: string | null =
+    selectedHeader?.accountId
+    ?? (selectedAccountId === 'all' ? (accounts[0]?.id ?? null) : selectedAccountId);
 
   if (loading) {
     return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9ca3af' }}>Loading…</div>;
@@ -50,8 +58,6 @@ export function MailLayout() {
         onSelectAccount={id => { setSelectedAccountId(id); setSelectedHeader(null); }}
         onSelectFolder={f => { setSelectedFolder(f); setSelectedHeader(null); }}
         onDisconnect={disconnect}
-        onAddGoogle={connectGoogle}
-        onAddMicrosoft={connectMicrosoft}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>
@@ -63,13 +69,22 @@ export function MailLayout() {
           >
             + Compose
           </button>
-          <SyncButton onSync={sync} syncing={syncing} lastSyncedAt={lastSyncedAt} />
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <SyncButton onSync={sync} syncing={syncing} lastSyncedAt={lastSyncedAt} />
+            <button
+              onClick={() => setShowSettings(true)}
+              title="Mail settings"
+              style={{ padding: '6px 10px', background: 'none', border: '1px solid #e5e7eb', borderRadius: 6, cursor: 'pointer', fontSize: 16, color: '#6b7280', lineHeight: 1 }}
+            >
+              ⚙
+            </button>
+          </div>
         </div>
 
         {/* Content */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
           <MessageList
-            accountId={activeAccountId}
+            accountIds={listAccountIds}
             folder={selectedFolder}
             selectedUid={selectedHeader?.uid ?? null}
             onSelect={h => {
@@ -99,6 +114,16 @@ export function MailLayout() {
           originalHeader={compose.header}
           onClose={() => setCompose(null)}
           onSent={() => setCompose(null)}
+        />
+      )}
+
+      {showSettings && (
+        <MailSettingsPanel
+          accounts={accounts}
+          onClose={() => setShowSettings(false)}
+          onAddGoogle={connectGoogle}
+          onAddMicrosoft={connectMicrosoft}
+          onDisconnect={disconnect}
         />
       )}
     </div>
