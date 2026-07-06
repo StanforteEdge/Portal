@@ -108,8 +108,9 @@ export class MailImapService {
       const lock = await client.getMailboxLock(folder);
       try {
         const message = await client.fetchOne(uid, { source: true }, { uid: true });
-        if (!message) return { html: '', text: '' };
-        const raw = message.source?.toString('utf8') ?? '';
+        const raw = (message && typeof message === 'object' && 'source' in message)
+          ? (message.source as Buffer | undefined)?.toString('utf8') ?? ''
+          : '';
         return { html: raw, text: raw };
       } finally {
         lock.release();
