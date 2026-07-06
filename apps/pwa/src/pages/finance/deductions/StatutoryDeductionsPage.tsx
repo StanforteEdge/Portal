@@ -60,7 +60,7 @@ export default function StatutoryDeductionsPage() {
 
   useEffect(() => {
     financeApi.listAccounts().then((res: any) => {
-      setAccounts((res?.items ?? res?.data ?? []) as Account[]);
+      setAccounts((Array.isArray(res) ? res : []) as Account[]);
     }).catch(() => {});
   }, []);
 
