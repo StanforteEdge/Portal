@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { MailAccountService } from './mail-account.service';
 import { MailImapService } from './mail-imap.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { MailAccount } from '@prisma/client';
 import type { SyncResultDto } from './dto/sync-result.dto';
 
@@ -16,6 +17,7 @@ export class MailSyncService {
     private readonly prisma: PrismaService,
     private readonly accountService: MailAccountService,
     private readonly imapService: MailImapService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   async syncAccount(account: MailAccount, folder?: string): Promise<SyncResultDto[]> {
@@ -78,6 +80,23 @@ export class MailSyncService {
         }),
       ),
     );
+
+    // Dispatch system notifications for new unread emails
+    for (const h of headers) {
+      if (!h.isRead) {
+        try {
+          await this.notificationsService.create({
+            userId: account.profileId,
+            type: 'email',
+            title: `New email from ${h.fromName || h.fromEmail}`,
+            message: h.subject || '(No Subject)',
+            link: '/mail',
+          });
+        } catch (err) {
+          console.error('Failed to create system notification for new email', err);
+        }
+      }
+    }
 
     return { accountId: String(account.id), folder, newCount: headers.length };
   }

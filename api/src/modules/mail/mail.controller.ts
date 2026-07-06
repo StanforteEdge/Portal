@@ -311,4 +311,25 @@ export class MailController {
 
     return { html: result };
   }
+
+  @Post('webhooks/gmail')
+  async handleGmailWebhook(@Body() body: any) {
+    if (!body?.message?.data) return { ok: true };
+    try {
+      const decodedString = Buffer.from(body.message.data, 'base64').toString('utf-8');
+      const data = JSON.parse(decodedString);
+      const emailAddress = data.emailAddress;
+      if (emailAddress) {
+        const account = await this.prisma.mailAccount.findFirst({
+          where: { emailAddress, provider: 'GOOGLE' },
+        });
+        if (account) {
+          await this.syncService.syncAccount(account);
+        }
+      }
+    } catch (err) {
+      console.error('Failed to handle Gmail webhook', err);
+    }
+    return { ok: true };
+  }
 }

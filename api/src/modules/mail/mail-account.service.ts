@@ -68,7 +68,7 @@ export class MailAccountService {
     const oauth2 = google.oauth2({ version: 'v2', auth: client });
     const { data } = await oauth2.userinfo.get();
 
-    return this.prisma.mailAccount.create({
+    const account = await this.prisma.mailAccount.create({
       data: {
         profileId,
         provider: 'GOOGLE',
@@ -77,6 +77,29 @@ export class MailAccountService {
         accessToken: this.crypto.encrypt(tokens.access_token),
         refreshToken: this.crypto.encrypt(tokens.refresh_token),
         tokenExpiresAt: new Date(tokens.expiry_date ?? Date.now() + 3_600_000),
+      },
+    });
+
+    try {
+      await this.setupGoogleWatch(account);
+    } catch (err) {
+      console.error('Failed to setup Google mailbox watch on initial connection', err);
+    }
+
+    return account;
+  }
+
+  async setupGoogleWatch(account: MailAccount): Promise<void> {
+    const accessToken = await this.getDecryptedAccessToken(account);
+    const client = this.googleOAuth2Client();
+    client.setCredentials({ access_token: accessToken });
+    const gmail = google.gmail({ version: 'v1', auth: client });
+
+    await gmail.users.watch({
+      userId: 'me',
+      requestBody: {
+        topicName: 'projects/ste-portal/topics/gmail-notifications',
+        labelIds: ['INBOX'],
       },
     });
   }
