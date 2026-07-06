@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ImapFlow } from 'imapflow';
+import { simpleParser } from 'mailparser';
 import type { MailAccount } from '@prisma/client';
 
 export type FolderItem = {
@@ -108,10 +109,15 @@ export class MailImapService {
       const lock = await client.getMailboxLock(folder);
       try {
         const message = await client.fetchOne(uid, { source: true }, { uid: true });
-        const raw = (message && typeof message === 'object' && 'source' in message)
-          ? (message.source as Buffer | undefined)?.toString('utf8') ?? ''
-          : '';
-        return { html: raw, text: raw };
+        const rawBuffer = (message && typeof message === 'object' && 'source' in message)
+          ? (message.source as Buffer | undefined)
+          : undefined;
+        if (!rawBuffer) return { html: '', text: '' };
+        const parsed = await simpleParser(rawBuffer);
+        return {
+          html: parsed.html || '',
+          text: parsed.text || '',
+        };
       } finally {
         lock.release();
       }

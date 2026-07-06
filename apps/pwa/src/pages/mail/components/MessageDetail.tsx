@@ -10,8 +10,12 @@ type Props = {
 };
 
 export function MessageDetail({ accountId, header, onReply, onForward }: Props) {
-  const { html, loading } = useMailBody(accountId, header.uid, header.folder);
-  const safeHtml = html ? DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }) : '';
+  const { html, text, loading } = useMailBody(accountId, header.uid, header.folder);
+  const safeHtml = html
+    ? DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+    : text
+      ? `<pre style="white-space:pre-wrap;font-family:inherit;margin:0">${text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</pre>`
+      : '';
 
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
