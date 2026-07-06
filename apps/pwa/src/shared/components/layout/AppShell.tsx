@@ -90,6 +90,48 @@ export function AppShell({
     );
   }, [sidebarCollapsed]);
 
+  // Request browser Notification API permission if available
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      void Notification.requestPermission();
+    }
+  }, []);
+
+  const [lastSeenId, setLastSeenId] = useState<string | null>(null);
+
+  // Watch for new notifications and dispatch native/browser push alerts
+  useEffect(() => {
+    if (!notifications || notifications.length === 0) return;
+    const latest = notifications[0];
+    
+    // Set the initial seen notification ID on load to prevent spamming old alerts
+    if (!lastSeenId) {
+      setLastSeenId(String(latest.id));
+      return;
+    }
+
+    if (String(latest.id) !== lastSeenId) {
+      setLastSeenId(String(latest.id));
+      
+      const title = latest.title;
+      const body = latest.message;
+
+      // 1. Tauri Native Notification (Desktop App)
+      if (typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window) {
+        import("@/lib/tauri-bridge").then(({ sendNativeNotification }) => {
+          void sendNativeNotification(title, body);
+        });
+      } else if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        // 2. Standard PWA Browser Push Notification
+        try {
+          new Notification(title, { body });
+        } catch (err) {
+          console.error('Failed to trigger standard browser notification', err);
+        }
+      }
+    }
+  }, [notifications, lastSeenId]);
+
   const notificationItems = Array.isArray(notifications) ? notifications : [];
   const topNotifications = useMemo(
     () => Array.isArray(notificationItems) ? notificationItems.slice(0, 6) : [],
