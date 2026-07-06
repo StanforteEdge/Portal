@@ -3646,6 +3646,7 @@ model MailAccount {
   label          String?      @db.VarChar(100)
   lastSyncedAt   DateTime?    @map("last_synced_at")
   signature      String?      @db.Text
+  outlookSubscriptionId String? @map("outlook_subscription_id") @db.VarChar(255)
   createdAt      DateTime     @default(now()) @map("created_at")
   headers        MailHeader[]
 

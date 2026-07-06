@@ -332,4 +332,32 @@ export class MailController {
     }
     return { ok: true };
   }
+
+  @Post('webhooks/outlook')
+  async handleOutlookWebhook(
+    @Query('validationToken') validationToken: string,
+    @Body() body: any,
+    @Res() res: any,
+  ) {
+    if (validationToken) {
+      res.status(200).header('Content-Type', 'text/plain').send(validationToken);
+      return;
+    }
+
+    if (body?.value && Array.isArray(body.value)) {
+      for (const notification of body.value) {
+        const subscriptionId = notification.subscriptionId;
+        if (subscriptionId) {
+          const account = await this.prisma.mailAccount.findFirst({
+            where: { outlookSubscriptionId: subscriptionId },
+          });
+          if (account) {
+            await this.syncService.syncAccount(account);
+          }
+        }
+      }
+    }
+
+    res.status(202).send();
+  }
 }

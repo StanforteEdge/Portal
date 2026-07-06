@@ -10,6 +10,7 @@ const MICROSOFT_SCOPES = [
   'openid',
   'https://outlook.office365.com/IMAP.AccessAsUser.All',
   'https://outlook.office365.com/SMTP.Send',
+  'https://graph.microsoft.com/Mail.Read',
   'offline_access',
   'email',
   'profile',
@@ -157,7 +158,7 @@ export class MailAccountService {
 
     const email = profile.mail ?? profile.userPrincipalName ?? '';
 
-    return this.prisma.mailAccount.create({
+    const account = await this.prisma.mailAccount.create({
       data: {
         profileId,
         provider: 'MICROSOFT',
@@ -168,6 +169,79 @@ export class MailAccountService {
         tokenExpiresAt: new Date(Date.now() + tokens.expires_in * 1_000),
       },
     });
+
+    try {
+      await this.setupMicrosoftWatch(account);
+    } catch (err) {
+      console.error('Failed to setup Microsoft mailbox subscription watch on link', err);
+    }
+
+    return account;
+  }
+
+  async setupMicrosoftWatch(account: MailAccount): Promise<void> {
+    const accessToken = await this.getDecryptedAccessToken(account);
+    const expiration = new Date(Date.now() + 4230 * 60 * 1000); // Max 3 days
+
+    try {
+      const res = await fetch('https://graph.microsoft.com/v1.0/subscriptions', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          changeType: 'created',
+          notificationUrl: `${process.env.APP_BASE_URL || 'http://localhost:3000'}/mail/webhooks/outlook`,
+          resource: 'me/mailFolders/Inbox/messages',
+          expirationDateTime: expiration.toISOString(),
+          clientState: 'ste-outlook-sync',
+        }),
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error('Microsoft watch subscription failed:', errText);
+        return;
+      }
+
+      const data = await res.json() as any;
+      if (data?.id) {
+        await this.prisma.mailAccount.update({
+          where: { id: account.id },
+          data: { outlookSubscriptionId: data.id },
+        });
+      }
+    } catch (err) {
+      console.error('Failed to setup Microsoft mailbox subscription watch', err);
+    }
+  }
+
+  async renewMicrosoftSubscriptions(): Promise<void> {
+    const accounts = await this.prisma.mailAccount.findMany({
+      where: { provider: 'MICROSOFT', outlookSubscriptionId: { not: null } },
+    });
+    for (const a of accounts) {
+      const accessToken = await this.getDecryptedAccessToken(a);
+      const expiration = new Date(Date.now() + 4230 * 60 * 1000);
+      try {
+        const res = await fetch(`https://graph.microsoft.com/v1.0/subscriptions/${a.outlookSubscriptionId}`, {
+          method: 'PATCH',
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            expirationDateTime: expiration.toISOString(),
+          }),
+        });
+        if (!res.ok) {
+          await this.setupMicrosoftWatch(a);
+        }
+      } catch {
+        await this.setupMicrosoftWatch(a);
+      }
+    }
   }
 
   // ── Token refresh ───────────────────────────────────────────────────────────
