@@ -8,6 +8,7 @@ import { MailSettingsPanel } from './components/MailSettingsPanel';
 import { SyncButton } from './components/SyncButton';
 import { useMailAccounts } from './hooks/useMailAccounts';
 import { useMailSync } from './hooks/useMailSync';
+import { useMailHeaders } from './hooks/useMailHeaders';
 import type { MailHeader } from '@stanforte/shared';
 
 export function MailLayout() {
@@ -18,9 +19,16 @@ export function MailLayout() {
   const [compose, setCompose] = useState<{ mode: 'compose' | 'reply' | 'forward'; header?: MailHeader } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
 
+  // Which account IDs to show in the message list
+  const listAccountIds = selectedAccountId === 'all'
+    ? accounts.map(a => a.id)
+    : accounts.map(a => a.id).filter(id => id === selectedAccountId);
+
+  const { headers, loading: headersLoading, loadMore, hasMore, refresh: refreshHeaders } = useMailHeaders(listAccountIds, selectedFolder);
+
   const handleSyncComplete = useCallback(() => {
-    // Headers will reload on next render via useMailHeaders
-  }, []);
+    refreshHeaders();
+  }, [refreshHeaders]);
 
   const { sync, syncing, lastSyncedAt } = useMailSync(accounts, handleSyncComplete);
 
@@ -30,11 +38,6 @@ export function MailLayout() {
     setHasSynced(true);
     void sync();
   }
-
-  // Which account IDs to show in the message list
-  const listAccountIds = selectedAccountId === 'all'
-    ? accounts.map(a => a.id)
-    : accounts.map(a => a.id).filter(id => id === selectedAccountId);
 
   // Which account to use for message detail — prefer the header's own accountId
   const activeAccountId: string | null =
@@ -83,14 +86,22 @@ export function MailLayout() {
 
         {/* Content */}
         <div style={{ flex: 1, display: 'flex', overflow: 'hidden' }}>
-          <MessageList
-            accountIds={listAccountIds}
-            folder={selectedFolder}
-            selectedUid={selectedHeader?.uid ?? null}
-            onSelect={h => {
-              setSelectedHeader(h);
-            }}
-          />
+          {listAccountIds.length === 0 ? (
+            <div style={{ width: 320, borderRight: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
+              Select an account
+            </div>
+          ) : (
+            <MessageList
+              headers={headers}
+              loading={headersLoading}
+              hasMore={hasMore}
+              loadMore={loadMore}
+              selectedUid={selectedHeader?.uid ?? null}
+              onSelect={h => {
+                setSelectedHeader(h);
+              }}
+            />
+          )}
 
           {selectedHeader && activeAccountId ? (
             <MessageDetail
@@ -98,6 +109,14 @@ export function MailLayout() {
               header={selectedHeader}
               onReply={() => setCompose({ mode: 'reply', header: selectedHeader })}
               onForward={() => setCompose({ mode: 'forward', header: selectedHeader })}
+              onDeleted={() => {
+                setSelectedHeader(null);
+                refreshHeaders();
+              }}
+              onToggleRead={(isRead: boolean) => {
+                setSelectedHeader(prev => prev ? { ...prev, isRead } : null);
+                refreshHeaders();
+              }}
             />
           ) : (
             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: 13 }}>
