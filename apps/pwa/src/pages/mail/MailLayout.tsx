@@ -50,6 +50,8 @@ export function MailLayout() {
         onSelectAccount={id => { setSelectedAccountId(id); setSelectedHeader(null); }}
         onSelectFolder={f => { setSelectedFolder(f); setSelectedHeader(null); }}
         onDisconnect={disconnect}
+        onAddGoogle={connectGoogle}
+        onAddMicrosoft={connectMicrosoft}
       />
 
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minWidth: 0 }}>

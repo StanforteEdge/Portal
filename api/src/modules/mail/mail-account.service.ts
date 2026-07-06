@@ -4,7 +4,7 @@ import { MailCryptoService } from './mail-crypto.service';
 import { google } from 'googleapis';
 import type { MailAccount } from '@prisma/client';
 
-const GOOGLE_SCOPES = ['https://mail.google.com/'];
+const GOOGLE_SCOPES = ['https://mail.google.com/', 'email', 'profile'];
 
 const MICROSOFT_SCOPES = [
   'openid',
