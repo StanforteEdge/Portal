@@ -12,6 +12,7 @@ import { humanize } from "@stanforte/shared";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { AppShell } from "@/shared/components/layout/AppShell";
+import { useAuth } from "@/shared/context/AuthProvider";
 import { TagPicker } from "@/pages/requests/TagPicker";
 import { cacheStore, financeApi, useCachedQuery } from "@/shared/lib/core";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
@@ -69,12 +70,12 @@ const defaultForm: FormState = {
   purpose: "",
 };
 
-function buildHandoverOptions(teams: TeamOption[]) {
+function buildHandoverOptions(teams: TeamOption[], currentUserId?: string) {
   const values = new Map<string, string>();
   teams.forEach((team) => {
     (team.members ?? []).forEach((member) => {
       const id = String(member.userId || member.user.id || "");
-      if (!id || values.has(id)) return;
+      if (!id || id === currentUserId || values.has(id)) return;
       const name =
         `${member.user.firstName ?? ""} ${member.user.lastName ?? ""}`.trim() ||
         member.user.username ||
@@ -89,6 +90,7 @@ export function RequestFormPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { showToast } = useToast();
+  const { user } = useAuth();
   const typeId = searchParams.get("typeId") || "";
   const editId = searchParams.get("edit") || "";
   const [form, setForm] = useState<FormState>(defaultForm);
@@ -130,7 +132,7 @@ export function RequestFormPage() {
     [form.request_type_id, requestTypes, typeId],
   );
 
-  const handoverOptions = useMemo(() => buildHandoverOptions(teams ?? []), [teams]);
+  const handoverOptions = useMemo(() => buildHandoverOptions(teams ?? [], user?.id), [teams, user?.id]);
 
   const categoryMap = useMemo(() => {
     const map = new Map<string, RequestCategoryOption>();

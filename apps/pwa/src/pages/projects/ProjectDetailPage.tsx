@@ -42,6 +42,21 @@ export default function ProjectDetailPage() {
     "User";
   const [activeTab, setActiveTab] = useState("overview");
 
+  const profileProjectIds = useMemo(
+    () => new Set((profile?.projects ?? []).map((item: any) => String(item.id))),
+    [profile],
+  );
+  const canSeeInternalProjectTabs = useMemo(
+    () => Boolean(
+      (project as any)?.isMember ||
+      (project as any)?.isLead ||
+      (project as any)?.can_manage ||
+      (project as any)?.can_view_internal ||
+      (project && profileProjectIds.has(String(project.id))),
+    ),
+    [profileProjectIds, project],
+  );
+
   if (loading) {
     return (
         <AppShell
@@ -76,17 +91,6 @@ export default function ProjectDetailPage() {
   }
 
   const status = project.governance?.governance_status || (project.isActive ? "active" : "archived");
-  const profileProjectIds = new Set((profile?.projects ?? []).map((item: any) => String(item.id)));
-  const canSeeInternalProjectTabs = useMemo(
-    () => Boolean(
-      (project as any)?.isMember ||
-      (project as any)?.isLead ||
-      (project as any)?.can_manage ||
-      (project as any)?.can_view_internal ||
-      profileProjectIds.has(String(project.id)),
-    ),
-    [profileProjectIds, project],
-  );
   const tabs = [
     "overview",
     "activities",

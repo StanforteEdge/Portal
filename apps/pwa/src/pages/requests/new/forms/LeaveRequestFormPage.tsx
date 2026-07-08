@@ -31,6 +31,17 @@ function parseDateOnly(value: string) {
   return date;
 }
 
+function countWorkingDays(start: Date, end: Date) {
+  let workingDays = 0;
+  const cursor = new Date(start.getTime());
+  while (cursor.getTime() <= end.getTime()) {
+    const dayOfWeek = cursor.getUTCDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) workingDays++;
+    cursor.setUTCDate(cursor.getUTCDate() + 1);
+  }
+  return workingDays;
+}
+
 export const LeaveRequestFormPage = forwardRef<RequestFormHandle, Props>(({
   selectedType,
   selectedCategory,
@@ -88,7 +99,7 @@ export const LeaveRequestFormPage = forwardRef<RequestFormHandle, Props>(({
       const start = new Date(form.leave_start_date);
       const end = new Date(form.leave_end_date);
       if (!Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end >= start) {
-        const days = Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
+        const days = countWorkingDays(start, end);
         setForm((prev) => ({ ...prev, leave_days_requested: String(days) }));
       }
     }
@@ -194,9 +205,10 @@ export const LeaveRequestFormPage = forwardRef<RequestFormHandle, Props>(({
         }
       }
       if (!form.leave_handover_user_id) {
-        return { error: "Handover colleague is required." };
-      }
-      if (!form.leave_handover_notes.trim()) {
+        if (handoverOptions.length > 0) {
+          return { error: "Handover colleague is required." };
+        }
+      } else if (!form.leave_handover_notes.trim()) {
         return { error: "Handover notes are required." };
       }
 

@@ -407,13 +407,14 @@ export class RequestsService {
     const requestType = await this.prisma.requestType.findUnique({ where: { id: dto.request_type_id }, include: { category: true } });
     if (!requestType || !requestType.isActive) throw new BadRequestException('Invalid request type');
     await this.formsService.validateRequestTypePayload(requestType.id, dto.data);
-    this.validateLeaveRequestPayload(
+    await this.validateLeaveRequestPayload(
       {
         name: requestType.name,
         taxonomyKeys: requestType.taxonomyKeys as string[] | null | undefined,
         formSchema: requestType.formSchema
       },
-      dto.data
+      dto.data,
+      userId
     );
 
     const createdBy = toBigInt(userId);
@@ -1481,13 +1482,14 @@ export class RequestsService {
         where: { id: request.requestTypeId },
         select: { name: true, taxonomyKeys: true, formSchema: true }
       });
-      this.validateLeaveRequestPayload(
+      await this.validateLeaveRequestPayload(
         {
           name: requestType?.name ?? null,
           taxonomyKeys: requestType?.taxonomyKeys as string[] | null | undefined,
           formSchema: requestType?.formSchema ?? null
         },
-        dto.data
+        dto.data,
+        userId
       );
     }
 
@@ -2078,9 +2080,26 @@ export class RequestsService {
     return request;
   }
 
-  private validateLeaveRequestPayload(
+  private async hasEligibleHandoverColleague(userId: bigint): Promise<boolean> {
+    const memberships = await this.prisma.groupUser.findMany({
+      where: { userId },
+      select: { groupId: true }
+    });
+    if (!memberships.length) return false;
+    const colleague = await this.prisma.groupUser.findFirst({
+      where: {
+        groupId: { in: memberships.map((m) => m.groupId) },
+        userId: { not: userId }
+      },
+      select: { id: true }
+    });
+    return Boolean(colleague);
+  }
+
+  private async validateLeaveRequestPayload(
     requestType: { name?: string | null; taxonomyKeys?: string[] | null; formSchema?: unknown } | null,
-    data: unknown
+    data: unknown,
+    userId: string
   ) {
     if (!this.isLeaveRequestType(requestType?.name ?? null, (requestType?.taxonomyKeys as string[] | null) ?? null, requestType?.formSchema)) {
       return;
@@ -2128,8 +2147,15 @@ export class RequestsService {
         }
       }
     }
-    if (!handoverUserId) throw new BadRequestException('Handover colleague is required');
-    if (!handoverNotes) throw new BadRequestException('Handover notes are required');
+    if (handoverUserId && handoverUserId === String(toBigInt(userId))) {
+      throw new BadRequestException('Handover colleague cannot be yourself');
+    }
+    if (!handoverUserId) {
+      const hasColleague = await this.hasEligibleHandoverColleague(toBigInt(userId));
+      if (hasColleague) throw new BadRequestException('Handover colleague is required');
+    } else if (!handoverNotes) {
+      throw new BadRequestException('Handover notes are required');
+    }
   }
 
   private async applyLeaveDebitIfNeeded(requestId: bigint, actorId: string) {
@@ -2273,12 +2299,7 @@ export class RequestsService {
 
     let daysRequested = Number(data.days_requested ?? data.days ?? 0);
     if (!Number.isFinite(daysRequested) || daysRequested <= 0) {
-      const start = data.start_date ? new Date(String(data.start_date)) : null;
-      const end = data.end_date ? new Date(String(data.end_date)) : null;
-      if (start && end && !Number.isNaN(start.getTime()) && !Number.isNaN(end.getTime()) && end >= start) {
-        const diff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-        daysRequested = diff + 1;
-      }
+      daysRequested = this.computeLeaveDays(String(data.start_date ?? ''), String(data.end_date ?? ''));
     }
     if (!Number.isFinite(daysRequested) || daysRequested <= 0) return null;
 
@@ -2299,8 +2320,14 @@ export class RequestsService {
     if (!start || !end) return 0;
     if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return 0;
     if (end < start) return 0;
-    const diff = Math.floor((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
-    return diff + 1;
+    let workingDays = 0;
+    const cursor = new Date(start.getTime());
+    while (cursor.getTime() <= end.getTime()) {
+      const dayOfWeek = cursor.getUTCDay();
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) workingDays++;
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    return workingDays;
   }
 
   private async resolveLeaveEntitlements(userId?: bigint, year = new Date().getFullYear()) {
