@@ -40,6 +40,10 @@ class VersionService {
   }
 
   public async checkForUpdates(): Promise<UpdateCheckResult> {
+    if (import.meta.env.DEV) {
+      return { hasUpdate: false, latestVersion: null, isTauri: false };
+    }
+
     if (IS_TAURI) {
       try {
         const info = await checkTauriUpdate();
