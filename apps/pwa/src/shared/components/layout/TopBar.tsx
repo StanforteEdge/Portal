@@ -376,7 +376,7 @@ export function DesktopTopBar({
                 </p>
               </div>
               <div className="mt-3 space-y-1">
-                <NavLink
+                 <NavLink
                   to="/profile"
                   onClick={() => setProfileOpen(false)}
                   className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
@@ -384,6 +384,15 @@ export function DesktopTopBar({
                 >
                   <Icon name="person" />
                   Profile
+                </NavLink>
+                <NavLink
+                  to="/policies"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                  role="menuitem"
+                >
+                  <Icon name="policy" />
+                  Policies & Sign-offs
                 </NavLink>
                 <NavLink
                   to="/settings"
@@ -526,6 +535,15 @@ export function MobileTopBar({
                 </p>
               </div>
               <div className="mt-3 space-y-1">
+                <NavLink
+                  to="/policies"
+                  onClick={() => setProfileOpen(false)}
+                  className="flex items-center gap-3 rounded-2xl px-3 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+                  role="menuitem"
+                >
+                  <Icon name="policy" />
+                  Policies & Sign-offs
+                </NavLink>
                 <NavLink
                   to="/settings"
                   onClick={() => setProfileOpen(false)}
