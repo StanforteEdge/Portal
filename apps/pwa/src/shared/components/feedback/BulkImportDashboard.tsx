@@ -268,10 +268,17 @@ export function BulkImportDashboard<T extends Record<string, any>>({
           <h2 className="text-xl font-bold text-slate-900">{title}</h2>
           <p className="text-sm text-slate-500 mt-1">{description}</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={handleDownloadTemplate}>
-            <Icon name="download" className="mr-1" /> Download CSV Template
-          </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          <a
+            href="#"
+            onClick={(e) => {
+              e.preventDefault();
+              handleDownloadTemplate();
+            }}
+            className="text-sm font-semibold text-brand-900 hover:text-brand-800 hover:underline flex items-center gap-1 cursor-pointer mr-2"
+          >
+            <Icon name="download" className="text-[18px]" /> Download CSV Template
+          </a>
           <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
             <Icon name="file_upload" className="mr-1" /> Upload CSV File
           </Button>
