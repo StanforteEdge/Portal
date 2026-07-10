@@ -264,21 +264,32 @@ export function BulkImportDashboard<T extends Record<string, any>>({
   return (
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
-        <div>
-          <h2 className="text-xl font-bold text-slate-900">{title}</h2>
-          <p className="text-sm text-slate-500 mt-1">
-            {description}{" "}
-            <a
-              href="#"
-              onClick={(e) => {
-                e.preventDefault();
-                handleDownloadTemplate();
-              }}
-              className="font-semibold text-brand-900 hover:text-brand-800 hover:underline inline-flex items-center gap-0.5 cursor-pointer ml-1 align-baseline"
-            >
-              <Icon name="download" className="text-[16px] inline" /> Download CSV Template
-            </a>
-          </p>
+        <div className="flex items-start gap-3">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="p-1.5 mt-0.5"
+            onClick={onCancel}
+            title="Back to List"
+          >
+            <Icon name="arrow_back" className="text-xl" />
+          </Button>
+          <div>
+            <h2 className="text-xl font-bold text-slate-900">{title}</h2>
+            <p className="text-sm text-slate-500 mt-1">
+              {description}{" "}
+              <a
+                href="#"
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleDownloadTemplate();
+                }}
+                className="font-semibold text-brand-900 hover:text-brand-800 hover:underline inline-flex items-center gap-0.5 cursor-pointer ml-1 align-baseline"
+              >
+                <Icon name="download" className="text-[16px] inline" /> Download CSV Template
+              </a>
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
@@ -389,12 +400,15 @@ export function BulkImportDashboard<T extends Record<string, any>>({
             </div>
           </div>
         ) : (
-          <div className="py-20 text-center">
+          <div className="py-20 text-center flex flex-col items-center justify-center">
             <Icon name="grid_on" className="text-slate-300 text-5xl mb-4" />
             <h3 className="font-bold text-slate-800 text-lg">Staging Dashboard Empty</h3>
-            <p className="text-slate-400 text-sm max-w-sm mx-auto mt-2">
+            <p className="text-slate-400 text-sm max-w-sm mx-auto mt-2 mb-4">
               Import a CSV template file or click "Add Row" to start adding records manually.
             </p>
+            <Button variant="secondary" onClick={onCancel}>
+              <Icon name="arrow_back" className="mr-1" /> Back to Users List
+            </Button>
           </div>
         )}
       </SectionCard>
