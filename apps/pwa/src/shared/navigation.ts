@@ -63,6 +63,7 @@ export function buildAppNavigation(options?: {
       children: [
         { key: "workspace-groups", label: "Groups", icon: "groups", path: "/teams" },
         { key: "workspace-projects", label: "Projects", icon: "assignment", path: "/projects" },
+        { key: "workspace-documents", label: "Documents", icon: "description", path: "/documents" },
       ],
     },
     { key: "mail", label: "Mail", icon: "mail", path: "/mail", section: "Staff" },
@@ -72,6 +73,7 @@ export function buildAppNavigation(options?: {
       section: "Staff",
       children: [
         { label: "My Profile", icon: "person", path: "/profile" },
+        { label: "Policies & Sign-offs", icon: "policy", path: "/policies" },
         { label: "Payslips", icon: "receipt_long", path: "/profile/payslips" },
         { label: "Leave", icon: "event_available", path: "/leave" },
         { label: "Settings", icon: "settings", path: "/settings" },

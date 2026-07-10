@@ -7,6 +7,8 @@ export type { EmployeeSummary, EmployeeDetail, HrSummary, EmployeeAction, Employ
 export { createResourceApi } from "./api/resource-api";
 export type { OrganizationItem, TeamItem, TeamOption, TeamMember, OrganizationMapping } from "./api/resource-api";
 export { createPolicyApi } from "./api/policy-api";
+export { createDocumentApi } from "./api/document-api";
+export type { DocumentRecord, DocumentAcknowledgementRecord } from "./api/document-api";
 export { createAttendanceApi } from "./api/attendance-api";
 export { createWorkApi } from "./api/work-api";
 export { createRequestApi } from "./api/request-api";
