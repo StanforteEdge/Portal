@@ -28,9 +28,8 @@ export default function AdminUserBulkPage() {
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
-  const orgItems = (organizations as any)?.data?.items || [];
-  const orgOptions = Array.isArray(orgItems)
-    ? orgItems.map((o: any) => ({ value: String(o.id), label: o.name }))
+  const orgOptions = Array.isArray(organizations)
+    ? organizations.map((o: any) => ({ value: String(o.id), label: o.name }))
     : [];
 
   const roleSlugs = Array.isArray(roleOptions)
