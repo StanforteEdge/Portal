@@ -111,6 +111,11 @@ export class UpsertEmployeeDto {
   @IsString()
   primary_organization_id?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  designation_id?: string;
+
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()

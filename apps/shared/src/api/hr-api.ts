@@ -197,6 +197,38 @@ export function createHrApi(httpRequest: HttpRequest) {
         method: 'POST',
         body: dto,
       });
+    },
+
+    async listDesignations() {
+      const response = await httpRequest<any>('/hr/designations');
+      return response?.data ?? response ?? [];
+    },
+
+    async getDesignation(id: string) {
+      const response = await httpRequest<any>(`/hr/designations/${id}`);
+      return response?.data ?? response;
+    },
+
+    async createDesignation(dto: { name: string; code?: string; description?: string; job_description?: string }) {
+      const response = await httpRequest<any>('/hr/designations', {
+        method: 'POST',
+        body: dto,
+      });
+      return response?.data ?? response;
+    },
+
+    async updateDesignation(id: string, dto: { name?: string; code?: string; description?: string; job_description?: string }) {
+      const response = await httpRequest<any>(`/hr/designations/${id}`, {
+        method: 'PUT',
+        body: dto,
+      });
+      return response?.data ?? response;
+    },
+
+    async deleteDesignation(id: string) {
+      return httpRequest<any>(`/hr/designations/${id}`, {
+        method: 'DELETE',
+      });
     }
   };
 }

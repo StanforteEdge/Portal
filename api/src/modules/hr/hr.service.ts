@@ -643,6 +643,9 @@ export class HrService {
     const primaryOrganizationId = dto.primary_organization_id
       ? this.parseId(dto.primary_organization_id, 'primary organization id')
       : undefined;
+    const designationId = dto.designation_id !== undefined
+      ? (dto.designation_id ? this.parseId(dto.designation_id, 'designation id') : null)
+      : undefined;
     const employeeCode = this.normalizeOptionalText(dto.employee_code);
     const jobTitle = this.normalizeOptionalText(dto.job_title);
     const jobDescription = this.normalizeOptionalText(dto.job_description);
@@ -658,6 +661,10 @@ export class HrService {
     if (primaryOrganizationId) {
       const organizationExists = await tx.organization.count({ where: { id: primaryOrganizationId } });
       if (!organizationExists) throw new NotFoundException('Organization not found');
+    }
+    if (designationId) {
+      const designationExists = await tx.hrDesignation.count({ where: { id: designationId } });
+      if (!designationExists) throw new BadRequestException('Designation template not found');
     }
     if (employeeCode) {
       const employeeCodeExists = await tx.employeeProfile.findFirst({
@@ -676,6 +683,7 @@ export class HrService {
         jobTitle,
         jobDescription,
         managerUserId,
+        designationId,
         employmentType: dto.employment_type,
         employmentStatus: dto.employment_status,
         workMode: dto.work_mode,
@@ -690,6 +698,7 @@ export class HrService {
         jobTitle,
         jobDescription,
         managerUserId,
+        designationId: designationId ?? null,
         employmentType: dto.employment_type,
         employmentStatus: dto.employment_status ?? 'draft',
         workMode: dto.work_mode,
@@ -824,7 +833,10 @@ export class HrService {
       },
       employeeProfile: {
         include: {
-          manager: { select: { id: true, firstName: true, lastName: true, email: true } }
+          manager: { select: { id: true, firstName: true, lastName: true, email: true } },
+          designation: {
+            include: { document: true }
+          }
         }
       },
       employeeMeta: true,
@@ -1058,6 +1070,11 @@ export class HrService {
             managerUserId: profile.employeeProfile.managerUserId
               ? profile.employeeProfile.managerUserId.toString()
               : null,
+            designationId: profile.employeeProfile.designationId
+              ? profile.employeeProfile.designationId.toString()
+              : null,
+            jobTitle: profile.employeeProfile.jobTitle || profile.employeeProfile.designation?.name || null,
+            jobDescription: profile.employeeProfile.jobDescription || profile.employeeProfile.designation?.document?.contentHtml || null,
             primary_team:
               (() => {
                 const pt = (profile.groups ?? []).find(
