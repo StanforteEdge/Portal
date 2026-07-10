@@ -69,6 +69,7 @@ import HrPayrollWorkerDetailPage from "@/pages/hr/payroll/HrPayrollWorkerDetailP
 import HrPayrollLoansPage from "@/pages/hr/payroll/HrPayrollLoansPage";
 import AdminUsersPage from "@/pages/admin/users/AdminUsersPage";
 import AdminUserDetailPage from "@/pages/admin/users/AdminUserDetailPage";
+import AdminUserBulkPage from "@/pages/admin/users/AdminUserBulkPage";
 import AdminSettingsPage from "@/pages/admin/settings/AdminSettingsPage";
 import AdminOrganizationsPage from "@/pages/admin/organizations/AdminOrganizationsPage";
 import AdminGroupsPage from "@/pages/admin/groups/AdminGroupsPage";
@@ -403,6 +404,7 @@ export default function App() {
           <Route element={<PermissionRoute requiredPermissions={["admin.view"]} any />}>
             <Route element={<PermissionRoute requiredPermissions={["users.view", "users.manage"]} any />}>
               <Route path="/admin/users" element={<AdminUsersPage />} />
+              <Route path="/admin/users/bulk" element={<AdminUserBulkPage />} />
               <Route path="/admin/users/:id" element={<AdminUserDetailPage />} />
             </Route>
 

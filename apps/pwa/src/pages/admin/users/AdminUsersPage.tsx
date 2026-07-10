@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import {
   Button,
   Chip,
@@ -51,6 +51,7 @@ const typeLabel: Record<string, string> = {
 
 export default function AdminUsersPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
 
   const { data: profile } = useCachedQuery(
     "admin:profile",
@@ -63,7 +64,6 @@ export default function AdminUsersPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [orgFilter, setOrgFilter] = useState("");
   const [showCreate, setShowCreate] = useState(false);
-  const [showBulk, setShowBulk] = useState(false);
   const [listKey, setListKey] = useState(0);
 
   const { data, loading, error } = useCachedQuery(
@@ -93,73 +93,6 @@ export default function AdminUsersPage() {
   const pending = users.filter((u) => u.status === "pending").length;
   const suspended = users.filter((u) => u.status === "suspended").length;
 
-  const orgItems = (organizations as any)?.data?.items || [];
-  const orgOptions = Array.isArray(orgItems)
-    ? orgItems.map((o: any) => ({ value: String(o.id), label: o.name }))
-    : [];
-
-  const columns: BulkColumnSchema[] = [
-    { key: "first_name", label: "First Name", placeholder: "e.g., John", required: true },
-    { key: "last_name", label: "Last Name", placeholder: "e.g., Doe", required: true },
-    { key: "email", label: "Email Address", placeholder: "e.g., john@company.com", required: true },
-    { key: "username", label: "Username", placeholder: "e.g., johndoe (optional)" },
-    {
-      key: "type",
-      label: "Role Type",
-      type: "select",
-      options: [
-        { value: "staff", label: "Staff" },
-        { value: "vendor", label: "Vendor" },
-        { value: "client", label: "Client" },
-        { value: "board_member", label: "Board Member" }
-      ],
-      required: true
-    },
-    {
-      key: "primary_organization_id",
-      label: "Organization",
-      type: "select",
-      options: orgOptions,
-      required: true
-    },
-    {
-      key: "status",
-      label: "Status",
-      type: "select",
-      options: [
-        { value: "active", label: "Active" },
-        { value: "pending", label: "Pending" },
-        { value: "suspended", label: "Suspended" }
-      ],
-      required: true
-    }
-  ];
-
-  const sampleUsers = [
-    {
-      first_name: "Jane",
-      last_name: "Smith",
-      email: "jane.smith@stanforteedge.com",
-      username: "janesmith",
-      type: "staff",
-      primary_organization_id: orgOptions[0]?.value || "",
-      status: "active"
-    }
-  ];
-
-  const handleSubmitBulk = async (dataList: any[]) => {
-    const response = await httpRequest<{
-      successCount: number;
-      failedCount: number;
-      results: { identifier: string; status: "success" | "failed"; error?: string }[];
-    }>("/admin/users/bulk", {
-      method: "POST",
-      body: { users: dataList }
-    });
-    setListKey((k) => k + 1);
-    return response;
-  };
-
   const userName =
     `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
     user?.email ||
@@ -184,7 +117,7 @@ export default function AdminUsersPage() {
             <Button
               className="gap-2"
               variant="secondary"
-              onClick={() => setShowBulk(true)}
+              onClick={() => navigate("/admin/users/bulk")}
             >
               <Icon name="grid_on" className="text-[18px]" />
               Bulk Import
@@ -200,152 +133,141 @@ export default function AdminUsersPage() {
         }
       />
 
-      {showBulk ? (
-        <BulkImportDashboard
-          title="Bulk Import Users"
-          description="Download the template, upload a CSV file, or add rows manually to stage user accounts for registration."
-          columns={columns}
-          sampleData={sampleUsers}
-          onSubmit={handleSubmitBulk}
-          onCancel={() => setShowBulk(false)}
-        />
-      ) : (
-        <div className="grid gap-6">
-          {/* Stat cards */}
-          <div className="grid gap-4 md:grid-cols-4">
-            <StatCard label="Total Users" value={String(total)} tone="neutral" icon="group" />
-            <StatCard label="Active" value={String(active)} tone="success" icon="check_circle" />
-            <StatCard label="Pending Invite" value={String(pending)} tone="warning" icon="mail" />
-            <StatCard label="Suspended" value={String(suspended)} tone="danger" icon="block" />
+      <div className="grid gap-6">
+        {/* Stat cards */}
+        <div className="grid gap-4 md:grid-cols-4">
+          <StatCard label="Total Users" value={String(total)} tone="neutral" icon="group" />
+          <StatCard label="Active" value={String(active)} tone="success" icon="check_circle" />
+          <StatCard label="Pending Invite" value={String(pending)} tone="warning" icon="mail" />
+          <StatCard label="Suspended" value={String(suspended)} tone="danger" icon="block" />
+        </div>
+
+        {/* Filter bar + table */}
+        <SectionCard
+          title="All Users"
+          description="Search or filter to find a specific user."
+        >
+          <div className="mb-4 flex flex-wrap items-end gap-3">
+            <TextField
+              label="Search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+            <SelectField
+              label="Type"
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+            >
+              <option value="">All types</option>
+              <option value="staff">Staff</option>
+              <option value="vendor">Vendor</option>
+              <option value="client">Client</option>
+              <option value="board_member">Board Member</option>
+            </SelectField>
+            <SelectField
+              label="Status"
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+            >
+              <option value="">All statuses</option>
+              <option value="active">Active</option>
+              <option value="pending">Pending</option>
+              <option value="suspended">Suspended</option>
+              <option value="deleted">Deleted</option>
+            </SelectField>
+            <SelectField
+              label="Organization"
+              value={orgFilter}
+              onChange={(e) => setOrgFilter(e.target.value)}
+            >
+              <option value="">All organizations</option>
+              {(organizations ?? []).map((org) => (
+                <option key={org.id} value={String(org.id)}>
+                  {org.name}
+                </option>
+              ))}
+            </SelectField>
           </div>
 
-          {/* Filter bar + table */}
-          <SectionCard
-            title="All Users"
-            description="Search or filter to find a specific user."
-          >
-            <div className="mb-4 flex flex-wrap items-end gap-3">
-              <TextField
-                label="Search"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-              <SelectField
-                label="Type"
-                value={typeFilter}
-                onChange={(e) => setTypeFilter(e.target.value)}
-              >
-                <option value="">All types</option>
-                <option value="staff">Staff</option>
-                <option value="vendor">Vendor</option>
-                <option value="client">Client</option>
-                <option value="board_member">Board Member</option>
-              </SelectField>
-              <SelectField
-                label="Status"
-                value={statusFilter}
-                onChange={(e) => setStatusFilter(e.target.value)}
-              >
-                <option value="">All statuses</option>
-                <option value="active">Active</option>
-                <option value="pending">Pending</option>
-                <option value="suspended">Suspended</option>
-                <option value="deleted">Deleted</option>
-              </SelectField>
-              <SelectField
-                label="Organization"
-                value={orgFilter}
-                onChange={(e) => setOrgFilter(e.target.value)}
-              >
-                <option value="">All organizations</option>
-                {(organizations ?? []).map((org) => (
-                  <option key={org.id} value={String(org.id)}>
-                    {org.name}
-                  </option>
-                ))}
-              </SelectField>
+          {loading ? (
+            <div className="text-sm text-slate-500">Loading users...</div>
+          ) : error ? (
+            <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
+              {(error as any)?.message || String(error)}
             </div>
-
-            {loading ? (
-              <div className="text-sm text-slate-500">Loading users...</div>
-            ) : error ? (
-              <div className="rounded-2xl border border-danger/20 bg-danger/10 px-4 py-4 text-sm text-danger">
-                {(error as any)?.message || String(error)}
-              </div>
-            ) : (
-              <Table>
-                <TableHead>
-                  <TableHeaderRow>
-                    <TableHeaderCell>Name</TableHeaderCell>
-                    <TableHeaderCell>Email</TableHeaderCell>
-                    <TableHeaderCell>Organization</TableHeaderCell>
-                    <TableHeaderCell>Type</TableHeaderCell>
-                    <TableHeaderCell>Status</TableHeaderCell>
-                    <TableHeaderCell>Created</TableHeaderCell>
-                    <TableHeaderCell className="text-right">{""}</TableHeaderCell>
-                  </TableHeaderRow>
-                </TableHead>
-                <TableBody>
-                  {users.map((u) => {
-                    const primaryFromMembership = (u.organizations ?? []).find(
-                      (org) => org.id === u.primary_organization_id || org.is_primary,
-                    );
-                    const orgName = String(
-                      primaryFromMembership?.name ||
-                      (u.primary_organization_id
-                        ? organizationNameById.get(String(u.primary_organization_id)) || ""
-                        : "") ||
-                      u.primary_organization?.name ||
-                      ""
-                    );
-                    return (
-                      <TableRow key={u.id}>
-                        <TableCell>
-                          <p className="font-semibold text-slate-900">
-                            {[u.first_name, u.last_name].filter(Boolean).join(" ") || "-"}
-                          </p>
-                        </TableCell>
-                        <TableCell>{u.email}</TableCell>
-                        <TableCell>
-                          {orgName ? (
-                            <span className="text-sm">{orgName}</span>
-                          ) : (
-                            <span className="text-sm text-slate-400">-</span>
-                          )}
-                        </TableCell>
-                        <TableCell>{typeLabel[u.type] ?? u.type}</TableCell>
-                        <TableCell>
-                          <Chip variant={statusVariant[u.status] ?? "neutral"}>
-                            {u.status}
-                          </Chip>
-                        </TableCell>
-                        <TableCell>{formatDate(u.created_at)}</TableCell>
-                        <TableCell className="text-right">
-                          <Link to={`/admin/users/${u.id}`}>
-                            <Button size="sm" variant="ghost" className="gap-2 text-brand-900">
-                              View <Icon name="arrow_forward" className="text-[16px]" />
-                            </Button>
-                          </Link>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                  {!users.length ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="py-10 text-center">
-                        <EmptyState
-                          title="No users found"
-                          description="Try adjusting your filters or add a new user."
-                        />
+          ) : (
+            <Table>
+              <TableHead>
+                <TableHeaderRow>
+                  <TableHeaderCell>Name</TableHeaderCell>
+                  <TableHeaderCell>Email</TableHeaderCell>
+                  <TableHeaderCell>Organization</TableHeaderCell>
+                  <TableHeaderCell>Type</TableHeaderCell>
+                  <TableHeaderCell>Status</TableHeaderCell>
+                  <TableHeaderCell>Created</TableHeaderCell>
+                  <TableHeaderCell className="text-right">{""}</TableHeaderCell>
+                </TableHeaderRow>
+              </TableHead>
+              <TableBody>
+                {users.map((u) => {
+                  const primaryFromMembership = (u.organizations ?? []).find(
+                    (org) => org.id === u.primary_organization_id || org.is_primary,
+                  );
+                  const orgName = String(
+                    primaryFromMembership?.name ||
+                    (u.primary_organization_id
+                      ? organizationNameById.get(String(u.primary_organization_id)) || ""
+                      : "") ||
+                    u.primary_organization?.name ||
+                    ""
+                  );
+                  return (
+                    <TableRow key={u.id}>
+                      <TableCell>
+                        <p className="font-semibold text-slate-900">
+                          {[u.first_name, u.last_name].filter(Boolean).join(" ") || "-"}
+                        </p>
+                      </TableCell>
+                      <TableCell>{u.email}</TableCell>
+                      <TableCell>
+                        {orgName ? (
+                          <span className="text-sm">{orgName}</span>
+                        ) : (
+                          <span className="text-sm text-slate-400">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>{typeLabel[u.type] ?? u.type}</TableCell>
+                      <TableCell>
+                        <Chip variant={statusVariant[u.status] ?? "neutral"}>
+                          {u.status}
+                        </Chip>
+                      </TableCell>
+                      <TableCell>{formatDate(u.created_at)}</TableCell>
+                      <TableCell className="text-right">
+                        <Link to={`/admin/users/${u.id}`}>
+                          <Button size="sm" variant="ghost" className="gap-2 text-brand-900">
+                            View <Icon name="arrow_forward" className="text-[16px]" />
+                          </Button>
+                        </Link>
                       </TableCell>
                     </TableRow>
-                  ) : null}
-                </TableBody>
-              </Table>
-            )}
-          </SectionCard>
-        </div>
-      )}
+                  );
+                })}
+                {!users.length ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="py-10 text-center">
+                      <EmptyState
+                        title="No users found"
+                        description="Try adjusting your filters or add a new user."
+                      />
+                    </TableCell>
+                  </TableRow>
+                ) : null}
+              </TableBody>
+            </Table>
+          )}
+        </SectionCard>
+      </div>
 
       {showCreate ? (
         <AdminUserCreateSlideOver

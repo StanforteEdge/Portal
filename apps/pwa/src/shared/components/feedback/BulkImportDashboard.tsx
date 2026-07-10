@@ -406,12 +406,17 @@ export function BulkImportDashboard<T extends Record<string, any>>({
           <div className="py-20 text-center flex flex-col items-center justify-center">
             <Icon name="grid_on" className="text-slate-300 text-5xl mb-4" />
             <h3 className="font-bold text-slate-800 text-lg">Staging Dashboard Empty</h3>
-            <p className="text-slate-400 text-sm max-w-sm mx-auto mt-2 mb-4">
-              Import a CSV template file or click "Add Row" to start adding records manually.
+            <p className="text-slate-400 text-sm max-w-sm mx-auto mt-2 mb-6">
+              Import a CSV template file or add rows manually to start staging records.
             </p>
-            <Button variant="secondary" onClick={onCancel}>
-              <Icon name="arrow_back" className="mr-1" /> Back to Users List
-            </Button>
+            <div className="flex gap-3">
+              <Button variant="secondary" onClick={onCancel}>
+                <Icon name="arrow_back" className="mr-1" /> Back to Users List
+              </Button>
+              <Button onClick={handleAddRow}>
+                <Icon name="add" className="mr-1" /> Add Row Manually
+              </Button>
+            </div>
           </div>
         )}
       </SectionCard>
