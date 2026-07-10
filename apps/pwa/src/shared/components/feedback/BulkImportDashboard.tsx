@@ -292,7 +292,11 @@ export function BulkImportDashboard<T extends Record<string, any>>({
           </div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <Button variant="secondary" onClick={() => fileInputRef.current?.click()}>
+          <Button
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+            className="whitespace-nowrap shrink-0"
+          >
             <Icon name="file_upload" className="mr-1" /> Upload CSV File
           </Button>
           <input
