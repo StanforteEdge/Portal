@@ -31,6 +31,11 @@ export class AdminController {
     return this.adminService.createUser(dto);
   }
 
+  @Post('bulk')
+  createBulk(@Body() dto: { users: CreateAdminUserDto[] }) {
+    return this.adminService.createBulkUsers(dto.users);
+  }
+
   @Post(':id')
   update(@Param('id') id: string, @Body() dto: UpdateAdminUserDto) {
     return this.adminService.updateUser(id, dto);

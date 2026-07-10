@@ -356,4 +356,32 @@ export class AdminService {
       }))
     };
   }
+
+  async createBulkUsers(users: CreateAdminUserDto[]) {
+    let successCount = 0;
+    let failedCount = 0;
+    const results: { identifier: string; status: "success" | "failed"; error?: string }[] = [];
+
+    for (const userDto of users) {
+      const identifier = userDto.email || `${userDto.first_name || ''} ${userDto.last_name || ''}`.trim() || 'Unknown';
+      try {
+        await this.createUser(userDto);
+        successCount++;
+        results.push({ identifier, status: "success" });
+      } catch (err: any) {
+        failedCount++;
+        results.push({
+          identifier,
+          status: "failed",
+          error: err instanceof Error ? err.message : String(err)
+        });
+      }
+    }
+
+    return {
+      successCount,
+      failedCount,
+      results
+    };
+  }
 }
