@@ -199,8 +199,7 @@ export default function AdminUsersPage() {
             <Table>
               <TableHead>
                 <TableHeaderRow>
-                  <TableHeaderCell>Name</TableHeaderCell>
-                  <TableHeaderCell>Email</TableHeaderCell>
+                  <TableHeaderCell>User</TableHeaderCell>
                   <TableHeaderCell>Organization</TableHeaderCell>
                   <TableHeaderCell>Type</TableHeaderCell>
                   <TableHeaderCell>Status</TableHeaderCell>
@@ -224,11 +223,13 @@ export default function AdminUsersPage() {
                   return (
                     <TableRow key={u.id}>
                       <TableCell>
-                        <p className="font-semibold text-slate-900">
-                          {[u.first_name, u.last_name].filter(Boolean).join(" ") || "-"}
-                        </p>
+                        <div>
+                          <p className="font-semibold text-slate-900">
+                            {[u.first_name, u.last_name].filter(Boolean).join(" ") || "-"}
+                          </p>
+                          <p className="text-xs text-slate-500 mt-0.5">{u.email}</p>
+                        </div>
                       </TableCell>
-                      <TableCell>{u.email}</TableCell>
                       <TableCell>
                         {orgName ? (
                           <span className="text-sm">{orgName}</span>
