@@ -302,9 +302,6 @@ export function BulkImportDashboard<T extends Record<string, any>>({
             accept=".csv"
             className="hidden"
           />
-          <Button onClick={handleAddRow}>
-            <Icon name="add" className="mr-1" /> Add Row
-          </Button>
         </div>
       </div>
 
@@ -372,6 +369,12 @@ export function BulkImportDashboard<T extends Record<string, any>>({
                   ))}
                 </TableBody>
               </Table>
+            </div>
+
+            <div className="flex justify-start">
+              <Button variant="secondary" onClick={handleAddRow} className="gap-2">
+                <Icon name="add" className="text-[18px]" /> Add Row
+              </Button>
             </div>
 
             {Object.keys(errors).length > 0 && (
