@@ -49,6 +49,8 @@ export default function HrEmployeeEditPage() {
     const [primaryTeamId, setPrimaryTeamId] = useState("");
     const [managers, setManagers] = useState<any[]>([]);
     const [managerUserId, setManagerUserId] = useState("");
+    const [designationId, setDesignationId] = useState("");
+    const [designations, setDesignations] = useState<any[]>([]);
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
     const [email, setEmail] = useState("");
@@ -78,6 +80,12 @@ export default function HrEmployeeEditPage() {
                 setManagers(list);
             })
             .catch(() => setManagers([]));
+
+        hrApi.listDesignations()
+            .then((res: any) => {
+                setDesignations(Array.isArray(res) ? res : []);
+            })
+            .catch(() => setDesignations([]));
     }, []);
 
     useEffect(() => {
@@ -86,6 +94,7 @@ export default function HrEmployeeEditPage() {
             setLastName(employee.last_name || "");
             setEmail(employee.email || "");
             setPhone(employee.phone || "");
+            setDesignationId(employee.designation_id || "");
             setJobTitle(employee.job_title || "");
             setJobDescription(employee.job_description || "");
             setEmploymentType((employee.employment_type || "full_time") as EmploymentType);
@@ -125,6 +134,7 @@ export default function HrEmployeeEditPage() {
                 phone: phone.trim() || undefined,
                 job_title: jobTitle.trim(),
                 job_description: jobDescription.trim() || undefined,
+                designation_id: designationId || undefined,
                 employment_type: employmentType,
                 employment_status: employmentStatus,
                 work_mode: workMode,
@@ -239,18 +249,46 @@ export default function HrEmployeeEditPage() {
 
                 <SectionCard title="Job & Employment" description="Job title, description, and employment terms.">
                     <div className="grid gap-4 max-w-2xl">
-                        <TextField
-                            label="Job Title"
-                            value={jobTitle}
-                            onChange={(e) => setJobTitle(e.target.value)}
-                        />
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <SelectField
+                                label="Job Title Template"
+                                value={designationId}
+                                onChange={(e) => {
+                                    const val = e.target.value;
+                                    setDesignationId(val);
+                                    const selected = designations.find((d: any) => d.id === val);
+                                    if (selected) {
+                                        setJobTitle(selected.name);
+                                        setJobDescription(selected.job_description || "");
+                                    } else {
+                                        setJobTitle("");
+                                        setJobDescription("");
+                                    }
+                                }}
+                            >
+                                <option value="">-- No Template (Custom Title) --</option>
+                                {designations.map((d: any) => (
+                                    <option key={d.id} value={d.id}>
+                                        {d.name}
+                                    </option>
+                                ))}
+                            </SelectField>
+
+                            <TextField
+                                label="Job Title Name"
+                                value={jobTitle}
+                                onChange={(e) => setJobTitle(e.target.value)}
+                                placeholder="e.g. Senior Backend Dev"
+                                required
+                            />
+                        </div>
 
                         <TextAreaField
-                             label="Job Description"
+                             label="Job Description Template (or Custom Override)"
                              value={jobDescription}
                              onChange={(e) => setJobDescription(e.target.value)}
                              placeholder="Detailed responsibilities, expectations, and role description..."
-                             rows={4}
+                             rows={6}
                          />
 
                         <div className="grid gap-4 sm:grid-cols-2">

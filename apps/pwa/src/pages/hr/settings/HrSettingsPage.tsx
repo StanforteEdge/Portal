@@ -7,22 +7,25 @@ import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import AttendanceSettingsTab from "./AttendanceSettingsTab";
 import LeaveSettingsTab from "./LeaveSettingsTab";
 import OfficeLocationsTab from "./OfficeLocationsTab";
+import DesignationsTab from "./DesignationsTab";
 import AttendanceOverrideSlideOver from "./AttendanceOverrideSlideOver";
 import LeaveOverrideSlideOver from "./LeaveOverrideSlideOver";
 import LeaveTypeSlideOver from "./LeaveTypeSlideOver";
 import OfficeLocationSlideOver from "./OfficeLocationSlideOver";
+import DesignationSlideOver from "./DesignationSlideOver";
 import { type PolicyRecord } from "@stanforte/shared";
 import { type RequestType } from "@stanforte/shared";
 import { type OfficeLocation } from "@/shared";
 
 export default function HrSettingsPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState<"attendance" | "leave" | "locations">("attendance");
+  const [activeTab, setActiveTab] = useState<"attendance" | "leave" | "locations" | "designations">("attendance");
   
   const [attendancePolicy, setAttendancePolicy] = useState<PolicyRecord | null | boolean>(false);
   const [leavePolicy, setLeavePolicy] = useState<PolicyRecord | null | boolean>(false);
   const [leaveType, setLeaveType] = useState<RequestType | null | boolean>(false);
   const [officeLocation, setOfficeLocation] = useState<OfficeLocation | null | boolean>(false);
+  const [designation, setDesignation] = useState<any | boolean>(false);
 
   const { data: profile } = useCachedQuery(
     "hr:profile",
@@ -34,6 +37,7 @@ export default function HrSettingsPage() {
     { id: "attendance", label: "Attendance", icon: "schedule" },
     { id: "leave", label: "Leave Management", icon: "beach_access" },
     { id: "locations", label: "Office Locations", icon: "location_on" },
+    { id: "designations", label: "Job Titles (JDs)", icon: "work" },
   ];
 
   const userName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.email || "HR Admin";
@@ -72,6 +76,11 @@ export default function HrSettingsPage() {
               onEditLocation={(location) => setOfficeLocation(location)}
             />
           )}
+          {activeTab === "designations" && (
+            <DesignationsTab
+              onEditDesignation={(desig) => setDesignation(desig)}
+            />
+          )}
         </SectionCard>
       </SidebarTabs>
 
@@ -104,6 +113,16 @@ export default function HrSettingsPage() {
           location={typeof officeLocation === 'object' ? officeLocation : null}
           onClose={() => setOfficeLocation(false)}
           onSaved={() => setOfficeLocation(false)}
+        />
+      )}
+
+      {designation !== false && (
+        <DesignationSlideOver
+          designation={typeof designation === 'object' ? designation : null}
+          onClose={() => setDesignation(false)}
+          onSaved={() => {
+            setDesignation(false);
+          }}
         />
       )}
     </AppShell>
