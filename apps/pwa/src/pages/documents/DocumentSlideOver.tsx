@@ -74,7 +74,7 @@ export default function DocumentSlideOver({ documentRecord, onClose, onSaved }: 
   }
 
   return (
-    <SlideOver isOpen={documentRecord !== false} onClose={onClose}>
+    <SlideOver open={documentRecord !== false} onClose={onClose}>
       <SlideOverHeader onClose={onClose}>
         <h2 className="text-lg font-semibold text-slate-900">
           {isEdit ? `Edit Document: ${documentRecord.title}` : "Create Document"}
