@@ -21,27 +21,47 @@ export class AdminService {
     const perPage = Math.min(100, Math.max(1, Number(filters.per_page ?? 20)));
     const skip = (page - 1) * perPage;
 
-    const where: {
-      type?: string;
-      status?: string;
-      OR?: Array<
-        | { username: { contains: string; mode: 'insensitive' } }
-        | { email: { contains: string; mode: 'insensitive' } }
-        | { firstName: { contains: string; mode: 'insensitive' } }
-        | { lastName: { contains: string; mode: 'insensitive' } }
-      >;
-    } = {};
+    const where: any = {};
 
     if (filters.type) where.type = String(filters.type);
     if (filters.status) where.status = String(filters.status);
+
+    const andConditions: any[] = [];
+
     if (filters.search) {
       const search = String(filters.search);
-      where.OR = [
-        { username: { contains: search, mode: 'insensitive' } },
-        { email: { contains: search, mode: 'insensitive' } },
-        { firstName: { contains: search, mode: 'insensitive' } },
-        { lastName: { contains: search, mode: 'insensitive' } }
-      ];
+      andConditions.push({
+        OR: [
+          { username: { contains: search, mode: 'insensitive' } },
+          { email: { contains: search, mode: 'insensitive' } },
+          { firstName: { contains: search, mode: 'insensitive' } },
+          { lastName: { contains: search, mode: 'insensitive' } }
+        ]
+      });
+    }
+
+    if (filters.organization_id) {
+      try {
+        const orgId = toBigInt(filters.organization_id);
+        andConditions.push({
+          OR: [
+            { primaryOrganizationId: orgId },
+            {
+              organizations: {
+                some: {
+                  organizationId: orgId
+                }
+              }
+            }
+          ]
+        });
+      } catch (err) {
+        // ignore invalid org id format
+      }
+    }
+
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const [users, total] = await this.prisma.$transaction([
