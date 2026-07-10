@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Button,
   Icon,
@@ -17,10 +17,81 @@ export interface BulkColumnSchema {
   key: string;
   label: string;
   placeholder?: string;
-  type?: "text" | "select" | "checkbox";
+  type?: "text" | "select" | "checkbox" | "multiselect";
   options?: { value: string; label: string }[];
   required?: boolean;
   minWidth?: string;
+}
+
+interface MultiSelectCellProps {
+  options: { value: string; label: string }[];
+  selectedValues: string[];
+  onChange: (values: string[]) => void;
+}
+
+function MultiSelectCell({ options, selectedValues, onChange }: MultiSelectCellProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const handleToggle = (val: string) => {
+    if (selectedValues.includes(val)) {
+      onChange(selectedValues.filter((v) => v !== val));
+    } else {
+      onChange([...selectedValues, val]);
+    }
+  };
+
+  const displayText = selectedValues.length > 0
+    ? options
+        .filter((o) => selectedValues.includes(o.value))
+        .map((o) => o.label)
+        .join(", ")
+    : "Select roles...";
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full text-left text-sm border border-slate-200 rounded-md p-1 bg-white flex justify-between items-center min-h-[30px]"
+      >
+        <span className="truncate pr-2">{displayText}</span>
+        <span className="text-xs text-slate-400">▼</span>
+      </button>
+
+      {isOpen && (
+        <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg p-2 space-y-1 min-w-[200px]">
+          {options.map((opt) => {
+            const isChecked = selectedValues.includes(opt.value);
+            return (
+              <label
+                key={opt.value}
+                className="flex items-center gap-2 p-1 hover:bg-slate-50 rounded cursor-pointer text-sm"
+              >
+                <input
+                  type="checkbox"
+                  checked={isChecked}
+                  onChange={() => handleToggle(opt.value)}
+                  className="h-3.5 w-3.5 text-brand-900 border-slate-300 rounded focus:ring-brand-900"
+                />
+                <span className="text-slate-700">{opt.label}</span>
+              </label>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
 }
 
 interface BulkImportDashboardProps<T> {
@@ -355,6 +426,21 @@ export function BulkImportDashboard<T extends Record<string, any>>({
                                 className="h-4 w-4 text-brand-900 border-slate-300 rounded focus:ring-brand-900 cursor-pointer"
                               />
                             </div>
+                          ) : col.type === "multiselect" ? (
+                            <MultiSelectCell
+                              options={col.options || []}
+                              selectedValues={
+                                Array.isArray(row[col.key])
+                                  ? (row[col.key] as string[])
+                                  : typeof row[col.key] === "string"
+                                  ? String(row[col.key])
+                                      .split(",")
+                                      .map((s) => s.trim())
+                                      .filter(Boolean)
+                                  : []
+                              }
+                              onChange={(vals) => handleCellChange(rowIndex, col.key, vals)}
+                            />
                           ) : (
                             <input
                               type="text"

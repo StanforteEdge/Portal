@@ -76,9 +76,12 @@ export default function AdminUserBulkPage() {
     },
     {
       key: "roles",
-      label: "Portal Roles (comma-separated)",
-      placeholder: `e.g., ${roleSlugs || "employee"}`,
-      minWidth: "240px"
+      label: "Portal Roles",
+      type: "multiselect",
+      options: Array.isArray(roleOptions)
+        ? roleOptions.map((r: any) => ({ value: r.slug, label: r.name }))
+        : [],
+      minWidth: "220px"
     },
     {
       key: "send_invite",
@@ -97,7 +100,7 @@ export default function AdminUserBulkPage() {
       type: "staff",
       primary_organization_id: orgOptions[0]?.value || "",
       status: "active",
-      roles: "employee",
+      roles: ["employee"],
       send_invite: true
     }
   ];

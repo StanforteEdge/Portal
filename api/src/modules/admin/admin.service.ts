@@ -48,6 +48,9 @@ export class AdminService {
       this.prisma.profile.findMany({
         where,
         include: {
+          organizations: {
+            include: { organization: true }
+          },
           roles: {
             include: {
               role: { select: { id: true, name: true, slug: true } },
