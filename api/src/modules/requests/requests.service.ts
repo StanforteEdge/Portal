@@ -416,6 +416,12 @@ export class RequestsService {
       dto.data,
       userId
     );
+    const budgetSelection = await this.validateBudgetSelection(dto.data ?? {}, {
+      team_id: dto.team_id,
+      organization_id: dto.organization_id,
+      project_id: dto.data?.project_id ? String(dto.data.project_id) : undefined,
+    });
+    const normalizedData = this.withBudgetSelection(dto.data ?? {}, budgetSelection);
 
     const createdBy = toBigInt(userId);
 
@@ -446,7 +452,7 @@ export class RequestsService {
           organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
           teamId: dto.team_id ? toBigInt(dto.team_id) : null,
           status: 'draft',
-          data: dto.data as Prisma.InputJsonValue,
+          data: normalizedData,
           totalAmount: computedTotal ?? dto.total_amount,
           currency: dto.currency || 'NGN'
         }
@@ -490,6 +496,8 @@ export class RequestsService {
 
       return request;
     });
+
+    await this.syncBudgetCommitmentForRequest(created);
 
     return this.getRequest(created.id.toString(), userId);
   }
@@ -1072,6 +1080,9 @@ export class RequestsService {
       });
     }
 
+    const submittedRequest = await this.getRequestOrThrow(id);
+    await this.syncBudgetCommitmentForRequest(submittedRequest);
+
     try {
       const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
       const submissionMessage =
@@ -1184,6 +1195,8 @@ export class RequestsService {
       comment: effectiveComment
     });
 
+    await this.syncBudgetCommitmentForRequest(updated);
+
     await this.applyLeaveDebitIfNeeded(request.id, userId);
 
     try {
@@ -1259,6 +1272,8 @@ export class RequestsService {
       action: 'reject',
       comment: dto.comment
     });
+
+    await this.syncBudgetCommitmentForRequest(updated);
 
     await this.revertLeaveDebitIfNeeded(request.id, userId, 'rejected');
 
@@ -1351,6 +1366,8 @@ export class RequestsService {
           })
         }
       });
+
+      await this.syncBudgetCommitmentForRequest(updated);
 
       try {
         const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
@@ -1493,6 +1510,18 @@ export class RequestsService {
       );
     }
 
+    const nextDataSource = dto.data !== undefined
+      ? dto.data
+      : (request.data && typeof request.data === 'object' && !Array.isArray(request.data)
+          ? (request.data as Record<string, any>)
+          : {});
+    const budgetSelection = await this.validateBudgetSelection(nextDataSource ?? {}, {
+      team_id: dto.team_id ?? (request.teamId ? request.teamId.toString() : undefined),
+      organization_id: dto.organization_id ?? (request.organizationId ? request.organizationId.toString() : undefined),
+      project_id: nextDataSource?.project_id ? String(nextDataSource.project_id) : undefined,
+    });
+    const normalizedData = this.withBudgetSelection(nextDataSource ?? {}, budgetSelection);
+
     const updated = await this.prisma.$transaction(async (tx) => {
       const computedTotal = dto.items && dto.items.length
         ? dto.items.reduce((sum, item) => sum + (item.amount * (item.quantity ?? 1)), 0)
@@ -1505,17 +1534,15 @@ export class RequestsService {
         await this.ensureFileAssetsExist(tx, fileIds);
       }
 
-      const updated = await tx.requestInstance.update({
-        where: { id: request.id },
-        data: {
-          data:
-            dto.data !== undefined
-              ? (dto.data as Prisma.InputJsonValue)
-              : request.data ?? Prisma.JsonNull,
-          teamId: dto.team_id ? toBigInt(dto.team_id) : request.teamId,
-          totalAmount: computedTotal ?? dto.total_amount ?? request.totalAmount,
-          currency: dto.currency ?? request.currency
-        }
+        const updated = await tx.requestInstance.update({
+          where: { id: request.id },
+          data: {
+            data: normalizedData,
+            teamId: dto.team_id ? toBigInt(dto.team_id) : request.teamId,
+            organizationId: dto.organization_id ? toBigInt(dto.organization_id) : request.organizationId,
+            totalAmount: computedTotal ?? dto.total_amount ?? request.totalAmount,
+            currency: dto.currency ?? request.currency
+          }
       });
 
       if (dto.items) {
@@ -1554,6 +1581,8 @@ export class RequestsService {
 
       return updated;
     });
+
+    await this.syncBudgetCommitmentForRequest(updated);
 
     return this.getRequest(updated.id.toString(), userId);
   }
@@ -1808,6 +1837,8 @@ export class RequestsService {
       action: 'confirm_disbursement'
     });
 
+    await this.syncBudgetCommitmentForRequest(updated);
+
     const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
     const confirmationMessage = `Request #${request.id.toString()} was confirmed by requester.`;
     const requesterNotificationChannels = await this.buildRequestNotificationChannels({
@@ -1873,9 +1904,10 @@ export class RequestsService {
     const shouldMoveToConfirmed = requestTotal > 0 ? totalDisbursed >= requestTotal : totalDisbursed > 0;
 
     if (request.status === 'disbursed' && shouldMoveToConfirmed) {
-      await this.transitionRequestStatus(request, 'confirmed', userId, {
+      const confirmed = await this.transitionRequestStatus(request, 'confirmed', userId, {
         action: 'confirm_disbursement'
       });
+      await this.syncBudgetCommitmentForRequest(confirmed);
     }
 
     const formattedRequestNumber = await this.getFormattedRequestNumber(request.id);
@@ -1945,6 +1977,7 @@ export class RequestsService {
         )
       }
     });
+    await this.syncBudgetCommitmentForRequest(updated);
     for (const touched of retirementResult.touched_vouchers) {
       await this.logWorkflowEvent(request.workflowInstanceId, 'pv_retired', userId, {
         request_id: request.id.toString(),
@@ -2042,6 +2075,8 @@ export class RequestsService {
       action: 'complete'
     });
 
+    await this.syncBudgetCommitmentForRequest(updated);
+
     for (const voucher of vouchersToVerify) {
       await this.logWorkflowEvent(request.workflowInstanceId, 'pv_verified', _userId, {
         request_id: request.id.toString(),
@@ -2070,6 +2105,108 @@ export class RequestsService {
     }
 
     return this.getRequest(updated.id.toString(), _userId);
+  }
+
+  private async validateBudgetSelection(
+    data: Record<string, any>,
+    context: { team_id?: string; organization_id?: string; project_id?: string }
+  ) {
+    if (!data.budget_id && !data.budget_line_id) return null;
+    if (!data.budget_id || !data.budget_line_id) {
+      throw new BadRequestException('budget_id and budget_line_id must be provided together');
+    }
+
+    const budget = await this.prisma.financeBudget.findUnique({
+      where: { id: String(data.budget_id) },
+      include: {
+        currentActiveRevision: {
+          include: { lines: true },
+        },
+      },
+    });
+    if (!budget || budget.status !== 'approved' || !budget.currentActiveRevision) {
+      throw new BadRequestException('Selected budget is not approved');
+    }
+    if (budget.teamId && context.team_id !== budget.teamId.toString()) {
+      throw new BadRequestException('Budget scope does not match request team');
+    }
+    if (budget.organizationId && context.organization_id && context.organization_id !== budget.organizationId.toString()) {
+      throw new BadRequestException('Budget scope does not match request organization');
+    }
+    if (budget.projectId && context.project_id !== budget.projectId.toString()) {
+      throw new BadRequestException('Budget scope does not match request project');
+    }
+
+    const line = budget.currentActiveRevision.lines.find((entry) => entry.id === String(data.budget_line_id));
+    if (!line) throw new BadRequestException('Invalid budget_line_id');
+
+    return {
+      budgetId: budget.id,
+      budgetRevisionId: budget.currentActiveRevision.id,
+      budgetLineId: line.id,
+      amount: Number(line.totalAmount ?? line.amount ?? 0),
+    };
+  }
+
+  private withBudgetSelection(data: Record<string, any>, selection: { budgetId: string; budgetRevisionId: string; budgetLineId: string } | null) {
+    const base = { ...data } as Record<string, unknown>;
+    if (!selection) return base as Prisma.InputJsonValue;
+    return {
+      ...base,
+      budget_id: selection.budgetId,
+      budget_revision_id: selection.budgetRevisionId,
+      budget_line_id: selection.budgetLineId,
+    } as Prisma.InputJsonValue;
+  }
+
+  private async syncBudgetCommitmentForRequest(request: {
+    id: bigint;
+    status: string;
+    totalAmount?: Prisma.Decimal | number | null;
+    data?: unknown;
+  }) {
+    const data = request.data && typeof request.data === 'object' && !Array.isArray(request.data)
+      ? (request.data as Record<string, any>)
+      : {};
+
+    if (!data.budget_id || !data.budget_line_id || !data.budget_revision_id) {
+      await this.prisma.financeBudgetCommitment.updateMany({
+        where: { requestId: request.id },
+        data: { status: 'released', actualizedAmount: null },
+      });
+      return;
+    }
+
+    const requestStatus = String(request.status);
+    const status = ['payment_processing', 'disbursed', 'confirmed', 'retired', 'completed'].includes(requestStatus)
+      ? 'consumed'
+      : ['sent', 'approval', 'approved', 'cleared'].includes(requestStatus)
+        ? 'reserved'
+        : 'released';
+    const amount = Number(request.totalAmount ?? 0);
+
+    await this.prisma.financeBudgetCommitment.upsert({
+      where: {
+        unique_request_budget_line_commitment: {
+          requestId: request.id,
+          budgetLineId: String(data.budget_line_id),
+        },
+      },
+      update: {
+        status,
+        committedAmount: amount,
+        actualizedAmount: status === 'consumed' ? amount : null,
+      },
+      create: {
+        budgetId: String(data.budget_id),
+        budgetRevisionId: String(data.budget_revision_id),
+        budgetLineId: String(data.budget_line_id),
+        requestId: request.id,
+        status,
+        committedAmount: amount,
+        actualizedAmount: status === 'consumed' ? amount : null,
+      },
+    });
   }
 
   private async getRequestOrThrow(id: string) {

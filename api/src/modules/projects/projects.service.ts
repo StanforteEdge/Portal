@@ -12,7 +12,7 @@ export class ProjectsService {
   constructor(private readonly prisma: PrismaService) {}
 
   async list(query: Record<string, any>) {
-    const where: Prisma.GroupWhereInput = { type: 'project' };
+    const where: Prisma.ProjectWhereInput = {};
     if (query.organization_id) where.organizationId = this.parseId(String(query.organization_id), 'organization id');
     if (query.active_only === 'true') where.isActive = true;
     if (query.search) {
@@ -28,10 +28,11 @@ export class ProjectsService {
       };
     }
 
-    const rows = await this.prisma.group.findMany({
+    const rows = await this.prisma.project.findMany({
       where,
       include: {
         organization: true,
+        governance: true,
         members: {
           include: {
             user: { select: { id: true, email: true, username: true, firstName: true, lastName: true } }
@@ -45,10 +46,12 @@ export class ProjectsService {
   }
 
   async get(id: string) {
-    const project = await this.prisma.group.findUnique({
-      where: { id: this.parseId(id, 'project id') },
+    const projectId = this.parseId(id, 'project id');
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
       include: {
         organization: true,
+        governance: true,
         members: {
           include: {
             user: { select: { id: true, email: true, username: true, firstName: true, lastName: true } }
@@ -57,7 +60,7 @@ export class ProjectsService {
       }
     });
 
-    if (!project || project.type !== 'project') throw new NotFoundException('Project not found');
+    if (!project) throw new NotFoundException('Project not found');
     return this.serializeProject(project);
   }
 
@@ -73,82 +76,108 @@ export class ProjectsService {
     }
 
     const ownerId = dto.owner_user_id ? this.parseId(dto.owner_user_id, 'owner user id') : createdById;
-    const project = await this.prisma.group.create({
-      data: {
-        name: dto.name,
-        description: dto.description,
-        type: 'project',
-        createdBy: createdById,
-        updatedBy: createdById,
-        organizationId,
-        metadata: {
-          ...(dto.metadata ?? {}),
-          ...(dto.project_code ? { project_code: dto.project_code } : {}),
-          ...(dto.start_date ? { start_date: dto.start_date } : {}),
-          ...(dto.end_date ? { end_date: dto.end_date } : {}),
-          governance_status: dto.governance_status ?? 'planned',
-          owner_user_id: ownerId.toString()
-        } as Prisma.InputJsonValue,
-        isActive: true
-      }
-    });
 
-    await this.prisma.groupUser.create({
-      data: {
-        groupId: project.id,
-        userId: ownerId,
-        role: GroupUserRole.admin,
-        addedBy: createdById
-      }
-    });
-
-    if (ownerId !== createdById) {
-      await this.prisma.groupUser.upsert({
-        where: {
-          unique_group_user: {
-            groupId: project.id,
-            userId: createdById
+    const project = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.project.create({
+        data: {
+          name: dto.name,
+          description: dto.description,
+          createdBy: createdById,
+          updatedBy: createdById,
+          organizationId,
+          isActive: true,
+          governance: {
+            create: {
+              projectCode: dto.project_code ?? null,
+              ownerUserId: ownerId,
+              startDate: dto.start_date ? new Date(dto.start_date) : null,
+              endDate: dto.end_date ? new Date(dto.end_date) : null,
+              governanceStatus: dto.governance_status ?? 'planned'
+            }
+          },
+          members: {
+            create: {
+              userId: ownerId,
+              role: GroupUserRole.admin,
+              addedBy: createdById
+            }
           }
-        },
-        update: { role: GroupUserRole.admin, addedBy: createdById },
-        create: {
-          groupId: project.id,
-          userId: createdById,
-          role: GroupUserRole.admin,
-          addedBy: createdById
         }
       });
-    }
 
-    return this.get(project.id.toString());
+      if (ownerId !== createdById) {
+        await tx.projectMember.upsert({
+          where: {
+            unique_project_user: {
+              projectId: created.id,
+              userId: createdById
+            }
+          },
+          update: { role: GroupUserRole.admin, addedBy: createdById },
+          create: {
+            projectId: created.id,
+            userId: createdById,
+            role: GroupUserRole.admin,
+            addedBy: createdById
+          }
+        });
+      }
+
+      return tx.project.findUnique({
+        where: { id: created.id },
+        include: {
+          organization: true,
+          governance: true,
+          members: {
+            include: {
+              user: { select: { id: true, email: true, username: true, firstName: true, lastName: true } }
+            }
+          }
+        }
+      });
+    });
+
+    return this.serializeProject(project);
   }
 
   async update(id: string, userId: string, dto: UpdateProjectDto) {
     const projectId = this.parseId(id, 'project id');
-    await this.ensureProjectAccess(projectId, this.parseId(userId, 'user id'));
+    const actorId = this.parseId(userId, 'user id');
+    await this.ensureProjectAccess(projectId, actorId);
 
-    const existing = await this.prisma.group.findUnique({ where: { id: projectId } });
-    if (!existing || existing.type !== 'project') throw new NotFoundException('Project not found');
-
-    const mergedMetadata = this.mergeGovernanceMetadata(existing.metadata, dto);
-    const updateData: {
-      name: string;
-      description: string | null;
-      isActive: boolean;
-      updatedBy: bigint;
-      metadata?: Prisma.InputJsonValue;
-    } = {
-      name: dto.name ?? existing.name,
-      description: dto.description ?? existing.description,
-      isActive: dto.is_active ?? existing.isActive,
-      updatedBy: this.parseId(userId, 'user id')
-    };
-
-    updateData.metadata = mergedMetadata as Prisma.InputJsonValue;
-
-    await this.prisma.group.update({
+    const existing = await this.prisma.project.findUnique({
       where: { id: projectId },
-      data: updateData
+      include: { governance: true }
+    });
+    if (!existing) throw new NotFoundException('Project not found');
+
+    const projectData: Prisma.ProjectUpdateInput = {
+      updatedBy: actorId
+    };
+    if (dto.name !== undefined) projectData.name = dto.name;
+    if (dto.description !== undefined) projectData.description = dto.description;
+    if (dto.is_active !== undefined) projectData.isActive = dto.is_active;
+
+    const governanceData: Record<string, any> = {};
+    if (dto.project_code !== undefined) governanceData.projectCode = dto.project_code;
+    if (dto.start_date !== undefined) governanceData.startDate = dto.start_date ? new Date(dto.start_date) : null;
+    if (dto.end_date !== undefined) governanceData.endDate = dto.end_date ? new Date(dto.end_date) : null;
+    if (dto.governance_status !== undefined) governanceData.governanceStatus = dto.governance_status;
+    if (dto.owner_user_id !== undefined) governanceData.ownerUserId = this.parseId(dto.owner_user_id, 'owner user id');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: projectId },
+        data: projectData
+      });
+
+      if (Object.keys(governanceData).length > 0) {
+        await tx.projectGovernance.upsert({
+          where: { projectId },
+          create: { projectId, ...governanceData },
+          update: governanceData
+        });
+      }
     });
 
     return this.get(id);
@@ -158,27 +187,39 @@ export class ProjectsService {
     const projectId = this.parseId(id, 'project id');
     const actorId = this.parseId(userId, 'user id');
     await this.ensureProjectAccess(projectId, actorId);
-    const project = await this.prisma.group.findUnique({ where: { id: projectId } });
-    if (!project || project.type !== 'project') throw new NotFoundException('Project not found');
+
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      include: { governance: true }
+    });
+    if (!project) throw new NotFoundException('Project not found');
 
     const usage = await this.getProjectUsage(id);
     if (usage.open_requests > 0) {
       throw new BadRequestException('Cannot archive project with open requests');
     }
 
-    const current = this.normalizeMetadata(project.metadata);
-    await this.prisma.group.update({
-      where: { id: projectId },
-      data: {
-        isActive: false,
-        updatedBy: actorId,
-        metadata: {
-          ...current,
-          governance_status: 'archived',
-          archived_at: new Date().toISOString()
-        } as Prisma.InputJsonValue
-      }
+    await this.prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: projectId },
+        data: {
+          isActive: false,
+          updatedBy: actorId
+        }
+      });
+
+      await tx.projectGovernance.upsert({
+        where: { projectId },
+        create: {
+          projectId,
+          governanceStatus: 'archived'
+        },
+        update: {
+          governanceStatus: 'archived'
+        }
+      });
     });
+
     return this.get(id);
   }
 
@@ -186,20 +227,31 @@ export class ProjectsService {
     const projectId = this.parseId(id, 'project id');
     const actorId = this.parseId(userId, 'user id');
     await this.ensureProjectAccess(projectId, actorId);
-    const project = await this.prisma.group.findUnique({ where: { id: projectId } });
-    if (!project || project.type !== 'project') throw new NotFoundException('Project not found');
-    const current = this.normalizeMetadata(project.metadata);
-    await this.prisma.group.update({
+
+    const project = await this.prisma.project.findUnique({
       where: { id: projectId },
-      data: {
-        isActive: true,
-        updatedBy: actorId,
-        metadata: {
-          ...current,
-          governance_status: current.governance_status === 'archived' ? 'active' : current.governance_status
-        } as Prisma.InputJsonValue
+      include: { governance: true }
+    });
+    if (!project) throw new NotFoundException('Project not found');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.project.update({
+        where: { id: projectId },
+        data: {
+          isActive: true,
+          updatedBy: actorId
+        }
+      });
+
+      const gov = project.governance;
+      if (gov && gov.governanceStatus === 'archived') {
+        await tx.projectGovernance.update({
+          where: { projectId },
+          data: { governanceStatus: 'active' }
+        });
       }
     });
+
     return this.get(id);
   }
 
@@ -223,16 +275,16 @@ export class ProjectsService {
 
     const role = (dto.role ?? 'member') as GroupUserRole;
 
-    await this.prisma.groupUser.upsert({
+    await this.prisma.projectMember.upsert({
       where: {
-        unique_group_user: {
-          groupId: projectId,
+        unique_project_user: {
+          projectId,
           userId
         }
       },
       update: { role, addedBy: actor },
       create: {
-        groupId: projectId,
+        projectId,
         userId,
         role,
         addedBy: actor
@@ -247,10 +299,10 @@ export class ProjectsService {
     const actor = this.parseId(actorId, 'user id');
     await this.ensureProjectAccess(projectId, actor);
 
-    await this.prisma.groupUser.delete({
+    await this.prisma.projectMember.delete({
       where: {
-        unique_group_user: {
-          groupId: projectId,
+        unique_project_user: {
+          projectId,
           userId: this.parseId(userId, 'user id')
         }
       }
@@ -260,9 +312,9 @@ export class ProjectsService {
   }
 
   private async ensureProjectAccess(projectId: bigint, actorId: bigint) {
-    const membership = await this.prisma.groupUser.findFirst({
+    const membership = await this.prisma.projectMember.findFirst({
       where: {
-        groupId: projectId,
+        projectId,
         userId: actorId,
         role: { in: [GroupUserRole.admin, GroupUserRole.moderator] }
       }
@@ -273,41 +325,26 @@ export class ProjectsService {
     }
   }
 
-  private normalizeMetadata(metadata: Prisma.JsonValue | null | undefined): Record<string, unknown> {
-    if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
-      return { ...(metadata as Record<string, unknown>) };
-    }
-    return {};
-  }
-
-  private mergeGovernanceMetadata(metadata: Prisma.JsonValue | null | undefined, dto: UpdateProjectDto) {
-    const current = this.normalizeMetadata(metadata);
-    const next = { ...current, ...(dto.metadata ?? {}) } as Record<string, unknown>;
-    if (dto.project_code !== undefined) next.project_code = dto.project_code;
-    if (dto.start_date !== undefined) next.start_date = dto.start_date;
-    if (dto.end_date !== undefined) next.end_date = dto.end_date;
-    if (dto.governance_status !== undefined) next.governance_status = dto.governance_status;
-    if (dto.owner_user_id !== undefined) next.owner_user_id = dto.owner_user_id;
-    return next;
-  }
-
   private serializeProject(project: any) {
-    const metadata = this.normalizeMetadata(project.metadata);
+    const gov = project.governance;
     return {
       ...project,
       governance: {
-        project_code: metadata.project_code ?? null,
-        owner_user_id: metadata.owner_user_id ?? null,
-        start_date: metadata.start_date ?? null,
-        end_date: metadata.end_date ?? null,
-        governance_status: metadata.governance_status ?? (project.isActive ? 'active' : 'archived')
+        project_code: gov?.projectCode ?? null,
+        owner_user_id: gov?.ownerUserId ? String(gov.ownerUserId) : null,
+        start_date: gov?.startDate ? gov.startDate.toISOString().split('T')[0] : null,
+        end_date: gov?.endDate ? gov.endDate.toISOString().split('T')[0] : null,
+        governance_status: gov?.governanceStatus ?? (project.isActive ? 'active' : 'archived')
       }
     };
   }
 
   private async getProjectUsage(id: string) {
     const projectId = this.parseId(id, 'project id');
-    const project = await this.prisma.group.findUnique({ where: { id: projectId }, select: { id: true, name: true } });
+    const project = await this.prisma.project.findUnique({
+      where: { id: projectId },
+      select: { id: true, name: true }
+    });
     if (!project) throw new NotFoundException('Project not found');
 
     const requests = await this.prisma.requestInstance.findMany({

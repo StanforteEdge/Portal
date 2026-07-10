@@ -452,6 +452,10 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return ((res as any)?.data?.items ?? []) as FinanceBudgetRecord[];
     },
 
+    listApprovedBudgetLines(params?: Record<string, unknown>) {
+      return httpRequest<any[]>(`/finance/budgets/approved-lines${toQuery(params)}`);
+    },
+
     getBudget(id: string) {
       return httpRequest<FinanceBudgetRecord>(`/finance/budgets/${id}`);
     },

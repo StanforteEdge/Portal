@@ -1,4 +1,4 @@
-import { httpRequest } from "@/shared/lib/core";
+import { financeApi, httpRequest } from "@/shared/lib/core";
 
 export type RequestRecord = {
   id: string;
@@ -147,6 +147,20 @@ export type TeamOption = {
       lastName?: string | null;
     };
   }>;
+};
+
+export type ApprovedBudgetLineOption = {
+  budget_id: string;
+  budget_name: string;
+  budget_revision_id: string;
+  budget_line_id: string;
+  line_label: string;
+  chart_account_id?: string | null;
+  total_amount: number;
+  scope_type: string;
+  organization_id?: string | null;
+  team_id?: string | null;
+  project_id?: string | null;
 };
 
 export type RequestItemRecord = {
@@ -330,6 +344,11 @@ export async function updateRequest(
     body: payload,
   });
   return res as RequestRecord;
+}
+
+export async function listApprovedBudgetLines(params?: Record<string, unknown>) {
+  const res = await financeApi.listApprovedBudgetLines(params);
+  return res as ApprovedBudgetLineOption[];
 }
 
 export async function submitRequest(id: string, comment?: string) {

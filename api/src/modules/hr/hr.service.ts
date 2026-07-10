@@ -819,6 +819,9 @@ export class HrService {
           group: true
         }
       },
+      projectMemberships: {
+        include: { project: true }
+      },
       employeeProfile: {
         include: {
           manager: { select: { id: true, firstName: true, lastName: true, email: true } }
@@ -1037,11 +1040,17 @@ export class HrService {
         name: entry.role.name,
         is_primary: entry.isPrimaryRole
       })),
+      groups: groupMemberships.filter((entry: any) => String(entry.type).toLowerCase() !== 'project'),
       teams: groupMemberships.filter((entry: any) => {
         const type = String(entry.type).toLowerCase();
         return type === 'team' || type === 'department';
       }),
-      projects: groupMemberships.filter((entry: any) => String(entry.type).toLowerCase() === 'project'),
+      projects: (profile.projectMemberships ?? []).map((entry: any) => ({
+        id: entry.project.id.toString(),
+        name: entry.project.name,
+        type: 'project',
+        role: entry.role
+      })),
       employee_profile: profile.employeeProfile
         ? {
             ...profile.employeeProfile,

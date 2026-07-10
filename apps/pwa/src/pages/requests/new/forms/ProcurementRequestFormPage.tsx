@@ -1,6 +1,6 @@
-import { forwardRef, useEffect, useImperativeHandle, useState } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
 import { SectionCard, TextField, TextAreaField, SelectField } from "@/shared";
-import type { RequestTypeOption, RequestCategoryOption, RequestRecord } from "@/pages/requests/requests-api";
+import type { ApprovedBudgetLineOption, RequestTypeOption, RequestCategoryOption, RequestRecord } from "@/pages/requests/requests-api";
 import type { RequestFormHandle } from "./category-form-types";
 
 type Props = {
@@ -8,12 +8,14 @@ type Props = {
   selectedCategory: RequestCategoryOption | null;
   editRequest?: RequestRecord | null;
   loadingEdit: boolean;
+  approvedBudgetLines: ApprovedBudgetLineOption[];
   onSummary: (node: React.ReactNode) => void;
 };
 
 export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>(({
   selectedCategory,
   editRequest,
+  approvedBudgetLines,
   onSummary,
 }, ref) => {
   const [title, setTitle] = useState("");
@@ -24,6 +26,26 @@ export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>((
   const [justification, setJustification] = useState("");
   const [specification, setSpecification] = useState("");
   const [suggestedVendorId, setSuggestedVendorId] = useState("");
+
+  const budgetOptions = useMemo(() => {
+    const byBudget = new Map<string, { id: string; name: string }>();
+    for (const line of approvedBudgetLines) {
+      if (!byBudget.has(line.budget_id)) {
+        byBudget.set(line.budget_id, { id: line.budget_id, name: line.budget_name });
+      }
+    }
+    return Array.from(byBudget.values());
+  }, [approvedBudgetLines]);
+
+  const budgetLineOptions = useMemo(
+    () => approvedBudgetLines.filter((line) => !budgetId || line.budget_id === budgetId),
+    [approvedBudgetLines, budgetId],
+  );
+
+  const selectedBudgetLine = useMemo(
+    () => approvedBudgetLines.find((line) => line.budget_line_id === budgetLineId) ?? null,
+    [approvedBudgetLines, budgetLineId],
+  );
 
   useEffect(() => {
     if (!editRequest?.data) return;
@@ -60,6 +82,7 @@ export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>((
           category: category || undefined,
           needed_by: neededBy || undefined,
           budget_id: budgetId || undefined,
+          budget_revision_id: selectedBudgetLine?.budget_revision_id || undefined,
           budget_line_id: budgetLineId || undefined,
           justification: justification.trim() || undefined,
           specification: specification.trim() || undefined,
@@ -98,18 +121,33 @@ export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>((
           value={neededBy}
           onChange={(e) => setNeededBy(e.target.value)}
         />
-        <TextField
-          label="Budget ID"
+        <SelectField
+          label="Budget"
           value={budgetId}
-          onChange={(e) => setBudgetId(e.target.value)}
-          placeholder="Budget UUID"
-        />
-        <TextField
-          label="Budget Line ID"
+          onChange={(e) => {
+            setBudgetId(e.target.value);
+            setBudgetLineId("");
+          }}
+          disabled={budgetOptions.length === 0}
+        >
+          <option value="">Select approved budget</option>
+          {budgetOptions.map((option) => (
+            <option key={option.id} value={option.id}>{option.name}</option>
+          ))}
+        </SelectField>
+        <SelectField
+          label="Budget Line"
           value={budgetLineId}
           onChange={(e) => setBudgetLineId(e.target.value)}
-          placeholder="Budget line UUID"
-        />
+          disabled={budgetLineOptions.length === 0}
+        >
+          <option value="">Select approved budget line</option>
+          {budgetLineOptions.map((option) => (
+            <option key={option.budget_line_id} value={option.budget_line_id}>
+              {option.line_label} ({option.total_amount})
+            </option>
+          ))}
+        </SelectField>
         <TextField
           label="Suggested Vendor ID"
           value={suggestedVendorId}

@@ -10,12 +10,16 @@ describe('FinanceService budget revisions', () => {
     financeBudgetPortfolio: { createMany: jest.fn(), deleteMany: jest.fn() },
     financeFund: { findUnique: jest.fn() },
     financeGrant: { findUnique: jest.fn() },
+    group: { findUnique: jest.fn() },
     $transaction: jest.fn(async (callback: any) => callback(prisma)),
   };
 
   const service = new FinanceService(prisma, {} as any, {} as any, {} as any);
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    prisma.group.findUnique.mockResolvedValue({ id: 4n, type: 'department', organizationId: 8n });
+  });
 
   it('creates a draft revision when creating a budget', async () => {
     prisma.financeBudget.create.mockResolvedValue({ id: 'budget-1' });
@@ -56,6 +60,14 @@ describe('FinanceService budget revisions', () => {
         }),
       }),
     );
+    expect(prisma.financeBudget.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          organizationId: 8n,
+          teamId: 4n,
+        }),
+      })
+    );
     expect(result.id).toBe('budget-1');
   });
 
@@ -87,5 +99,73 @@ describe('FinanceService budget revisions', () => {
     }, '9');
 
     expect(prisma.financeBudgetRevision.update).toHaveBeenCalled();
+  });
+
+  it('lists approved budget lines for a project scope', async () => {
+    prisma.financeBudget.findMany.mockResolvedValue([
+      {
+        id: 'budget-1',
+        name: 'Project Alpha Budget',
+        scopeType: 'project',
+        organizationId: 8n,
+        teamId: null,
+        projectId: 9n,
+        currentActiveRevisionId: 'rev-1',
+        currentActiveRevision: {
+          lines: [{ id: 'line-1', lineLabel: 'Travel', totalAmount: 5000, amount: 5000, chartAccountId: 'acc-1' }],
+        },
+      },
+    ]);
+
+    const result = await (service as any).listApprovedBudgetLines({ project_id: '9' });
+
+    expect(prisma.financeBudget.findMany).toHaveBeenCalled();
+    expect(result[0].budget_id).toBe('budget-1');
+    expect(result[0].budget_line_id).toBe('line-1');
+  });
+
+  it('serializes committed and consumed totals on budgets', () => {
+    const result = (service as any).serializeBudget({
+      id: 'budget-1',
+      organizationId: null,
+      teamId: null,
+      projectId: null,
+      parentBudgetId: null,
+      fund: null,
+      grant: null,
+      name: 'Budget',
+      scopeType: 'project',
+      budgetType: 'project',
+      periodType: 'annual',
+      fiscalYear: 2026,
+      quarter: null,
+      month: null,
+      currency: 'NGN',
+      exchangeRate: null,
+      startDate: new Date('2026-01-01'),
+      endDate: new Date('2026-12-31'),
+      status: 'approved',
+      totalBudget: 5000,
+      notes: null,
+      assumptions: [],
+      portfolio: [],
+      currentActiveRevision: null,
+      draftRevision: null,
+      currentActiveRevisionId: null,
+      draftRevisionId: null,
+      revisions: [],
+      approvedBy: null,
+      approvedAt: null,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+      commitments: [
+        { committedAmount: 1000, actualizedAmount: null },
+        { committedAmount: 500, actualizedAmount: 500 },
+      ],
+    });
+
+    expect(result.total_committed).toBe(1500);
+    expect(result.total_consumed).toBe(500);
+    expect(result.total_available).toBe(3500);
   });
 });

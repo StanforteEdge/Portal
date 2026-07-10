@@ -28,6 +28,9 @@ export class UsersService {
           include: { organization: true }
         },
         groups: { include: { group: true } },
+        projectMemberships: {
+          include: { project: true }
+        },
         employeeProfile: {
           include: {
             manager: {
@@ -76,6 +79,9 @@ export class UsersService {
           include: { organization: true }
         },
         groups: { include: { group: true } },
+        projectMemberships: {
+          include: { project: true }
+        },
         employeeProfile: {
           include: {
             manager: {
@@ -599,6 +605,13 @@ export class UsersService {
       is_primary: Boolean(item.isPrimary ?? item.is_primary ?? false)
     }));
 
+    const projectMemberships = (user.projectMemberships ?? []).map((item: any) => ({
+      id: item.project.id.toString(),
+      name: item.project.name,
+      type: 'project',
+      role: item.role
+    }));
+
     return {
       id: user.id.toString(),
       username: user.username,
@@ -627,9 +640,12 @@ export class UsersService {
         code: item.organization.code,
         is_primary: item.isPrimary
       })),
-      groups: groupMemberships,
-      teams: groupMemberships.filter((item: any) => String(item.type).toLowerCase() === 'team'),
-      projects: groupMemberships.filter((item: any) => String(item.type).toLowerCase() === 'project'),
+      groups: groupMemberships.filter((item: any) => String(item.type).toLowerCase() !== 'project'),
+      teams: groupMemberships.filter((item: any) => {
+        const type = String(item.type).toLowerCase();
+        return type === 'team' || type === 'department';
+      }),
+      projects: projectMemberships,
       employee_profile: user.employeeProfile
         ? {
             id: user.employeeProfile.id,

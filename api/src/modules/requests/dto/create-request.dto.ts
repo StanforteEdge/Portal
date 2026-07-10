@@ -81,8 +81,8 @@ export class CreateRequestDto {
       title: string — item/service name
       category: 'goods' | 'services' | 'works'
       needed_by: string (ISO date)
-      budget_id: string (uuid)
-      budget_line_id: string (uuid)
+      budget_id: string (uuid, approved budget only)
+      budget_line_id: string (uuid, from active approved revision only)
       justification: string
       specification: string
       suggested_vendor_id: string (uuid)`,

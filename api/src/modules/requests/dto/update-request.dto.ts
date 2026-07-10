@@ -67,7 +67,7 @@ export class UpdateRequestDto {
   @ApiPropertyOptional({
     type: 'object',
     additionalProperties: true,
-    example: { purpose: 'Updated purpose', reimbursement: true }
+    example: { purpose: 'Updated purpose', reimbursement: true, budget_id: 'approved-budget-uuid', budget_line_id: 'approved-line-uuid' }
   })
   @IsOptional()
   @IsObject()

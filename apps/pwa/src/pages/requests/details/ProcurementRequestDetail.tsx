@@ -33,6 +33,12 @@ export function ProcurementRequestDetail() {
               </p>
             </div>
             <div>
+              <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Budget</span>
+              <p className="mt-0.5 font-semibold text-slate-900">
+                {String(data.budget_id || "-")}
+              </p>
+            </div>
+            <div>
               <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">Budget Line</span>
               <p className="mt-0.5 font-semibold text-slate-900">
                 {String(data.budget_line_id || "-")}

@@ -3261,6 +3261,7 @@ export class FinanceService {
         grant: true,
         assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
         portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        commitments: true,
         currentActiveRevision: { include: { lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } } },
         draftRevision: { include: { lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } } },
         revisions: { orderBy: [{ revisionNumber: 'desc' }] },
@@ -3279,6 +3280,7 @@ export class FinanceService {
         grant: true,
         assumptions: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
         portfolio: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+        commitments: true,
         currentActiveRevision: { include: { lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } } },
         draftRevision: { include: { lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] } } },
         revisions: { orderBy: [{ revisionNumber: 'desc' }] },
@@ -3309,6 +3311,42 @@ export class FinanceService {
 
   async createBudget(dto: any, actorId?: string) {
     return this.upsertBudget(null, dto, actorId);
+  }
+
+  async listApprovedBudgetLines(query: Record<string, any>) {
+    const rows = await this.prisma.financeBudget.findMany({
+      where: {
+        status: 'approved',
+        currentActiveRevisionId: { not: null },
+        ...(query.organization_id ? { organizationId: this.parseId(String(query.organization_id), 'organization_id') } : {}),
+        ...(query.team_id ? { teamId: this.parseId(String(query.team_id), 'team_id') } : {}),
+        ...(query.project_id ? { projectId: this.parseId(String(query.project_id), 'project_id') } : {}),
+      },
+      include: {
+        currentActiveRevision: {
+          include: {
+            lines: { orderBy: [{ sortOrder: 'asc' }, { createdAt: 'asc' }] },
+          },
+        },
+      },
+      orderBy: [{ fiscalYear: 'desc' }, { createdAt: 'desc' }],
+    });
+
+    return rows.flatMap((budget) =>
+      (budget.currentActiveRevision?.lines ?? []).map((line) => ({
+        budget_id: budget.id,
+        budget_name: budget.name,
+        budget_revision_id: budget.currentActiveRevisionId,
+        budget_line_id: line.id,
+        line_label: line.lineLabel,
+        chart_account_id: line.chartAccountId,
+        total_amount: Number(line.totalAmount ?? line.amount ?? 0),
+        scope_type: budget.scopeType,
+        organization_id: budget.organizationId ? budget.organizationId.toString() : null,
+        team_id: budget.teamId ? budget.teamId.toString() : null,
+        project_id: budget.projectId ? budget.projectId.toString() : null,
+      }))
+    );
   }
 
   async updateBudget(id: string, dto: any, actorId?: string) {
@@ -3430,9 +3468,14 @@ export class FinanceService {
     const fund = dto.fund_id ? await this.prisma.financeFund.findUnique({ where: { id: dto.fund_id } }) : null;
     const grant = dto.grant_id ? await this.prisma.financeGrant.findUnique({ where: { id: dto.grant_id } }) : null;
     const projectId = dto.project_id ? await this.ensureProjectExists(String(dto.project_id), 'project_id') : null;
+    const scopeIds = await this.resolveBudgetScopeIds(scopeType, dto);
     if (dto.fund_id && !fund) throw new BadRequestException('Invalid fund_id');
     if (dto.grant_id && !grant) throw new BadRequestException('Invalid grant_id');
-    this.validateScope(scopeType, dto);
+    this.validateScope(scopeType, {
+      ...dto,
+      organization_id: scopeIds.organizationId?.toString() ?? dto.organization_id,
+      team_id: scopeIds.teamId?.toString() ?? dto.team_id,
+    });
     await this.validateBudgetDimensionCompatibility({ projectId, fund, grant });
     const lines = Array.isArray(dto.lines) ? dto.lines : [];
     const assumptions = Array.isArray(dto.assumptions) ? dto.assumptions : [];
@@ -3463,11 +3506,11 @@ export class FinanceService {
 
     const row = await this.prisma.$transaction(async (tx) => {
       const budget = id
-        ? await tx.financeBudget.update({
+          ? await tx.financeBudget.update({
             where: { id },
             data: {
-              organizationId: dto.organization_id ? this.parseId(String(dto.organization_id), 'organization_id') : null,
-              teamId: dto.team_id ? this.parseId(String(dto.team_id), 'team_id') : null,
+              teamId: scopeIds.teamId,
+              organizationId: scopeIds.organizationId,
               projectId,
               fundId: fund?.id ?? null,
               grantId: grant?.id ?? null,
@@ -3491,8 +3534,8 @@ export class FinanceService {
           })
         : await tx.financeBudget.create({
             data: {
-              organizationId: dto.organization_id ? this.parseId(String(dto.organization_id), 'organization_id') : null,
-              teamId: dto.team_id ? this.parseId(String(dto.team_id), 'team_id') : null,
+              organizationId: scopeIds.organizationId,
+              teamId: scopeIds.teamId,
               projectId,
               fundId: fund?.id ?? null,
               grantId: grant?.id ?? null,
@@ -5200,6 +5243,34 @@ export class FinanceService {
     }
   }
 
+  private async resolveBudgetScopeIds(
+    scopeType: string,
+    dto: Record<string, any>
+  ): Promise<{ organizationId: bigint | null; teamId: bigint | null }> {
+    const teamId = dto.team_id ? this.parseId(String(dto.team_id), 'team_id') : null;
+    const dtoOrganizationId = dto.organization_id ? this.parseId(String(dto.organization_id), 'organization_id') : null;
+
+    if (scopeType !== 'team' || !teamId) {
+      return {
+        organizationId: dtoOrganizationId,
+        teamId,
+      };
+    }
+
+    const team = await this.prisma.group.findUnique({
+      where: { id: teamId },
+      select: { id: true, type: true, organizationId: true },
+    });
+    if (!team || String(team.type).toLowerCase() === 'project') {
+      throw new BadRequestException('Invalid team_id');
+    }
+
+    return {
+      organizationId: dtoOrganizationId ?? team.organizationId ?? null,
+      teamId: team.id,
+    };
+  }
+
   private resolveLineTotal(line: Record<string, any>) {
     if (line.total_amount !== undefined && line.total_amount !== null && line.total_amount !== '') {
       return Number(line.total_amount || 0);
@@ -5398,6 +5469,10 @@ export class FinanceService {
   }
 
   private serializeBudget(row: any) {
+    const commitments = row.commitments ?? [];
+    const totalCommitted = commitments.reduce((sum: number, item: any) => sum + Number(item.committedAmount ?? 0), 0);
+    const totalConsumed = commitments.reduce((sum: number, item: any) => sum + Number(item.actualizedAmount ?? 0), 0);
+
     return {
       id: row.id,
       organization_id: row.organizationId ? row.organizationId.toString() : null,
@@ -5436,6 +5511,9 @@ export class FinanceService {
       end_date: row.endDate,
       status: row.draftRevision?.status ?? row.currentActiveRevision?.status ?? row.status,
       total_budget: Number(row.totalBudget),
+      total_committed: totalCommitted,
+      total_consumed: totalConsumed,
+      total_available: Number(row.totalBudget) - totalCommitted,
       notes: row.notes,
       assumptions: row.assumptions.map((entry: any) => ({
         id: entry.id,

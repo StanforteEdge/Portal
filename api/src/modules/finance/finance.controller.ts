@@ -391,6 +391,13 @@ export class FinanceController {
     return this.financeService.listBudgets(query);
   }
 
+  @Get('budgets/approved-lines')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List approved budget lines by scope' })
+  listApprovedBudgetLines(@Query() query: Record<string, any>) {
+    return this.financeService.listApprovedBudgetLines(query);
+  }
+
   @Get('budgets/:id')
   @Permissions('finance.view')
   @ApiOperation({ summary: 'Get finance budget detail' })

@@ -26,15 +26,17 @@ import {
   type RequestTypeOption,
   type RequestCategoryOption,
   createRequest,
-  getRequest,
-  updateRequest,
-  submitRequest,
-  listProjects,
-  listMyOrganizations,
-  listGroupsForUser,
-  type MyOrganization,
-  type TeamOption,
-  type RequestItemInput,
+    getRequest,
+    updateRequest,
+    submitRequest,
+    listApprovedBudgetLines,
+    listProjects,
+    listMyOrganizations,
+    listGroupsForUser,
+    type ApprovedBudgetLineOption,
+    type MyOrganization,
+    type TeamOption,
+    type RequestItemInput,
   type RequestRecord,
 } from "@/pages/requests/requests-api";
 import {
@@ -154,6 +156,19 @@ export function RequestFormPage() {
       selectedCategory?.code ?? null,
     );
   }, [selectedType, selectedCategory]);
+
+  const approvedBudgetScopeQuery = useMemo(() => {
+    if (workflowType !== "procurement") return null;
+    if (form.project_id) return { project_id: form.project_id };
+    if (form.team_id) return { team_id: form.team_id, organization_id: form.organization_id || undefined };
+    if (form.organization_id) return { organization_id: form.organization_id };
+    return null;
+  }, [workflowType, form.project_id, form.team_id, form.organization_id]);
+  const { data: approvedBudgetLines } = useCachedQuery(
+    `requests:approved-budget-lines:${JSON.stringify(approvedBudgetScopeQuery ?? {})}`,
+    () => (approvedBudgetScopeQuery ? listApprovedBudgetLines(approvedBudgetScopeQuery) : Promise.resolve([] as ApprovedBudgetLineOption[])),
+    { ttlMs: 1000 * 60 * 5, storage: "memory" },
+  );
 
   const selectedTaxonomies = useMemo(() => {
     const keys = [...(selectedType?.taxonomyKeys ?? selectedType?.taxonomy_keys ?? [])]
@@ -536,6 +551,7 @@ export function RequestFormPage() {
               selectedCategory={selectedCategory}
               editRequest={editRequest}
               loadingEdit={loadingEdit}
+              approvedBudgetLines={approvedBudgetLines ?? []}
               onSummary={setSummaryContent}
             />
           ) : workflowType === "leave" ? (

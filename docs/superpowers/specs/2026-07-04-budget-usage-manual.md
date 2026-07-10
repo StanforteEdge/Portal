@@ -149,6 +149,15 @@ Expected behavior:
 - request items will link to specific approved budget lines
 - later revisions will not automatically change older approved requests
 
+## Budget-Backed Request Usage
+
+- only approved budget lines are selectable in request forms
+- `budget_id` and `budget_line_id` must point to the active approved revision line for the selected scope
+- submitting or routing a request into approval creates a reserved budget commitment
+- rejected, cancelled, or returned requests release the commitment
+- payment-processing, disbursed, confirmed, retired, and completed requests consume the commitment
+- budget detail views should show total committed, total consumed, and total available alongside total budget
+
 ## Good Operating Practice
 
 - use copy for recurring budgets instead of rebuilding from scratch
