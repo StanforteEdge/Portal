@@ -44,6 +44,10 @@ export default function HrEmployeeEditPage() {
 
     const [organizations, setOrganizations] = useState<any[]>([]);
     const [primaryOrgId, setPrimaryOrgId] = useState("");
+    const [teams, setTeams] = useState<any[]>([]);
+    const [primaryTeamId, setPrimaryTeamId] = useState("");
+    const [managers, setManagers] = useState<any[]>([]);
+    const [managerUserId, setManagerUserId] = useState("");
     const [firstName, setFirstName] = useState("");
     const [lastName, setLastName] = useState("");
     const [email, setEmail] = useState("");
@@ -62,6 +66,17 @@ export default function HrEmployeeEditPage() {
         resourceApi.listOrganizations()
             .then(setOrganizations)
             .catch(() => setOrganizations([]));
+
+        resourceApi.listGroups()
+            .then(setTeams)
+            .catch(() => setTeams([]));
+
+        hrApi.listEmployees({ status: "active" })
+            .then((res: any) => {
+                const list = Array.isArray(res?.result) ? res.result : [];
+                setManagers(list);
+            })
+            .catch(() => setManagers([]));
     }, []);
 
     useEffect(() => {
@@ -78,6 +93,8 @@ export default function HrEmployeeEditPage() {
             setHireDate(employee.hire_date || "");
             setConfirmationDate(employee.confirmation_date || "");
             setPrimaryOrgId(employee.primary_organization?.id || "");
+            setPrimaryTeamId(employee.primary_team?.id || "");
+            setManagerUserId(employee.manager?.id || "");
         }
     }, [employee]);
 
@@ -113,6 +130,8 @@ export default function HrEmployeeEditPage() {
                 hire_date: hireDate || undefined,
                 confirmation_date: confirmationDate || undefined,
                 primary_organization_id: primaryOrgId || undefined,
+                primary_team_id: primaryTeamId || undefined,
+                manager_user_id: managerUserId || undefined,
             });
 
             showToast({
@@ -278,7 +297,37 @@ export default function HrEmployeeEditPage() {
                                 <option value="suspended">Suspended</option>
                                 <option value="exited">Exited</option>
                             </SelectField>
+                        </div>
 
+                        <div className="grid gap-4 sm:grid-cols-2">
+                            <SelectField
+                                label="Primary Team"
+                                value={primaryTeamId}
+                                onChange={(e) => setPrimaryTeamId(e.target.value)}
+                            >
+                                <option value="">Select team...</option>
+                                {teams.map((t: any) => (
+                                    <option key={t.id} value={t.id}>
+                                        {t.name}
+                                    </option>
+                                ))}
+                            </SelectField>
+
+                            <SelectField
+                                label="Reporting Manager"
+                                value={managerUserId}
+                                onChange={(e) => setManagerUserId(e.target.value)}
+                            >
+                                <option value="">Select manager...</option>
+                                {managers.filter(m => String(m.id) !== id).map((m: any) => (
+                                    <option key={m.id} value={String(m.id)}>
+                                        {`${m.first_name || ""} ${m.last_name || ""}`.trim() || m.email}
+                                    </option>
+                                ))}
+                            </SelectField>
+                        </div>
+
+                        <div className="grid gap-4 sm:grid-cols-2">
                             <TextField
                                 label="Employee Code"
                                 value={employee?.employee_code || ""}

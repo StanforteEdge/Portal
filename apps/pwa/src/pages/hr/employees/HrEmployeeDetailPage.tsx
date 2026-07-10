@@ -169,34 +169,22 @@ export default function HrEmployeeDetailPage() {
       />
 
       <section className="mb-6 rounded-[26px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
-          <div className="rounded-2xl border border-slate-100 bg-slate-50 p-4">
-            <div className="flex items-center gap-3">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-900 text-xl font-semibold text-white">
-                {employeeInitials(employee)}
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-base font-semibold text-slate-950">
-                  {employeeFullName(employee)}
-                </p>
-                <p className="truncate text-xs text-slate-500">{employee.email || "-"}</p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-brand-900 text-2xl font-semibold text-white">
+              {employeeInitials(employee)}
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-xl font-bold text-slate-950">
+                {employeeFullName(employee)}
+              </h1>
+              <p className="text-sm text-slate-500">{employee.email || "-"}</p>
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                <p><span className="font-semibold text-slate-900">Code:</span> {employee.employee_code || "-"}</p>
+                <p><span className="font-semibold text-slate-900">Phone:</span> {employee.phone || "-"}</p>
+                <p><span className="font-semibold text-slate-900">Manager:</span> {employeeManagerName(employee)}</p>
               </div>
             </div>
-            <div className="mt-4 space-y-2 text-xs text-slate-600">
-              <p><span className="font-semibold text-slate-900">Code:</span> {employee.employee_code || "-"}</p>
-              <p><span className="font-semibold text-slate-900">Phone:</span> {employee.phone || "-"}</p>
-              <p><span className="font-semibold text-slate-900">Manager:</span> {employeeManagerName(employee)}</p>
-            </div>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <DetailField label="Job Title" value={employee.job_title || "-"} />
-            <DetailField label="Status" value={humanize(employee.employment_status || "draft")} />
-            <DetailField label="Primary Organization" value={employee.primary_organization?.name || "-"} />
-            <DetailField label="Primary Team" value={employee.primary_team?.name || "-"} />
-            <DetailField label="Employment Type" value={humanize(employee.employment_type || "-")} />
-            <DetailField label="Work Mode" value={humanize(employee.work_mode || "-")} />
-            <DetailField label="Hire Date" value={formatDate(employee.hire_date)} />
-            <DetailField label="Roles" value={Array.isArray(employee.roles) && employee.roles.length ? employee.roles.map((role) => humanize(String(role))).join(", ") : "-"} />
           </div>
         </div>
       </section>
