@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Button,
   Icon,
@@ -31,11 +32,42 @@ interface MultiSelectCellProps {
 
 function MultiSelectCell({ options, selectedValues, onChange }: MultiSelectCellProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [coords, setCoords] = useState({ top: 0, left: 0, width: 0 });
+
+  const updateCoords = () => {
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setCoords({
+        top: rect.bottom + window.scrollY,
+        left: rect.left + window.scrollX,
+        width: Math.max(rect.width, 200),
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      window.addEventListener("scroll", updateCoords, true);
+      window.addEventListener("resize", updateCoords);
+    }
+    return () => {
+      window.removeEventListener("scroll", updateCoords, true);
+      window.removeEventListener("resize", updateCoords);
+    };
+  }, [isOpen]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const targetNode = e.target as Node;
+      if (
+        triggerRef.current &&
+        !triggerRef.current.contains(targetNode) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(targetNode)
+      ) {
         setIsOpen(false);
       }
     }
@@ -59,8 +91,9 @@ function MultiSelectCell({ options, selectedValues, onChange }: MultiSelectCellP
     : "Select roles...";
 
   return (
-    <div ref={containerRef} className="relative w-full">
+    <div className="w-full">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         className="w-full text-left text-sm border border-slate-200 rounded-md p-1 bg-white flex justify-between items-center min-h-[30px]"
@@ -69,27 +102,39 @@ function MultiSelectCell({ options, selectedValues, onChange }: MultiSelectCellP
         <span className="text-xs text-slate-400">▼</span>
       </button>
 
-      {isOpen && (
-        <div className="absolute z-50 left-0 right-0 mt-1 max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg p-2 space-y-1 min-w-[200px]">
-          {options.map((opt) => {
-            const isChecked = selectedValues.includes(opt.value);
-            return (
-              <label
-                key={opt.value}
-                className="flex items-center gap-2 p-1 hover:bg-slate-50 rounded cursor-pointer text-sm"
-              >
-                <input
-                  type="checkbox"
-                  checked={isChecked}
-                  onChange={() => handleToggle(opt.value)}
-                  className="h-3.5 w-3.5 text-brand-900 border-slate-300 rounded focus:ring-brand-900"
-                />
-                <span className="text-slate-700">{opt.label}</span>
-              </label>
-            );
-          })}
-        </div>
-      )}
+      {isOpen &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            style={{
+              position: "absolute",
+              top: `${coords.top}px`,
+              left: `${coords.left}px`,
+              width: `${coords.width}px`,
+              zIndex: 99999,
+            }}
+            className="max-h-48 overflow-y-auto bg-white border border-slate-200 rounded-md shadow-lg p-2 space-y-1"
+          >
+            {options.map((opt) => {
+              const isChecked = selectedValues.includes(opt.value);
+              return (
+                <label
+                  key={opt.value}
+                  className="flex items-center gap-2 p-1 hover:bg-slate-50 rounded cursor-pointer text-sm"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isChecked}
+                    onChange={() => handleToggle(opt.value)}
+                    className="h-3.5 w-3.5 text-brand-900 border-slate-300 rounded focus:ring-brand-900"
+                  />
+                  <span className="text-slate-700">{opt.label}</span>
+                </label>
+              );
+            })}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }
