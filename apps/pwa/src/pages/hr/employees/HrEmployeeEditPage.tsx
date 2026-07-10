@@ -5,6 +5,7 @@ import {
     SectionCard,
     SelectField,
     TextField,
+    TextAreaField,
     useToast,
 } from "@/shared";
 import { useEffect, useState } from "react";
@@ -244,12 +245,13 @@ export default function HrEmployeeEditPage() {
                             onChange={(e) => setJobTitle(e.target.value)}
                         />
 
-                        <TextField
-                            label="Job Description"
-                            value={jobDescription}
-                            onChange={(e) => setJobDescription(e.target.value)}
-                            placeholder="Brief description of role responsibilities..."
-                        />
+                        <TextAreaField
+                             label="Job Description"
+                             value={jobDescription}
+                             onChange={(e) => setJobDescription(e.target.value)}
+                             placeholder="Detailed responsibilities, expectations, and role description..."
+                             rows={4}
+                         />
 
                         <div className="grid gap-4 sm:grid-cols-2">
                             <SelectField
