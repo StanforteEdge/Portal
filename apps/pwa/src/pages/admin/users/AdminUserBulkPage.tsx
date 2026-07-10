@@ -1,7 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/shared/context/AuthProvider";
 import { AppShell } from "@/shared/components/layout/AppShell";
-import { useCachedQuery, httpRequest, resourceApi } from "@/shared/lib/core";
+import { useCachedQuery, httpRequest, resourceApi, adminUsersApi } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import { BulkImportDashboard, type BulkColumnSchema } from "@/shared/components/feedback/BulkImportDashboard";
@@ -22,10 +22,20 @@ export default function AdminUserBulkPage() {
     { ttlMs: 1000 * 60, storage: "memory" },
   );
 
+  const { data: roleOptions } = useCachedQuery(
+    "admin:users:roles",
+    () => adminUsersApi.listRoleOptions(),
+    { ttlMs: 1000 * 60, storage: "memory" },
+  );
+
   const orgItems = (organizations as any)?.data?.items || [];
   const orgOptions = Array.isArray(orgItems)
     ? orgItems.map((o: any) => ({ value: String(o.id), label: o.name }))
     : [];
+
+  const roleSlugs = Array.isArray(roleOptions)
+    ? roleOptions.map((r: any) => r.slug).join(", ")
+    : "employee, administrator, hr, finance";
 
   const columns: BulkColumnSchema[] = [
     { key: "first_name", label: "First Name", placeholder: "e.g., John", required: true },
@@ -61,6 +71,16 @@ export default function AdminUserBulkPage() {
         { value: "suspended", label: "Suspended" }
       ],
       required: true
+    },
+    {
+      key: "roles",
+      label: "Portal Roles (comma-separated)",
+      placeholder: `e.g., ${roleSlugs || "employee"}`
+    },
+    {
+      key: "send_invite",
+      label: "Send Invite",
+      type: "checkbox"
     }
   ];
 
@@ -72,7 +92,9 @@ export default function AdminUserBulkPage() {
       username: "janesmith",
       type: "staff",
       primary_organization_id: orgOptions[0]?.value || "",
-      status: "active"
+      status: "active",
+      roles: "employee",
+      send_invite: true
     }
   ];
 

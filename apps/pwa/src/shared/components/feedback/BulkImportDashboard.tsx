@@ -17,7 +17,7 @@ export interface BulkColumnSchema {
   key: string;
   label: string;
   placeholder?: string;
-  type?: "text" | "select";
+  type?: "text" | "select" | "checkbox";
   options?: { value: string; label: string }[];
   required?: boolean;
 }
@@ -343,6 +343,17 @@ export function BulkImportDashboard<T extends Record<string, any>>({
                                 </option>
                               ))}
                             </select>
+                          ) : col.type === "checkbox" ? (
+                            <div className="flex justify-center items-center py-1">
+                              <input
+                                type="checkbox"
+                                checked={Boolean(row[col.key] ?? false)}
+                                onChange={(e) =>
+                                  handleCellChange(rowIndex, col.key, e.target.checked)
+                                }
+                                className="h-4 w-4 text-brand-900 border-slate-300 rounded focus:ring-brand-900 cursor-pointer"
+                              />
+                            </div>
                           ) : (
                             <input
                               type="text"

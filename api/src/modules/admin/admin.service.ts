@@ -7,10 +7,14 @@ import { UpdateAdminUserDto } from './dto/update-admin-user.dto';
 import { UpdateUserStatusDto } from './dto/update-user-status.dto';
 import { generateUniqueUsername, makeUsernameSeed } from '../../common/utils/username';
 import { paginatedResponse } from '../../common/helpers/paginated-response';
+import { UsersService } from '../users/users.service';
 
 @Injectable()
 export class AdminService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly usersService: UsersService
+  ) {}
 
   async listUsers(filters: Record<string, any>) {
     const page = Math.max(1, Number(filters.page ?? 1));
@@ -157,6 +161,34 @@ export class AdminService {
         });
       }
 
+      // Assign roles
+      if (dto.roles) {
+        let roleSlugs: string[] = [];
+        if (typeof dto.roles === 'string') {
+          roleSlugs = dto.roles.split(',').map((r) => r.trim()).filter(Boolean);
+        } else if (Array.isArray(dto.roles)) {
+          roleSlugs = dto.roles.map((r) => String(r).trim()).filter(Boolean);
+        }
+
+        if (roleSlugs.length > 0) {
+          const roles = await tx.role.findMany({
+            where: { slug: { in: roleSlugs }, isActive: true },
+            select: { id: true }
+          });
+
+          await tx.userRole.deleteMany({ where: { profileId: created.id } });
+          if (roles.length > 0) {
+            await tx.userRole.createMany({
+              data: roles.map((role) => ({
+                profileId: created.id,
+                roleId: role.id,
+                isPrimaryRole: false
+              }))
+            });
+          }
+        }
+      }
+
       return tx.profile.findUniqueOrThrow({
         where: { id: created.id },
         include: {
@@ -171,7 +203,19 @@ export class AdminService {
       });
     });
 
-    return this.serializeUser(user);
+    const serialized = this.serializeUser(user);
+
+    // Send invitation email if requested
+    const shouldSendInvite = dto.send_invite === true || dto.send_invite === 'true';
+    if (shouldSendInvite) {
+      try {
+        await this.usersService.inviteUser(String(user.id), { message: 'You have been added to the system.' });
+      } catch (err) {
+        console.error(`Failed to send invite email to ${dto.email}:`, err);
+      }
+    }
+
+    return serialized;
   }
 
   async updateUser(profileId: string, dto: UpdateAdminUserDto) {

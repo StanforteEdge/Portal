@@ -38,4 +38,10 @@ export class CreateAdminUserDto {
   @IsOptional()
   @IsString()
   primary_organization_id?: string;
+
+  @IsOptional()
+  roles?: string | string[];
+
+  @IsOptional()
+  send_invite?: boolean | string;
 }
