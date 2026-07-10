@@ -38,10 +38,10 @@ export default function AdminUserBulkPage() {
     : "employee, administrator, hr, finance";
 
   const columns: BulkColumnSchema[] = [
-    { key: "first_name", label: "First Name", placeholder: "e.g., John", required: true },
-    { key: "last_name", label: "Last Name", placeholder: "e.g., Doe", required: true },
-    { key: "email", label: "Email Address", placeholder: "e.g., john@company.com", required: true },
-    { key: "username", label: "Username", placeholder: "e.g., johndoe (optional)" },
+    { key: "first_name", label: "First Name", placeholder: "e.g., John", required: true, minWidth: "150px" },
+    { key: "last_name", label: "Last Name", placeholder: "e.g., Doe", required: true, minWidth: "150px" },
+    { key: "email", label: "Email Address", placeholder: "e.g., john@company.com", required: true, minWidth: "220px" },
+    { key: "username", label: "Username", placeholder: "e.g., johndoe (optional)", minWidth: "150px" },
     {
       key: "type",
       label: "Role Type",
@@ -52,14 +52,16 @@ export default function AdminUserBulkPage() {
         { value: "client", label: "Client" },
         { value: "board_member", label: "Board Member" }
       ],
-      required: true
+      required: true,
+      minWidth: "140px"
     },
     {
       key: "primary_organization_id",
       label: "Organization",
       type: "select",
       options: orgOptions,
-      required: true
+      required: true,
+      minWidth: "180px"
     },
     {
       key: "status",
@@ -70,17 +72,20 @@ export default function AdminUserBulkPage() {
         { value: "pending", label: "Pending" },
         { value: "suspended", label: "Suspended" }
       ],
-      required: true
+      required: true,
+      minWidth: "130px"
     },
     {
       key: "roles",
       label: "Portal Roles (comma-separated)",
-      placeholder: `e.g., ${roleSlugs || "employee"}`
+      placeholder: `e.g., ${roleSlugs || "employee"}`,
+      minWidth: "240px"
     },
     {
       key: "send_invite",
       label: "Send Invite",
-      type: "checkbox"
+      type: "checkbox",
+      minWidth: "100px"
     }
   ];
 

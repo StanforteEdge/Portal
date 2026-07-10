@@ -20,6 +20,7 @@ export interface BulkColumnSchema {
   type?: "text" | "select" | "checkbox";
   options?: { value: string; label: string }[];
   required?: boolean;
+  minWidth?: string;
 }
 
 interface BulkImportDashboardProps<T> {
@@ -317,7 +318,7 @@ export function BulkImportDashboard<T extends Record<string, any>>({
                 <TableHead>
                   <TableHeaderRow>
                     {columns.map((col) => (
-                      <TableHeaderCell key={col.key}>
+                      <TableHeaderCell key={col.key} style={{ minWidth: col.minWidth || "120px" }}>
                         {col.label} {col.required && <span className="text-danger">*</span>}
                       </TableHeaderCell>
                     ))}
@@ -328,7 +329,7 @@ export function BulkImportDashboard<T extends Record<string, any>>({
                   {rows.map((row, rowIndex) => (
                     <TableRow key={rowIndex} className={errors[rowIndex] ? "bg-danger/5" : ""}>
                       {columns.map((col) => (
-                        <TableCell key={col.key} className="p-2">
+                        <TableCell key={col.key} className="p-2" style={{ minWidth: col.minWidth || "120px" }}>
                           {col.type === "select" ? (
                             <select
                               value={String(row[col.key] ?? "")}
