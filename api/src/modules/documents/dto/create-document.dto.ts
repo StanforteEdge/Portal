@@ -46,6 +46,12 @@ export class CreateDocumentDto {
   @IsString()
   file_id?: string;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  link_url?: string;
+
   @ApiPropertyOptional({ default: false })
   @IsOptional()
   @IsBoolean()

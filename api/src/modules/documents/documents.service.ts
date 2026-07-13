@@ -74,8 +74,8 @@ export class DocumentsService {
   }
 
   async create(dto: CreateDocumentDto, actorId?: string) {
-    if (!dto.content_html && !dto.file_id) {
-      throw new BadRequestException('Either content_html or file_id is required');
+    if (!dto.content_html && !dto.file_id && !dto.link_url) {
+      throw new BadRequestException('Either content_html, file_id, or link_url is required');
     }
 
     const slug = dto.slug?.trim() || this.slugify(dto.title);
@@ -97,6 +97,7 @@ export class DocumentsService {
         effectiveDate: dto.effective_date ? new Date(dto.effective_date) : null,
         contentHtml: dto.content_html ?? null,
         fileId: dto.file_id ?? null,
+        linkUrl: dto.link_url ?? null,
         requireAcknowledgement: Boolean(dto.require_acknowledgement),
         organizationId: dto.organization_id ? toBigInt(dto.organization_id) : null,
         createdBy: actorId ? toBigInt(actorId) : null,
@@ -133,6 +134,7 @@ export class DocumentsService {
         effectiveDate: dto.effective_date ? new Date(dto.effective_date) : undefined,
         contentHtml: dto.content_html,
         fileId: dto.file_id,
+        linkUrl: dto.link_url,
         requireAcknowledgement: dto.require_acknowledgement,
         organizationId: dto.organization_id ? toBigInt(dto.organization_id) : undefined,
         updatedBy: actorId ? toBigInt(actorId) : undefined
@@ -242,6 +244,7 @@ export class DocumentsService {
       version: row.version,
       effective_date: row.effectiveDate,
       content_html: row.contentHtml,
+      link_url: row.linkUrl,
       file: row.file
         ? {
             id: row.file.id,

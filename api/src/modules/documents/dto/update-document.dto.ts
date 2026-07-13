@@ -49,6 +49,12 @@ export class UpdateDocumentDto {
 
   @ApiPropertyOptional()
   @IsOptional()
+  @IsString()
+  @MaxLength(2048)
+  link_url?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
   @IsBoolean()
   require_acknowledgement?: boolean;
 
