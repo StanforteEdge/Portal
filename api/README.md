@@ -14,3 +14,5 @@ Copy `.env.example` to `.env` and set `DATABASE_URL`.
 - Health endpoint: `http://localhost:3000/v1/health`
 - Swagger UI: `http://localhost:3000/docs`
 - OpenAPI JSON: `http://localhost:3000/docs-json`
+
+Deployment trigger note: README-only update for CI and release-path verification.

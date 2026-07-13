@@ -12,3 +12,5 @@ Run from the repo root:
 ```bash
 npm run dev:pwa2
 ```
+
+Deployment trigger note: README-only update for CI and release-path verification.
