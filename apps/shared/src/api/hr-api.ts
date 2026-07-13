@@ -31,6 +31,7 @@ export type EmployeeSummary = {
 
 export type EmployeeDetail = EmployeeSummary & {
   job_description?: string | null;
+  designation_id?: string | null;
   manager?: { id: string; first_name?: string; last_name?: string; email: string | null } | null;
   confirmation_date?: string | null;
   exit_date?: string | null;
@@ -87,6 +88,7 @@ export function normalizeEmployeeDetail(raw: any): EmployeeDetail {
   return {
     ...base,
     job_description: p?.jobDescription ?? p?.job_description ?? null,
+    designation_id: p?.designationId ?? p?.designation_id ?? null,
     manager: manager ? {
       id: manager.id,
       first_name: manager.firstName ?? manager.first_name,

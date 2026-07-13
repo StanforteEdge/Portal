@@ -48,7 +48,7 @@ export default function DocumentsListPage() {
       navigation={buildAppNavigation()}
       activeLabel="documents"
       user={{ name: userName, role: userRole }}
-      mobileNav={buildAppMobileNav("Staff")}
+      mobileNav={buildAppMobileNav("Dashboard")}
     >
       <PageHeader
         breadcrumbs={[{ label: "Workspace" }, { label: "Documents" }]}
@@ -112,7 +112,7 @@ export default function DocumentsListPage() {
                   </TableHeaderRow>
                 </TableHead>
                 <TableBody>
-                  {documents.map((doc) => (
+                  {documents.map((doc: any) => (
                     <TableRow key={doc.id}>
                       <TableCell className="font-semibold text-slate-900">
                         <button

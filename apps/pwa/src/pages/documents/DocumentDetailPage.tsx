@@ -73,7 +73,7 @@ export default function DocumentDetailPage() {
       navigation={buildAppNavigation()}
       activeLabel="documents"
       user={{ name: userName, role: userRole }}
-      mobileNav={buildAppMobileNav("Staff")}
+      mobileNav={buildAppMobileNav("Dashboard")}
     >
       <PageHeader
         breadcrumbs={[
@@ -101,10 +101,64 @@ export default function DocumentDetailPage() {
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2 space-y-6">
           <SectionCard title={documentRecord.title}>
-            <div className="prose max-w-none text-slate-700 whitespace-pre-wrap leading-7 text-sm">
-              {documentRecord.content_html || <span className="text-slate-400">No content provided.</span>}
-            </div>
+            {documentRecord.content_html ? (
+              <div
+                className="prose max-w-none text-slate-700 leading-7 text-sm"
+                dangerouslySetInnerHTML={{ __html: documentRecord.content_html }}
+              />
+            ) : (
+              <p className="text-slate-400 text-sm">No written content provided.</p>
+            )}
           </SectionCard>
+
+          {documentRecord.file && (
+            <SectionCard title="Attached File">
+              <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Icon name="attach_file" className="text-xl" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">{documentRecord.file.file_name}</p>
+                  {documentRecord.file.file_size && (
+                    <p className="text-xs text-slate-500">{(documentRecord.file.file_size / 1024).toFixed(1)} KB</p>
+                  )}
+                </div>
+                {documentRecord.file.public_url && (
+                  <a
+                    href={documentRecord.file.public_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 transition"
+                  >
+                    <Icon name="download" className="text-sm" />
+                    Download
+                  </a>
+                )}
+              </div>
+            </SectionCard>
+          )}
+
+          {documentRecord.link_url && (
+            <SectionCard title="External Link">
+              <div className="flex items-center gap-4 rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                  <Icon name="link" className="text-xl" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-slate-900 truncate">{documentRecord.link_url}</p>
+                </div>
+                <a
+                  href={documentRecord.link_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm hover:bg-primary/90 transition"
+                >
+                  <Icon name="open_in_new" className="text-sm" />
+                  Open Link
+                </a>
+              </div>
+            </SectionCard>
+          )}
         </div>
 
         <div className="space-y-6">

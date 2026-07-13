@@ -34,7 +34,7 @@ export default function PoliciesListPage() {
       navigation={buildAppNavigation()}
       activeLabel="hr-settings"
       user={{ name: userName, role: userRole }}
-      mobileNav={buildAppMobileNav("Staff")}
+      mobileNav={buildAppMobileNav("Dashboard")}
     >
       <PageHeader
         breadcrumbs={[{ label: "My Profile" }, { label: "Policies & Sign-offs" }]}

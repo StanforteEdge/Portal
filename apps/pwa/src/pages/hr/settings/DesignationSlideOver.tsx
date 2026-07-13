@@ -67,12 +67,11 @@ export default function DesignationSlideOver({ designation, onClose, onSaved }: 
   }
 
   return (
-    <SlideOver isOpen={designation !== false} onClose={onClose}>
-      <SlideOverHeader onClose={onClose}>
-        <h2 className="text-lg font-semibold text-slate-900">
-          {isEdit ? `Edit Job Title: ${designation.name}` : "Add Job Title Designation"}
-        </h2>
-      </SlideOverHeader>
+    <SlideOver open={designation !== false} onClose={onClose}>
+      <SlideOverHeader
+        title={isEdit ? `Edit Job Title: ${designation.name}` : "Add Job Title Designation"}
+        onClose={onClose}
+      />
       <SlideOverContent className="space-y-4">
         <TextField
           label="Name (Job Title)"
