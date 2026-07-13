@@ -13,6 +13,8 @@ uploads/
 api/uploads/
 plugins
 .playwright-cli/
+.claude/
+.continue/
 output/
 tmp/
 .worktrees/
