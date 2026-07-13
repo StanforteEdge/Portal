@@ -122,6 +122,8 @@ pnpm run dev:pwa2
 pnpm run dev:pwa
 ```
 
+Pushes to `development` trigger the `Development CI` workflow before promotion to `main`.
+
 ### API Endpoints
 
 - Base URL: `http://localhost:3000/v1`
