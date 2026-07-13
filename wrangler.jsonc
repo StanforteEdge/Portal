@@ -1,0 +1,7 @@
+{
+  "name": "portal-pwa",
+  "compatibility_date": "2026-07-13",
+  "assets": {
+    "directory": "./apps/pwa/dist"
+  }
+}
