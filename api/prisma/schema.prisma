@@ -284,9 +284,11 @@ model EmployeeProfile {
   updatedBy        BigInt?          @map("updated_by")
   createdAt        DateTime         @default(now()) @map("created_at")
   updatedAt        DateTime         @updatedAt @map("updated_at")
+  designationId    BigInt?          @map("designation_id")
 
-  user    Profile  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  manager Profile? @relation("EmployeeManager", fields: [managerUserId], references: [id], onDelete: SetNull)
+  user        Profile        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  manager     Profile?       @relation("EmployeeManager", fields: [managerUserId], references: [id], onDelete: SetNull)
+  designation HrDesignation? @relation(fields: [designationId], references: [id], onDelete: SetNull)
 
   @@index([managerUserId])
   @@index([employmentStatus])
@@ -2867,6 +2869,7 @@ model Document {
   effectiveDate          DateTime? @map("effective_date") @db.Date
   contentHtml            String?   @map("content_html")
   fileId                 String?   @map("file_id") @db.Uuid
+  linkUrl                String?   @map("link_url") @db.VarChar(2048)
   requireAcknowledgement Boolean   @default(false) @map("require_acknowledgement")
   createdBy              BigInt?   @map("created_by")
   updatedBy              BigInt?   @map("updated_by")
@@ -2877,6 +2880,7 @@ model Document {
   file             FileAsset?                @relation(fields: [fileId], references: [id], onDelete: SetNull)
   acknowledgements DocumentAcknowledgement[]
   policies         Policy[]
+  hrDesignations   HrDesignation[]
 
   @@index([organizationId])
   @@index([status])
@@ -3758,4 +3762,22 @@ model MailHeader {
   @@unique([accountId, folder, uid])
   @@index([accountId, folder])
   @@map("mail_headers")
+}
+
+model HrDesignation {
+  id          BigInt   @id @default(autoincrement())
+  name        String   @unique @db.VarChar(100)
+  code        String?  @unique @db.VarChar(20)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  
+  documentId  String?  @map("document_id") @db.Uuid
+  document    Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  employeeProfiles EmployeeProfile[]
+
+  @@map("sta_hr_designations")
 }
