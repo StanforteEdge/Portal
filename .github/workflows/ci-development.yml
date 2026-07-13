@@ -1,0 +1,35 @@
+name: Development CI
+
+on:
+  push:
+    branches: [development]
+    paths:
+      - "api/**"
+      - "apps/pwa/**"
+      - "apps/shared/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/ci-development.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build PWA
+        run: npm run build:pwa2
+
+      - name: Build API
+        run: npm run build -w api
