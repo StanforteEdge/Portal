@@ -34,16 +34,6 @@ jobs:
       - name: Build API
         run: npm run build -w api
 
-      - name: Upload code to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.API_SSH_HOST }}
-          username: ${{ secrets.API_SSH_USER }}
-          key: ${{ secrets.API_SSH_PRIVATE_KEY }}
-          source: "api,apps/pwa/package.json,apps/shared/package.json,package.json,package-lock.json"
-          target: ${{ secrets.API_APP_DIR }}
-          overwrite: true
-
       - name: Run server deploy commands
         uses: appleboy/ssh-action@v1.0.3
         with:
@@ -53,6 +43,10 @@ jobs:
           script: |
             set -e
             cd "${{ secrets.API_APP_DIR }}"
+            git fetch origin
+            git checkout main
+            git pull origin main
+            export DATABASE_URL="$(grep '^DATABASE_URL=' api/.env | cut -d= -f2-)"
             npm install --ignore-scripts
             npm run deploy:server
             node api/scripts/seed-rbac.js
