@@ -16,13 +16,19 @@ export class AllExceptionsFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
+    const method = request.method;
+    const path = request.originalUrl || request.url;
+    const ip = request.ip || request.socket?.remoteAddress || 'unknown';
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message: string | string[] = 'Internal server error';
     let details: unknown;
 
     if (!(exception instanceof HttpException)) {
-      this.logger.error(exception instanceof Error ? exception.stack : String(exception));
+      this.logger.error(
+        `Unhandled exception for ${method} ${path} from ${ip}`,
+        exception instanceof Error ? exception.stack : String(exception)
+      );
     }
 
     if (exception instanceof HttpException) {
