@@ -618,7 +618,12 @@ export class DeductionService {
 </body>
 </html>`;
 
-    const buffer = await this.pdfService.renderPdfFromHtml(html);
+    const buffer = await this.pdfService.renderPdfFromHtml(html, [
+      'TAX REMITTANCE SLIP',
+      `Reference: ${d.remittanceNumber ?? '—'}`,
+      `Amount: ${this.fmtMoney(d.amount)}`,
+      `Remitted: ${this.fmtDate(d.remittedAt)}`,
+    ]);
     const fileName = `TRM-${(d.remittanceNumber ?? id).replace(/\//g, '-')}.pdf`;
     return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
   }
@@ -785,7 +790,12 @@ export class DeductionService {
 </body>
 </html>`;
 
-    const buffer = await this.pdfService.renderPdfFromHtml(html);
+    const buffer = await this.pdfService.renderPdfFromHtml(html, [
+      'WITHHOLDING TAX CERTIFICATE',
+      `Payment Voucher: ${pv.voucherNumber}`,
+      `Vendor: ${vendorName}`,
+      `Amount Withheld: ${this.fmtMoney(pvd.deductionAmount)}`,
+    ]);
     const fileName = `WHT-Certificate-${pv.voucherNumber.replace(/\//g, '-')}.pdf`;
     return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
   }

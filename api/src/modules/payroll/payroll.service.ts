@@ -2277,7 +2277,11 @@ export class PayrollService {
       ${dto.note ? `<div class="card"><div class="rowpad"><strong>Note:</strong> ${this.escapeHtml(dto.note)}</div></div>` : ''}
       </body></html>`;
 
-    const content = await this.pdfService.renderPdfFromHtml(html);
+    const content = await this.pdfService.renderPdfFromHtml(html, [
+      'PAYSLIP',
+      `Employee: ${dto.worker_name}`,
+      `Net Pay: ${this.formatCurrency(net, currency)}`,
+    ]);
     return {
       file_name: `${this.safeFileName(dto.worker_name || 'manual')}-payslip-template.pdf`,
       mime_type: 'application/pdf',
