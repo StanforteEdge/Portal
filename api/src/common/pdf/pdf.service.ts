@@ -7,6 +7,7 @@ export class PdfService {
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      ...(process.env.PDF_BROWSER_PATH ? { executablePath: process.env.PDF_BROWSER_PATH } : {}),
     });
 
     try {
