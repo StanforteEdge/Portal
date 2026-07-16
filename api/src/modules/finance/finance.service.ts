@@ -7532,7 +7532,12 @@ ${pledge.notes ? `<div class="section"><div class="section-title">Notes</div><p 
 <div class="footer">Acknowledged on ${this.pdfFmtDate(new Date())} — Pledge Ref: ${this.pdfEsc(pledge.pledgeNumber)}</div>
 </body></html>`;
 
-    const buffer = await this.pdfService.renderPdfFromHtml(html);
+    const buffer = await this.pdfService.renderPdfFromHtml(html, [
+      'PLEDGE ACKNOWLEDGMENT LETTER',
+      `Pledge: ${pledge.pledgeNumber}`,
+      `Donor: ${pledge.donor.name}`,
+      `Amount: ${pledge.currency} ${amount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`,
+    ]);
     const fileName = `Pledge-Acknowledgment-${pledge.pledgeNumber.replace(/\//g, '-')}.pdf`;
     return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
   }
@@ -7619,7 +7624,12 @@ ${entry.notes ? `<div class="section"><div class="section-title">Notes</div><p s
 <div class="footer">This receipt was issued on ${this.pdfFmtDate(new Date())} — Receipt No: ${this.pdfEsc(receiptNumber)}</div>
 </body></html>`;
 
-    const buffer = await this.pdfService.renderPdfFromHtml(html);
+    const buffer = await this.pdfService.renderPdfFromHtml(html, [
+      'OFFICIAL FUNDER RECEIPT',
+      `Receipt: ${receiptNumber}`,
+      `Donor: ${donorName}`,
+      `Amount: ${entry.currency} ${amount.toLocaleString('en-NG', { minimumFractionDigits: 2 })}`,
+    ]);
     const fileName = `Funder-Receipt-${receiptNumber.replace(/\//g, '-')}.pdf`;
     return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
   }
