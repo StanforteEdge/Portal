@@ -246,6 +246,7 @@ export class DeductionService {
                 rate: line.rate,
                 grossAmount: line.gross_amount,
                 status: 'pending',
+                paymentVoucherId: pvId,
                 createdBy: toBigInt(userId),
                 updatedAt: now,
               },
@@ -439,6 +440,8 @@ export class DeductionService {
     if (query.deduction_type_id) where.deductionTypeId = query.deduction_type_id;
     if (query.request_id) where.requestId = toBigInt(query.request_id);
     if (query.remittance_ref) where.remittanceRef = query.remittance_ref;
+    if (query.remittance_number) where.remittanceNumber = query.remittance_number;
+    if (query.payment_voucher_id) where.paymentVoucherId = query.payment_voucher_id;
     if (query.search) {
       where.request = { data: { path: ['request_number'], string_contains: query.search } };
     }
@@ -456,6 +459,8 @@ export class DeductionService {
           deductionType: { select: { id: true, name: true, code: true } },
           request: { select: { id: true, createdAt: true, status: true, data: true } },
           createdByUser: { select: { id: true, firstName: true, lastName: true } },
+          remittedByUser: { select: { id: true, firstName: true, lastName: true } },
+          paymentVoucher: { select: { id: true, voucherNumber: true } },
           paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
           evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
         },
@@ -482,6 +487,9 @@ export class DeductionService {
           remittance_number: d.remittanceNumber ?? null,
           remitted_at: d.remittedAt?.toISOString() ?? null,
           remittance_ref: d.remittanceRef ?? null,
+          remitted_by: d.remittedByUser ? { id: d.remittedByUser.id.toString(), name: `${d.remittedByUser.firstName || ''} ${d.remittedByUser.lastName || ''}`.trim() } : null,
+          payment_voucher: d.paymentVoucher ? { id: d.paymentVoucher.id, voucher_number: d.paymentVoucher.voucherNumber } : null,
+          evidence_files: Array.isArray(d.evidenceFileIds) ? (d.evidenceFileIds as string[]).map((id) => ({ id })) : [],
           paid_from_account: d.paidFromAccount ? {
             id: d.paidFromAccount.id,
             name: d.paidFromAccount.name,
@@ -529,7 +537,7 @@ export class DeductionService {
 
     await this.prisma.$transaction(async (tx) => {
       for (let i = 0; i < ids.length; i++) {
-        const remittanceNumber = `TRM/${year}/${String(existingCount + i + 1).padStart(3, '0')}`;
+        const remittanceNumber = `TRM/${year}/${String(existingCount + i + 500).padStart(3, '0')}`;
         await tx.financeRequestDeduction.update({
           where: { id: ids[i] },
           data: {
@@ -537,8 +545,11 @@ export class DeductionService {
             remittanceNumber,
             remittedAt: now,
             remittanceRef: dto.reference,
+            paymentVoucherId: dto.payment_voucher_id ?? null,
+            remittedBy: dto.remitted_by ? toBigInt(dto.remitted_by) : null,
             paidFromAccountId: dto.paid_from_account_id ?? null,
             evidenceFileId: dto.evidence_file_id ?? null,
+            evidenceFileIds: dto.evidence_file_ids ? (dto.evidence_file_ids as any) : (dto.evidence_file_id ? [dto.evidence_file_id] as any : null),
             notes: dto.notes ?? null,
           },
         });
@@ -582,10 +593,14 @@ export class DeductionService {
   }
 
   async updateRemittanceRecord(id: string, dto: {
+    remittance_number?: string;
     remittance_ref?: string;
     remitted_at?: string;
     paid_from_account_id?: string;
+    payment_voucher_id?: string;
+    remitted_by?: string;
     evidence_file_id?: string;
+    evidence_file_ids?: string[];
     notes?: string;
   }) {
     const existing = await this.prisma.financeRequestDeduction.findUnique({ where: { id } });
@@ -593,10 +608,14 @@ export class DeductionService {
     if (existing.status !== 'remitted') throw new BadRequestException('Only remitted deductions can be edited');
 
     const data: Record<string, any> = {};
+    if (dto.remittance_number !== undefined) data.remittanceNumber = dto.remittance_number || null;
     if (dto.remittance_ref !== undefined) data.remittanceRef = dto.remittance_ref || null;
     if (dto.remitted_at !== undefined) data.remittedAt = new Date(dto.remitted_at);
     if (dto.paid_from_account_id !== undefined) data.paidFromAccountId = dto.paid_from_account_id || null;
+    if (dto.payment_voucher_id !== undefined) data.paymentVoucherId = dto.payment_voucher_id || null;
+    if (dto.remitted_by !== undefined) data.remittedBy = dto.remitted_by ? toBigInt(dto.remitted_by) : null;
     if (dto.evidence_file_id !== undefined) data.evidenceFileId = dto.evidence_file_id || null;
+    if (dto.evidence_file_ids !== undefined) data.evidenceFileIds = dto.evidence_file_ids as any;
     if (dto.notes !== undefined) data.notes = dto.notes || null;
 
     return this.prisma.financeRequestDeduction.update({ where: { id }, data });

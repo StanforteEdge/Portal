@@ -42,6 +42,16 @@ export class StatutoryDeductionsQueryDto {
   @IsString()
   remittance_ref?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by TRM/remittance number' })
+  @IsOptional()
+  @IsString()
+  remittance_number?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by linked payment voucher id' })
+  @IsOptional()
+  @IsUUID()
+  payment_voucher_id?: string;
+
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @IsNumberString()
@@ -73,10 +83,26 @@ export class RemitStatutoryDeductionsDto {
   @IsUUID()
   paid_from_account_id?: string;
 
+  @ApiPropertyOptional({ description: 'Payment voucher that funded this remittance' })
+  @IsOptional()
+  @IsUUID()
+  payment_voucher_id?: string;
+
+  @ApiPropertyOptional({ description: 'User who created/performed the remittance' })
+  @IsOptional()
+  @IsString()
+  remitted_by?: string;
+
   @ApiPropertyOptional({ description: 'Remittance receipt file ID' })
   @IsOptional()
   @IsUUID()
   evidence_file_id?: string;
+
+  @ApiPropertyOptional({ type: [String], description: 'Remittance evidence file IDs' })
+  @IsOptional()
+  @IsArray()
+  @IsUUID('4', { each: true })
+  evidence_file_ids?: string[];
 
   @ApiPropertyOptional()
   @IsOptional()

@@ -2970,6 +2970,7 @@ model FinancePaymentVoucher {
   attachments     FinancePaymentVoucherFile[]
   corrections     FinancePaymentVoucherCorrection[]
   deductions      FinancePVDeduction[]
+  requestDeductions FinanceRequestDeduction[]       @relation("RequestDeductionPaymentVoucher")
   whtAccruals     FinanceVendorWHTAccrual[]
   voucherItems    FinancePaymentVoucherItem[]
 
@@ -3500,8 +3501,11 @@ model FinanceRequestDeduction {
   remittanceNumber  String?   @map("remittance_number") @db.VarChar(60)
   remittedAt        DateTime? @map("remitted_at")
   remittanceRef     String?   @map("remittance_ref") @db.VarChar(255)
+  paymentVoucherId  String?   @map("payment_voucher_id") @db.Uuid
+  remittedBy        BigInt?   @map("remitted_by")
   paidFromAccountId String?   @map("paid_from_account_id") @db.Uuid
   evidenceFileId    String?   @map("evidence_file_id") @db.Uuid
+  evidenceFileIds   Json?     @map("evidence_file_ids")
   notes             String?
   createdBy         BigInt    @map("created_by")
   createdAt         DateTime  @default(now()) @map("created_at")
@@ -3510,11 +3514,15 @@ model FinanceRequestDeduction {
   request         RequestInstance      @relation("RequestDeductions", fields: [requestId], references: [id])
   deductionType   FinanceDeductionType @relation("DeductionTypeRequestDeductions", fields: [deductionTypeId], references: [id])
   createdByUser   Profile              @relation("RequestDeductionCreatedBy", fields: [createdBy], references: [id])
+  paymentVoucher  FinancePaymentVoucher? @relation("RequestDeductionPaymentVoucher", fields: [paymentVoucherId], references: [id], onDelete: SetNull)
+  remittedByUser  Profile?             @relation("RequestDeductionRemittedBy", fields: [remittedBy], references: [id])
   paidFromAccount FinanceAccount?      @relation("RequestDeductionAccount", fields: [paidFromAccountId], references: [id], onDelete: SetNull)
   evidenceFile    FileAsset?           @relation("RequestDeductionEvidence", fields: [evidenceFileId], references: [id], onDelete: SetNull)
   pvDeduction     FinancePVDeduction?
 
   @@index([requestId])
+  @@index([paymentVoucherId])
+  @@index([remittedBy])
   @@index([status])
   @@index([deductionTypeId])
   @@index([remittanceNumber])

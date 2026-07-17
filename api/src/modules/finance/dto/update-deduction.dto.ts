@@ -1,4 +1,4 @@
-import { IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+import { IsArray, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
 
 export class UpdatePendingDeductionDto {
   @IsOptional() @IsString() deduction_type_id?: string;
@@ -9,9 +9,13 @@ export class UpdatePendingDeductionDto {
 }
 
 export class UpdateRemittanceRecordDto {
+  @IsOptional() @IsString() @MaxLength(60) remittance_number?: string;
   @IsOptional() @IsString() @MaxLength(255) remittance_ref?: string;
   @IsOptional() @IsString() remitted_at?: string;
   @IsOptional() @IsString() paid_from_account_id?: string;
+  @IsOptional() @IsString() payment_voucher_id?: string;
+  @IsOptional() @IsString() remitted_by?: string;
   @IsOptional() @IsString() evidence_file_id?: string;
+  @IsOptional() @IsArray() @IsUUID('4', { each: true }) evidence_file_ids?: string[];
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
 }
