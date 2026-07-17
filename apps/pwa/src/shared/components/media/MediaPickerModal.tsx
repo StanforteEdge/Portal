@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { Button } from "../ui/Button";
 import { Icon } from "../ui/Icon";
 import { TextField } from "../ui/fields";
@@ -72,6 +72,7 @@ export function MediaPickerModal({
     current_file_name?: string;
   } | null>(null);
   const [newlyUploadedIds, setNewlyUploadedIds] = useState<Set<string>>(new Set());
+  const skipNextSearchEffect = useRef(true);
 
   const selectedRows = useMemo(() => items.filter((item) => selected.includes(item.id)), [items, selected]);
 
@@ -93,9 +94,28 @@ export function MediaPickerModal({
     if (!open) return;
     setSelected(selectedIds);
     setNewlyUploadedIds(new Set());
+    skipNextSearchEffect.current = true;
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
+
+  useEffect(() => {
+    if (!open) return;
+    if (skipNextSearchEffect.current) {
+      skipNextSearchEffect.current = false;
+      return;
+    }
+    if (search.length > 0 && search.length < 3) return;
+    const timeout = setTimeout(() => void load(search), 400);
+    return () => clearTimeout(timeout);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, open]);
+
+  function clearSearch() {
+    setSearch("");
+    skipNextSearchEffect.current = true;
+    void load();
+  }
 
   async function handleUpload(files: FileList | null) {
     if (!files?.length || !uploadFiles) return;
@@ -186,14 +206,25 @@ export function MediaPickerModal({
           </div>
 
           <div className="mt-5 flex flex-wrap items-end gap-3">
-            <div className="min-w-[260px] flex-1">
+            <div className="relative min-w-[260px] flex-1">
               <TextField
                 label="Search existing files"
                 id={searchId}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search by name..."
+                className={search ? "pr-9" : undefined}
               />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute bottom-0 right-2 flex h-11 w-7 items-center justify-center text-slate-400 hover:text-slate-700"
+                  aria-label="Clear search"
+                >
+                  <Icon name="close" className="text-[16px]" />
+                </button>
+              ) : null}
             </div>
             <div className="flex items-end gap-3">
               <Button variant="secondary" onClick={() => void load(search)} disabled={busy}>

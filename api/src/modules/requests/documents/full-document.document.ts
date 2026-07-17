@@ -87,6 +87,11 @@ export class FullDocumentDocument implements Document<FullDocumentContext> {
       }
     }
 
+    const trmSlips = await this.engine.fetchRemittedTrmSlips(request.id.toString());
+    for (const slip of trmSlips) {
+      await this.engine.appendPdfBuffer(mergedPdf, slip.buffer);
+    }
+
     if (skippedFiles.length > 0) {
       await this.engine.appendTextPage(
         mergedPdf,

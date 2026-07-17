@@ -529,15 +529,6 @@ export default function FinanceRequestsPage() {
               <label className="block lg:hidden">
                 <span className="field-label">&nbsp;</span>
               </label>
-              <Link to="/finance/legacy-manual-entry">
-                <Button
-                  type="button"
-                  variant="primary"
-                  className="w-full lg:w-auto"
-                >
-                  Manual Entry
-                </Button>
-              </Link>
               <Button
                 type="button"
                 variant="secondary"

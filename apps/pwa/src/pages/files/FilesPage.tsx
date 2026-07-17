@@ -169,14 +169,14 @@ export default function FilesPage() {
               Refresh
             </Button>
 
-            <label className="grid gap-1.5 text-sm">
+            <label className="grid w-48 shrink-0 gap-1.5 text-sm">
               <span className="font-semibold text-slate-700">Upload</span>
               <input
                 ref={fileInputRef}
                 type="file"
                 onChange={handleUpload}
                 disabled={uploading}
-                className="text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-xl file:border-0 file:bg-brand-900 file:text-sm file:font-semibold file:text-white hover:file:bg-brand-800 disabled:opacity-50"
+                className="w-full overflow-hidden text-sm file:mr-3 file:px-3 file:py-1.5 file:rounded-xl file:border-0 file:bg-brand-900 file:text-sm file:font-semibold file:text-white hover:file:bg-brand-800 disabled:opacity-50"
               />
             </label>
           </div>

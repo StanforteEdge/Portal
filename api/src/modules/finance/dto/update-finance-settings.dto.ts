@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import { IsObject, IsOptional, IsString } from 'class-validator';
+import { IsObject, IsOptional, IsString, IsUUID } from 'class-validator';
 
 class SignatoryDto {
   @ApiPropertyOptional({ example: 'Jane Doe' })
@@ -11,6 +11,11 @@ class SignatoryDto {
   @IsOptional()
   @IsString()
   title?: string;
+
+  @ApiPropertyOptional({ description: 'FileAsset ID of the uploaded signature image' })
+  @IsOptional()
+  @IsUUID()
+  signature_file_id?: string;
 }
 
 export class UpdateFinanceSettingsDto {

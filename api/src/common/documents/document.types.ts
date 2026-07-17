@@ -33,10 +33,12 @@ export interface Document<TContext> {
   render(ctx: TContext): Promise<DocumentOutput>;
 }
 
+export type Signatory = { name: string; title: string; signatureDataUri: string | null };
+
 export type Signatories = {
-  prepared_by: { name: string; title: string };
-  reviewed_by: { name: string; title: string };
-  approved_by: { name: string; title: string };
+  prepared_by: Signatory;
+  reviewed_by: Signatory;
+  approved_by: Signatory;
 };
 
 export type ApprovalSummary = {

@@ -66,7 +66,7 @@ export class GroupsService {
           organizationId: primaryOrganizationId,
           createdBy: createdById,
           updatedBy: createdById,
-          isActive: true
+          isActive: dto.is_active ?? true
         }
       });
 
