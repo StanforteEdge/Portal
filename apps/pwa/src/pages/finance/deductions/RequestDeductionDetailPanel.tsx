@@ -131,6 +131,14 @@ export function RequestDeductionDetailPanel({ deduction: d, onClose, onRemit, on
                   <dt className="text-slate-500">Paid From</dt>
                   <dd className="font-semibold text-slate-800">{d.paid_from_account?.name ?? "—"}</dd>
                 </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-slate-500">Remitted By</dt>
+                  <dd className="font-semibold text-slate-800">{(d as any).remitted_by?.name ?? "—"}</dd>
+                </div>
+                <div className="flex items-center justify-between">
+                  <dt className="text-slate-500">Payment Voucher</dt>
+                  <dd className="font-semibold text-slate-800">{(d as any).payment_voucher?.voucher_number ?? "—"}</dd>
+                </div>
                 {d.evidence_file && (
                   <div className="flex items-center justify-between">
                     <dt className="text-slate-500">Evidence</dt>
@@ -146,6 +154,20 @@ export function RequestDeductionDetailPanel({ deduction: d, onClose, onRemit, on
                     </dd>
                   </div>
                 )}
+                {Array.isArray((d as any).evidence_files) && (d as any).evidence_files.length > 0 ? (
+                  <div>
+                    <dt className="text-slate-500 mb-1">Evidence Files</dt>
+                    <dd className="space-y-1">
+                      {(d as any).evidence_files.map((file: any) => (
+                        <div key={file.id}>
+                          <a href={file.public_url ?? "#"} target="_blank" rel="noreferrer" className="font-semibold text-brand-700 hover:underline">
+                            {file.file_name}
+                          </a>
+                        </div>
+                      ))}
+                    </dd>
+                  </div>
+                ) : null}
                 {d.notes && (
                   <div>
                     <dt className="text-slate-500 mb-1">Notes</dt>
