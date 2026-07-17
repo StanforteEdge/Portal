@@ -19,7 +19,7 @@ import {
 } from "@/shared";
 import { buildAppMobileNav, buildRequestsNavigation } from "@/pages/requests/requests-data";
 import { useAuth } from "@/shared/context/AuthProvider";
-import { financeApi, useCachedQuery } from "@/shared/lib/core";
+import { adminUsersApi, financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { formatCurrency, formatDate } from "@stanforte/shared";
 
 type EntryLine = {
@@ -31,6 +31,9 @@ type EntryLine = {
 
 type RemittanceRecord = {
   id: string;
+  remittance_number?: string | null;
+  remitted_by?: { id: string; name: string } | null;
+  payment_voucher?: { id: string; voucher_number: string } | null;
   request_id?: string;
   request_number?: string;
   deduction_type_name?: string;
@@ -39,6 +42,7 @@ type RemittanceRecord = {
   remittance_ref?: string | null;
   remitted_at?: string | null;
   paid_from_account?: { id: string; name: string } | null;
+  evidence_files?: Array<{ id: string; file_name?: string }>;
   notes?: string | null;
 };
 
@@ -66,10 +70,14 @@ export default function StatutoryDeductionManualEntryPage() {
   const [editLines, setEditLines] = useState<EntryLine[]>([]);
   const [editSaving, setEditSaving] = useState(false);
   const [lookupRemittance, setLookupRemittance] = useState("");
+  const [remitNumber, setRemitNumber] = useState("");
   const [remitRef, setRemitRef] = useState("");
   const [remitDate, setRemitDate] = useState(new Date().toISOString().slice(0, 10));
   const [remitAccountId, setRemitAccountId] = useState("");
+  const [remitPaymentVoucherId, setRemitPaymentVoucherId] = useState("");
+  const [remittedByUserId, setRemittedByUserId] = useState(user?.id ? String(user.id) : "");
   const [remitNotes, setRemitNotes] = useState("");
+  const [remitEvidenceFiles, setRemitEvidenceFiles] = useState<Array<{ id: string; file_name: string }>>([]);
   const [selectedDeductionIds, setSelectedDeductionIds] = useState<string[]>([]);
   const [activeRemittanceRows, setActiveRemittanceRows] = useState<RemittanceRecord[]>([]);
   const [loadingRemittance, setLoadingRemittance] = useState(false);
@@ -112,6 +120,18 @@ export default function StatutoryDeductionManualEntryPage() {
     { ttlMs: 0, storage: "memory" },
   );
   const entries = Array.isArray(entriesPayload?.result) ? entriesPayload.result : [];
+  const { data: paymentVouchersPayload } = useCachedQuery(
+    `finance:statutory-deduction-manual-entry:payment-vouchers:${refreshKey}`,
+    () => financeApi.listPaymentVouchers({ per_page: 200 }),
+    { ttlMs: 0, storage: "memory" },
+  );
+  const paymentVouchers = Array.isArray((paymentVouchersPayload as any)?.result) ? (paymentVouchersPayload as any).result : [];
+  const { data: usersPayload } = useCachedQuery(
+    "finance:statutory-deduction-manual-entry:users",
+    () => adminUsersApi.listUsers({ page: 1, per_page: 200, status: "active" }),
+    { ttlMs: 60_000, storage: "memory" },
+  );
+  const users = Array.isArray(usersPayload?.data) ? usersPayload.data : [];
 
   const { data: pendingDeductionsPayload } = useCachedQuery(
     `finance:statutory-deduction-manual-entry:pending-deductions:${refreshKey}`,
@@ -129,7 +149,7 @@ export default function StatutoryDeductionManualEntryPage() {
   const remittanceGroups = useMemo(() => {
     const groups = new Map<string, { ref: string; remitted_at: string | null; paid_from_account: string | null; total: number; count: number; rows: RemittanceRecord[] }>();
     for (const row of remittedDeductions as RemittanceRecord[]) {
-      const ref = String(row.remittance_ref || row.id);
+      const ref = String(row.remittance_ref || row.remittance_number || row.id);
       const existing = groups.get(ref) ?? { ref, remitted_at: row.remitted_at ?? null, paid_from_account: row.paid_from_account?.name ?? null, total: 0, count: 0, rows: [] };
       existing.total += Number(row.amount || 0);
       existing.count += 1;
@@ -185,10 +205,14 @@ export default function StatutoryDeductionManualEntryPage() {
 
   const resetRemittanceForm = () => {
     setLookupRemittance("");
+    setRemitNumber("");
     setRemitRef("");
     setRemitDate(new Date().toISOString().slice(0, 10));
     setRemitAccountId("");
+    setRemitPaymentVoucherId("");
+    setRemittedByUserId(user?.id ? String(user.id) : "");
     setRemitNotes("");
+    setRemitEvidenceFiles([]);
     setSelectedDeductionIds([]);
     setActiveRemittanceRows([]);
   };
@@ -201,8 +225,19 @@ export default function StatutoryDeductionManualEntryPage() {
       const byId = await financeApi.listRequestDeductions({ id: value, per_page: 100 }).catch(() => ({ items: [] }));
       let rows = byId.items ?? [];
       if (rows.length === 0) {
-        const byRef = await financeApi.listRequestDeductions({ remittance_ref: value, per_page: 100 });
+        const byRef = await financeApi.listRequestDeductions({ remittance_ref: value, per_page: 100 }).catch(() => ({ items: [] }));
         rows = byRef.items ?? [];
+      }
+      if (rows.length === 0) {
+        const byNumber = await financeApi.listRequestDeductions({ remittance_number: value, per_page: 100 }).catch(() => ({ items: [] }));
+        rows = byNumber.items ?? [];
+      }
+      if (rows.length === 0) {
+        const lowered = value.toLowerCase();
+        rows = (remittedDeductions as any[]).filter((row) =>
+          String(row.remittance_ref || "").toLowerCase().includes(lowered) ||
+          String(row.remittance_number || "").toLowerCase().includes(lowered)
+        );
       }
       if (rows.length === 0) {
         showToast({ tone: "warning", title: "Not found", message: "No remittance matched that ID or reference." });
@@ -212,10 +247,14 @@ export default function StatutoryDeductionManualEntryPage() {
       setActiveRemittanceRows(rows as any);
       setSelectedDeductionIds(rows.map((row: any) => row.id));
       setLookupRemittance(value);
+      setRemitNumber(String(first.remittance_number || ""));
       setRemitRef(String(first.remittance_ref || ""));
       setRemitDate(String(first.remitted_at || "").slice(0, 10));
       setRemitAccountId(String(first.paid_from_account?.id || ""));
+      setRemitPaymentVoucherId(String(first.payment_voucher?.id || ""));
+      setRemittedByUserId(String(first.remitted_by?.id || user?.id || ""));
       setRemitNotes(String(first.notes || ""));
+      setRemitEvidenceFiles((first.evidence_files || []).map((file: any) => ({ id: String(file.id), file_name: String(file.file_name || file.id) })));
     } catch (err) {
       showToast({ tone: "danger", title: "Load failed", message: err instanceof Error ? err.message : "Unable to load remittance." });
     } finally {
@@ -241,9 +280,13 @@ export default function StatutoryDeductionManualEntryPage() {
       if (activeRemittanceRows.length > 0) {
         await Promise.all(selectedDeductionIds.map((id) =>
           financeApi.updateRemittanceRecord(id, {
+            remittance_number: remitNumber.trim() || undefined,
             remittance_ref: remitRef.trim(),
             remitted_at: remitDate || undefined,
             paid_from_account_id: remitAccountId || undefined,
+            payment_voucher_id: remitPaymentVoucherId || undefined,
+            remitted_by: remittedByUserId || undefined,
+            evidence_file_ids: remitEvidenceFiles.map((file) => file.id),
             notes: remitNotes.trim() || undefined,
           })
         ));
@@ -254,6 +297,9 @@ export default function StatutoryDeductionManualEntryPage() {
           reference: remitRef.trim(),
           remitted_at: remitDate ? new Date(remitDate).toISOString() : undefined,
           paid_from_account_id: remitAccountId || undefined,
+          payment_voucher_id: remitPaymentVoucherId || undefined,
+          remitted_by: remittedByUserId || undefined,
+          evidence_file_ids: remitEvidenceFiles.map((file) => file.id),
           notes: remitNotes.trim() || undefined,
         });
         showToast({ tone: "success", title: "Created", message: "Remittance recorded." });
@@ -451,18 +497,32 @@ export default function StatutoryDeductionManualEntryPage() {
         <div className="grid gap-4 md:grid-cols-4">
           <label className="grid gap-1.5 text-sm md:col-span-3">
             <span className="font-semibold text-slate-700">Load Existing Remittance</span>
-            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={lookupRemittance} onChange={(e) => setLookupRemittance(e.target.value)} placeholder="Deduction ID or remittance reference" />
+            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={lookupRemittance} onChange={(e) => setLookupRemittance(e.target.value)} placeholder="Deduction ID, remittance no., or payment reference" />
           </label>
           <div className="flex items-end">
             <Button variant="secondary" onClick={() => void loadRemittance()} disabled={loadingRemittance}>{loadingRemittance ? "Loading..." : "Load"}</Button>
           </div>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-semibold text-slate-700">Remittance No.</span>
+            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitNumber} onChange={(e) => setRemitNumber(e.target.value)} placeholder="e.g. TRM/2026/500" />
+          </label>
           <label className="grid gap-1.5 text-sm md:col-span-2">
             <span className="font-semibold text-slate-700">Remittance Reference</span>
             <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitRef} onChange={(e) => setRemitRef(e.target.value)} placeholder="e.g. FIRS/WHT/2026/Q2" />
           </label>
-          <label className="grid gap-1.5 text-sm">
+          <label className="grid gap-1.5 text-sm md:col-span-2">
             <span className="font-semibold text-slate-700">Remitted On</span>
             <input type="date" className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitDate} onChange={(e) => setRemitDate(e.target.value)} />
+          </label>
+          <label className="grid gap-1.5 text-sm md:col-span-2">
+            <span className="font-semibold text-slate-700">Created By</span>
+            <select className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remittedByUserId} onChange={(e) => setRemittedByUserId(e.target.value)}>
+              <option value="">Select user</option>
+              {users.map((u: any) => {
+                const label = `${u.first_name || ""} ${u.last_name || ""}`.trim() || u.email || u.username;
+                return <option key={u.id} value={u.id}>{label}</option>;
+              })}
+            </select>
           </label>
           <label className="grid gap-1.5 text-sm">
             <span className="font-semibold text-slate-700">Paid From Account</span>
@@ -472,6 +532,44 @@ export default function StatutoryDeductionManualEntryPage() {
                 <option key={account.id} value={account.id}>{account.code} - {account.name}</option>
               ))}
             </select>
+          </label>
+          <label className="grid gap-1.5 text-sm md:col-span-4">
+            <span className="font-semibold text-slate-700">Payment Voucher</span>
+            <select className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitPaymentVoucherId} onChange={(e) => setRemitPaymentVoucherId(e.target.value)}>
+              <option value="">Select payment voucher</option>
+              {paymentVouchers.map((pv: any) => (
+                <option key={pv.id} value={pv.id}>{pv.voucher_number} - {pv.request_number || pv.request_id || "Request"}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm md:col-span-4">
+            <span className="font-semibold text-slate-700">Evidence Files</span>
+            <input type="file" multiple className="rounded-2xl border border-slate-200 px-4 py-2.5" onChange={async (e) => {
+              const files = Array.from(e.target.files || []);
+              if (!files.length) return;
+              try {
+                const uploaded = [] as Array<{ id: string; file_name: string }>;
+                for (const file of files) {
+                  const asset = await resourceApi.uploadFile(file, { metadata: { source: "statutory_remittance_evidence" } });
+                  uploaded.push({ id: String((asset as any).id), file_name: String((asset as any).file_name || file.name) });
+                }
+                setRemitEvidenceFiles((prev) => [...prev, ...uploaded.filter((file) => !prev.some((existing) => existing.id === file.id))]);
+              } catch (err) {
+                showToast({ tone: "danger", title: "Upload failed", message: err instanceof Error ? err.message : "Unable to upload evidence files." });
+              } finally {
+                e.currentTarget.value = "";
+              }
+            }} />
+            {remitEvidenceFiles.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {remitEvidenceFiles.map((file) => (
+                  <span key={file.id} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                    {file.file_name}
+                    <button type="button" onClick={() => setRemitEvidenceFiles((prev) => prev.filter((item) => item.id !== file.id))}>×</button>
+                  </span>
+                ))}
+              </div>
+            ) : null}
           </label>
           <label className="grid gap-1.5 text-sm md:col-span-4">
             <span className="font-semibold text-slate-700">Notes</span>
