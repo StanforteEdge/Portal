@@ -657,7 +657,7 @@ export class DeductionService {
       where: { id },
       include: {
         deductionType: true,
-        request: { select: { id: true, status: true, data: true, createdAt: true } },
+        request: { select: { id: true, status: true, data: true, createdAt: true, creator: { select: { firstName: true, lastName: true, email: true, username: true } } } },
         createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
         remittedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
         paymentVoucher: { select: { id: true, voucherNumber: true } },
@@ -670,8 +670,8 @@ export class DeductionService {
 
     const org = await this.fetchOrgSettings();
     const requestNumber = (d.request?.data as any)?.request_number ?? String(d.requestId);
-    const creatorName = d.createdByUser
-      ? `${d.createdByUser.firstName ?? ''} ${d.createdByUser.lastName ?? ''}`.trim() || d.createdByUser.email
+    const creatorName = d.request?.creator
+      ? `${d.request.creator.firstName ?? ''} ${d.request.creator.lastName ?? ''}`.trim() || d.request.creator.username || d.request.creator.email || '—'
       : '—';
     const remittedByName = d.remittedByUser
       ? `${d.remittedByUser.firstName ?? ''} ${d.remittedByUser.lastName ?? ''}`.trim() || d.remittedByUser.email
