@@ -7,7 +7,8 @@ import {
 import { Prisma } from '@prisma/client';
 import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { extname, resolve } from 'node:path';
+import { PDFDocument, StandardFonts } from 'pdf-lib';
 import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
@@ -112,6 +113,105 @@ export class DeductionService {
     } catch {
       return null;
     }
+  }
+
+  private async readAssetFileBuffer(asset: {
+    storagePath?: string | null;
+    publicUrl?: string | null;
+    fileName?: string | null;
+  }): Promise<Buffer | null> {
+    const storagePath = asset.storagePath || asset.publicUrl || '';
+    if (!storagePath) return null;
+    const candidates = [
+      storagePath,
+      resolve(process.cwd(), storagePath),
+      resolve(process.cwd(), '..', storagePath),
+      resolve(process.cwd(), 'uploads', storagePath),
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (existsSync(candidate)) {
+        try {
+          return await readFile(candidate);
+        } catch {
+          // continue
+        }
+      }
+    }
+    if (/^https?:\/\//i.test(storagePath)) {
+      try {
+        const res = await fetch(storagePath);
+        if (res.ok) return Buffer.from(await res.arrayBuffer());
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  }
+
+  private async appendPdfBuffer(target: PDFDocument, pdfBuffer: Buffer) {
+    const source = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
+    const pages = await target.copyPages(source, source.getPageIndices());
+    for (const page of pages) target.addPage(page);
+  }
+
+  private async appendImagePage(
+    target: PDFDocument,
+    image: { width: number; height: number; scale: (f: number) => { width: number; height: number } },
+    label: string,
+  ) {
+    const page = target.addPage([595.28, 841.89]);
+    const margin = 36;
+    const headerSpace = 32;
+    const availableWidth = page.getWidth() - margin * 2;
+    const availableHeight = page.getHeight() - margin * 2 - headerSpace;
+    const ratio = Math.min(availableWidth / image.width, availableHeight / image.height, 1);
+    const dims = image.scale(ratio);
+    page.drawImage(image as any, {
+      x: (page.getWidth() - dims.width) / 2,
+      y: margin,
+      width: dims.width,
+      height: dims.height,
+    });
+    const font = await target.embedFont(StandardFonts.Helvetica);
+    page.drawText(label, { x: margin, y: page.getHeight() - margin + 4, size: 10, font });
+  }
+
+  private async appendTextPage(target: PDFDocument, title: string, lines: string[]) {
+    const page = target.addPage([595.28, 841.89]);
+    const font = await target.embedFont(StandardFonts.Helvetica);
+    const bold = await target.embedFont(StandardFonts.HelveticaBold);
+    page.drawText(title, { x: 40, y: 800, size: 16, font: bold });
+    let y = 772;
+    for (const line of lines) {
+      page.drawText(line, { x: 40, y, size: 11, font });
+      y -= 16;
+      if (y < 50) break;
+    }
+  }
+
+  private async appendAssetToPdf(target: PDFDocument, fileBuffer: Buffer | null, fileName: string, mimeType: string | null | undefined, skippedFiles: string[]) {
+    if (!fileBuffer) {
+      skippedFiles.push(`${fileName} (missing file)`);
+      return;
+    }
+    const mime = String(mimeType || '').toLowerCase();
+    const ext = extname(fileName).toLowerCase();
+    if (mime === 'application/pdf' || ext === '.pdf') {
+      await this.appendPdfBuffer(target, fileBuffer);
+      return;
+    }
+    if (mime === 'image/png' || ext === '.png') {
+      const image = await target.embedPng(fileBuffer);
+      await this.appendImagePage(target, image, fileName);
+      return;
+    }
+    if (['image/jpeg', 'image/jpg'].includes(mime) || ['.jpg', '.jpeg'].includes(ext)) {
+      const image = await target.embedJpg(fileBuffer);
+      await this.appendImagePage(target, image, fileName);
+      return;
+    }
+    skippedFiles.push(fileName);
   }
 
   private pdfDocStyle(): string {
@@ -657,7 +757,7 @@ export class DeductionService {
       where: { id },
       include: {
         deductionType: true,
-        request: { select: { id: true, status: true, data: true, createdAt: true } },
+        request: { select: { id: true, status: true, data: true, createdAt: true, creator: { select: { firstName: true, lastName: true, email: true, username: true } } } },
         createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
         remittedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
         paymentVoucher: { select: { id: true, voucherNumber: true } },
@@ -670,8 +770,8 @@ export class DeductionService {
 
     const org = await this.fetchOrgSettings();
     const requestNumber = (d.request?.data as any)?.request_number ?? String(d.requestId);
-    const creatorName = d.createdByUser
-      ? `${d.createdByUser.firstName ?? ''} ${d.createdByUser.lastName ?? ''}`.trim() || d.createdByUser.email
+    const creatorName = d.request?.creator
+      ? `${d.request.creator.firstName ?? ''} ${d.request.creator.lastName ?? ''}`.trim() || d.request.creator.username || d.request.creator.email || '—'
       : '—';
     const remittedByName = d.remittedByUser
       ? `${d.remittedByUser.firstName ?? ''} ${d.remittedByUser.lastName ?? ''}`.trim() || d.remittedByUser.email
@@ -791,7 +891,7 @@ export class DeductionService {
 </body>
 </html>`;
 
-    const buffer = await this.pdfService.renderPdfFromHtml(html, [
+    const slipBuffer = await this.pdfService.renderPdfFromHtml(html, [
       'TAX REMITTANCE SLIP',
       `Reference: ${d.remittanceNumber ?? '—'}`,
       `Amount: ${this.fmtMoney(d.amount)}`,
@@ -800,6 +900,22 @@ export class DeductionService {
       `Payment Voucher: ${d.paymentVoucher?.voucherNumber ?? '—'}`,
       ...(evidenceFiles.length > 0 ? [`Evidence: ${evidenceFiles.map((file) => file.fileName).join(', ')}`] : []),
     ]);
+    const mergedPdf = await PDFDocument.create();
+    await this.appendPdfBuffer(mergedPdf, slipBuffer);
+    const skippedFiles: string[] = [];
+    for (const file of evidenceFiles) {
+      const asset = await this.prisma.fileAsset.findUnique({ where: { id: file.id }, select: { id: true, fileName: true, mimeType: true, publicUrl: true, storagePath: true } });
+      if (!asset) {
+        skippedFiles.push(`${file.fileName} (missing metadata)`);
+        continue;
+      }
+      const buffer = await this.readAssetFileBuffer(asset);
+      await this.appendAssetToPdf(mergedPdf, buffer, asset.fileName ?? file.fileName, asset.mimeType ?? null, skippedFiles);
+    }
+    if (skippedFiles.length > 0) {
+      await this.appendTextPage(mergedPdf, 'Skipped Evidence Files', skippedFiles);
+    }
+    const buffer = Buffer.from(await mergedPdf.save());
     const fileName = `TRM-${(d.remittanceNumber ?? id).replace(/\//g, '-')}.pdf`;
     return { buffer, fileName };
   }
