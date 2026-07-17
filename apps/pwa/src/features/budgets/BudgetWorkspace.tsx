@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useCachedQuery } from '@/shared/lib/core';
 import { useAuth } from '@/shared/context/AuthProvider';
 import { budgetApi } from './budget-api';
@@ -12,12 +12,23 @@ type BudgetWorkspaceProps = {
   context: BudgetScopeContext;
   selectedBudgetId?: string;
   layout?: 'embedded' | 'full-page';
+  createAttempt?: number;
+  showInlineCreateButton?: boolean;
 };
 
-export default function BudgetWorkspace({ context, selectedBudgetId: initialId, layout = 'embedded' }: BudgetWorkspaceProps) {
+export default function BudgetWorkspace({ context, selectedBudgetId: initialId, layout = 'embedded', createAttempt = 0, showInlineCreateButton = true }: BudgetWorkspaceProps) {
   const { user } = useAuth();
   const [selectedBudgetId, setSelectedBudgetId] = useState<string | undefined>(initialId);
   const [view, setView] = useState<'list' | 'detail' | 'edit'>(initialId ? 'detail' : 'list');
+  const prevCreateAttempt = useRef(createAttempt);
+
+  useEffect(() => {
+    if (createAttempt > 0 && createAttempt !== prevCreateAttempt.current) {
+      prevCreateAttempt.current = createAttempt;
+      setSelectedBudgetId(undefined);
+      setView('edit');
+    }
+  }, [createAttempt]);
   const permissions = (user?.permissions ?? []).map((permission) => String(permission).toLowerCase());
   const canUseBudgetEndpoints = permissions.includes('*') || permissions.includes('finance.view') || permissions.includes('finance.manage');
 
@@ -144,7 +155,7 @@ export default function BudgetWorkspace({ context, selectedBudgetId: initialId, 
     <BudgetListPanel
       context={context}
       onSelect={handleSelect}
-      onNew={handleNew}
+      onNew={showInlineCreateButton ? handleNew : undefined}
     />
   );
 }

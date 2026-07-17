@@ -3,6 +3,8 @@ import { useParams, Link } from 'react-router-dom';
 import { procurementApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { Button, SectionCard } from '@/shared';
+import { uploadFileAsset } from '@/pages/files/files-api';
+import { downloadBase64File } from '@/shared/lib/download';
 import { AppShell } from '@/shared/components/layout/AppShell';
 import { buildAppNavigation, buildAppMobileNav } from '@/shared/navigation';
 import { useAuth } from '@/shared/context/AuthProvider';
@@ -16,6 +18,7 @@ export default function PoDetail() {
   const [grnNotes, setGrnNotes] = useState('');
   const [grnCondition, setGrnCondition] = useState<'satisfactory' | 'partial' | 'rejected'>('satisfactory');
   const [grnItems, setGrnItems] = useState<any[]>([]);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const userName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email || 'Procurement';
 
   useEffect(() => {
@@ -73,6 +76,8 @@ export default function PoDetail() {
 
   const linkedCase = po.requisition?.procurementCase;
   const linkedRequest = linkedCase?.request;
+  const attachments = Array.isArray(po.attachments) ? po.attachments : [];
+  const vendorAttachments = attachments.filter((attachment: any) => attachment.visibility === 'vendor');
 
   const statusColor: Record<string, string> = {
     draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -81,6 +86,27 @@ export default function PoDetail() {
     acknowledged: 'bg-blue-100 text-blue-700 border-blue-200',
     received: 'bg-violet-100 text-violet-700 border-violet-200',
     cancelled: 'bg-rose-100 text-rose-700 border-rose-200',
+  };
+
+  const attachFile = async (file: File, visibility: 'internal' | 'vendor') => {
+    if (!id) return;
+    try {
+      setUploadingAttachment(true);
+      const uploaded = await uploadFileAsset(file, {
+        metadata: { source: 'procurement_order_attachment', visibility },
+      });
+      await procurementApi.attachToPo(id, {
+        fileId: uploaded.id,
+        label: file.name,
+        visibility,
+      });
+      const data = await procurementApi.getPo(id);
+      setPo(data);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setUploadingAttachment(false);
+    }
   };
 
   return (
@@ -95,9 +121,21 @@ export default function PoDetail() {
           <p className="text-sm text-slate-500">Issued to {po.vendor?.name}</p>
         </div>
         <div className="ml-auto">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                procurementApi.downloadPo(id!).then((file) => {
+                  downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+                }).catch(console.error);
+              }}
+            >
+              Download PO
+            </Button>
           <span className={`inline-flex items-center rounded-lg px-2.5 py-1 text-sm font-semibold border ${statusColor[po.status] ?? ''}`}>
             {po.status.replace(/_/g, ' ')}
           </span>
+          </div>
         </div>
       </div>
 
@@ -154,6 +192,68 @@ export default function PoDetail() {
                   <div className="text-xl font-bold text-slate-900">{formatCurrency(Number(po.totalAmount))}</div>
                 </div>
               </div>
+            </div>
+          </SectionCard>
+
+          <SectionCard title="PO Documents" description="Attach internal procurement files and vendor-shareable files for this order.">
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-300">
+                  <input
+                    type="file"
+                    className="hidden"
+                    disabled={uploadingAttachment}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void attachFile(file, 'internal');
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                  Upload Internal File
+                </label>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-100">
+                  <input
+                    type="file"
+                    className="hidden"
+                    disabled={uploadingAttachment}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void attachFile(file, 'vendor');
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                  Upload Vendor File
+                </label>
+              </div>
+
+              {attachments.length === 0 ? (
+                <p className="text-sm text-slate-500">No purchase order documents attached yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {attachments.map((attachment: any) => (
+                    <div key={attachment.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+                      <div>
+                        <p className="font-medium text-slate-900">{attachment.label || attachment.file?.file_name}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          <span className={`rounded-full px-2 py-0.5 font-semibold ${attachment.visibility === 'vendor' ? 'bg-brand-100 text-brand-700' : 'bg-slate-200 text-slate-700'}`}>
+                            {attachment.visibility === 'vendor' ? 'Vendor-shareable' : 'Internal only'}
+                          </span>
+                        </p>
+                      </div>
+                      {attachment.file?.public_url ? (
+                        <a
+                          href={attachment.file.public_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-semibold text-brand-600 hover:text-brand-500"
+                        >
+                          Download
+                        </a>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </SectionCard>
 
@@ -252,6 +352,10 @@ export default function PoDetail() {
         <div className="space-y-6">
           <SectionCard title="PO Summary" description="Core attributes">
             <div className="space-y-4 text-sm">
+              <div>
+                <span className="text-xs text-slate-400 font-semibold uppercase block">Vendor Files</span>
+                <span className="font-semibold text-slate-900">{vendorAttachments.length}</span>
+              </div>
               <div>
                 <span className="text-xs text-slate-400 font-semibold uppercase block">Vendor Acknowledged</span>
                 <span className="font-semibold text-slate-900">

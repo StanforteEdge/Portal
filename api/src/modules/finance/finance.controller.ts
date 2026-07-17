@@ -34,11 +34,14 @@ import { UpdatePaymentVoucherDto } from './dto/update-payment-voucher.dto';
 import { UpsertFinanceItemDto } from './dto/upsert-finance-item.dto';
 import { CreateFinanceExpenseDto } from './dto/create-finance-expense.dto';
 import { CreateManualJournalEntryDto } from './dto/create-manual-journal-entry.dto';
+import { CreateStatutoryDeductionManualEntryDto } from './dto/create-statutory-deduction-manual-entry.dto';
 import { DeductionService } from './deduction.service';
 import { UpsertDeductionTypeDto } from './dto/upsert-deduction-type.dto';
 import { ApplyPVDeductionsDto } from './dto/apply-pv-deductions.dto';
 import { CreateWHTRemittanceDto } from './dto/create-wht-remittance.dto';
 import { StatutoryDeductionsQueryDto, RemitStatutoryDeductionsDto } from './dto/statutory-deductions.dto';
+import { UpdateJournalEntryDto } from './dto/update-journal-entry.dto';
+import { UpdatePendingDeductionDto, UpdateRemittanceRecordDto } from './dto/update-deduction.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -563,6 +566,29 @@ export class FinanceController {
     return this.financeService.createManualJournalEntry(dto as any, req.user?.id);
   }
 
+  @Get('manual-entry/statutory-deductions')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List statutory deduction manual journal entries' })
+  listStatutoryDeductionManualEntries(@Query() query: Record<string, any>) {
+    return this.financeService.listStatutoryDeductionManualEntries(query);
+  }
+
+  @Post('manual-entry/statutory-deductions')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Create statutory deduction manual journal entry' })
+  @ApiBody({ type: CreateStatutoryDeductionManualEntryDto })
+  createStatutoryDeductionManualEntry(@Req() req: any, @Body() dto: CreateStatutoryDeductionManualEntryDto) {
+    return this.financeService.createStatutoryDeductionManualEntry(dto as any, req.user?.id);
+  }
+
+  @Patch('manual-entry/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update a manual journal entry' })
+  @ApiBody({ type: UpdateJournalEntryDto })
+  updateManualEntry(@Param('id') id: string, @Req() req: any, @Body() dto: UpdateJournalEntryDto) {
+    return this.financeService.updateManualJournalEntry(id, dto as any, req.user?.id);
+  }
+
   @Get('items')
   @Permissions('finance.view')
   @ApiOperation({ summary: 'List finance items (products/services)' })
@@ -994,6 +1020,22 @@ export class FinanceController {
   @ApiOperation({ summary: 'Batch-remit selected statutory deductions' })
   batchRemitDeductions(@Req() req: any, @Body() dto: RemitStatutoryDeductionsDto) {
     return this.deductionService.batchRemitDeductions(dto, req.user?.id);
+  }
+
+  @Patch('statutory-deductions/:id')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update a pending statutory deduction' })
+  @ApiBody({ type: UpdatePendingDeductionDto })
+  updatePendingDeduction(@Param('id') id: string, @Body() dto: UpdatePendingDeductionDto) {
+    return this.deductionService.updatePendingDeduction(id, dto);
+  }
+
+  @Patch('statutory-deductions/:id/remittance')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Update remittance record for a remitted deduction' })
+  @ApiBody({ type: UpdateRemittanceRecordDto })
+  updateRemittanceRecord(@Param('id') id: string, @Body() dto: UpdateRemittanceRecordDto) {
+    return this.deductionService.updateRemittanceRecord(id, dto);
   }
 
   @Post('statutory-deductions/:id/pdf')

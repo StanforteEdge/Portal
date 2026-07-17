@@ -10,6 +10,7 @@ import { PdfModule } from '../../common/pdf/pdf.module';
 @Module({
   imports: [NotificationsModule, MailModule, PayrollModule, PdfModule],
   controllers: [FinanceController],
-  providers: [FinanceService, DeductionService]
+  providers: [FinanceService, DeductionService],
+  exports: [DeductionService]
 })
 export class FinanceModule {}

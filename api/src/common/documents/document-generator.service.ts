@@ -8,6 +8,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { PdfService } from '../pdf/pdf.service';
 import { MailService } from '../mail/mail.service';
+import { DeductionService } from '../../modules/finance/deduction.service';
 import { toBigInt } from '../utils/ids';
 import {
   Document,
@@ -28,7 +29,18 @@ export class DocumentGeneratorService {
     readonly prisma: PrismaService,
     private readonly pdfService: PdfService,
     private readonly mailService: MailService,
+    private readonly deductionService: DeductionService,
   ) {}
+
+  async fetchRemittedTrmSlips(requestId: string): Promise<Array<{ fileName: string; buffer: Buffer }>> {
+    const remitted = await this.deductionService.listRemittedDeductionsForRequest(requestId);
+    const slips: Array<{ fileName: string; buffer: Buffer }> = [];
+    for (const rd of remitted) {
+      const { buffer, fileName } = await this.deductionService.buildTrmSlipPdf(rd.id);
+      slips.push({ fileName, buffer });
+    }
+    return slips;
+  }
 
   // ── Orchestration ─────────────────────────────────────────────────────────
 
@@ -127,11 +139,27 @@ export class DocumentGeneratorService {
       row?.config && typeof row.config === 'object' && !Array.isArray(row.config)
         ? (row.config as Record<string, any>)
         : {};
+    const [preparedSig, reviewedSig, approvedSig] = await Promise.all([
+      this.resolveSignatureDataUri(data?.prepared_by?.signature_file_id),
+      this.resolveSignatureDataUri(data?.reviewed_by?.signature_file_id),
+      this.resolveSignatureDataUri(data?.approved_by?.signature_file_id),
+    ]);
     return {
-      prepared_by: { name: data?.prepared_by?.name ?? '', title: data?.prepared_by?.title ?? 'Accountant' },
-      reviewed_by: { name: data?.reviewed_by?.name ?? '', title: data?.reviewed_by?.title ?? 'Finance Manager / COO' },
-      approved_by: { name: data?.approved_by?.name ?? '', title: data?.approved_by?.title ?? 'Executive Director' },
+      prepared_by: { name: data?.prepared_by?.name ?? '', title: data?.prepared_by?.title ?? 'Accountant', signatureDataUri: preparedSig },
+      reviewed_by: { name: data?.reviewed_by?.name ?? '', title: data?.reviewed_by?.title ?? 'Finance Manager / COO', signatureDataUri: reviewedSig },
+      approved_by: { name: data?.approved_by?.name ?? '', title: data?.approved_by?.title ?? 'Executive Director', signatureDataUri: approvedSig },
     };
+  }
+
+  async resolveSignatureDataUri(fileId: unknown): Promise<string | null> {
+    if (typeof fileId !== 'string' || !fileId) return null;
+    const asset = await this.prisma.fileAsset.findUnique({ where: { id: fileId } });
+    if (!asset) return null;
+    const buf = await this.readAssetFileBuffer(asset);
+    if (!buf) return null;
+    const ext = (asset.fileName ?? '').split('.').pop()?.toLowerCase() ?? 'png';
+    const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : 'image/png';
+    return `data:${mime};base64,${buf.toString('base64')}`;
   }
 
   async fetchApprovals(workflowInstanceId: string | null | undefined): Promise<ApprovalSummary> {
@@ -540,12 +568,15 @@ export class DocumentGeneratorService {
     details: string;
     preparedBy: string;
     preparedDate: string;
+    preparedSignatureDataUri?: string | null;
     cooBy: string;
     cooDate: string;
     cooDone: boolean;
+    cooSignatureDataUri?: string | null;
     edBy: string;
     edDate: string;
     edDone: boolean;
+    edSignatureDataUri?: string | null;
     grantDonorLabel?: string | null;
     remarks?: string | null;
     pageBreak?: boolean;
@@ -583,9 +614,18 @@ export class DocumentGeneratorService {
         <div class="row"><strong>If Transfer / Cheque, Details:</strong><div class="line">${this.escapeHtml(input.details)}</div></div>
         <div class="approvals">
           <strong>Approvals:</strong>
-          <div class="approval"><div><strong>Prepared By (Accountant):</strong> ${this.escapeHtml(input.preparedBy)}</div><div class="muted">${this.escapeHtml(input.preparedDate)}</div></div>
-          ${input.cooDone ? `<div class="approval"><div><strong>[✓] Approved By (COO):</strong> ${this.escapeHtml(input.cooBy)}</div><div class="muted">${this.escapeHtml(input.cooDate)}</div></div>` : ''}
-          ${input.edDone ? `<div class="approval"><div><strong>[✓] Approved By (ED):</strong> ${this.escapeHtml(input.edBy)}</div><div class="muted">${this.escapeHtml(input.edDate)}</div></div>` : ''}
+          <div class="approval">
+            ${input.preparedSignatureDataUri ? `<img src="${input.preparedSignatureDataUri}" alt="Signature" style="height:36px; display:block; margin-bottom:2px;" />` : ''}
+            <div><strong>Prepared By (Accountant):</strong> ${this.escapeHtml(input.preparedBy)}</div><div class="muted">${this.escapeHtml(input.preparedDate)}</div>
+          </div>
+          ${input.cooDone ? `<div class="approval">
+            ${input.cooSignatureDataUri ? `<img src="${input.cooSignatureDataUri}" alt="Signature" style="height:36px; display:block; margin-bottom:2px;" />` : ''}
+            <div><strong>[✓] Approved By (COO):</strong> ${this.escapeHtml(input.cooBy)}</div><div class="muted">${this.escapeHtml(input.cooDate)}</div>
+          </div>` : ''}
+          ${input.edDone ? `<div class="approval">
+            ${input.edSignatureDataUri ? `<img src="${input.edSignatureDataUri}" alt="Signature" style="height:36px; display:block; margin-bottom:2px;" />` : ''}
+            <div><strong>[✓] Approved By (ED):</strong> ${this.escapeHtml(input.edBy)}</div><div class="muted">${this.escapeHtml(input.edDate)}</div>
+          </div>` : ''}
           ${input.remarks ? `<div class="row"><strong>Remarks:</strong><div>${this.escapeHtml(input.remarks)}</div></div>` : ''}
         </div>
       </div>

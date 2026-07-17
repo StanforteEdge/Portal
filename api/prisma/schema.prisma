@@ -2852,6 +2852,7 @@ model FileAsset {
   documents              Document[]
   profileSignatures      Profile[]                   @relation("ProfileSignatureFile")
   requestDeductions      FinanceRequestDeduction[]   @relation("RequestDeductionEvidence")
+  procurementAttachments ProcurementAttachment[]
 
   @@index([organizationId])
   @@index([uploadedBy])
@@ -3469,9 +3470,11 @@ model FinancePVDeduction {
   id               String   @id @default(uuid()) @db.Uuid
   paymentVoucherId String   @map("payment_voucher_id") @db.Uuid
   deductionTypeId  String   @map("deduction_type_id") @db.Uuid
+  requestDeductionId String? @unique @map("request_deduction_id") @db.Uuid
   rate             Decimal  @db.Decimal(6, 4)
   grossAmount      Decimal  @map("gross_amount") @db.Decimal(15, 2)
   deductionAmount  Decimal  @map("deduction_amount") @db.Decimal(15, 2)
+  certificateNumber String? @map("certificate_number") @db.VarChar(60)
   createdBy        BigInt   @map("created_by")
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
@@ -3479,6 +3482,7 @@ model FinancePVDeduction {
   paymentVoucher FinancePaymentVoucher    @relation(fields: [paymentVoucherId], references: [id], onDelete: Cascade)
   deductionType  FinanceDeductionType     @relation(fields: [deductionTypeId], references: [id])
   createdByUser  Profile                  @relation("PVDeductionCreatedBy", fields: [createdBy], references: [id])
+  requestDeduction FinanceRequestDeduction? @relation(fields: [requestDeductionId], references: [id], onDelete: SetNull)
   accrual        FinanceVendorWHTAccrual?
 
   @@index([paymentVoucherId])
@@ -3508,6 +3512,7 @@ model FinanceRequestDeduction {
   createdByUser   Profile              @relation("RequestDeductionCreatedBy", fields: [createdBy], references: [id])
   paidFromAccount FinanceAccount?      @relation("RequestDeductionAccount", fields: [paidFromAccountId], references: [id], onDelete: SetNull)
   evidenceFile    FileAsset?           @relation("RequestDeductionEvidence", fields: [evidenceFileId], references: [id], onDelete: SetNull)
+  pvDeduction     FinancePVDeduction?
 
   @@index([requestId])
   @@index([status])
@@ -3588,6 +3593,7 @@ model ProcurementCase {
 
   request     RequestInstance         @relation(fields: [requestId], references: [id], onDelete: Cascade)
   requisition ProcurementRequisition? @relation(fields: [requisitionId], references: [id], onDelete: SetNull)
+  attachments ProcurementAttachment[]
 
   @@index([status])
   @@index([assignedOfficerId])
@@ -3651,6 +3657,7 @@ model ProcurementOrder {
   preparer     Profile                @relation("PoCreatedBy", fields: [preparedBy], references: [id])
   organization Organization?          @relation(fields: [organizationId], references: [id])
   grns         ProcurementGRN[]
+  attachments  ProcurementAttachment[]
 
   @@index([requisitionId])
   @@index([vendorId])
@@ -3681,6 +3688,27 @@ model ProcurementGRN {
   @@index([poId])
   @@index([status])
   @@map("sta_procurement_grns")
+}
+
+model ProcurementAttachment {
+  id        String   @id @default(uuid()) @db.Uuid
+  caseId    String?  @map("case_id") @db.Uuid
+  orderId   String?  @map("order_id") @db.Uuid
+  fileId    String   @map("file_id") @db.Uuid
+  label     String?  @db.VarChar(150)
+  visibility String  @default("internal") @db.VarChar(20)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  procurementCase  ProcurementCase?  @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  procurementOrder ProcurementOrder? @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  file             FileAsset         @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([caseId])
+  @@index([orderId])
+  @@index([fileId])
+  @@index([visibility])
+  @@map("sta_procurement_attachments")
 }
 
 model VendorPortalUser {

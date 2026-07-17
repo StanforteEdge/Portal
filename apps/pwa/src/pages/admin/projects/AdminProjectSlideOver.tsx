@@ -22,6 +22,7 @@ type Props = {
     startDate?: string;
     endDate?: string;
   } | null;
+  defaultOrgId?: string;
   onClose: () => void;
   onSaved: () => void;
 };
@@ -33,7 +34,7 @@ const projectStatusOptions = [
   { value: "archived", label: "Archived" },
 ];
 
-export default function AdminProjectSlideOver({ project, onClose, onSaved }: Props) {
+export default function AdminProjectSlideOver({ project, defaultOrgId, onClose, onSaved }: Props) {
   const { showToast } = useToast();
   const [saving, setSaving] = useState(false);
   const [loadingData, setLoadingData] = useState(true);
@@ -43,7 +44,7 @@ export default function AdminProjectSlideOver({ project, onClose, onSaved }: Pro
   const [name, setName] = useState(project?.name || "");
   const [description, setDescription] = useState(project?.description || "");
   const [projectCode, setProjectCode] = useState(project?.projectCode || "");
-  const [organizationId, setOrganizationId] = useState(project?.organizationId || "");
+  const [organizationId, setOrganizationId] = useState(project?.organizationId || defaultOrgId || "");
   const [ownerId, setOwnerId] = useState(project?.ownerId || "");
   const [status, setStatus] = useState(project?.status || "active");
   const [startDate, setStartDate] = useState(project?.startDate || "");
@@ -84,12 +85,12 @@ export default function AdminProjectSlideOver({ project, onClose, onSaved }: Pro
       const payload = {
         name: name.trim(),
         description: description.trim() || undefined,
-        projectCode: projectCode.trim(),
-        organizationId: organizationId || undefined,
-        ownerId: ownerId || undefined,
-        status,
-        startDate: startDate || undefined,
-        endDate: endDate || undefined,
+        project_code: projectCode.trim(),
+        organization_id: organizationId || undefined,
+        owner_user_id: ownerId || undefined,
+        governance_status: status,
+        start_date: startDate || undefined,
+        end_date: endDate || undefined,
       };
 
       if (project) {

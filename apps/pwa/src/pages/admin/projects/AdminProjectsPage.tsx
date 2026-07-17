@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   Button,
   Chip,
@@ -49,6 +50,7 @@ const STATUS_OPTIONS = [
 
 export default function AdminProjectsPage() {
   const { user } = useAuth();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   const { data: profile } = useCachedQuery(
     "admin:profile",
@@ -60,7 +62,21 @@ export default function AdminProjectsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [listKey, setListKey] = useState(0);
   const [showCreate, setShowCreate] = useState(false);
+  const [createOrgId, setCreateOrgId] = useState("");
   const [editingProject, setEditingProject] = useState<ProjectRow | null>(null);
+
+  useEffect(() => {
+    if (searchParams.get("create") === "1") {
+      setShowCreate(true);
+      const orgId = searchParams.get("organization_id") || "";
+      setCreateOrgId(orgId);
+      const next = new URLSearchParams(searchParams);
+      next.delete("create");
+      next.delete("team_id");
+      next.delete("organization_id");
+      setSearchParams(next, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const { data: projectsData, loading: projectsLoading, refetch: refetchProjects } = useCachedQuery(
     `admin:projects:${listKey}:${search}:${statusFilter}`,
@@ -227,9 +243,11 @@ export default function AdminProjectsPage() {
       {/* SlideOvers */}
       {showCreate && (
         <AdminProjectSlideOver
+          defaultOrgId={createOrgId}
           onClose={() => setShowCreate(false)}
           onSaved={() => {
             setShowCreate(false);
+            setCreateOrgId("");
             setListKey((k) => k + 1);
           }}
         />

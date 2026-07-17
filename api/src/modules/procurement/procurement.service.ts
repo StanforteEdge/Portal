@@ -3,11 +3,14 @@ import { PrismaService } from '../../common/prisma/prisma.service';
 import { WorkflowService } from '../workflow/workflow.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { MailService } from '../../common/mail/mail.service';
+import { DocumentGeneratorService } from '../../common/documents/document-generator.service';
 import { toBigInt } from '../../common/utils/ids';
 import { CreatePrDto } from './dto/create-pr.dto';
 import { CreatePoDto } from './dto/create-po.dto';
 import { CreateGrnDto } from './dto/create-grn.dto';
 import { ConfirmGrnDto } from './dto/confirm-grn.dto';
+import { AttachProcurementFileDto } from './dto/attach-procurement-file.dto';
+import { PurchaseOrderDocument } from './documents/purchase-order.document';
 
 @Injectable()
 export class ProcurementService {
@@ -16,13 +19,15 @@ export class ProcurementService {
     private readonly workflowService: WorkflowService,
     private readonly notificationsService: NotificationsService,
     private readonly mailService: MailService,
+    private readonly documentGenerator: DocumentGeneratorService,
   ) {}
 
   private async nextNumber(prefix: 'PR' | 'PO' | 'GRN'): Promise<string> {
     const year = new Date().getFullYear();
     const modelMap = { PR: 'procurementRequisition', PO: 'procurementOrder', GRN: 'procurementGRN' } as const;
     const count = await (this.prisma[modelMap[prefix]] as any).count();
-    return `${prefix}-${year}-${String(count + 1).padStart(4, '0')}`;
+    const base = 500;
+    return `${prefix}-${year}-${String(base + count + 1).padStart(4, '0')}`;
   }
 
   async createPr(userId: string, dto: CreatePrDto) {
@@ -104,6 +109,10 @@ export class ProcurementService {
         purchaseOrders: true,
         procurementCase: {
           include: {
+            attachments: {
+              include: { file: true },
+              orderBy: { createdAt: 'asc' },
+            },
             request: {
               select: {
                 id: true,
@@ -119,6 +128,27 @@ export class ProcurementService {
     });
     if (!pr) throw new NotFoundException('Requisition not found');
     return pr;
+  }
+
+  async attachToRequisition(id: string, dto: AttachProcurementFileDto) {
+    const pr = await this.prisma.procurementRequisition.findUnique({
+      where: { id },
+      include: { procurementCase: true },
+    });
+    if (!pr?.procurementCase) throw new NotFoundException('Procurement case not found for requisition');
+
+    const file = await this.prisma.fileAsset.findUnique({ where: { id: dto.fileId } });
+    if (!file) throw new NotFoundException('File not found');
+
+    return this.prisma.procurementAttachment.create({
+      data: {
+        caseId: pr.procurementCase.id,
+        fileId: dto.fileId,
+        label: dto.label?.trim() || null,
+        visibility: dto.visibility,
+      },
+      include: { file: true },
+    });
   }
 
   async createPo(userId: string, dto: CreatePoDto) {
@@ -255,10 +285,40 @@ export class ProcurementService {
         },
         preparer: { select: { id: true, firstName: true, lastName: true } },
         grns: true,
+        attachments: {
+          include: { file: true },
+          orderBy: { createdAt: 'asc' },
+        },
       },
     });
     if (!po) throw new NotFoundException('Order not found');
     return po;
+  }
+
+  async attachToOrder(id: string, dto: AttachProcurementFileDto) {
+    const po = await this.prisma.procurementOrder.findUnique({ where: { id } });
+    if (!po) throw new NotFoundException('Order not found');
+
+    const file = await this.prisma.fileAsset.findUnique({ where: { id: dto.fileId } });
+    if (!file) throw new NotFoundException('File not found');
+
+    return this.prisma.procurementAttachment.create({
+      data: {
+        orderId: po.id,
+        fileId: dto.fileId,
+        label: dto.label?.trim() || null,
+        visibility: dto.visibility,
+      },
+      include: { file: true },
+    });
+  }
+
+  async downloadPo(id: string, userId: string) {
+    return this.documentGenerator.generate(
+      new PurchaseOrderDocument(this.documentGenerator),
+      { options: { poId: id } },
+      userId,
+    );
   }
 
   async createGrn(userId: string, dto: CreateGrnDto) {

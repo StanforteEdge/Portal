@@ -7,6 +7,7 @@ type FullPackageContext = {
   request: any;
   requestPdfBuffer: Buffer;
   pvEntries: Array<{ voucherZipName: string; pvPdfBuffer: Buffer; voucher: any }>;
+  trmSlips: Array<{ fileName: string; buffer: Buffer }>;
   requestNumber: string;
   generatedAt: Date;
 };
@@ -44,11 +45,13 @@ export class FullPackageDocument implements Document<FullPackageContext> {
       });
     }
 
-    return { request, requestPdfBuffer: pdfOutput.buffer, pvEntries, requestNumber, generatedAt };
+    const trmSlips = await this.engine.fetchRemittedTrmSlips(requestId);
+
+    return { request, requestPdfBuffer: pdfOutput.buffer, pvEntries, trmSlips, requestNumber, generatedAt };
   }
 
   async render(ctx: FullPackageContext): Promise<DocumentOutput> {
-    const { request, requestPdfBuffer, pvEntries, requestNumber, generatedAt } = ctx;
+    const { request, requestPdfBuffer, pvEntries, trmSlips, requestNumber, generatedAt } = ctx;
     const requestZipName = this.engine.zipSafeName(requestNumber);
     const fileIdSet = new Set<string>();
 
@@ -116,6 +119,10 @@ export class FullPackageDocument implements Document<FullPackageContext> {
           }
         }
       }
+    }
+
+    for (const slip of trmSlips) {
+      entries.push({ path: `tax/${slip.fileName}`, buffer: slip.buffer });
     }
 
     const buffer = await this.engine.buildZipPackage(entries);

@@ -1,11 +1,15 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useState } from "react";
-import { SectionCard, TextField, TextAreaField, SelectField } from "@/shared";
+import { Button, Icon, MediaPickerModal, SectionCard, TextField, TextAreaField, SelectField } from "@/shared";
 import type { ApprovedBudgetLineOption, RequestTypeOption, RequestCategoryOption, RequestRecord } from "@/pages/requests/requests-api";
 import type { RequestFormHandle } from "./category-form-types";
+import { listFileAssets, uploadFileAsset } from "@/pages/files/files-api";
+
+const OTHER_VENDOR_VALUE = "__other__";
 
 type Props = {
   selectedType: RequestTypeOption;
   selectedCategory: RequestCategoryOption | null;
+  vendorOptions: Array<{ id: string; name: string }>;
   editRequest?: RequestRecord | null;
   loadingEdit: boolean;
   approvedBudgetLines: ApprovedBudgetLineOption[];
@@ -14,6 +18,7 @@ type Props = {
 
 export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>(({
   selectedCategory,
+  vendorOptions,
   editRequest,
   approvedBudgetLines,
   onSummary,
@@ -26,6 +31,11 @@ export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>((
   const [justification, setJustification] = useState("");
   const [specification, setSpecification] = useState("");
   const [suggestedVendorId, setSuggestedVendorId] = useState("");
+  const [suggestedVendorName, setSuggestedVendorName] = useState("");
+  const [vendorIsOther, setVendorIsOther] = useState(false);
+  const [supportingFileIds, setSupportingFileIds] = useState<string[]>([]);
+  const [supportingFileNames, setSupportingFileNames] = useState<string[]>([]);
+  const [showDocsPicker, setShowDocsPicker] = useState(false);
 
   const budgetOptions = useMemo(() => {
     const byBudget = new Map<string, { id: string; name: string }>();
@@ -57,7 +67,15 @@ export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>((
     setBudgetLineId(String(data.budget_line_id || ""));
     setJustification(String(data.justification || ""));
     setSpecification(String(data.specification || ""));
-    setSuggestedVendorId(String(data.suggested_vendor_id || ""));
+    const vendorId = String(data.suggested_vendor_id || "");
+    const vendorName = String(data.suggested_vendor_name || "");
+    setSuggestedVendorId(vendorId);
+    setSuggestedVendorName(vendorName);
+    setVendorIsOther(!vendorId && Boolean(vendorName));
+    const fileIds = Array.isArray(data.supporting_file_ids) ? data.supporting_file_ids.map(String) : [];
+    const fileNames = Array.isArray(data.supporting_file_names) ? data.supporting_file_names.map(String) : [];
+    setSupportingFileIds(fileIds);
+    setSupportingFileNames(fileNames);
   }, [editRequest]);
 
   useEffect(() => {
@@ -86,11 +104,15 @@ export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>((
           budget_line_id: budgetLineId || undefined,
           justification: justification.trim() || undefined,
           specification: specification.trim() || undefined,
-          suggested_vendor_id: suggestedVendorId || undefined,
+          suggested_vendor_id: vendorIsOther ? undefined : suggestedVendorId || undefined,
+          suggested_vendor_name: vendorIsOther ? suggestedVendorName.trim() || undefined : undefined,
+          supporting_file_ids: supportingFileIds.length ? supportingFileIds : undefined,
+          supporting_file_names: supportingFileNames.length ? supportingFileNames : undefined,
         },
       },
     }),
   }));
+
 
   return (
     <SectionCard
@@ -148,12 +170,39 @@ export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>((
             </option>
           ))}
         </SelectField>
-        <TextField
-          label="Suggested Vendor ID"
-          value={suggestedVendorId}
-          onChange={(e) => setSuggestedVendorId(e.target.value)}
-          placeholder="Vendor UUID (optional)"
-        />
+        <div>
+          <SelectField
+            label="Suggested Vendor"
+            value={vendorIsOther ? OTHER_VENDOR_VALUE : suggestedVendorId}
+            onChange={(e) => {
+              const value = e.target.value;
+              if (value === OTHER_VENDOR_VALUE) {
+                setVendorIsOther(true);
+                setSuggestedVendorId("");
+              } else {
+                setVendorIsOther(false);
+                setSuggestedVendorId(value);
+                setSuggestedVendorName("");
+              }
+            }}
+          >
+            <option value="">No suggestion</option>
+            {vendorOptions.map((v) => (
+              <option key={v.id} value={v.id}>{v.name}</option>
+            ))}
+            <option value={OTHER_VENDOR_VALUE}>Other — type a name</option>
+          </SelectField>
+          {vendorIsOther && (
+            <div className="mt-2">
+              <TextField
+                label="Vendor Name"
+                value={suggestedVendorName}
+                onChange={(e) => setSuggestedVendorName(e.target.value)}
+                placeholder="Enter vendor name"
+              />
+            </div>
+          )}
+        </div>
         <div className="md:col-span-2">
           <TextAreaField
             label="Justification"
@@ -172,7 +221,57 @@ export const ProcurementRequestFormPage = forwardRef<RequestFormHandle, Props>((
             rows={4}
           />
         </div>
+        <div className="md:col-span-2">
+          <span className="field-label">Supporting Documents</span>
+          <div className="mt-2">
+            <Button
+              variant="secondary"
+              onClick={() => setShowDocsPicker(true)}
+            >
+              <Icon name="attach_file" className="text-[18px]" />
+              {supportingFileIds.length ? "Manage Supporting Documents" : "Pick Supporting Documents"}
+            </Button>
+          </div>
+          {supportingFileNames.length > 0 && (
+            <ul className="mt-3 space-y-1.5">
+              {supportingFileNames.map((name, index) => (
+                <li
+                  key={`${name}-${index}`}
+                  className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700"
+                >
+                  <Icon name="attach_file" className="text-[16px] text-brand-900" />
+                  <span className="truncate">{name}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
+
+      <MediaPickerModal
+        open={showDocsPicker}
+        onClose={() => setShowDocsPicker(false)}
+        title="Select Supporting Documents"
+        multiple
+        selectedIds={supportingFileIds}
+        loadFiles={async (search) => listFileAssets({ include_usage: true, per_page: 200, search })}
+        uploadFiles={async (files, onProgress) => {
+          const total = files.length;
+          let uploadedCount = 0;
+          for (const file of Array.from(files)) {
+            onProgress?.({ uploaded: uploadedCount, total, current_file_name: file.name });
+            const uploaded = await uploadFileAsset(file, { metadata: { source: "procurement_request" } });
+            uploadedCount += 1;
+            onProgress?.({ uploaded: uploadedCount, total, current_file_name: file.name });
+            setSupportingFileIds((prev) => (prev.includes(uploaded.id) ? prev : [...prev, uploaded.id]));
+            setSupportingFileNames((prev) => [...prev, uploaded.file_name]);
+          }
+        }}
+        onSelect={(files) => {
+          setSupportingFileIds(files.map((file) => file.id));
+          setSupportingFileNames(files.map((file) => file.file_name));
+        }}
+      />
     </SectionCard>
   );
 });

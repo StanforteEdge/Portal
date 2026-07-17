@@ -95,7 +95,13 @@ export function RequestFormPage() {
   const { user } = useAuth();
   const typeId = searchParams.get("typeId") || "";
   const editId = searchParams.get("edit") || "";
-  const [form, setForm] = useState<FormState>(defaultForm);
+  const urlTeamId = searchParams.get("team_id") || "";
+  const urlOrgId = searchParams.get("organization_id") || "";
+  const [form, setForm] = useState<FormState>(() => ({
+    ...defaultForm,
+    team_id: urlTeamId,
+    organization_id: urlOrgId,
+  }));
   const [savingDraft, setSavingDraft] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(false);
@@ -117,7 +123,7 @@ export function RequestFormPage() {
   const { data: categories } = useCachedQuery("requests:categories", () => listCategories(), { ttlMs: 1000 * 60 * 10, storage: "memory" });
   const { data: managedTaxonomies } = useCachedQuery("requests:taxonomies", () => listManagedTaxonomies({ include_inactive: false }), { ttlMs: 1000 * 60 * 10, storage: "memory" });
   const { data: vendors } = useCachedQuery("finance:vendors:options", () => financeApi.listVendors({ is_active: true, per_page: 200 }), { ttlMs: 1000 * 60 * 10, storage: "memory" });
-  const vendorOptions: Array<{ id: string; name: string }> = (vendors as any)?.data?.items ?? [];
+  const vendorOptions: Array<{ id: string; name: string }> = (vendors as any)?.result ?? [];
 
   // Derived values
 
@@ -463,7 +469,7 @@ export function RequestFormPage() {
             description="Start from the request selector so we can load the right form structure."
           />
           <Link
-            to="/requests/new"
+            to={`/requests/new${urlTeamId || urlOrgId ? `?${new URLSearchParams({ ...(urlTeamId ? { team_id: urlTeamId } : {}), ...(urlOrgId ? { organization_id: urlOrgId } : {}) }).toString()}` : ""}`}
             className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
           >
             Back to New Request
@@ -491,7 +497,7 @@ export function RequestFormPage() {
           description={selectedCategory?.description || "Fill in the request details below."}
           actions={
             <Link
-              to="/requests/new"
+              to={`/requests/new${urlTeamId || urlOrgId ? `?${new URLSearchParams({ ...(urlTeamId ? { team_id: urlTeamId } : {}), ...(urlOrgId ? { organization_id: urlOrgId } : {}) }).toString()}` : ""}`}
               className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
             >
               <Icon name="arrow_back" className="text-[18px]" />
@@ -549,6 +555,7 @@ export function RequestFormPage() {
               ref={requestFormRef}
               selectedType={selectedType}
               selectedCategory={selectedCategory}
+              vendorOptions={vendorOptions}
               editRequest={editRequest}
               loadingEdit={loadingEdit}
               approvedBudgetLines={approvedBudgetLines ?? []}

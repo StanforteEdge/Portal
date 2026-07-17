@@ -62,6 +62,13 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
     const method = voucher?.method ?? null;
     const voucherNo = voucher?.voucherNumber ?? 'N/A';
 
+    // Only attach the configured signature image when the displayed name matches the
+    // signatory it belongs to — avoids putting the wrong image next to a different
+    // actual approver's name (e.g. manual imports or a workflow approver who isn't
+    // the org's default signatory).
+    const matchesSignatory = (displayName: string, signatoryName: string) =>
+      Boolean(signatoryName) && displayName.trim().toLowerCase() === signatoryName.trim().toLowerCase();
+
     const itemRows = request.items.length
       ? request.items
           .map(
@@ -70,6 +77,12 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
           )
           .join('')
       : `<tr><td>1</td><td>${this.engine.escapeHtml(request.requestType.name)} Request</td><td>${this.engine.formatMoney(totalAmount, currency)}</td></tr>`;
+
+    const preparedBy =
+      (isManualImport && manualAccountant?.name ? String(manualAccountant.name) : null) ??
+      (signatories.prepared_by.name || '________________');
+    const cooBy = cooEntry?.actor_name ?? signatories.reviewed_by.name ?? '________________';
+    const edBy = edEntry?.actor_name ?? signatories.approved_by.name ?? '________________';
 
     const body = this.engine.renderVoucherPageHtml({
       logoDataUri,
@@ -84,19 +97,26 @@ export class PaymentVoucherDocument implements Document<PaymentVoucherContext> {
       method,
       details: voucher?.transactionRef ?? '-',
       grantDonorLabel,
-      preparedBy:
-        (isManualImport && manualAccountant?.name ? String(manualAccountant.name) : null) ??
-        (signatories.prepared_by.name || '________________'),
+      preparedBy,
       preparedDate:
         isManualImport && manualAccountant?.date
           ? this.engine.formatDate(String(manualAccountant.date))
           : this.engine.formatDate(generatedAt),
-      cooBy: cooEntry?.actor_name ?? signatories.reviewed_by.name ?? '________________',
+      preparedSignatureDataUri: matchesSignatory(preparedBy, signatories.prepared_by.name)
+        ? signatories.prepared_by.signatureDataUri
+        : null,
+      cooBy,
       cooDate: cooEntry ? this.engine.formatDateTime(cooEntry.at) : 'Pending',
       cooDone: Boolean(cooEntry),
-      edBy: edEntry?.actor_name ?? signatories.approved_by.name ?? '________________',
+      cooSignatureDataUri: matchesSignatory(cooBy, signatories.reviewed_by.name)
+        ? signatories.reviewed_by.signatureDataUri
+        : null,
+      edBy,
       edDate: edEntry ? this.engine.formatDateTime(edEntry.at) : 'N/A',
       edDone: Boolean(edEntry),
+      edSignatureDataUri: matchesSignatory(edBy, signatories.approved_by.name)
+        ? signatories.approved_by.signatureDataUri
+        : null,
       remarks: voucher?.note ?? null,
     });
 

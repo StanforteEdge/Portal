@@ -81,11 +81,31 @@ export function PaymentVouchersTable() {
                     </div>
                     {voucher.deductions && voucher.deductions.length > 0 && (
                       <div className="mt-1.5 flex flex-wrap gap-1">
-                        {voucher.deductions.map((d) => (
-                          <span key={d.id} className="inline-flex items-center gap-1 rounded bg-slate-100 px-1.5 py-0.5 text-[0.68rem] font-semibold text-slate-600">
-                            {d.deduction_type_code || d.deduction_type_name}: {formatCurrency(d.deduction_amount, request?.currency)}
-                          </span>
-                        ))}
+                        {voucher.deductions.map((d) => {
+                          const isRemitted = d.remittance_status === "remitted";
+                          return (
+                            <button
+                              key={d.id}
+                              type="button"
+                              onClick={() => {
+                                const url = d.request_deduction_id
+                                  ? `/finance/statutory-deductions?deduction_id=${d.request_deduction_id}`
+                                  : "/finance/statutory-deductions";
+                                window.open(url, "_blank", "noopener,noreferrer");
+                              }}
+                              className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[0.68rem] font-semibold hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-900/20 ${
+                                isRemitted ? "bg-success/10 text-success" : "bg-warning/10 text-warning"
+                              }`}
+                              title={isRemitted ? "Remitted — open in Statutory Deductions" : "Pending remittance — open in Statutory Deductions"}
+                            >
+                              <Icon
+                                name={isRemitted ? "check_circle" : "schedule"}
+                                className="text-[12px]"
+                              />
+                              {d.deduction_type_code || d.deduction_type_name}: {formatCurrency(d.deduction_amount, request?.currency)}
+                            </button>
+                          );
+                        })}
                       </div>
                     )}
                   </TableCell>

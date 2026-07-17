@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { financeApi, useCachedQuery } from "@/shared/lib/core";
+import { uploadFileAsset } from "@/pages/files/files-api";
 import {
   Button,
   Chip,
   EmptyState,
+  Icon,
   SelectField,
   StatCard,
   Table,
@@ -23,7 +25,7 @@ import {
   SlideOverHeader,
 } from "@/shared/components/ui/SlideOver";
 
-type Signatory = { name: string; title: string };
+type Signatory = { name: string; title: string; signature_file_id: string; signature_url: string | null };
 
 type Donor = {
   id: string;
@@ -95,16 +97,23 @@ export default function NonprofitSetupTab() {
   const settings = (settingsData ?? {}) as Record<string, unknown>;
 
   // Signatory state
-  const [preparedBy, setPreparedBy] = useState<Signatory>({ name: "", title: "" });
-  const [reviewedBy, setReviewedBy] = useState<Signatory>({ name: "", title: "" });
-  const [approvedBy, setApprovedBy] = useState<Signatory>({ name: "", title: "" });
+  const emptySignatory = (): Signatory => ({ name: "", title: "", signature_file_id: "", signature_url: null });
+  const [preparedBy, setPreparedBy] = useState<Signatory>(emptySignatory());
+  const [reviewedBy, setReviewedBy] = useState<Signatory>(emptySignatory());
+  const [approvedBy, setApprovedBy] = useState<Signatory>(emptySignatory());
   const [savingSettings, setSavingSettings] = useState(false);
+  const [uploadingSignature, setUploadingSignature] = useState<"prepared_by" | "reviewed_by" | "approved_by" | null>(null);
 
   useEffect(() => {
     if (settingsData) {
       const getSig = (key: string): Signatory => {
-        const v = settings[key] as { name?: string; title?: string } | undefined;
-        return { name: v?.name ?? "", title: v?.title ?? "" };
+        const v = settings[key] as { name?: string; title?: string; signature_file_id?: string; signature_url?: string } | undefined;
+        return {
+          name: v?.name ?? "",
+          title: v?.title ?? "",
+          signature_file_id: v?.signature_file_id ?? "",
+          signature_url: v?.signature_url ?? null,
+        };
       };
       setPreparedBy(getSig("prepared_by"));
       setReviewedBy(getSig("reviewed_by"));
@@ -113,10 +122,33 @@ export default function NonprofitSetupTab() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsData]);
 
+  const signatorySetters = {
+    prepared_by: setPreparedBy,
+    reviewed_by: setReviewedBy,
+    approved_by: setApprovedBy,
+  } as const;
+
+  const handleUploadSignature = async (key: keyof typeof signatorySetters, file: File | null) => {
+    if (!file) return;
+    setUploadingSignature(key);
+    try {
+      const uploaded = await uploadFileAsset(file, { metadata: { source: "finance_settings_signature" } });
+      signatorySetters[key]((prev) => ({ ...prev, signature_file_id: uploaded.id, signature_url: null }));
+    } catch {
+      showToast({ tone: "danger", title: "Upload failed", message: "Could not upload signature image." });
+    } finally {
+      setUploadingSignature(null);
+    }
+  };
+
   const handleSaveSettings = async () => {
     setSavingSettings(true);
     try {
-      await financeApi.updateSettings({ prepared_by: preparedBy, reviewed_by: reviewedBy, approved_by: approvedBy });
+      await financeApi.updateSettings({
+        prepared_by: { name: preparedBy.name, title: preparedBy.title, signature_file_id: preparedBy.signature_file_id || undefined },
+        reviewed_by: { name: reviewedBy.name, title: reviewedBy.title, signature_file_id: reviewedBy.signature_file_id || undefined },
+        approved_by: { name: approvedBy.name, title: approvedBy.title, signature_file_id: approvedBy.signature_file_id || undefined },
+      });
       showToast({ tone: "success", title: "Saved", message: "Signatory settings updated." });
       refetchSettings?.();
     } catch {
@@ -456,18 +488,43 @@ export default function NonprofitSetupTab() {
             <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">Prepared By (Accountant)</p>
             <TextField label="Name" value={preparedBy.name} onChange={(e) => setPreparedBy((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Dunsin Babatunde" />
             <TextField label="Title" value={preparedBy.title} onChange={(e) => setPreparedBy((p) => ({ ...p, title: e.target.value }))} placeholder="e.g. Accountant" />
+            {preparedBy.signature_url && (
+              <img src={preparedBy.signature_url} alt="Signature" className="h-10 rounded border border-slate-200 bg-white p-1" />
+            )}
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+              <Icon name="draw" className="text-[16px]" />
+              {uploadingSignature === "prepared_by" ? "Uploading…" : preparedBy.signature_file_id ? "Replace Signature" : "Upload Signature"}
+              <input type="file" accept="image/*" className="hidden" disabled={uploadingSignature !== null} onChange={(e) => { void handleUploadSignature("prepared_by", e.target.files?.[0] ?? null); e.target.value = ""; }} />
+            </label>
           </div>
           <div className="space-y-2">
             <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">Reviewed By (COO)</p>
             <TextField label="Name" value={reviewedBy.name} onChange={(e) => setReviewedBy((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Olalekan Owonikoko" />
             <TextField label="Title" value={reviewedBy.title} onChange={(e) => setReviewedBy((p) => ({ ...p, title: e.target.value }))} placeholder="e.g. Finance Manager / COO" />
+            {reviewedBy.signature_url && (
+              <img src={reviewedBy.signature_url} alt="Signature" className="h-10 rounded border border-slate-200 bg-white p-1" />
+            )}
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+              <Icon name="draw" className="text-[16px]" />
+              {uploadingSignature === "reviewed_by" ? "Uploading…" : reviewedBy.signature_file_id ? "Replace Signature" : "Upload Signature"}
+              <input type="file" accept="image/*" className="hidden" disabled={uploadingSignature !== null} onChange={(e) => { void handleUploadSignature("reviewed_by", e.target.files?.[0] ?? null); e.target.value = ""; }} />
+            </label>
           </div>
           <div className="space-y-2">
             <p className="text-xs font-medium text-slate-600 uppercase tracking-wide">Approved By (ED)</p>
             <TextField label="Name" value={approvedBy.name} onChange={(e) => setApprovedBy((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Olusola Owonikoko" />
             <TextField label="Title" value={approvedBy.title} onChange={(e) => setApprovedBy((p) => ({ ...p, title: e.target.value }))} placeholder="e.g. Executive Director" />
+            {approvedBy.signature_url && (
+              <img src={approvedBy.signature_url} alt="Signature" className="h-10 rounded border border-slate-200 bg-white p-1" />
+            )}
+            <label className="inline-flex cursor-pointer items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-50">
+              <Icon name="draw" className="text-[16px]" />
+              {uploadingSignature === "approved_by" ? "Uploading…" : approvedBy.signature_file_id ? "Replace Signature" : "Upload Signature"}
+              <input type="file" accept="image/*" className="hidden" disabled={uploadingSignature !== null} onChange={(e) => { void handleUploadSignature("approved_by", e.target.files?.[0] ?? null); e.target.value = ""; }} />
+            </label>
           </div>
         </div>
+        <p className="text-xs text-slate-400">If no signature is uploaded, only the name and title are shown on generated documents.</p>
         <div className="flex justify-end">
           <Button variant="primary" onClick={() => void handleSaveSettings()} disabled={savingSettings}>
             {savingSettings ? "Saving..." : "Save Signatories"}

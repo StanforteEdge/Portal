@@ -7,6 +7,7 @@ import { ActionPoDto } from './dto/action-po.dto';
 import { CreateGrnDto } from './dto/create-grn.dto';
 import { ConfirmGrnDto } from './dto/confirm-grn.dto';
 import { CreateProcurementCaseDto } from './dto/create-procurement-case.dto';
+import { AttachProcurementFileDto } from './dto/attach-procurement-file.dto';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 
 @Controller('procurement')
@@ -44,6 +45,11 @@ export class ProcurementController {
     return this.service.getPr(id);
   }
 
+  @Post('requisitions/:id/attachments')
+  attachToRequisition(@Param('id') id: string, @Body() dto: AttachProcurementFileDto) {
+    return this.service.attachToRequisition(id, dto);
+  }
+
   @Post('orders')
   createPo(@Req() req: any, @Body() dto: CreatePoDto) {
     return this.service.createPo(req.user.id, dto);
@@ -67,6 +73,16 @@ export class ProcurementController {
   @Get('orders/:id')
   getPo(@Param('id') id: string) {
     return this.service.getPo(id);
+  }
+
+  @Post('orders/:id/download')
+  downloadPo(@Param('id') id: string, @Req() req: any) {
+    return this.service.downloadPo(id, req.user.id);
+  }
+
+  @Post('orders/:id/attachments')
+  attachToOrder(@Param('id') id: string, @Body() dto: AttachProcurementFileDto) {
+    return this.service.attachToOrder(id, dto);
   }
 
   @Post('grns')

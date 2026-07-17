@@ -24,7 +24,7 @@ export function SlideOver({
   }[size];
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-50 top-16 flex justify-end md:justify-end">
+    <div className="fixed inset-x-0 bottom-20 top-16 z-[60] flex justify-end lg:bottom-0">
       {/* Backdrop */}
       <div className="absolute inset-0 top-0 bg-black/50" onClick={onClose} />
 
@@ -33,7 +33,7 @@ export function SlideOver({
         className={`
           relative w-full  flex flex-col bg-white shadow-xl
           ${sizeClasses}
-          max-h-[calc(100vh-4rem)]
+          max-h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-4rem)]
         `}
       >
         {/* Inner container with overflow handling */}

@@ -54,6 +54,7 @@ export type {
   ContactPersonRecord,
   PartyTransaction,
   FinancePaymentVoucherRecord,
+  FinancePVDeductionRecord,
   FinanceAccountRecord,
   FinanceRequestDeductionRecord,
   FinanceApi,

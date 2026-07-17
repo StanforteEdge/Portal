@@ -32,7 +32,16 @@ export class VendorPortalService {
   }
 
   async getOrder(id: string, vendorId: string) {
-    const po = await this.prisma.procurementOrder.findFirst({ where: { id, vendorId } });
+    const po = await this.prisma.procurementOrder.findFirst({
+      where: { id, vendorId },
+      include: {
+        attachments: {
+          where: { visibility: 'vendor' },
+          include: { file: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
     if (!po) throw new NotFoundException('Order not found');
     return po;
   }

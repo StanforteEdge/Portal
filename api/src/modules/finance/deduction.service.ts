@@ -5,6 +5,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { existsSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { paginatedResponse } from '../../common/helpers/paginated-response';
 import { PrismaService } from '../../common/prisma/prisma.service';
 import { toBigInt } from '../../common/utils/ids';
@@ -39,14 +42,59 @@ export class DeductionService {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   }
 
-  private async fetchOrgSettings(): Promise<{ org_name: string; prepared_by: string; prepared_title: string }> {
+  private async fetchOrgSettings(): Promise<{
+    org_name: string;
+    prepared_by: string;
+    prepared_title: string;
+    prepared_signature: string | null;
+    approved_by: string;
+    approved_title: string;
+    approved_signature: string | null;
+  }> {
     const row = await this.prisma.financeSetting.findUnique({ where: { key: 'default' }, select: { config: true } });
     const cfg: any = (row?.config && typeof row.config === 'object' && !Array.isArray(row.config)) ? row.config : {};
+    const [prepared_signature, approved_signature] = await Promise.all([
+      this.resolveSignatureDataUri(cfg?.prepared_by?.signature_file_id),
+      this.resolveSignatureDataUri(cfg?.approved_by?.signature_file_id),
+    ]);
     return {
       org_name: cfg?.org_name ?? cfg?.organization_name ?? 'The Organisation',
       prepared_by: cfg?.prepared_by?.name ?? '',
       prepared_title: cfg?.prepared_by?.title ?? 'Accountant',
+      prepared_signature,
+      approved_by: cfg?.approved_by?.name ?? '',
+      approved_title: cfg?.approved_by?.title ?? 'Executive Director',
+      approved_signature,
     };
+  }
+
+  private async resolveSignatureDataUri(fileId: unknown): Promise<string | null> {
+    if (typeof fileId !== 'string' || !fileId) return null;
+    const asset = await this.prisma.fileAsset.findUnique({ where: { id: fileId } });
+    if (!asset) return null;
+    const storagePath = asset.storagePath || asset.publicUrl || '';
+    if (!storagePath) return null;
+    const candidates = [
+      storagePath,
+      resolve(process.cwd(), storagePath),
+      resolve(process.cwd(), '..', storagePath),
+      resolve(process.cwd(), 'uploads', storagePath),
+    ];
+    let buf: Buffer | null = null;
+    for (const candidate of candidates) {
+      if (candidate && existsSync(candidate)) {
+        try {
+          buf = await readFile(candidate);
+          break;
+        } catch {
+          // continue
+        }
+      }
+    }
+    if (!buf) return null;
+    const ext = (asset.fileName ?? '').split('.').pop()?.toLowerCase() ?? 'png';
+    const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg' : ext === 'svg' ? 'image/svg+xml' : 'image/png';
+    return `data:${mime};base64,${buf.toString('base64')}`;
   }
 
   private getPdfLogoDataUri(): string | null {
@@ -172,25 +220,52 @@ export class DeductionService {
     const now = new Date();
 
     return this.prisma.$transaction(async (tx) => {
+      const existingPVDeductions = await tx.financePVDeduction.findMany({
+        where: { paymentVoucherId: pvId },
+        select: { requestDeductionId: true },
+      });
+      const linkedRequestDeductionIds = existingPVDeductions
+        .map((row) => row.requestDeductionId)
+        .filter((value): value is string => Boolean(value));
+
       // Remove any previously applied deductions for this PV
       await tx.financePVDeduction.deleteMany({ where: { paymentVoucherId: pvId } });
       await tx.financeVendorWHTAccrual.deleteMany({ where: { paymentVoucherId: pvId } });
+      if (linkedRequestDeductionIds.length > 0) {
+        await tx.financeRequestDeduction.deleteMany({ where: { id: { in: linkedRequestDeductionIds } } });
+      }
 
-      const createdDeductions = await Promise.all(
-        dto.deductions.map((line) =>
-          tx.financePVDeduction.create({
-            data: {
-              paymentVoucherId: pvId,
-              deductionTypeId: line.deduction_type_id,
-              rate: line.rate,
-              grossAmount: line.gross_amount,
-              deductionAmount: line.deduction_amount,
-              createdBy: toBigInt(userId),
-              updatedAt: now,
-            },
-          }),
-        ),
-      );
+      const createdDeductions = [] as Array<{ id: string; deductionTypeId: string; grossAmount: Prisma.Decimal; deductionAmount: Prisma.Decimal; requestDeductionId: string | null }>;
+      for (const line of dto.deductions) {
+        const requestDeduction = pv.requestId
+          ? await tx.financeRequestDeduction.create({
+              data: {
+                requestId: pv.requestId,
+                deductionTypeId: line.deduction_type_id,
+                amount: line.deduction_amount,
+                rate: line.rate,
+                grossAmount: line.gross_amount,
+                status: 'pending',
+                createdBy: toBigInt(userId),
+                updatedAt: now,
+              },
+            })
+          : null;
+
+        const deduction = await tx.financePVDeduction.create({
+          data: {
+            paymentVoucherId: pvId,
+            deductionTypeId: line.deduction_type_id,
+            requestDeductionId: requestDeduction?.id ?? null,
+            rate: line.rate,
+            grossAmount: line.gross_amount,
+            deductionAmount: line.deduction_amount,
+            createdBy: toBigInt(userId),
+            updatedAt: now,
+          },
+        });
+        createdDeductions.push(deduction);
+      }
 
       // Create accruals for contact-linked PVs
       if (pv.contactId) {
@@ -207,26 +282,6 @@ export class DeductionService {
                 grossAmount: deduction.grossAmount,
                 withheldAmount: deduction.deductionAmount,
                 organizationId: null,
-                updatedAt: now,
-              },
-            }),
-          ),
-        );
-      }
-
-      // Create FinanceRequestDeduction siblings for request-level deduction tracking
-      if (pv.requestId) {
-        await Promise.all(
-          createdDeductions.map((deduction) =>
-            tx.financeRequestDeduction.create({
-              data: {
-                requestId: pv.requestId!,
-                deductionTypeId: deduction.deductionTypeId,
-                amount: deduction.deductionAmount,
-                rate: deduction.rate,
-                grossAmount: deduction.grossAmount,
-                status: 'pending',
-                createdBy: toBigInt(userId),
                 updatedAt: now,
               },
             }),
@@ -252,7 +307,7 @@ export class DeductionService {
   async listPVDeductions(pvId: string) {
     const rows = await this.prisma.financePVDeduction.findMany({
       where: { paymentVoucherId: pvId },
-      include: { deductionType: true },
+      include: { deductionType: true, requestDeduction: true },
       orderBy: { createdAt: 'asc' },
     });
     return paginatedResponse(rows, { page: 1, per_page: rows.length, total: rows.length });
@@ -379,9 +434,11 @@ export class DeductionService {
     const skip = (page - 1) * perPage;
 
     const where: Prisma.FinanceRequestDeductionWhereInput = {};
+    if (query.id) where.id = query.id;
     if (query.status) where.status = query.status;
     if (query.deduction_type_id) where.deductionTypeId = query.deduction_type_id;
     if (query.request_id) where.requestId = toBigInt(query.request_id);
+    if (query.remittance_ref) where.remittanceRef = query.remittance_ref;
     if (query.search) {
       where.request = { data: { path: ['request_number'], string_contains: query.search } };
     }
@@ -491,9 +548,76 @@ export class DeductionService {
     return { updated: ids.length };
   }
 
+  async updatePendingDeduction(id: string, dto: {
+    deduction_type_id?: string;
+    gross_amount?: number;
+    amount?: number;
+    rate?: number;
+    notes?: string;
+  }) {
+    const existing = await this.prisma.financeRequestDeduction.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Deduction not found');
+    if (existing.status !== 'pending') throw new BadRequestException('Only pending deductions can be edited');
+
+    if (dto.deduction_type_id) {
+      const dt = await this.prisma.financeDeductionType.findUnique({ where: { id: dto.deduction_type_id } });
+      if (!dt) throw new BadRequestException('Invalid deduction_type_id');
+    }
+
+    if (dto.gross_amount !== undefined && dto.gross_amount <= 0) {
+      throw new BadRequestException('gross_amount must be positive');
+    }
+    if (dto.amount !== undefined && dto.amount <= 0) {
+      throw new BadRequestException('amount must be positive');
+    }
+
+    const data: Record<string, any> = {};
+    if (dto.deduction_type_id !== undefined) data.deductionTypeId = dto.deduction_type_id;
+    if (dto.gross_amount !== undefined) data.grossAmount = dto.gross_amount;
+    if (dto.amount !== undefined) data.amount = dto.amount;
+    if (dto.rate !== undefined) data.rate = dto.rate;
+    if (dto.notes !== undefined) data.notes = dto.notes || null;
+
+    return this.prisma.financeRequestDeduction.update({ where: { id }, data });
+  }
+
+  async updateRemittanceRecord(id: string, dto: {
+    remittance_ref?: string;
+    remitted_at?: string;
+    paid_from_account_id?: string;
+    evidence_file_id?: string;
+    notes?: string;
+  }) {
+    const existing = await this.prisma.financeRequestDeduction.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Deduction not found');
+    if (existing.status !== 'remitted') throw new BadRequestException('Only remitted deductions can be edited');
+
+    const data: Record<string, any> = {};
+    if (dto.remittance_ref !== undefined) data.remittanceRef = dto.remittance_ref || null;
+    if (dto.remitted_at !== undefined) data.remittedAt = new Date(dto.remitted_at);
+    if (dto.paid_from_account_id !== undefined) data.paidFromAccountId = dto.paid_from_account_id || null;
+    if (dto.evidence_file_id !== undefined) data.evidenceFileId = dto.evidence_file_id || null;
+    if (dto.notes !== undefined) data.notes = dto.notes || null;
+
+    return this.prisma.financeRequestDeduction.update({ where: { id }, data });
+  }
+
   // ── TRM Slip PDF ──────────────────────────────────────────────────────────
 
+  async listRemittedDeductionsForRequest(requestId: string) {
+    return this.prisma.financeRequestDeduction.findMany({
+      where: { requestId: toBigInt(requestId), status: 'remitted' },
+      select: { id: true, remittanceNumber: true },
+      orderBy: { remittedAt: 'asc' },
+    });
+  }
+
   async generateTrmSlipPdf(id: string) {
+    const { buffer, fileName } = await this.buildTrmSlipPdf(id);
+    return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
+  }
+
+  async buildTrmSlipPdf(id: string): Promise<{ buffer: Buffer; fileName: string }> {
     const d = await this.prisma.financeRequestDeduction.findUnique({
       where: { id },
       include: {
@@ -599,7 +723,7 @@ export class DeductionService {
       <div class="sig-grid" style="margin-top:10px;">
         <div>
           <div class="sig-label">Prepared By</div>
-          <div class="sig-line"></div>
+          ${org.prepared_signature ? `<img src="${org.prepared_signature}" alt="Signature" style="height:36px; display:block; margin-bottom:4px;" />` : '<div class="sig-line"></div>'}
           <div class="sig-name">${org.prepared_by ? this.esc(org.prepared_by) : '____________________'}</div>
           <div class="muted">${this.esc(org.prepared_title)}</div>
         </div>
@@ -625,7 +749,7 @@ export class DeductionService {
       `Remitted: ${this.fmtDate(d.remittedAt)}`,
     ]);
     const fileName = `TRM-${(d.remittanceNumber ?? id).replace(/\//g, '-')}.pdf`;
-    return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
+    return { buffer, fileName };
   }
 
   // ── WHT Certificate PDF ───────────────────────────────────────────────────
@@ -641,21 +765,33 @@ export class DeductionService {
             contact: { select: { id: true, name: true, email: true, phone: true } },
           },
         },
+        requestDeduction: {
+          select: { remittanceNumber: true, remittedAt: true, remittanceRef: true },
+        },
       },
     });
     if (!pvd) throw new NotFoundException('PV deduction not found');
+
+    let certificateNumber = pvd.certificateNumber;
+    if (!certificateNumber) {
+      const year = new Date().getFullYear();
+      const startsWith = `WHT/${year}/`;
+      const count = await this.prisma.financePVDeduction.count({
+        where: { certificateNumber: { startsWith } },
+      });
+      certificateNumber = `WHT/${year}/${String(count + 1).padStart(3, '0')}`;
+      await this.prisma.financePVDeduction.update({
+        where: { id: pvd.id },
+        data: { certificateNumber },
+      });
+    }
 
     const pv = pvd.paymentVoucher;
     const request = pv.request;
     const requestNumber = (request?.data as any)?.request_number ?? String(pv.requestId);
     const org = await this.fetchOrgSettings();
 
-    // Look up the corresponding FinanceRequestDeduction for TRM number
-    const trmRecord = await this.prisma.financeRequestDeduction.findFirst({
-      where: { requestId: pv.requestId, deductionTypeId: pvd.deductionTypeId, status: 'remitted' },
-      select: { remittanceNumber: true, remittedAt: true, remittanceRef: true },
-      orderBy: { remittedAt: 'desc' },
-    });
+    const trmRecord = pvd.requestDeduction?.remittedAt ? pvd.requestDeduction : null;
 
     const vendorName = pv.contact?.name ?? (request?.creator ? `${request.creator.firstName ?? ''} ${request.creator.lastName ?? ''}`.trim() : '—');
     const vendorEmail = pv.contact?.email ?? request?.creator?.email ?? '';
@@ -679,7 +815,7 @@ export class DeductionService {
         <div>
           <div class="doc-title">Withholding Tax Certificate</div>
           <div class="doc-subtitle" style="text-align:right; margin-top:4px;">
-            ${trmRecord?.remittanceNumber ? `<span class="ref-badge">${this.esc(trmRecord.remittanceNumber)}</span>` : ''}
+            <span class="ref-badge">${this.esc(certificateNumber)}</span>
           </div>
         </div>
       </div>
@@ -702,6 +838,7 @@ export class DeductionService {
       <div>
         <h3 style="margin:0 0 8px;">Payment Details</h3>
         <div class="detail-list">
+          <div><strong>Certificate No:</strong> ${this.esc(certificateNumber)}</div>
           <div><strong>Request Number:</strong> ${this.esc(requestNumber)}</div>
           <div><strong>Payment Voucher:</strong> ${this.esc(pv.voucherNumber)}</div>
           <div><strong>Payment Date:</strong> ${pvDate}</div>
@@ -769,15 +906,16 @@ export class DeductionService {
       <div class="sig-grid" style="margin-top:10px;">
         <div>
           <div class="sig-label">Prepared By</div>
-          <div class="sig-line"></div>
+          ${org.prepared_signature ? `<img src="${org.prepared_signature}" alt="Signature" style="height:36px; display:block; margin-bottom:4px;" />` : '<div class="sig-line"></div>'}
           <div class="sig-name">${org.prepared_by ? this.esc(org.prepared_by) : '____________________'}</div>
           <div class="muted">${this.esc(org.prepared_title)}</div>
           <div class="muted">Date: ${certDate}</div>
         </div>
         <div>
           <div class="sig-label">Authorised Signatory</div>
-          <div class="sig-line"></div>
-          <div class="sig-name">&nbsp;</div>
+          ${org.approved_signature ? `<img src="${org.approved_signature}" alt="Signature" style="height:36px; display:block; margin-bottom:4px;" />` : '<div class="sig-line"></div>'}
+          <div class="sig-name">${org.approved_by ? this.esc(org.approved_by) : '____________________'}</div>
+          <div class="muted">${this.esc(org.approved_title)}</div>
           <div class="muted">Date: _______________</div>
         </div>
       </div>
@@ -785,18 +923,19 @@ export class DeductionService {
   </div>
 
   <div class="footer-note">
-    This certificate is issued for tax credit purposes. ${trmRecord?.remittanceNumber ? `TRM Ref: ${this.esc(trmRecord.remittanceNumber)}` : ''} — ${this.fmtDate(new Date())}
+    This certificate is issued for tax credit purposes. Certificate No: ${this.esc(certificateNumber)}${trmRecord?.remittanceNumber ? ` — TRM Ref: ${this.esc(trmRecord.remittanceNumber)}` : ''} — ${this.fmtDate(new Date())}
   </div>
 </body>
 </html>`;
 
     const buffer = await this.pdfService.renderPdfFromHtml(html, [
       'WITHHOLDING TAX CERTIFICATE',
+      `Certificate No: ${certificateNumber}`,
       `Payment Voucher: ${pv.voucherNumber}`,
       `Vendor: ${vendorName}`,
       `Amount Withheld: ${this.fmtMoney(pvd.deductionAmount)}`,
     ]);
-    const fileName = `WHT-Certificate-${pv.voucherNumber.replace(/\//g, '-')}.pdf`;
+    const fileName = `WHT-Certificate-${certificateNumber.replace(/\//g, '-')}.pdf`;
     return { file_name: fileName, mime_type: 'application/pdf', content_base64: buffer.toString('base64') };
   }
 }

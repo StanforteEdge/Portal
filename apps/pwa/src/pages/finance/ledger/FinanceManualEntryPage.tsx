@@ -6,6 +6,7 @@ import {
   Icon,
   PageHeader,
   SectionCard,
+  SlideOver,
   StatCard,
   Table,
   TableBody,
@@ -41,6 +42,13 @@ export default function FinanceManualEntryPage() {
     { chart_account_id: "", description: "", debit: 0, credit: 0 },
   ]);
   const [saving, setSaving] = useState(false);
+
+  const [editingEntry, setEditingEntry] = useState<any>(null);
+  const [editEntryDate, setEditEntryDate] = useState("");
+  const [editMemo, setEditMemo] = useState("");
+  const [editCurrency, setEditCurrency] = useState("NGN");
+  const [editLines, setEditLines] = useState<EntryLine[]>([]);
+  const [editSaving, setEditSaving] = useState(false);
 
   const { data: chartAccountsData } = useCachedQuery(
     "finance:manual-entry:chart-accounts",
@@ -83,6 +91,65 @@ export default function FinanceManualEntryPage() {
   const removeLine = (index: number) => {
     if (lines.length <= 2) return;
     setLines((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const openEdit = (entry: any) => {
+    setEditingEntry(entry);
+    setEditEntryDate((entry.entryDate || entry.entry_date || "").slice(0, 10));
+    setEditMemo(entry.memo || "");
+    setEditCurrency(entry.currency || "NGN");
+    setEditLines(
+      (entry.lines || []).map((l: any) => ({
+        chart_account_id: l.chartAccountId || l.chart_account_id || "",
+        description: l.description || "",
+        debit: Number(l.debit || 0),
+        credit: Number(l.credit || 0),
+      }))
+    );
+  };
+
+  const handleUpdate = async () => {
+    if (!editingEntry) return;
+    if (!editEntryDate) {
+      showToast({ tone: "warning", title: "Date required", message: "Set an entry date." });
+      return;
+    }
+    const editTotals = editLines.reduce(
+      (acc, l) => ({ debit: acc.debit + Number(l.debit || 0), credit: acc.credit + Number(l.credit || 0) }),
+      { debit: 0, credit: 0 },
+    );
+    if (Math.abs(editTotals.debit - editTotals.credit) > 0.001) {
+      showToast({ tone: "danger", title: "Not balanced", message: "Debits and credits must be equal." });
+      return;
+    }
+    const normalized = editLines
+      .map((l) => ({
+        chart_account_id: l.chart_account_id,
+        description: l.description || undefined,
+        debit: Number(l.debit || 0),
+        credit: Number(l.credit || 0),
+      }))
+      .filter((l) => l.chart_account_id && (l.debit > 0 || l.credit > 0));
+    if (normalized.length < 2) {
+      showToast({ tone: "warning", title: "Incomplete", message: "At least two valid lines required." });
+      return;
+    }
+    try {
+      setEditSaving(true);
+      await financeApi.updateJournalEntry(editingEntry.id, {
+        entry_date: editEntryDate,
+        memo: editMemo.trim() || undefined,
+        currency: editCurrency.toUpperCase(),
+        lines: normalized,
+      });
+      showToast({ tone: "success", title: "Updated", message: "Journal entry updated." });
+      setEditingEntry(null);
+      setRefreshKey((v) => v + 1);
+    } catch (err) {
+      showToast({ tone: "danger", title: "Update failed", message: err instanceof Error ? err.message : "Unable to update." });
+    } finally {
+      setEditSaving(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -225,6 +292,7 @@ export default function FinanceManualEntryPage() {
                 <TableHeaderCell>Memo</TableHeaderCell>
                 <TableHeaderCell className="text-right">Debit</TableHeaderCell>
                 <TableHeaderCell className="text-right">Credit</TableHeaderCell>
+                <TableHeaderCell>{" "}</TableHeaderCell>
               </TableHeaderRow>
             </TableHead>
             <TableBody>
@@ -235,6 +303,9 @@ export default function FinanceManualEntryPage() {
                   <TableCell>{entry.memo || "-"}</TableCell>
                   <TableCell className="text-right">{formatCurrency(Number(entry.totalDebit ?? entry.total_debit ?? 0), entry.currency || "NGN")}</TableCell>
                   <TableCell className="text-right">{formatCurrency(Number(entry.totalCredit ?? entry.total_credit ?? 0), entry.currency || "NGN")}</TableCell>
+                  <TableCell>
+                    <button className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => openEdit(entry)}>Edit</button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -243,6 +314,46 @@ export default function FinanceManualEntryPage() {
           <EmptyState title="No manual entries" description="Posted manual journal entries will appear here." />
         ) : null}
       </SectionCard>
+
+      {editingEntry && (
+        <SlideOver open onClose={() => setEditingEntry(null)} size="md">
+          <div className="space-y-4 p-4">
+            <h3 className="font-semibold text-slate-800">Edit Journal Entry</h3>
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-semibold text-slate-700">Entry Date</span>
+              <input type="date" className="rounded-2xl border border-slate-200 px-4 py-2.5" value={editEntryDate} onChange={(e) => setEditEntryDate(e.target.value)} />
+            </label>
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-semibold text-slate-700">Currency</span>
+              <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={editCurrency} onChange={(e) => setEditCurrency(e.target.value.toUpperCase())} />
+            </label>
+            <label className="grid gap-1.5 text-sm">
+              <span className="font-semibold text-slate-700">Memo</span>
+              <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={editMemo} onChange={(e) => setEditMemo(e.target.value)} />
+            </label>
+            <div className="space-y-2">
+              <span className="font-semibold text-slate-700 text-sm">Lines</span>
+              {editLines.map((line, idx) => (
+                <div key={idx} className="grid gap-2 md:grid-cols-12 items-end">
+                  <select className="md:col-span-4 rounded-2xl border border-slate-200 px-3 py-2 text-sm" value={line.chart_account_id} onChange={(e) => setEditLines((p) => p.map((l, i) => i === idx ? { ...l, chart_account_id: e.target.value } : l))}>
+                    <option value="">Account</option>
+                    {chartAccounts.map((a: any) => <option key={a.id} value={a.id}>{a.code} - {a.name}</option>)}
+                  </select>
+                  <input className="md:col-span-3 rounded-2xl border border-slate-200 px-3 py-2 text-sm" placeholder="Description" value={line.description} onChange={(e) => setEditLines((p) => p.map((l, i) => i === idx ? { ...l, description: e.target.value } : l))} />
+                  <input type="number" className="md:col-span-2 rounded-2xl border border-slate-200 px-3 py-2 text-sm" placeholder="Debit" value={line.debit} onChange={(e) => setEditLines((p) => p.map((l, i) => i === idx ? { ...l, debit: Number(e.target.value) } : l))} />
+                  <input type="number" className="md:col-span-2 rounded-2xl border border-slate-200 px-3 py-2 text-sm" placeholder="Credit" value={line.credit} onChange={(e) => setEditLines((p) => p.map((l, i) => i === idx ? { ...l, credit: Number(e.target.value) } : l))} />
+                  <button className="md:col-span-1 text-red-500 text-sm" onClick={() => setEditLines((p) => p.filter((_, i) => i !== idx))} disabled={editLines.length <= 2}>×</button>
+                </div>
+              ))}
+              <Button variant="secondary" size="sm" onClick={() => setEditLines((p) => [...p, { chart_account_id: "", description: "", debit: 0, credit: 0 }])}>+ Line</Button>
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <Button variant="secondary" onClick={() => setEditingEntry(null)}>Cancel</Button>
+              <Button onClick={() => void handleUpdate()} disabled={editSaving}>{editSaving ? "Saving..." : "Save Changes"}</Button>
+            </div>
+          </div>
+        </SlideOver>
+      )}
     </AppShell>
   );
 }

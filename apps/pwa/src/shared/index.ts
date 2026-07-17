@@ -59,4 +59,4 @@ export { MediaPickerModal } from "./components/media/MediaPickerModal";
 export type { MediaPickerItem, MediaPickerModalProps } from "./components/media/MediaPickerModal";
 
 // ─── Re-exports from @stanforte/shared ─────────────────────────────────────────
-export type { OrganizationItem, TeamItem, TeamOption, OfficeLocation, FinancePaymentVoucherRecord, FinanceAccountRecord, FinanceRequestDeductionRecord } from "@stanforte/shared";
+export type { OrganizationItem, TeamItem, TeamOption, OfficeLocation, FinancePaymentVoucherRecord, FinancePVDeductionRecord, FinanceAccountRecord, FinanceRequestDeductionRecord } from "@stanforte/shared";

@@ -2,6 +2,11 @@ import { IsArray, IsDateString, IsIn, IsNumberString, IsOptional, IsString, IsUU
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
 
 export class StatutoryDeductionsQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @ApiPropertyOptional({ enum: ['pending', 'remitted'] })
   @IsOptional()
   @IsIn(['pending', 'remitted'])
@@ -31,6 +36,11 @@ export class StatutoryDeductionsQueryDto {
   @IsOptional()
   @IsNumberString()
   request_id?: string;
+
+  @ApiPropertyOptional({ description: 'Filter to deductions remitted together under the same payment reference' })
+  @IsOptional()
+  @IsString()
+  remittance_ref?: string;
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
