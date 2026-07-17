@@ -257,6 +257,7 @@ model Profile {
   createdWHTRemittances           FinanceWHTRemittance[]            @relation("WHTRemittanceCreatedBy")
   updatedWHTRemittances           FinanceWHTRemittance[]            @relation("WHTRemittanceUpdatedBy")
   createdRequestDeductions        FinanceRequestDeduction[]         @relation("RequestDeductionCreatedBy")
+  remittedRequestDeductions       FinanceRequestDeduction[]         @relation("RequestDeductionRemittedBy")
   procurementRequisitions         ProcurementRequisition[]          @relation("PrRequestedBy")
   procurementOrders               ProcurementOrder[]                @relation("PoCreatedBy")
   grnRaised                       ProcurementGRN[]                  @relation("GrnRaisedBy")
