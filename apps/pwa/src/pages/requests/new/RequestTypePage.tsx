@@ -162,6 +162,8 @@ function useCarouselScroll(scrollRef: React.RefObject<HTMLDivElement | null>) {
 export function RequestTypePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const categoryIdParam = searchParams.get("categoryId");
+  const teamIdParam = searchParams.get("team_id");
+  const orgIdParam = searchParams.get("organization_id");
   const scrollRef = useRef<HTMLDivElement>(null);
   const { canScrollLeft, canScrollRight, scroll, checkScroll } =
     useCarouselScroll(scrollRef);
@@ -231,6 +233,18 @@ export function RequestTypePage() {
   }, [categoryIdParam, categories]);
 
   const selectedCategoryLabel = selectedCategory?.name ?? "Others";
+
+  const formLinkParams = useMemo(() => {
+    const p = new URLSearchParams();
+    if (teamIdParam) p.set("team_id", teamIdParam);
+    if (orgIdParam) p.set("organization_id", orgIdParam);
+    return p.toString();
+  }, [teamIdParam, orgIdParam]);
+
+  const formLink = (typeId: string) => {
+    const base = `/requests/new/form?typeId=${typeId}`;
+    return formLinkParams ? `${base}&${formLinkParams}` : base;
+  };
 
   const handleCategoryClick = useCallback(
     (key: string) => {
@@ -380,7 +394,7 @@ export function RequestTypePage() {
                   {selectedTypes.map((type) => (
                     <Link
                       key={type.id}
-                      to={`/requests/new/form?typeId=${type.id}`}
+                      to={formLink(type.id)}
                       className="group rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-card focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
                     >
                       <div className="flex items-start justify-between gap-3">
@@ -455,7 +469,7 @@ export function RequestTypePage() {
               {selectedTypes.map((type) => (
                 <Link
                   key={type.id}
-                  to={`/requests/new/form?typeId=${type.id}`}
+                  to={formLink(type.id)}
                   className="rounded-[20px] border border-slate-200 bg-white px-4 py-4 shadow-sm"
                 >
                   <p className="text-sm font-semibold text-slate-950">

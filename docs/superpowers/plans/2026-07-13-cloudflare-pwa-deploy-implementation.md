@@ -1,3 +1,5 @@
+ and path	
+
 # Cloudflare PWA Deploy Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
@@ -7,6 +9,8 @@
 **Architecture:** Keep deployment ownership split by runtime. GitHub Actions continues owning API deploys through `.github/workflows/deploy-api.yml`, while Cloudflare Pages owns `apps/pwa` production builds from the repo root so the `apps/shared` workspace dependency continues to resolve correctly. Remove the duplicate server deploy path for `apps/pwa` and verify the existing Vite build metadata is sufficient for Cloudflare.
 
 **Tech Stack:** GitHub Actions, Cloudflare Pages, Vite, npm workspaces, React, TypeScript
+
+cat ~/.ssh/stanforteedge_api_deploy.pub | ssh -p 10000 stanforteedge@server.stanforteedge.com "mkdir -p ~/.ssh && chmod 700 ~/.ssh && cat >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys"
 
 ---
 
@@ -22,6 +26,7 @@
 ### Task 1: Prove The PWA Build Works Without GitHub Deploy Metadata
 
 **Files:**
+
 - Verify: `apps/pwa/vite.config.ts:49-116`
 - Verify: `apps/pwa/src/lib/VersionService.ts:16-125`
 - Verify: `apps/pwa/src/pages/account/SettingsPage.tsx:9-203`
@@ -78,6 +83,7 @@ git commit -m "fix(pwa): keep build metadata portable"
 ### Task 2: Remove The Duplicate `apps/pwa` Server Deploy Workflow
 
 **Files:**
+
 - Modify: `.github/workflows/deploy-pwa2.yml`
 
 - [ ] **Step 1: Replace the existing deploy workflow with a disabled documentation stub**
@@ -133,6 +139,7 @@ git commit -m "chore(ci): hand pwa deploys to cloudflare"
 ### Task 3: Update The Repository Remote
 
 **Files:**
+
 - No repo files changed.
 
 - [ ] **Step 1: Inspect the current remote before changing it**
@@ -166,6 +173,7 @@ origin  https://github.com/StanforteEdge/Portal (push)
 ### Task 4: Verify Cloudflare Pages Production Settings
 
 **Files:**
+
 - No repo files changed.
 
 - [ ] **Step 1: Check the Pages production branch is `main`**
@@ -212,6 +220,7 @@ apps/pwa production deploys are now owned by Cloudflare Pages, built from repo r
 ### Task 5: End-To-End Verification On `main`
 
 **Files:**
+
 - Verify only: `.github/workflows/deploy-api.yml`
 - Verify only: Cloudflare Pages deployment logs
 

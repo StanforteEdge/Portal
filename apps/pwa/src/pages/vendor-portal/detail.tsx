@@ -3,6 +3,7 @@ import { useParams, Link, useNavigate } from 'react-router-dom';
 import { procurementApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { Button, SectionCard } from '@/shared';
+import { downloadBase64File } from '@/shared/lib/download';
 
 export default function VendorOrderDetail() {
   const { id } = useParams<{ id: string }>();
@@ -13,6 +14,7 @@ export default function VendorOrderDetail() {
   const [loading, setLoading] = useState(true);
   const [ackNote, setAckNote] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const attachments = Array.isArray(po?.attachments) ? po.attachments : [];
 
   useEffect(() => {
     if (!token) {
@@ -53,6 +55,16 @@ export default function VendorOrderDetail() {
           <h1 className="text-2xl font-bold tracking-tight text-slate-900">Purchase Order {po.poNumber}</h1>
           <p className="text-sm text-slate-500">Issued on {new Date(po.createdAt).toLocaleDateString()}</p>
         </div>
+        <Button
+          variant="secondary"
+          onClick={() => {
+            procurementApi.downloadPo(id!).then((file) => {
+              downloadBase64File(file.file_name, file.mime_type, file.content_base64);
+            }).catch(console.error);
+          }}
+        >
+          Download PO
+        </Button>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -88,6 +100,33 @@ export default function VendorOrderDetail() {
                 </div>
               </div>
             </div>
+          </SectionCard>
+
+          <SectionCard title="Vendor Documents" description="Files shared with you for this purchase order.">
+            {attachments.length === 0 ? (
+              <p className="text-sm text-slate-500">No supporting files have been shared for this order yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {attachments.map((attachment: any) => (
+                  <div key={attachment.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+                    <div>
+                      <p className="font-medium text-slate-900">{attachment.label || attachment.file?.file_name}</p>
+                      <p className="mt-1 text-xs text-slate-500">Vendor-shareable attachment</p>
+                    </div>
+                    {attachment.file?.public_url ? (
+                      <a
+                        href={attachment.file.public_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-semibold text-brand-600 hover:text-brand-500"
+                      >
+                        Download
+                      </a>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
           </SectionCard>
 
           {!po.vendorAcknowledgedAt ? (

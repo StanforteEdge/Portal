@@ -30,7 +30,10 @@ This manual explains how staff, approvers, procurement officers, finance, and ve
 ### Raise a Procurement Request
 
 1. Open `Requests`.
-2. Choose a procurement request type such as `Goods Purchase`, `Service Procurement`, or `Works Request`.
+2. Choose one of the procurement request types:
+   - `Goods Procurement Request`
+   - `Services Procurement Request`
+   - `Works Procurement Request`
 3. Enter the purchase purpose and category.
 4. Select the team/project and budget line where applicable.
 5. Add item lines, specifications, and attachments.
@@ -88,6 +91,9 @@ Important rule:
 From the procurement case, officers should:
 - review scope and requirements
 - collect or attach quotation/vendor documents
+- mark each procurement file as either:
+  - `internal only`
+  - `vendor-shareable`
 - choose vendor
 - prepare purchase order
 - track delivery
@@ -120,6 +126,24 @@ POs should capture:
 - delivery terms
 - milestones where applicable
 
+### PO Numbering
+
+Procurement execution numbering starts from 501 for newly generated records.
+
+Examples:
+- `PR-2026-0501`
+- `PO-2026-0501`
+- `GRN-2026-0501`
+
+### PO and Supporting Document Downloads
+
+Procurement officers should be able to:
+- download the generated Purchase Order PDF
+- attach internal procurement files to the PO or case
+- attach vendor-shareable files to the PO or case
+
+Vendor-shareable files are the only procurement attachments that should be shown to vendors.
+
 ## GRN Workflow
 
 After goods or services are delivered:
@@ -147,6 +171,8 @@ Payment should be created from the procurement case or PO/GRN context so the sys
 Vendors should use the vendor portal to:
 - sign in
 - review assigned purchase orders
+- download the purchase order PDF
+- download vendor-shareable procurement files attached to the order
 - acknowledge orders
 - respond or provide fulfillment notes where supported
 
@@ -189,6 +215,8 @@ Check for missing:
 - supporting documents
 - item detail/specification
 - approval completion
+
+Also check whether the correct visibility was set on attached procurement files. Internal-only files will not be shown in vendor-facing views.
 
 ### Finance cannot see enough support for payment
 

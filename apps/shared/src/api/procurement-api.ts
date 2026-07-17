@@ -46,11 +46,32 @@ export type GrnRecord = {
   confirmedByOfficer: boolean;
 };
 
+export type ProcurementAttachmentRecord = {
+  id: string;
+  label?: string | null;
+  visibility: 'internal' | 'vendor';
+  file: {
+    id: string;
+    file_name: string;
+    mime_type: string | null;
+    file_size: number | null;
+    public_url: string | null;
+  };
+};
+
+export type ProcurementDocumentDownload = {
+  file_name: string;
+  mime_type: string;
+  content_base64: string;
+};
+
 export function createProcurementApi(http: HttpRequest) {
   return {
     // Requisitions
     listPrs: () => http<PurchaseRequisitionRecord[]>('/procurement/requisitions'),
     getPr: (id: string) => http<PurchaseRequisitionRecord>(`/procurement/requisitions/${id}`),
+    attachToPr: (id: string, data: { fileId: string; label?: string; visibility: 'internal' | 'vendor' }) =>
+      http<ProcurementAttachmentRecord>(`/procurement/requisitions/${id}/attachments`, { method: 'POST', body: data }),
     createPr: (data: Partial<PurchaseRequisitionRecord> & { items: PrItem[] }) =>
       http<any>('/procurement/requisitions', { method: 'POST', body: data }),
     submitPr: (id: string) =>
@@ -63,6 +84,10 @@ export function createProcurementApi(http: HttpRequest) {
     // Orders
     listPos: () => http<PurchaseOrderRecord[]>('/procurement/orders'),
     getPo: (id: string) => http<PurchaseOrderRecord>(`/procurement/orders/${id}`),
+    downloadPo: (id: string) =>
+      http<ProcurementDocumentDownload>(`/procurement/orders/${id}/download`, { method: 'POST' }),
+    attachToPo: (id: string, data: { fileId: string; label?: string; visibility: 'internal' | 'vendor' }) =>
+      http<ProcurementAttachmentRecord>(`/procurement/orders/${id}/attachments`, { method: 'POST', body: data }),
     createPo: (data: any) =>
       http<any>('/procurement/orders', { method: 'POST', body: data }),
     approvePo: (id: string, comment?: string) =>

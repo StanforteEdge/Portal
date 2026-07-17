@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { procurementApi } from "@/shared/lib/core";
 import { formatCurrency } from "@stanforte/shared";
 import { SectionCard } from '@/shared';
+import { uploadFileAsset } from '@/pages/files/files-api';
 import { AppShell } from '@/shared/components/layout/AppShell';
 import { buildAppNavigation, buildAppMobileNav } from '@/shared/navigation';
 import { useAuth } from '@/shared/context/AuthProvider';
@@ -12,6 +13,7 @@ export default function PrDetail() {
   const { id } = useParams<{ id: string }>();
   const [pr, setPr] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const userName = `${user?.first_name || ''} ${user?.last_name || ''}`.trim() || user?.email || 'Procurement';
 
   useEffect(() => {
@@ -36,6 +38,7 @@ export default function PrDetail() {
   const linkedCase = pr.procurementCase;
   const linkedRequest = linkedCase?.request;
   const requestTitle = linkedRequest?.data?.title || linkedRequest?.requestType?.name || 'Procurement request';
+  const attachments = Array.isArray(linkedCase?.attachments) ? linkedCase.attachments : [];
 
   const statusColor: Record<string, string> = {
     draft: 'bg-slate-100 text-slate-700 border-slate-200',
@@ -44,6 +47,32 @@ export default function PrDetail() {
     rejected: 'bg-rose-100 text-rose-700 border-rose-200',
     returned: 'bg-amber-100 text-amber-700 border-amber-200',
     converted_to_po: 'bg-violet-100 text-violet-700 border-violet-200',
+  };
+
+  const refresh = async () => {
+    if (!id) return;
+    const data = await procurementApi.getPr(id);
+    setPr(data);
+  };
+
+  const attachFile = async (file: File, visibility: 'internal' | 'vendor') => {
+    if (!id) return;
+    try {
+      setUploading(true);
+      const uploaded = await uploadFileAsset(file, {
+        metadata: { source: 'procurement_case_attachment', visibility },
+      });
+      await procurementApi.attachToPr(id, {
+        fileId: uploaded.id,
+        label: file.name,
+        visibility,
+      });
+      await refresh();
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -125,6 +154,68 @@ export default function PrDetail() {
               <p className="text-sm text-slate-600 leading-relaxed">{pr.justification}</p>
             </SectionCard>
           )}
+
+          <SectionCard title="Procurement Documents" description="Attach internal-only or vendor-shareable files for this procurement case.">
+            <div className="space-y-4">
+              <div className="flex flex-wrap gap-3">
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:border-slate-300">
+                  <input
+                    type="file"
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void attachFile(file, 'internal');
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                  Upload Internal File
+                </label>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2 text-sm font-medium text-brand-700 hover:bg-brand-100">
+                  <input
+                    type="file"
+                    className="hidden"
+                    disabled={uploading}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) void attachFile(file, 'vendor');
+                      e.currentTarget.value = '';
+                    }}
+                  />
+                  Upload Vendor File
+                </label>
+              </div>
+
+              {attachments.length === 0 ? (
+                <p className="text-sm text-slate-500">No procurement documents attached yet.</p>
+              ) : (
+                <div className="space-y-3">
+                  {attachments.map((attachment: any) => (
+                    <div key={attachment.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm">
+                      <div>
+                        <p className="font-medium text-slate-900">{attachment.label || attachment.file?.file_name}</p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          <span className={`rounded-full px-2 py-0.5 font-semibold ${attachment.visibility === 'vendor' ? 'bg-brand-100 text-brand-700' : 'bg-slate-200 text-slate-700'}`}>
+                            {attachment.visibility === 'vendor' ? 'Vendor-shareable' : 'Internal only'}
+                          </span>
+                        </p>
+                      </div>
+                      {attachment.file?.public_url ? (
+                        <a
+                          href={attachment.file.public_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-sm font-semibold text-brand-600 hover:text-brand-500"
+                        >
+                          Download
+                        </a>
+                      ) : null}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </SectionCard>
         </div>
 
         <div className="space-y-6">
