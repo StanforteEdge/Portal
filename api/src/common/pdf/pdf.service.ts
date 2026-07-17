@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { existsSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import puppeteer from 'puppeteer';
 
 @Injectable()
@@ -28,9 +30,24 @@ export class PdfService {
       this.logger.warn(`PDF_BROWSER_PATH is set to "${configuredPath}" but no file exists there — ignoring it`);
     }
 
+    const runtimeDir = process.env.PDF_RUNTIME_DIR || join(tmpdir(), 'stanforteedge-pdf');
+    const cacheDir = join(runtimeDir, 'cache');
+    const configDir = join(runtimeDir, 'config');
+    const userDataDir = join(runtimeDir, 'puppeteer');
+    for (const dir of [runtimeDir, cacheDir, configDir, userDataDir]) {
+      mkdirSync(dir, { recursive: true });
+    }
+
     const browser = await puppeteer.launch({
       headless: true,
       args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      env: {
+        ...process.env,
+        HOME: process.env.HOME || runtimeDir,
+        XDG_CACHE_HOME: process.env.XDG_CACHE_HOME || cacheDir,
+        XDG_CONFIG_HOME: process.env.XDG_CONFIG_HOME || configDir,
+      },
+      userDataDir,
       ...(executablePath ? { executablePath } : {}),
     });
 
