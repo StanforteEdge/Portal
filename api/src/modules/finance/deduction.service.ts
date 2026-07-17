@@ -471,6 +471,17 @@ export class DeductionService {
       this.prisma.financeRequestDeduction.count({ where }),
     ]);
 
+    const extraEvidenceIds = Array.from(new Set(
+      rows.flatMap((row: any) => Array.isArray(row.evidenceFileIds) ? row.evidenceFileIds.map(String) : [])
+    ));
+    const extraEvidenceFiles = extraEvidenceIds.length > 0
+      ? await this.prisma.fileAsset.findMany({
+          where: { id: { in: extraEvidenceIds } },
+          select: { id: true, fileName: true, publicUrl: true },
+        })
+      : [];
+    const extraEvidenceMap = new Map(extraEvidenceFiles.map((file) => [file.id, file]));
+
     return {
       data: {
         items: rows.map((d: any) => ({
@@ -489,7 +500,12 @@ export class DeductionService {
           remittance_ref: d.remittanceRef ?? null,
           remitted_by: d.remittedByUser ? { id: d.remittedByUser.id.toString(), name: `${d.remittedByUser.firstName || ''} ${d.remittedByUser.lastName || ''}`.trim() } : null,
           payment_voucher: d.paymentVoucher ? { id: d.paymentVoucher.id, voucher_number: d.paymentVoucher.voucherNumber } : null,
-          evidence_files: Array.isArray(d.evidenceFileIds) ? (d.evidenceFileIds as string[]).map((id) => ({ id })) : [],
+          evidence_files: Array.isArray(d.evidenceFileIds)
+            ? (d.evidenceFileIds as string[])
+                .map((id) => extraEvidenceMap.get(String(id)))
+                .filter(Boolean)
+                .map((file: any) => ({ id: file.id, file_name: file.fileName, public_url: file.publicUrl ?? null }))
+            : [],
           paid_from_account: d.paidFromAccount ? {
             id: d.paidFromAccount.id,
             name: d.paidFromAccount.name,
@@ -643,6 +659,8 @@ export class DeductionService {
         deductionType: true,
         request: { select: { id: true, status: true, data: true, createdAt: true } },
         createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+        remittedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+        paymentVoucher: { select: { id: true, voucherNumber: true } },
         paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
         evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
       },
@@ -655,6 +673,16 @@ export class DeductionService {
     const creatorName = d.createdByUser
       ? `${d.createdByUser.firstName ?? ''} ${d.createdByUser.lastName ?? ''}`.trim() || d.createdByUser.email
       : '—';
+    const remittedByName = d.remittedByUser
+      ? `${d.remittedByUser.firstName ?? ''} ${d.remittedByUser.lastName ?? ''}`.trim() || d.remittedByUser.email
+      : '—';
+    const evidenceIds = Array.isArray(d.evidenceFileIds) ? d.evidenceFileIds.map(String) : [];
+    const evidenceFiles = evidenceIds.length > 0
+      ? await this.prisma.fileAsset.findMany({
+          where: { id: { in: evidenceIds } },
+          select: { id: true, fileName: true },
+        })
+      : [];
 
     const logoDataUri = this.getPdfLogoDataUri();
 
@@ -685,7 +713,9 @@ export class DeductionService {
           <div><strong>Remittance Date:</strong> ${this.fmtDate(d.remittedAt)}</div>
           <div><strong>Reference Number:</strong> ${this.esc(d.remittanceNumber ?? '—')}</div>
           <div><strong>Payment Reference:</strong> ${this.esc(d.remittanceRef ?? '—')}</div>
+          <div><strong>Created / Remitted By:</strong> ${this.esc(remittedByName)}</div>
           <div><strong>Paid From:</strong> ${d.paidFromAccount ? `${this.esc(d.paidFromAccount.name)}${d.paidFromAccount.bankName ? ` — ${this.esc(d.paidFromAccount.bankName)}` : ''}` : '—'}</div>
+          <div><strong>Payment Voucher:</strong> ${this.esc(d.paymentVoucher?.voucherNumber ?? '—')}</div>
         </div>
       </div>
       <div>
@@ -728,11 +758,11 @@ export class DeductionService {
     <div class="value">${this.fmtMoney(d.amount)}</div>
   </div>
 
-  ${d.notes ? `
+  ${(d.notes || evidenceFiles.length > 0) ? `
   <div class="card">
     <div class="rowpad">
-      <h3 style="margin:0 0 6px;">Notes</h3>
-      <p style="margin:0; line-height:1.6;">${this.esc(d.notes)}</p>
+      ${d.notes ? `<h3 style="margin:0 0 6px;">Notes</h3><p style="margin:0; line-height:1.6;">${this.esc(d.notes)}</p>` : ''}
+      ${evidenceFiles.length > 0 ? `<h3 style="margin:${d.notes ? '14px' : '0'} 0 6px;">Evidence Files</h3><ul>${evidenceFiles.map((file) => `<li>${this.esc(file.fileName)}</li>`).join('')}</ul>` : ''}
     </div>
   </div>` : ''}
 
@@ -766,6 +796,9 @@ export class DeductionService {
       `Reference: ${d.remittanceNumber ?? '—'}`,
       `Amount: ${this.fmtMoney(d.amount)}`,
       `Remitted: ${this.fmtDate(d.remittedAt)}`,
+      `Remitted By: ${remittedByName}`,
+      `Payment Voucher: ${d.paymentVoucher?.voucherNumber ?? '—'}`,
+      ...(evidenceFiles.length > 0 ? [`Evidence: ${evidenceFiles.map((file) => file.fileName).join(', ')}`] : []),
     ]);
     const fileName = `TRM-${(d.remittanceNumber ?? id).replace(/\//g, '-')}.pdf`;
     return { buffer, fileName };

@@ -21,6 +21,8 @@ import { buildAppMobileNav, buildRequestsNavigation } from "@/pages/requests/req
 import { useAuth } from "@/shared/context/AuthProvider";
 import { adminUsersApi, financeApi, resourceApi, useCachedQuery } from "@/shared/lib/core";
 import { formatCurrency, formatDate } from "@stanforte/shared";
+import { MediaPickerModal } from "@/shared/components/media/MediaPickerModal";
+import { listFileAssets, uploadFileAsset } from "@/pages/files/files-api";
 
 type EntryLine = {
   chart_account_id: string;
@@ -78,6 +80,7 @@ export default function StatutoryDeductionManualEntryPage() {
   const [remittedByUserId, setRemittedByUserId] = useState(user?.id ? String(user.id) : "");
   const [remitNotes, setRemitNotes] = useState("");
   const [remitEvidenceFiles, setRemitEvidenceFiles] = useState<Array<{ id: string; file_name: string }>>([]);
+  const [showEvidencePicker, setShowEvidencePicker] = useState(false);
   const [selectedDeductionIds, setSelectedDeductionIds] = useState<string[]>([]);
   const [activeRemittanceRows, setActiveRemittanceRows] = useState<RemittanceRecord[]>([]);
   const [loadingRemittance, setLoadingRemittance] = useState(false);
@@ -544,22 +547,9 @@ export default function StatutoryDeductionManualEntryPage() {
           </label>
           <label className="grid gap-1.5 text-sm md:col-span-4">
             <span className="font-semibold text-slate-700">Evidence Files</span>
-            <input type="file" multiple className="rounded-2xl border border-slate-200 px-4 py-2.5" onChange={async (e) => {
-              const files = Array.from(e.target.files || []);
-              if (!files.length) return;
-              try {
-                const uploaded = [] as Array<{ id: string; file_name: string }>;
-                for (const file of files) {
-                  const asset = await resourceApi.uploadFile(file, { metadata: { source: "statutory_remittance_evidence" } });
-                  uploaded.push({ id: String((asset as any).id), file_name: String((asset as any).file_name || file.name) });
-                }
-                setRemitEvidenceFiles((prev) => [...prev, ...uploaded.filter((file) => !prev.some((existing) => existing.id === file.id))]);
-              } catch (err) {
-                showToast({ tone: "danger", title: "Upload failed", message: err instanceof Error ? err.message : "Unable to upload evidence files." });
-              } finally {
-                e.currentTarget.value = "";
-              }
-            }} />
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" onClick={() => setShowEvidencePicker(true)}>Select Evidence Files</Button>
+            </div>
             {remitEvidenceFiles.length > 0 ? (
               <div className="mt-2 flex flex-wrap gap-2">
                 {remitEvidenceFiles.map((file) => (
@@ -786,6 +776,27 @@ export default function StatutoryDeductionManualEntryPage() {
           </div>
         </SlideOver>
       )}
+
+      <MediaPickerModal
+        open={showEvidencePicker}
+        onClose={() => setShowEvidencePicker(false)}
+        title="Select Remittance Evidence"
+        multiple
+        selectedIds={remitEvidenceFiles.map((file) => file.id)}
+        loadFiles={async (search) => listFileAssets({ include_usage: true, per_page: 200, search })}
+        uploadFiles={async (files, onProgress) => {
+          const total = files.length;
+          let uploaded = 0;
+          for (const file of Array.from(files)) {
+            onProgress?.({ uploaded, total, current_file_name: file.name });
+            const asset = await uploadFileAsset(file, { metadata: { source: "statutory_remittance_evidence" } });
+            uploaded += 1;
+            onProgress?.({ uploaded, total, current_file_name: file.name });
+            setRemitEvidenceFiles((prev) => prev.some((item) => item.id === asset.id) ? prev : [...prev, { id: asset.id, file_name: asset.file_name }]);
+          }
+        }}
+        onSelect={(files) => setRemitEvidenceFiles(files.map((file) => ({ id: file.id, file_name: file.file_name })))}
+      />
     </AppShell>
   );
 }
