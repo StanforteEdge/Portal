@@ -96,7 +96,24 @@ export class FinanceService {
     const row = await this.prisma.financeSetting.findUnique({
       where: { key: 'default' }
     });
-    return this.normalizeSettings(row?.config);
+    const settings = this.normalizeSettings(row?.config);
+    const fileIds = [
+      settings.prepared_by.signature_file_id,
+      settings.reviewed_by.signature_file_id,
+      settings.approved_by.signature_file_id
+    ].filter((id): id is string => Boolean(id));
+    if (fileIds.length > 0) {
+      const files = await this.prisma.fileAsset.findMany({
+        where: { id: { in: fileIds } },
+        select: { id: true, publicUrl: true }
+      });
+      const urlById = new Map(files.map((f) => [f.id, f.publicUrl]));
+      for (const key of ['prepared_by', 'reviewed_by', 'approved_by'] as const) {
+        const fileId = settings[key].signature_file_id;
+        (settings[key] as any).signature_url = fileId ? (urlById.get(fileId) ?? null) : null;
+      }
+    }
+    return settings;
   }
 
   async updateSettings(dto: UpdateFinanceSettingsDto, userId?: string) {
@@ -884,7 +901,8 @@ export class FinanceService {
         },
         deductions: {
           include: {
-            deductionType: true
+            deductionType: true,
+            requestDeduction: true,
           }
         }
       },
@@ -970,16 +988,24 @@ export class FinanceService {
           : null,
         gross_amount: grossAmount,
         net_amount: voucher.netAmount !== null ? Number(voucher.netAmount) : amount,
-        deductions: (voucher.deductions ?? []).map((d: any) => ({
-          id: d.id,
-          payment_voucher_id: d.paymentVoucherId,
-          deduction_type_id: d.deductionTypeId,
-          deduction_type_name: d.deductionType?.name ?? '',
-          deduction_type_code: d.deductionType?.code ?? '',
-          rate: Number(d.rate),
-          gross_amount: Number(d.grossAmount),
-          deduction_amount: Number(d.deductionAmount),
-        })),
+        deductions: (voucher.deductions ?? []).map((d: any) => {
+          const remittance = d.requestDeduction ?? null;
+          return {
+            id: d.id,
+            payment_voucher_id: d.paymentVoucherId,
+            deduction_type_id: d.deductionTypeId,
+            deduction_type_name: d.deductionType?.name ?? '',
+            deduction_type_code: d.deductionType?.code ?? '',
+            rate: Number(d.rate),
+            gross_amount: Number(d.grossAmount),
+            deduction_amount: Number(d.deductionAmount),
+            request_deduction_id: remittance?.id ?? null,
+            remittance_status: remittance?.status ?? 'pending',
+            remittance_number: remittance?.remittanceNumber ?? null,
+            remittance_ref: remittance?.remittanceRef ?? null,
+            remitted_at: remittance?.remittedAt ?? null,
+          };
+        }),
         voucher_items: voucher.voucherItems?.map((vi: any) => ({
           id: vi.requestItem.id,
           description: vi.requestItem.description,
@@ -6859,6 +6885,222 @@ export class FinanceService {
     });
   }
 
+  async updateManualJournalEntry(id: string, dto: {
+    entry_date?: string;
+    memo?: string;
+    currency?: string;
+    lines?: Array<{
+      id?: string;
+      chart_account_id: string;
+      organization_id?: string;
+      team_id?: string;
+      fund_id?: string;
+      grant_id?: string;
+      debit: number;
+      credit: number;
+      description?: string;
+    }>;
+  }, actorId?: string) {
+    const existing = await this.prisma.financeJournalEntry.findUnique({
+      where: { id },
+      include: { lines: true },
+    });
+    if (!existing) throw new NotFoundException('Journal entry not found');
+    if (existing.sourceType !== 'manual_entry' && existing.sourceType !== 'statutory_deduction_manual_entry') {
+      throw new BadRequestException('Only manual entries can be edited');
+    }
+
+    const entryDate = dto.entry_date ? new Date(dto.entry_date) : existing.entryDate;
+    if (dto.entry_date && Number.isNaN(entryDate.getTime())) {
+      throw new BadRequestException('Invalid entry_date');
+    }
+
+    const lines = dto.lines ?? existing.lines.map((l) => ({
+      chart_account_id: l.chartAccountId,
+      organization_id: l.organizationId?.toString() ?? undefined,
+      team_id: l.teamId?.toString() ?? undefined,
+      fund_id: l.fundId ?? undefined,
+      grant_id: l.grantId ?? undefined,
+      debit: Number(l.debit),
+      credit: Number(l.credit),
+      description: l.description ?? undefined,
+    }));
+
+    if (lines.length < 2) {
+      throw new BadRequestException('At least two journal lines are required');
+    }
+
+    const totalDebit = lines.reduce((sum, l) => sum + Number(l.debit || 0), 0);
+    const totalCredit = lines.reduce((sum, l) => sum + Number(l.credit || 0), 0);
+    if (Math.abs(totalDebit - totalCredit) > 0.001) {
+      throw new BadRequestException('Journal entry is not balanced');
+    }
+
+    const period = await this.ensureReportingPeriod(entryDate, actorId);
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.financeJournalLine.deleteMany({ where: { journalEntryId: id } });
+      await tx.financeJournalEntry.update({
+        where: { id },
+        data: {
+          entryDate,
+          periodId: period.id,
+          memo: dto.memo !== undefined ? dto.memo || null : existing.memo,
+          currency: dto.currency ? dto.currency.toUpperCase() : existing.currency,
+          totalDebit,
+          totalCredit,
+          lines: {
+            create: lines.map((l) => ({
+              chartAccountId: l.chart_account_id,
+              organizationId: l.organization_id ? toBigInt(l.organization_id) : null,
+              teamId: l.team_id ? toBigInt(l.team_id) : null,
+              fundId: l.fund_id || null,
+              grantId: l.grant_id || null,
+              debit: Number(l.debit || 0),
+              credit: Number(l.credit || 0),
+              description: l.description || null,
+            })),
+          },
+        },
+      });
+    });
+
+    return this.prisma.financeJournalEntry.findUnique({
+      where: { id },
+      include: {
+        lines: { include: { chartAccount: { select: { id: true, code: true, name: true } } } },
+      },
+    });
+  }
+
+  async listStatutoryDeductionManualEntries(query: Record<string, any>) {
+    const where: Prisma.FinanceJournalEntryWhereInput = {
+      sourceType: 'statutory_deduction_manual_entry',
+    };
+
+    if (query.from || query.to) {
+      where.entryDate = {};
+      if (query.from) where.entryDate.gte = new Date(String(query.from));
+      if (query.to) where.entryDate.lte = new Date(String(query.to));
+    }
+
+    const page = Number(query.page ?? 1);
+    const perPage = Number(query.per_page ?? 50);
+    const skip = (page - 1) * perPage;
+
+    const [data, total] = await this.prisma.$transaction([
+      this.prisma.financeJournalEntry.findMany({
+        where,
+        include: {
+          lines: {
+            include: {
+              chartAccount: { select: { id: true, code: true, name: true } },
+            },
+          },
+        },
+        orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
+        skip,
+        take: perPage,
+      }),
+      this.prisma.financeJournalEntry.count({ where }),
+    ]);
+
+    return paginatedResponse(data, { page, per_page: perPage, total });
+  }
+
+  async createStatutoryDeductionManualEntry(dto: {
+    entry_date: string;
+    memo?: string;
+    currency?: string;
+    deduction_type_id: string;
+    gross_amount: number;
+    withheld_amount: number;
+    lines: Array<{
+      chart_account_id: string;
+      organization_id?: string;
+      team_id?: string;
+      fund_id?: string;
+      grant_id?: string;
+      debit: number;
+      credit: number;
+      description?: string;
+    }>;
+  }, actorId?: string) {
+    if (!Array.isArray(dto.lines) || dto.lines.length < 2) {
+      throw new BadRequestException('At least two journal lines are required');
+    }
+
+    const entryDate = new Date(dto.entry_date);
+    if (Number.isNaN(entryDate.getTime())) {
+      throw new BadRequestException('Invalid entry_date');
+    }
+
+    if (!dto.deduction_type_id) {
+      throw new BadRequestException('deduction_type_id is required');
+    }
+
+    if (Number(dto.gross_amount) <= 0) {
+      throw new BadRequestException('gross_amount must be positive');
+    }
+
+    if (Number(dto.withheld_amount) <= 0) {
+      throw new BadRequestException('withheld_amount must be positive');
+    }
+
+    if (Number(dto.withheld_amount) > Number(dto.gross_amount)) {
+      throw new BadRequestException('withheld_amount cannot exceed gross_amount');
+    }
+
+    const totalDebit = dto.lines.reduce((sum, line) => sum + Number(line.debit || 0), 0);
+    const totalCredit = dto.lines.reduce((sum, line) => sum + Number(line.credit || 0), 0);
+    if (Math.abs(totalDebit - totalCredit) > 0.001) {
+      throw new BadRequestException('Journal entry is not balanced');
+    }
+
+    const deductionType = await this.prisma.financeDeductionType.findUnique({
+      where: { id: dto.deduction_type_id },
+    });
+    if (!deductionType) {
+      throw new BadRequestException('Invalid deduction_type_id');
+    }
+
+    const period = await this.ensureReportingPeriod(entryDate, actorId);
+    const sourceId = `statutory_manual:${Date.now()}`;
+
+    const memo = dto.memo || `Statutory deduction: ${deductionType.name} (gross ${dto.gross_amount}, withheld ${dto.withheld_amount})`;
+
+    const entry = await this.createJournalEntry({
+      entryDate,
+      periodId: period.id,
+      sourceType: 'statutory_deduction_manual_entry',
+      sourceId,
+      memo,
+      currency: String(dto.currency || 'NGN').toUpperCase(),
+      postedBy: actorId,
+      lines: dto.lines.map((line) => ({
+        chartAccountId: line.chart_account_id,
+        organizationId: line.organization_id ? toBigInt(line.organization_id) : null,
+        teamId: line.team_id ? toBigInt(line.team_id) : null,
+        fundId: line.fund_id || null,
+        grantId: line.grant_id || null,
+        debit: Number(line.debit || 0),
+        credit: Number(line.credit || 0),
+        description: line.description || undefined,
+      })),
+    });
+
+    return this.prisma.financeJournalEntry.findUnique({
+      where: { id: entry.id },
+      include: {
+        lines: {
+          include: {
+            chartAccount: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+    });
+  }
+
   private async postIncomeJournal(row: Prisma.FinanceIncomeEntryGetPayload<{}>, actorId?: string) {
     const period = await this.ensureReportingPeriod(row.receivedAt, actorId);
     const cashAccount = await this.ensureFinanceAccountChartAccount(row.accountId, actorId);
@@ -6915,15 +7157,18 @@ export class FinanceService {
     return {
       prepared_by: {
         name: base?.prepared_by?.name ?? '',
-        title: base?.prepared_by?.title ?? 'Accountant'
+        title: base?.prepared_by?.title ?? 'Accountant',
+        signature_file_id: base?.prepared_by?.signature_file_id ?? null
       },
       reviewed_by: {
         name: base?.reviewed_by?.name ?? '',
-        title: base?.reviewed_by?.title ?? 'Finance Manager / COO'
+        title: base?.reviewed_by?.title ?? 'Finance Manager / COO',
+        signature_file_id: base?.reviewed_by?.signature_file_id ?? null
       },
       approved_by: {
         name: base?.approved_by?.name ?? '',
-        title: base?.approved_by?.title ?? 'Executive Director'
+        title: base?.approved_by?.title ?? 'Executive Director',
+        signature_file_id: base?.approved_by?.signature_file_id ?? null
       },
       meta: base?.meta ?? {}
     };

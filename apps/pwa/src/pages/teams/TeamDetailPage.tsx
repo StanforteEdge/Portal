@@ -27,6 +27,7 @@ export default function TeamDetailPage() {
     "Staff";
 
   const [activeTab, setActiveTab] = useState("overview");
+  const [budgetCreateAttempt, setBudgetCreateAttempt] = useState(0);
 
   const { data: profile } = useCachedQuery(
     "user:profile",
@@ -35,10 +36,11 @@ export default function TeamDetailPage() {
   );
 
   const allTeams = profile?.teams ?? profile?.groups ?? [];
-  const team = allTeams.find((t: any) => t.id === id);
-  const groupName = team?.name || "Group";
-  const groupType = String(team?.type || "other").toLowerCase();
-  const role = String(team?.role || "member").toLowerCase();
+  const team: Record<string, unknown> | undefined = allTeams.find((t: any) => t.id === id);
+  const groupName = String(team?.name ?? "Group");
+  const groupType = String(team?.type ?? "other").toLowerCase();
+  const role = String(team?.role ?? "member").toLowerCase();
+  const orgId = String(team?.organization_id ?? "");
   const canSeeAllRequests = ["lead", "moderator", "manager", "admin"].includes(role);
   const canWorkBudgets = groupType === "department" && canSeeAllRequests;
   const availableTabs = [
@@ -79,9 +81,9 @@ export default function TeamDetailPage() {
         <SectionCard title="Overview" description="Team information and quick stats.">
           <div style={{ padding: "12px 0", color: "#64748b", fontSize: "14px" }}>
             <p><strong>Name:</strong> {groupName}</p>
-            <p><strong>Type:</strong> {team?.type || "Unspecified"}</p>
-            <p><strong>Role:</strong> {team?.role || "Member"}</p>
-            {(team as any)?.is_primary ? <p><strong>Primary Group</strong></p> : null}
+            <p><strong>Type:</strong> {String(team?.type ?? "Unspecified")}</p>
+            <p><strong>Role:</strong> {String(team?.role ?? "Member")}</p>
+            {team?.is_primary ? <p><strong>Primary Group</strong></p> : null}
           </div>
         </SectionCard>
       )}
@@ -106,23 +108,59 @@ export default function TeamDetailPage() {
         <SectionCard
           title="Requests"
           description={canSeeAllRequests ? "All requests for this group will appear here." : "Your requests for this group will appear here."}
+          action={canSeeAllRequests ? (
+            <a
+              href={`/requests/new?team_id=${id}${orgId ? `&organization_id=${orgId}` : ''}`}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+            >
+              Create Request
+            </a>
+          ) : undefined}
         >
           <div style={{ textAlign: "center", padding: "24px", color: "#94a3b8", fontSize: "14px" }}>
-            {canSeeAllRequests ? "Full group request queue coming soon." : "Your group-scoped requests will appear here."}
+            {canSeeAllRequests ? "Create a group-scoped request for this team." : "Your group-scoped requests will appear here."}
           </div>
         </SectionCard>
       )}
 
       {activeTab === "budgets" && (
         <SectionCard title="Budgets" description="Group-scoped budgets, revisions, and submissions.">
-          <BudgetWorkspace context={{ scopeType: "team", scopeId: id, mode: "owner" }} layout="embedded" />
+          <div style={{ marginBottom: "12px", textAlign: "right" }}>
+            <button
+              onClick={() => setBudgetCreateAttempt((c) => c + 1)}
+              style={{
+                padding: "6px 14px",
+                fontSize: "13px",
+                fontWeight: 600,
+                borderRadius: "999px",
+                border: "1px solid #cbd5e1",
+                background: "#fff",
+                color: "#334155",
+                cursor: "pointer",
+              }}
+            >
+              Create Budget
+            </button>
+          </div>
+          <BudgetWorkspace context={{ scopeType: "team", scopeId: id, mode: "owner" }} layout="embedded" createAttempt={budgetCreateAttempt} showInlineCreateButton={false} />
         </SectionCard>
       )}
 
       {activeTab === "projects" && (
-        <SectionCard title="Projects" description="Projects related to this group will appear here.">
+        <SectionCard
+          title="Projects"
+          description="Projects related to this group will appear here."
+          action={canSeeAllRequests ? (
+            <a
+              href={`/admin/projects?create=1${orgId ? `&organization_id=${orgId}` : ''}`}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-900/10"
+            >
+              Create Project
+            </a>
+          ) : undefined}
+        >
           <div style={{ textAlign: "center", padding: "24px", color: "#94a3b8", fontSize: "14px" }}>
-            Linked projects workspace coming soon.
+            {canSeeAllRequests ? "Create a project tied to this group." : "Linked projects will appear here."}
           </div>
         </SectionCard>
       )}
