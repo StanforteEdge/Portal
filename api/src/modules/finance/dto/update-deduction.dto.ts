@@ -1,0 +1,17 @@
+import { IsNumber, IsOptional, IsString, MaxLength, Min } from 'class-validator';
+
+export class UpdatePendingDeductionDto {
+  @IsOptional() @IsString() deduction_type_id?: string;
+  @IsOptional() @IsNumber() @Min(0) gross_amount?: number;
+  @IsOptional() @IsNumber() @Min(0) amount?: number;
+  @IsOptional() @IsNumber() @Min(0) rate?: number;
+  @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+}
+
+export class UpdateRemittanceRecordDto {
+  @IsOptional() @IsString() @MaxLength(255) remittance_ref?: string;
+  @IsOptional() @IsString() remitted_at?: string;
+  @IsOptional() @IsString() paid_from_account_id?: string;
+  @IsOptional() @IsString() evidence_file_id?: string;
+  @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+}

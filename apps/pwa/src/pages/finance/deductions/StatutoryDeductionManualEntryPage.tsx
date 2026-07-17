@@ -29,7 +29,7 @@ type EntryLine = {
   credit: number;
 };
 
-export default function FinanceManualEntryPage() {
+export default function StatutoryDeductionManualEntryPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
   const [refreshKey, setRefreshKey] = useState(0);
@@ -37,6 +37,9 @@ export default function FinanceManualEntryPage() {
   const [entryDate, setEntryDate] = useState(new Date().toISOString().slice(0, 10));
   const [memo, setMemo] = useState("");
   const [currency, setCurrency] = useState("NGN");
+  const [deductionTypeId, setDeductionTypeId] = useState("");
+  const [grossAmount, setGrossAmount] = useState<number>(0);
+  const [withheldAmount, setWithheldAmount] = useState<number>(0);
   const [lines, setLines] = useState<EntryLine[]>([
     { chart_account_id: "", description: "", debit: 0, credit: 0 },
     { chart_account_id: "", description: "", debit: 0, credit: 0 },
@@ -51,7 +54,7 @@ export default function FinanceManualEntryPage() {
   const [editSaving, setEditSaving] = useState(false);
 
   const { data: chartAccountsData } = useCachedQuery(
-    "finance:manual-entry:chart-accounts",
+    "finance:statutory-deduction-manual-entry:chart-accounts",
     () => financeApi.listChartAccounts({ is_active: true }),
     { ttlMs: 60_000, storage: "memory" },
   );
@@ -59,9 +62,20 @@ export default function FinanceManualEntryPage() {
     ? (chartAccountsData as any).result
     : [];
 
+  const { data: deductionTypesData } = useCachedQuery(
+    "finance:statutory-deduction-manual-entry:deduction-types",
+    () => financeApi.listDeductionTypes({ page: 1, per_page: 200 }),
+    { ttlMs: 60_000, storage: "memory" },
+  );
+  const deductionTypes = Array.isArray((deductionTypesData as any)?.result)
+    ? (deductionTypesData as any).result
+    : Array.isArray(deductionTypesData)
+      ? deductionTypesData
+      : [];
+
   const { data: entriesPayload, loading } = useCachedQuery(
-    `finance:manual-entry:list:${refreshKey}`,
-    () => financeApi.listManualEntries({ page: 1, per_page: 50 }),
+    `finance:statutory-deduction-manual-entry:list:${refreshKey}`,
+    () => financeApi.listStatutoryDeductionManualEntries({ page: 1, per_page: 50 }),
     { ttlMs: 0, storage: "memory" },
   );
   const entries = Array.isArray(entriesPayload?.result) ? entriesPayload.result : [];
@@ -136,7 +150,7 @@ export default function FinanceManualEntryPage() {
     }
     try {
       setEditSaving(true);
-      await financeApi.updateJournalEntry(editingEntry.id, {
+      await financeApi.updateStatutoryDeductionManualEntry(editingEntry.id, {
         entry_date: editEntryDate,
         memo: editMemo.trim() || undefined,
         currency: editCurrency.toUpperCase(),
@@ -155,6 +169,22 @@ export default function FinanceManualEntryPage() {
   const handleSubmit = async () => {
     if (!entryDate) {
       showToast({ tone: "warning", title: "Date required", message: "Set an entry date." });
+      return;
+    }
+    if (!deductionTypeId) {
+      showToast({ tone: "warning", title: "Deduction type required", message: "Select a statutory deduction type." });
+      return;
+    }
+    if (Number(grossAmount) <= 0) {
+      showToast({ tone: "warning", title: "Gross amount required", message: "Enter a positive gross amount." });
+      return;
+    }
+    if (Number(withheldAmount) <= 0) {
+      showToast({ tone: "warning", title: "Withheld amount required", message: "Enter a positive withheld amount." });
+      return;
+    }
+    if (Number(withheldAmount) > Number(grossAmount)) {
+      showToast({ tone: "warning", title: "Invalid amounts", message: "Withheld amount cannot exceed gross amount." });
       return;
     }
     if (!balanced) {
@@ -178,14 +208,19 @@ export default function FinanceManualEntryPage() {
 
     try {
       setSaving(true);
-      await financeApi.createManualEntry({
+      await financeApi.createStatutoryDeductionManualEntry({
         entry_date: entryDate,
         memo: memo.trim() || undefined,
         currency: currency.toUpperCase(),
+        deduction_type_id: deductionTypeId,
+        gross_amount: grossAmount,
+        withheld_amount: withheldAmount,
         lines: normalized,
       });
-      showToast({ tone: "success", title: "Posted", message: "Manual journal entry posted." });
+      showToast({ tone: "success", title: "Posted", message: "Statutory deduction journal entry posted." });
       setMemo("");
+      setGrossAmount(0);
+      setWithheldAmount(0);
       setLines([
         { chart_account_id: "", description: "", debit: 0, credit: 0 },
         { chart_account_id: "", description: "", debit: 0, credit: 0 },
@@ -195,7 +230,7 @@ export default function FinanceManualEntryPage() {
       showToast({
         tone: "danger",
         title: "Post failed",
-        message: err instanceof Error ? err.message : "Unable to post manual journal entry.",
+        message: err instanceof Error ? err.message : "Unable to post statutory deduction journal entry.",
       });
     } finally {
       setSaving(false);
@@ -207,15 +242,15 @@ export default function FinanceManualEntryPage() {
   return (
     <AppShell
       navigation={buildRequestsNavigation()}
-      activeLabel="finance-manual-entry"
+      activeLabel="finance-statutory-deduction-entry"
       user={{ name: userName, role: "Finance" }}
       mobileNav={buildAppMobileNav("Finance")}
     >
       <PageHeader
         eyebrow="Finance"
-        breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Manual Entry" }]}
-        title="Manual Journal Entry"
-        description="Post balanced journal entries for adjustments and corrections."
+        breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Manual Entries" }, { label: "Statutory Deduction Entry" }]}
+        title="Statutory Deduction Entry"
+        description="Post balanced statutory deduction journal entries for withholdings and related adjustments."
       />
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -236,7 +271,29 @@ export default function FinanceManualEntryPage() {
           </label>
           <label className="grid gap-1.5 text-sm md:col-span-3">
             <span className="font-semibold text-slate-700">Memo</span>
-            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Adjustment reason" />
+            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={memo} onChange={(e) => setMemo(e.target.value)} placeholder="Statutory withholding memo" />
+          </label>
+        </div>
+      </SectionCard>
+
+      <SectionCard title="Statutory Details">
+        <div className="grid gap-4 md:grid-cols-3">
+          <label className="grid gap-1.5 text-sm md:col-span-2">
+            <span className="font-semibold text-slate-700">Deduction Type</span>
+            <select className="rounded-2xl border border-slate-200 px-4 py-2.5" value={deductionTypeId} onChange={(e) => setDeductionTypeId(e.target.value)}>
+              <option value="">Select deduction type</option>
+              {deductionTypes.map((type: any) => (
+                <option key={type.id} value={type.id}>{type.name}{type.code ? ` (${type.code})` : ""}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-semibold text-slate-700">Gross Amount</span>
+            <input type="number" className="rounded-2xl border border-slate-200 px-4 py-2.5" value={grossAmount} onChange={(e) => setGrossAmount(Number(e.target.value))} />
+          </label>
+          <label className="grid gap-1.5 text-sm md:col-span-3">
+            <span className="font-semibold text-slate-700">Withheld Amount</span>
+            <input type="number" className="rounded-2xl border border-slate-200 px-4 py-2.5" value={withheldAmount} onChange={(e) => setWithheldAmount(Number(e.target.value))} />
           </label>
         </div>
       </SectionCard>
@@ -281,10 +338,10 @@ export default function FinanceManualEntryPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Recent Manual Entries">
+      <SectionCard title="Recent Statutory Deduction Entries">
         {loading ? <p className="text-sm text-slate-500">Loading entries...</p> : null}
         {entries.length ? (
-          <Table caption="Manual journal entries">
+          <Table caption="Statutory deduction manual journal entries">
             <TableHead>
               <TableHeaderRow>
                 <TableHeaderCell>Date</TableHeaderCell>
@@ -311,7 +368,7 @@ export default function FinanceManualEntryPage() {
             </TableBody>
           </Table>
         ) : !loading ? (
-          <EmptyState title="No manual entries" description="Posted manual journal entries will appear here." />
+          <EmptyState title="No statutory deduction entries" description="Posted statutory deduction journal entries will appear here." />
         ) : null}
       </SectionCard>
 

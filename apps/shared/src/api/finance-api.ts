@@ -215,6 +215,11 @@ export type FinancePVDeductionRecord = {
   rate: number;
   gross_amount: number;
   deduction_amount: number;
+  request_deduction_id: string | null;
+  remittance_status: "pending" | "remitted";
+  remittance_number: string | null;
+  remittance_ref: string | null;
+  remitted_at: string | null;
 };
 
 export type FinanceRequestDeductionRecord = {
@@ -443,6 +448,39 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     createManualEntry(payload: Record<string, unknown>) {
       return httpRequest<Record<string, unknown>>(`/finance/manual-entry`, {
         method: "POST",
+        body: payload,
+      });
+    },
+
+    updateJournalEntry(id: string, payload: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/manual-entry/${id}`, {
+        method: "PATCH",
+        body: payload,
+      });
+    },
+
+    async listStatutoryDeductionManualEntries(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/manual-entry/statutory-deductions${toQuery(params)}`);
+      return (res?.data ?? res) as {
+        result: Record<string, unknown>[];
+        total: number;
+        total_result: number;
+        per_page: number;
+        page: number;
+        pages: number;
+      };
+    },
+
+    createStatutoryDeductionManualEntry(payload: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/manual-entry/statutory-deductions`, {
+        method: "POST",
+        body: payload,
+      });
+    },
+
+    updateStatutoryDeductionManualEntry(id: string, payload: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/manual-entry/${id}`, {
+        method: "PATCH",
         body: payload,
       });
     },
@@ -760,9 +798,9 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     updateSettings(dto: {
-      prepared_by?: { name?: string; title?: string };
-      reviewed_by?: { name?: string; title?: string };
-      approved_by?: { name?: string; title?: string };
+      prepared_by?: { name?: string; title?: string; signature_file_id?: string };
+      reviewed_by?: { name?: string; title?: string; signature_file_id?: string };
+      approved_by?: { name?: string; title?: string; signature_file_id?: string };
     }) {
       return httpRequest<Record<string, unknown>>("/finance/settings", {
         method: "POST",
@@ -868,6 +906,20 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       return httpRequest<{ updated: number }>('/finance/statutory-deductions/remit', {
         method: 'PATCH',
         body,
+      });
+    },
+
+    updatePendingDeduction(id: string, payload: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/statutory-deductions/${id}`, {
+        method: 'PATCH',
+        body: payload,
+      });
+    },
+
+    updateRemittanceRecord(id: string, payload: Record<string, unknown>) {
+      return httpRequest<Record<string, unknown>>(`/finance/statutory-deductions/${id}/remittance`, {
+        method: 'PATCH',
+        body: payload,
       });
     },
 

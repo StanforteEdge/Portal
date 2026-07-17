@@ -44,6 +44,7 @@ import FinancePledgesPage from "@/pages/finance/pledges/FinancePledgesPage";
 import FinanceBillsPage from "@/pages/finance/bills/FinanceBillsPage";
 import FinanceSalesInvoicesPage from "@/pages/finance/invoices/FinanceSalesInvoicesPage";
 import FinanceManualEntryPage from "@/pages/finance/ledger/FinanceManualEntryPage";
+import StatutoryDeductionManualEntryPage from "@/pages/finance/deductions/StatutoryDeductionManualEntryPage";
 import FinanceLegacyManualEntryPage from "@/pages/finance/requests/FinanceLegacyManualEntryPage";
 import AdminRolesPage from "@/pages/admin/roles/AdminRolesPage";
 import HrDashboardPage from "@/pages/hr/dashboard/HrDashboardPage";
@@ -285,6 +286,7 @@ export default function App() {
             <Route path="/finance/accounts" element={<FinanceAccountsPage />} />
             <Route path="/finance/accounts/:id" element={<FinanceAccountDetailPage />} />
             <Route path="/finance/manual-entry" element={<FinanceManualEntryPage />} />
+            <Route path="/finance/manual-entry/statutory-deductions" element={<StatutoryDeductionManualEntryPage />} />
             <Route path="/finance/legacy-manual-entry" element={<FinanceLegacyManualEntryPage />} />
             <Route path="/finance/statutory-deductions" element={<StatutoryDeductionsPage />} />
             <Route path="/finance/items" element={<FinanceItemsPage />} />

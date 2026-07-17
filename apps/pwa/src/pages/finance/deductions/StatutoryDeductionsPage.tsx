@@ -11,13 +11,15 @@ import { useAuth } from "@/shared/context/AuthProvider";
 import { financeApi, resourceApi } from "@/shared/lib/core";
 import { buildAppNavigation, buildAppMobileNav } from "@/shared/navigation";
 import type { FinanceRequestDeductionRecord } from "@/shared";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatCurrency, formatDisplayDate } from "@stanforte/shared";
+import { RequestDeductionDetailPanel } from "./RequestDeductionDetailPanel";
 
 type Account = { id: string; name: string; bank_name: string | null };
 
 export default function StatutoryDeductionsPage() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { showToast } = useToast();
 
@@ -38,6 +40,15 @@ export default function StatutoryDeductionsPage() {
   const [remitting, setRemitting] = useState(false);
   const [pagination, setPagination] = useState<{ page: number; total: number; total_pages: number } | null>(null);
   const [page, setPage] = useState(1);
+  const [selectedDeduction, setSelectedDeduction] = useState<FinanceRequestDeductionRecord | null>(null);
+
+  const [editDeduction, setEditDeduction] = useState<FinanceRequestDeductionRecord | null>(null);
+  const [editForm, setEditForm] = useState({ deduction_type_id: "", gross_amount: 0, amount: 0, rate: 0, notes: "" });
+  const [editSaving, setEditSaving] = useState(false);
+  const [editRemittance, setEditRemittance] = useState<FinanceRequestDeductionRecord | null>(null);
+  const [editRemitForm, setEditRemitForm] = useState({ remittance_ref: "", remitted_at: "", paid_from_account_id: "", notes: "" });
+  const [editRemitSaving, setEditRemitSaving] = useState(false);
+  const [deductionTypes, setDeductionTypes] = useState<any[]>([]);
 
   const fetchDeductions = useCallback(async (p = 1) => {
     setLoading(true);
@@ -59,8 +70,33 @@ export default function StatutoryDeductionsPage() {
   useEffect(() => { void fetchDeductions(1); }, [fetchDeductions]);
 
   useEffect(() => {
+    const deductionId = searchParams.get("deduction_id");
+    if (!deductionId) return;
+    financeApi
+      .listRequestDeductions({ id: deductionId })
+      .then((res) => {
+        if (res.items[0]) setSelectedDeduction(res.items[0]);
+      })
+      .catch(() => {})
+      .finally(() => {
+        setSearchParams((prev) => {
+          const next = new URLSearchParams(prev);
+          next.delete("deduction_id");
+          return next;
+        }, { replace: true });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     financeApi.listAccounts().then((res: any) => {
       setAccounts((Array.isArray(res) ? res : []) as Account[]);
+    }).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    financeApi.listDeductionTypes({ page: 1, per_page: 200 }).then((res: any) => {
+      setDeductionTypes(Array.isArray(res?.result) ? res.result : Array.isArray(res) ? res : []);
     }).catch(() => {});
   }, []);
 
@@ -121,6 +157,57 @@ export default function StatutoryDeductionsPage() {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(pending.map((d) => d.id)));
+    }
+  };
+
+  const openEditDeduction = (d: FinanceRequestDeductionRecord) => {
+    setEditDeduction(d);
+    setEditForm({
+      deduction_type_id: d.deduction_type_id,
+      gross_amount: d.gross_amount,
+      amount: d.amount,
+      rate: d.rate,
+      notes: d.notes || "",
+    });
+  };
+
+  const handleUpdateDeduction = async () => {
+    if (!editDeduction) return;
+    try {
+      setEditSaving(true);
+      await financeApi.updatePendingDeduction(editDeduction.id, editForm);
+      showToast({ tone: "success", title: "Updated", message: "Deduction updated." });
+      setEditDeduction(null);
+      void fetchDeductions(page);
+    } catch (err) {
+      showToast({ tone: "danger", title: "Update failed", message: err instanceof Error ? err.message : "Unable to update." });
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const openEditRemittance = (d: FinanceRequestDeductionRecord) => {
+    setEditRemittance(d);
+    setEditRemitForm({
+      remittance_ref: d.remittance_ref || "",
+      remitted_at: d.remitted_at ? d.remitted_at.slice(0, 10) : "",
+      paid_from_account_id: d.paid_from_account?.id || "",
+      notes: d.notes || "",
+    });
+  };
+
+  const handleUpdateRemittance = async () => {
+    if (!editRemittance) return;
+    try {
+      setEditRemitSaving(true);
+      await financeApi.updateRemittanceRecord(editRemittance.id, editRemitForm);
+      showToast({ tone: "success", title: "Updated", message: "Remittance record updated." });
+      setEditRemittance(null);
+      void fetchDeductions(page);
+    } catch (err) {
+      showToast({ tone: "danger", title: "Update failed", message: err instanceof Error ? err.message : "Unable to update." });
+    } finally {
+      setEditRemitSaving(false);
     }
   };
 
@@ -228,8 +315,8 @@ export default function StatutoryDeductionsPage() {
                 </TableRow>
               ) : (
                 deductions.map((d) => (
-                  <TableRow key={d.id}>
-                    <TableCell>
+                  <TableRow key={d.id} onClick={() => setSelectedDeduction(d)}>
+                    <TableCell onClick={(e: React.MouseEvent) => e.stopPropagation()}>
                       <input
                         type="checkbox"
                         checked={selectedIds.has(d.id)}
@@ -241,7 +328,10 @@ export default function StatutoryDeductionsPage() {
                     <TableCell>
                       <button
                         className="text-brand-700 underline text-sm font-medium"
-                        onClick={() => navigate(`/requests/${d.request_id}`)}
+                        onClick={(e: React.MouseEvent) => {
+                          e.stopPropagation();
+                          navigate(`/requests/${d.request_id}`);
+                        }}
                       >
                         {d.request_number || d.request_id}
                       </button>
@@ -271,16 +361,24 @@ export default function StatutoryDeductionsPage() {
                     <TableCell className="text-sm text-slate-600">
                       {d.paid_from_account?.name ?? "—"}
                     </TableCell>
-                    <TableCell>
-                      {d.status === "remitted" && d.remittance_number && (
-                        <button
-                          type="button"
-                          onClick={() => void handleDownloadTrm(d.id)}
-                          className="text-xs font-semibold text-brand-700 hover:underline whitespace-nowrap"
-                        >
-                          TRM Slip
-                        </button>
-                      )}
+                    <TableCell onClick={(e: React.MouseEvent) => e.stopPropagation()}>
+                      <div className="flex gap-2 items-center">
+                        {d.status === "pending" && (
+                          <button className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => openEditDeduction(d)}>Edit</button>
+                        )}
+                        {d.status === "remitted" && d.remittance_number && (
+                          <button className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => openEditRemittance(d)}>Edit Remit</button>
+                        )}
+                        {d.status === "remitted" && d.remittance_number && (
+                          <button
+                            type="button"
+                            onClick={() => void handleDownloadTrm(d.id)}
+                            className="text-xs font-semibold text-brand-700 hover:underline whitespace-nowrap"
+                          >
+                            TRM Slip
+                          </button>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))
@@ -363,6 +461,87 @@ export default function StatutoryDeductionsPage() {
           </div>
         </div>
       </SlideOver>
+
+      {selectedDeduction && (
+        <RequestDeductionDetailPanel
+          deduction={selectedDeduction}
+          onClose={() => setSelectedDeduction(null)}
+          onRemit={() => {
+            setSelectedIds(new Set([selectedDeduction.id]));
+            setSelectedDeduction(null);
+            setRemitOpen(true);
+          }}
+          onEdit={(d) => { setSelectedDeduction(null); openEditDeduction(d); }}
+          onEditRemit={(d) => { setSelectedDeduction(null); openEditRemittance(d); }}
+        />
+      )}
+
+      {editDeduction && (
+        <SlideOver open onClose={() => setEditDeduction(null)} size="sm">
+          <div className="space-y-4 p-4">
+            <h3 className="font-semibold text-slate-800">Edit Pending Deduction</h3>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Deduction Type</label>
+              <select className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editForm.deduction_type_id} onChange={(e) => setEditForm((p) => ({ ...p, deduction_type_id: e.target.value }))}>
+                <option value="">Select type</option>
+                {deductionTypes.map((dt: any) => <option key={dt.id} value={dt.id}>{dt.name}{dt.code ? ` (${dt.code})` : ""}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Gross Amount</label>
+              <input type="number" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editForm.gross_amount} onChange={(e) => setEditForm((p) => ({ ...p, gross_amount: Number(e.target.value) }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Withheld Amount</label>
+              <input type="number" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editForm.amount} onChange={(e) => setEditForm((p) => ({ ...p, amount: Number(e.target.value) }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Rate</label>
+              <input type="number" step="0.0001" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editForm.rate} onChange={(e) => setEditForm((p) => ({ ...p, rate: Number(e.target.value) }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+              <textarea className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" rows={3} value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))} />
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <Button variant="secondary" onClick={() => setEditDeduction(null)}>Cancel</Button>
+              <Button onClick={() => void handleUpdateDeduction()} disabled={editSaving}>{editSaving ? "Saving..." : "Save"}</Button>
+            </div>
+          </div>
+        </SlideOver>
+      )}
+
+      {editRemittance && (
+        <SlideOver open onClose={() => setEditRemittance(null)} size="sm">
+          <div className="space-y-4 p-4">
+            <h3 className="font-semibold text-slate-800">Edit Remittance Record</h3>
+            <p className="text-sm text-slate-500">TRM: {editRemittance.remittance_number}</p>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Remittance Reference</label>
+              <input className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editRemitForm.remittance_ref} onChange={(e) => setEditRemitForm((p) => ({ ...p, remittance_ref: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
+              <input type="date" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editRemitForm.remitted_at} onChange={(e) => setEditRemitForm((p) => ({ ...p, remitted_at: e.target.value }))} />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Paid From Account</label>
+              <select className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editRemitForm.paid_from_account_id} onChange={(e) => setEditRemitForm((p) => ({ ...p, paid_from_account_id: e.target.value }))}>
+                <option value="">Select account…</option>
+                {accounts.map((a) => <option key={a.id} value={a.id}>{a.name}{a.bank_name ? ` — ${a.bank_name}` : ""}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
+              <textarea className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" rows={3} value={editRemitForm.notes} onChange={(e) => setEditRemitForm((p) => ({ ...p, notes: e.target.value }))} />
+            </div>
+            <div className="flex gap-2 justify-end pt-4">
+              <Button variant="secondary" onClick={() => setEditRemittance(null)}>Cancel</Button>
+              <Button onClick={() => void handleUpdateRemittance()} disabled={editRemitSaving}>{editRemitSaving ? "Saving..." : "Save"}</Button>
+            </div>
+          </div>
+        </SlideOver>
+      )}
     </AppShell>
   );
 }

@@ -103,12 +103,21 @@ export function buildAppNavigation(options?: {
           ],
         },
         {
+          key: "finance-group-manual-entries",
+          label: "Manual Entries",
+          icon: "edit_note",
+          children: [
+            { key: "finance-manual-entry", label: "Journal Entry", icon: "edit_note", path: "/finance/manual-entry", permissions: ["finance.manage"] },
+            { key: "finance-statutory-deduction-entry", label: "Statutory Deduction Entry", icon: "account_balance", path: "/finance/manual-entry/statutory-deductions", permissions: ["finance.manage"] },
+            { key: "finance-legacy-manual-entry", label: "Request Manual Entry", icon: "receipt_long", path: "/finance/legacy-manual-entry", permissions: ["finance.manage"] },
+          ],
+        },
+        {
           key: "finance-group-accounting",
           label: "Accounting",
           icon: "book",
           children: [
             { key: "finance-ledger", label: "Ledger", icon: "book", path: "/finance/ledger" },
-            { key: "finance-manual-entry", label: "Journal Entry", icon: "edit_note", path: "/finance/manual-entry", permissions: ["finance.manage"] },
             { key: "finance-chart-accounts", label: "Chart of Accounts", icon: "account_balance", path: "/finance/chart-accounts", permissions: ["finance.manage"] },
             { key: "finance-accounts", label: "Bank & Cash", icon: "account_balance_wallet", path: "/finance/accounts", permissions: ["finance.manage"] },
             { key: "finance-reports", label: "Reports", icon: "insights", path: "/finance/reports" },
