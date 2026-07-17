@@ -29,6 +29,19 @@ type EntryLine = {
   credit: number;
 };
 
+type RemittanceRecord = {
+  id: string;
+  request_id?: string;
+  request_number?: string;
+  deduction_type_name?: string;
+  amount: number;
+  status: string;
+  remittance_ref?: string | null;
+  remitted_at?: string | null;
+  paid_from_account?: { id: string; name: string } | null;
+  notes?: string | null;
+};
+
 export default function StatutoryDeductionManualEntryPage() {
   const { user } = useAuth();
   const { showToast } = useToast();
@@ -52,6 +65,15 @@ export default function StatutoryDeductionManualEntryPage() {
   const [editCurrency, setEditCurrency] = useState("NGN");
   const [editLines, setEditLines] = useState<EntryLine[]>([]);
   const [editSaving, setEditSaving] = useState(false);
+  const [lookupRemittance, setLookupRemittance] = useState("");
+  const [remitRef, setRemitRef] = useState("");
+  const [remitDate, setRemitDate] = useState(new Date().toISOString().slice(0, 10));
+  const [remitAccountId, setRemitAccountId] = useState("");
+  const [remitNotes, setRemitNotes] = useState("");
+  const [selectedDeductionIds, setSelectedDeductionIds] = useState<string[]>([]);
+  const [activeRemittanceRows, setActiveRemittanceRows] = useState<RemittanceRecord[]>([]);
+  const [loadingRemittance, setLoadingRemittance] = useState(false);
+  const [savingRemittance, setSavingRemittance] = useState(false);
 
   const { data: chartAccountsData } = useCachedQuery(
     "finance:statutory-deduction-manual-entry:chart-accounts",
@@ -61,6 +83,17 @@ export default function StatutoryDeductionManualEntryPage() {
   const chartAccounts = Array.isArray((chartAccountsData as any)?.result)
     ? (chartAccountsData as any).result
     : [];
+
+  const { data: financeAccountsData } = useCachedQuery(
+    "finance:statutory-deduction-manual-entry:accounts",
+    () => financeApi.listAccounts(),
+    { ttlMs: 60_000, storage: "memory" },
+  );
+  const financeAccounts = Array.isArray((financeAccountsData as any)?.result)
+    ? (financeAccountsData as any).result
+    : Array.isArray(financeAccountsData)
+      ? financeAccountsData
+      : [];
 
   const { data: deductionTypesData } = useCachedQuery(
     "finance:statutory-deduction-manual-entry:deduction-types",
@@ -79,6 +112,34 @@ export default function StatutoryDeductionManualEntryPage() {
     { ttlMs: 0, storage: "memory" },
   );
   const entries = Array.isArray(entriesPayload?.result) ? entriesPayload.result : [];
+
+  const { data: pendingDeductionsPayload } = useCachedQuery(
+    `finance:statutory-deduction-manual-entry:pending-deductions:${refreshKey}`,
+    () => financeApi.listRequestDeductions({ status: "pending", per_page: 100 }),
+    { ttlMs: 0, storage: "memory" },
+  );
+  const pendingDeductions = pendingDeductionsPayload?.items ?? [];
+
+  const { data: remittedDeductionsPayload } = useCachedQuery(
+    `finance:statutory-deduction-manual-entry:remitted-deductions:${refreshKey}`,
+    () => financeApi.listRequestDeductions({ status: "remitted", per_page: 200 }),
+    { ttlMs: 0, storage: "memory" },
+  );
+  const remittedDeductions = remittedDeductionsPayload?.items ?? [];
+  const remittanceGroups = useMemo(() => {
+    const groups = new Map<string, { ref: string; remitted_at: string | null; paid_from_account: string | null; total: number; count: number; rows: RemittanceRecord[] }>();
+    for (const row of remittedDeductions as RemittanceRecord[]) {
+      const ref = String(row.remittance_ref || row.id);
+      const existing = groups.get(ref) ?? { ref, remitted_at: row.remitted_at ?? null, paid_from_account: row.paid_from_account?.name ?? null, total: 0, count: 0, rows: [] };
+      existing.total += Number(row.amount || 0);
+      existing.count += 1;
+      existing.rows.push(row);
+      if (!existing.remitted_at && row.remitted_at) existing.remitted_at = row.remitted_at;
+      if (!existing.paid_from_account && row.paid_from_account?.name) existing.paid_from_account = row.paid_from_account.name;
+      groups.set(ref, existing);
+    }
+    return Array.from(groups.values());
+  }, [remittedDeductions]);
 
   const totals = useMemo(
     () =>
@@ -120,6 +181,90 @@ export default function StatutoryDeductionManualEntryPage() {
         credit: Number(l.credit || 0),
       }))
     );
+  };
+
+  const resetRemittanceForm = () => {
+    setLookupRemittance("");
+    setRemitRef("");
+    setRemitDate(new Date().toISOString().slice(0, 10));
+    setRemitAccountId("");
+    setRemitNotes("");
+    setSelectedDeductionIds([]);
+    setActiveRemittanceRows([]);
+  };
+
+  const loadRemittance = async (lookupValue?: string) => {
+    const value = String(lookupValue ?? lookupRemittance).trim();
+    if (!value) return;
+    try {
+      setLoadingRemittance(true);
+      const byId = await financeApi.listRequestDeductions({ id: value, per_page: 100 }).catch(() => ({ items: [] }));
+      let rows = byId.items ?? [];
+      if (rows.length === 0) {
+        const byRef = await financeApi.listRequestDeductions({ remittance_ref: value, per_page: 100 });
+        rows = byRef.items ?? [];
+      }
+      if (rows.length === 0) {
+        showToast({ tone: "warning", title: "Not found", message: "No remittance matched that ID or reference." });
+        return;
+      }
+      const first = rows[0] as any;
+      setActiveRemittanceRows(rows as any);
+      setSelectedDeductionIds(rows.map((row: any) => row.id));
+      setLookupRemittance(value);
+      setRemitRef(String(first.remittance_ref || ""));
+      setRemitDate(String(first.remitted_at || "").slice(0, 10));
+      setRemitAccountId(String(first.paid_from_account?.id || ""));
+      setRemitNotes(String(first.notes || ""));
+    } catch (err) {
+      showToast({ tone: "danger", title: "Load failed", message: err instanceof Error ? err.message : "Unable to load remittance." });
+    } finally {
+      setLoadingRemittance(false);
+    }
+  };
+
+  const toggleDeductionSelection = (id: string) => {
+    setSelectedDeductionIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]);
+  };
+
+  const handleSaveRemittance = async () => {
+    if (!remitRef.trim()) {
+      showToast({ tone: "warning", title: "Reference required", message: "Enter a remittance reference." });
+      return;
+    }
+    if (selectedDeductionIds.length === 0) {
+      showToast({ tone: "warning", title: "No deductions selected", message: "Select at least one deduction." });
+      return;
+    }
+    try {
+      setSavingRemittance(true);
+      if (activeRemittanceRows.length > 0) {
+        await Promise.all(selectedDeductionIds.map((id) =>
+          financeApi.updateRemittanceRecord(id, {
+            remittance_ref: remitRef.trim(),
+            remitted_at: remitDate || undefined,
+            paid_from_account_id: remitAccountId || undefined,
+            notes: remitNotes.trim() || undefined,
+          })
+        ));
+        showToast({ tone: "success", title: "Updated", message: "Remittance updated." });
+      } else {
+        await financeApi.batchRemitDeductions({
+          deduction_ids: selectedDeductionIds,
+          reference: remitRef.trim(),
+          remitted_at: remitDate ? new Date(remitDate).toISOString() : undefined,
+          paid_from_account_id: remitAccountId || undefined,
+          notes: remitNotes.trim() || undefined,
+        });
+        showToast({ tone: "success", title: "Created", message: "Remittance recorded." });
+      }
+      resetRemittanceForm();
+      setRefreshKey((v) => v + 1);
+    } catch (err) {
+      showToast({ tone: "danger", title: "Save failed", message: err instanceof Error ? err.message : "Unable to save remittance." });
+    } finally {
+      setSavingRemittance(false);
+    }
   };
 
   const handleUpdate = async () => {
@@ -299,6 +444,105 @@ export default function StatutoryDeductionManualEntryPage() {
       </SectionCard>
 
       <SectionCard
+        title="Remittance Workspace"
+        description="Add a new remittance or load an existing one for editing, like the manual request workspace."
+        action={<Button variant="secondary" onClick={resetRemittanceForm}>New Remittance</Button>}
+      >
+        <div className="grid gap-4 md:grid-cols-4">
+          <label className="grid gap-1.5 text-sm md:col-span-3">
+            <span className="font-semibold text-slate-700">Load Existing Remittance</span>
+            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={lookupRemittance} onChange={(e) => setLookupRemittance(e.target.value)} placeholder="Deduction ID or remittance reference" />
+          </label>
+          <div className="flex items-end">
+            <Button variant="secondary" onClick={() => void loadRemittance()} disabled={loadingRemittance}>{loadingRemittance ? "Loading..." : "Load"}</Button>
+          </div>
+          <label className="grid gap-1.5 text-sm md:col-span-2">
+            <span className="font-semibold text-slate-700">Remittance Reference</span>
+            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitRef} onChange={(e) => setRemitRef(e.target.value)} placeholder="e.g. FIRS/WHT/2026/Q2" />
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-semibold text-slate-700">Remitted On</span>
+            <input type="date" className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitDate} onChange={(e) => setRemitDate(e.target.value)} />
+          </label>
+          <label className="grid gap-1.5 text-sm">
+            <span className="font-semibold text-slate-700">Paid From Account</span>
+            <select className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitAccountId} onChange={(e) => setRemitAccountId(e.target.value)}>
+              <option value="">Select account</option>
+              {financeAccounts.map((account: any) => (
+                <option key={account.id} value={account.id}>{account.code} - {account.name}</option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-sm md:col-span-4">
+            <span className="font-semibold text-slate-700">Notes</span>
+            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitNotes} onChange={(e) => setRemitNotes(e.target.value)} placeholder="Optional remittance note" />
+          </label>
+        </div>
+
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          <div>
+            <h4 className="mb-2 text-sm font-semibold text-slate-800">Pending Deductions</h4>
+            <div className="max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white">
+              <Table caption="Pending deductions">
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>{" "}</TableHeaderCell>
+                    <TableHeaderCell>Request</TableHeaderCell>
+                    <TableHeaderCell>Type</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Amount</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
+                  {pendingDeductions.map((row: any) => (
+                    <TableRow key={row.id}>
+                      <TableCell><input type="checkbox" checked={selectedDeductionIds.includes(row.id)} onChange={() => toggleDeductionSelection(row.id)} /></TableCell>
+                      <TableCell>{row.request_number || row.request_id}</TableCell>
+                      <TableCell>{row.deduction_type_name}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(Number(row.amount || 0), "NGN")}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="mb-2 text-sm font-semibold text-slate-800">Loaded Remittance Deductions</h4>
+            <div className="max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white">
+              <Table caption="Loaded remittance deductions">
+                <TableHead>
+                  <TableHeaderRow>
+                    <TableHeaderCell>Request</TableHeaderCell>
+                    <TableHeaderCell>Type</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Amount</TableHeaderCell>
+                  </TableHeaderRow>
+                </TableHead>
+                <TableBody>
+                  {activeRemittanceRows.length ? activeRemittanceRows.map((row) => (
+                    <TableRow key={row.id}>
+                      <TableCell>{row.request_number || row.request_id}</TableCell>
+                      <TableCell>{row.deduction_type_name}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(Number(row.amount || 0), "NGN")}</TableCell>
+                    </TableRow>
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="text-center text-slate-400 py-8">No remittance loaded.</TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 flex justify-end">
+          <Button onClick={() => void handleSaveRemittance()} disabled={savingRemittance || selectedDeductionIds.length === 0}>
+            {savingRemittance ? "Saving..." : activeRemittanceRows.length > 0 ? "Update Remittance" : "Add Remittance"}
+          </Button>
+        </div>
+      </SectionCard>
+
+      <SectionCard
         title="Journal Lines"
         description="Each entry must be balanced before posting."
         action={<Button variant="secondary" onClick={addLine}><Icon name="add" className="text-[16px]" />Add Line</Button>}
@@ -370,6 +614,39 @@ export default function StatutoryDeductionManualEntryPage() {
         ) : !loading ? (
           <EmptyState title="No statutory deduction entries" description="Posted statutory deduction journal entries will appear here." />
         ) : null}
+      </SectionCard>
+
+      <SectionCard title="Recent Remittances" description="Load an existing remittance back into the workspace for review or edit.">
+        {remittanceGroups.length ? (
+          <Table caption="Recent remittances">
+            <TableHead>
+              <TableHeaderRow>
+                <TableHeaderCell>Reference</TableHeaderCell>
+                <TableHeaderCell>Date</TableHeaderCell>
+                <TableHeaderCell>Account</TableHeaderCell>
+                <TableHeaderCell className="text-right">Total</TableHeaderCell>
+                <TableHeaderCell className="text-right">Items</TableHeaderCell>
+                <TableHeaderCell>{" "}</TableHeaderCell>
+              </TableHeaderRow>
+            </TableHead>
+            <TableBody>
+              {remittanceGroups.map((group) => (
+                <TableRow key={group.ref}>
+                  <TableCell>{group.ref}</TableCell>
+                  <TableCell>{formatDate(group.remitted_at)}</TableCell>
+                  <TableCell>{group.paid_from_account || "-"}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(group.total, "NGN")}</TableCell>
+                  <TableCell className="text-right">{group.count}</TableCell>
+                  <TableCell>
+                    <button className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => void loadRemittance(group.ref)}>Load</button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          <EmptyState title="No remittances yet" description="Saved remittances will appear here for quick lookup and editing." />
+        )}
       </SectionCard>
 
       {editingEntry && (
