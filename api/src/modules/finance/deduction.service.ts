@@ -115,6 +115,40 @@ export class DeductionService {
     }
   }
 
+  private async readAssetFileBuffer(asset: {
+    storagePath?: string | null;
+    publicUrl?: string | null;
+    fileName?: string | null;
+  }): Promise<Buffer | null> {
+    const storagePath = asset.storagePath || asset.publicUrl || '';
+    if (!storagePath) return null;
+    const candidates = [
+      storagePath,
+      resolve(process.cwd(), storagePath),
+      resolve(process.cwd(), '..', storagePath),
+      resolve(process.cwd(), 'uploads', storagePath),
+    ];
+    for (const candidate of candidates) {
+      if (!candidate) continue;
+      if (existsSync(candidate)) {
+        try {
+          return await readFile(candidate);
+        } catch {
+          // continue
+        }
+      }
+    }
+    if (/^https?:\/\//i.test(storagePath)) {
+      try {
+        const res = await fetch(storagePath);
+        if (res.ok) return Buffer.from(await res.arrayBuffer());
+      } catch {
+        // ignore
+      }
+    }
+    return null;
+  }
+
   private async appendPdfBuffer(target: PDFDocument, pdfBuffer: Buffer) {
     const source = await PDFDocument.load(pdfBuffer, { ignoreEncryption: true });
     const pages = await target.copyPages(source, source.getPageIndices());
