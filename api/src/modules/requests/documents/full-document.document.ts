@@ -1,10 +1,11 @@
 import { DocumentGeneratorService } from '../../../common/documents/document-generator.service';
-import { Document, DocumentIds, DocumentOutput } from '../../../common/documents/document.types';
+import { Document, DocumentIds, DocumentOutput, RequestRemittanceAllocationSummary } from '../../../common/documents/document.types';
 import { RequestPdfDocument } from './request-pdf.document';
 
 type FullDocumentContext = {
   request: any;
   requestPdfBuffer: Buffer;
+  remittanceAllocationSummary: RequestRemittanceAllocationSummary[];
   requestNumber: string;
   generatedAt: Date;
 };
@@ -22,17 +23,18 @@ export class FullDocumentDocument implements Document<FullDocumentContext> {
     const pdfOutput = await requestPdfDoc.render(pdfCtx);
 
     const request = pdfCtx.request;
+    const remittanceAllocationSummary = await this.engine.fetchRequestRemittanceAllocationSummary(requestId);
     const requestNumber = this.engine.getRequestNumber(
       request.requestType.codePrefix,
       request.createdAt.getFullYear(),
       request.id,
     );
 
-    return { request, requestPdfBuffer: pdfOutput.buffer, requestNumber, generatedAt };
+    return { request, requestPdfBuffer: pdfOutput.buffer, remittanceAllocationSummary, requestNumber, generatedAt };
   }
 
   async render(ctx: FullDocumentContext): Promise<DocumentOutput> {
-    const { request, requestPdfBuffer, requestNumber, generatedAt } = ctx;
+    const { request, requestPdfBuffer, remittanceAllocationSummary, requestNumber, generatedAt } = ctx;
     const mergedPdf = await this.engine.buildMergedPdf();
     await this.engine.appendPdfBuffer(mergedPdf, requestPdfBuffer);
 
@@ -90,6 +92,25 @@ export class FullDocumentDocument implements Document<FullDocumentContext> {
     const trmSlips = await this.engine.fetchRemittedTrmSlips(request.id.toString());
     for (const slip of trmSlips) {
       await this.engine.appendPdfBuffer(mergedPdf, slip.buffer);
+    }
+
+    if (remittanceAllocationSummary.length > 0) {
+      for (const row of remittanceAllocationSummary) {
+        await this.engine.appendTextPage(
+          mergedPdf,
+          `Remittance Allocation Summary - ${row.deductionTypeName}`,
+          [
+            `Request: ${row.requestNumber}`,
+            `Voucher: ${row.voucherNumber ?? '-'}`,
+            `Deduction: ${row.deductionTypeName} (${row.deductionTypeCode})`,
+            `Withheld Amount: ${row.withheldAmount.toFixed(2)}`,
+            `Allocated Total: ${row.allocatedTotal.toFixed(2)}`,
+            `Remaining Balance: ${row.remainingBalance.toFixed(2)}`,
+            'Allocations:',
+            ...row.allocations.map((allocation) => `- ${allocation.remittanceNumber}${allocation.remittanceRef ? ` | ${allocation.remittanceRef}` : ''} | ${allocation.allocatedAmount.toFixed(2)} | ${allocation.remittedAt ? new Date(allocation.remittedAt).toISOString().slice(0, 10) : '-'}`),
+          ],
+        );
+      }
     }
 
     if (skippedFiles.length > 0) {

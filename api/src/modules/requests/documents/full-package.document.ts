@@ -1,5 +1,5 @@
 import { DocumentGeneratorService } from '../../../common/documents/document-generator.service';
-import { Document, DocumentIds, DocumentOutput } from '../../../common/documents/document.types';
+import { Document, DocumentIds, DocumentOutput, RequestRemittanceAllocationSummary } from '../../../common/documents/document.types';
 import { RequestPdfDocument } from './request-pdf.document';
 import { PaymentVoucherDocument } from './payment-voucher.document';
 
@@ -8,6 +8,7 @@ type FullPackageContext = {
   requestPdfBuffer: Buffer;
   pvEntries: Array<{ voucherZipName: string; pvPdfBuffer: Buffer; voucher: any }>;
   trmSlips: Array<{ fileName: string; buffer: Buffer }>;
+  remittanceAllocationSummary: RequestRemittanceAllocationSummary[];
   requestNumber: string;
   generatedAt: Date;
 };
@@ -46,12 +47,13 @@ export class FullPackageDocument implements Document<FullPackageContext> {
     }
 
     const trmSlips = await this.engine.fetchRemittedTrmSlips(requestId);
+    const remittanceAllocationSummary = await this.engine.fetchRequestRemittanceAllocationSummary(requestId);
 
-    return { request, requestPdfBuffer: pdfOutput.buffer, pvEntries, trmSlips, requestNumber, generatedAt };
+    return { request, requestPdfBuffer: pdfOutput.buffer, pvEntries, trmSlips, remittanceAllocationSummary, requestNumber, generatedAt };
   }
 
   async render(ctx: FullPackageContext): Promise<DocumentOutput> {
-    const { request, requestPdfBuffer, pvEntries, trmSlips, requestNumber, generatedAt } = ctx;
+    const { request, requestPdfBuffer, pvEntries, trmSlips, remittanceAllocationSummary, requestNumber, generatedAt } = ctx;
     const requestZipName = this.engine.zipSafeName(requestNumber);
     const fileIdSet = new Set<string>();
 
@@ -123,6 +125,27 @@ export class FullPackageDocument implements Document<FullPackageContext> {
 
     for (const slip of trmSlips) {
       entries.push({ path: `tax/${slip.fileName}`, buffer: slip.buffer });
+    }
+
+    if (remittanceAllocationSummary.length > 0) {
+      const lines = [
+        'Request Remittance Allocation Summary',
+        '',
+        ...remittanceAllocationSummary.flatMap((row) => [
+          `Request: ${row.requestNumber}`,
+          `Voucher: ${row.voucherNumber ?? '-'}`,
+          `Deduction: ${row.deductionTypeName} (${row.deductionTypeCode})`,
+          `Withheld: ${row.withheldAmount.toFixed(2)}`,
+          `Allocated: ${row.allocatedTotal.toFixed(2)}`,
+          `Remaining: ${row.remainingBalance.toFixed(2)}`,
+          ...row.allocations.map((allocation) => `  - ${allocation.remittanceNumber}${allocation.remittanceRef ? ` | ${allocation.remittanceRef}` : ''} | ${allocation.allocatedAmount.toFixed(2)} | ${allocation.remittedAt ? new Date(allocation.remittedAt).toISOString().slice(0, 10) : '-'}`),
+          '',
+        ]),
+      ];
+      entries.push({
+        path: 'tax/remittance-allocation-summary.txt',
+        buffer: Buffer.from(lines.join('\n')),
+      });
     }
 
     const buffer = await this.engine.buildZipPackage(entries);

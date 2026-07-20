@@ -21,6 +21,7 @@ import {
   Signatories,
   ApprovalSummary,
   FullPaymentVoucher,
+  RequestRemittanceAllocationSummary,
 } from './document.types';
 
 @Injectable()
@@ -40,6 +41,54 @@ export class DocumentGeneratorService {
       slips.push({ fileName, buffer });
     }
     return slips;
+  }
+
+  async fetchRequestRemittanceAllocationSummary(requestId: string): Promise<RequestRemittanceAllocationSummary[]> {
+    const rows = await this.prisma.financeRequestDeduction.findMany({
+      where: { requestId: toBigInt(requestId), remittanceAllocations: { some: {} } },
+      include: {
+        deductionType: { select: { name: true, code: true } },
+        request: { select: { data: true } },
+        remittanceAllocations: {
+          select: {
+            id: true,
+            remittanceNumber: true,
+            remittanceRef: true,
+            allocatedAmount: true,
+            remittedAt: true,
+          },
+          orderBy: [{ remittedAt: 'asc' }, { createdAt: 'asc' }],
+        },
+        pvDeduction: {
+          select: {
+            paymentVoucher: { select: { voucherNumber: true } },
+          },
+        },
+      },
+      orderBy: [{ remittedAt: 'asc' }, { createdAt: 'asc' }],
+    });
+
+    return rows.map((row: any) => {
+      const requestNumber = (row.request?.data as any)?.request_number ?? String(row.requestId);
+      const allocatedTotal = row.remittanceAllocations.reduce((sum: number, allocation: any) => sum + Number(allocation.allocatedAmount || 0), 0);
+      return {
+        deductionId: row.id,
+        requestNumber,
+        voucherNumber: row.pvDeduction?.paymentVoucher?.voucherNumber ?? null,
+        deductionTypeName: row.deductionType?.name ?? '',
+        deductionTypeCode: row.deductionType?.code ?? '',
+        withheldAmount: Number(row.amount || 0),
+        allocatedTotal,
+        remainingBalance: Math.max(0, Number(row.amount || 0) - allocatedTotal),
+        allocations: row.remittanceAllocations.map((allocation: any) => ({
+          allocationId: allocation.id,
+          remittanceNumber: allocation.remittanceNumber,
+          remittanceRef: allocation.remittanceRef ?? null,
+          allocatedAmount: Number(allocation.allocatedAmount || 0),
+          remittedAt: allocation.remittedAt ?? null,
+        })),
+      };
+    });
   }
 
   // ── Orchestration ─────────────────────────────────────────────────────────

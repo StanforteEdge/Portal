@@ -91,7 +91,27 @@ export type FullPaymentVoucher = {
   evidenceFile: any | null;
   attachments: Array<{ file: any; sortOrder: number }>;
   deductions: Array<{
+    id: string;
     deductionAmount: any;
+    requestDeductionId?: string | null;
     deductionType: { name: string; code: string };
+  }>;
+};
+
+export type RequestRemittanceAllocationSummary = {
+  deductionId: string;
+  requestNumber: string;
+  voucherNumber: string | null;
+  deductionTypeName: string;
+  deductionTypeCode: string;
+  withheldAmount: number;
+  allocatedTotal: number;
+  remainingBalance: number;
+  allocations: Array<{
+    allocationId: string;
+    remittanceNumber: string;
+    remittanceRef: string | null;
+    allocatedAmount: number;
+    remittedAt: Date | null;
   }>;
 };
