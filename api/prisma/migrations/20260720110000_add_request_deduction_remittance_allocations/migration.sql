@@ -18,19 +18,19 @@ CREATE TABLE "sta_finance_request_deduction_remittance_allocations" (
   CONSTRAINT "sta_finance_request_deduction_remittance_allocations_pkey" PRIMARY KEY ("id")
 );
 
-CREATE INDEX "sta_finance_request_deduction_remittance_allocations_request_deduction_id_idx"
+CREATE INDEX "frdra_request_deduction_id_idx"
 ON "sta_finance_request_deduction_remittance_allocations"("request_deduction_id");
 
-CREATE INDEX "sta_finance_request_deduction_remittance_allocations_remittance_number_idx"
+CREATE INDEX "frdra_remittance_number_idx"
 ON "sta_finance_request_deduction_remittance_allocations"("remittance_number");
 
-CREATE INDEX "sta_finance_request_deduction_remittance_allocations_remittance_ref_idx"
+CREATE INDEX "frdra_remittance_ref_idx"
 ON "sta_finance_request_deduction_remittance_allocations"("remittance_ref");
 
-CREATE INDEX "sta_finance_request_deduction_remittance_allocations_payment_voucher_id_idx"
+CREATE INDEX "frdra_payment_voucher_id_idx"
 ON "sta_finance_request_deduction_remittance_allocations"("payment_voucher_id");
 
-CREATE INDEX "sta_finance_request_deduction_remittance_allocations_remitted_by_idx"
+CREATE INDEX "frdra_remitted_by_idx"
 ON "sta_finance_request_deduction_remittance_allocations"("remitted_by");
 
 ALTER TABLE "sta_finance_request_deduction_remittance_allocations"
