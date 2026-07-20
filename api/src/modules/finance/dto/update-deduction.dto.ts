@@ -1,4 +1,10 @@
-import { IsArray, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsNumber, IsOptional, IsString, IsUUID, MaxLength, Min, ValidateNested } from 'class-validator';
+
+export class UpdateRemittanceAllocationDto {
+  @IsOptional() @IsString() id?: string;
+  @IsOptional() @IsNumber() @Min(0.01) @Type(() => Number) allocated_amount?: number;
+}
 
 export class UpdatePendingDeductionDto {
   @IsOptional() @IsString() deduction_type_id?: string;
@@ -18,4 +24,5 @@ export class UpdateRemittanceRecordDto {
   @IsOptional() @IsString() evidence_file_id?: string;
   @IsOptional() @IsArray() @IsUUID('4', { each: true }) evidence_file_ids?: string[];
   @IsOptional() @IsString() @MaxLength(1000) notes?: string;
+  @IsOptional() @IsArray() @ValidateNested({ each: true }) @Type(() => UpdateRemittanceAllocationDto) allocations?: UpdateRemittanceAllocationDto[];
 }

@@ -258,6 +258,8 @@ model Profile {
   updatedWHTRemittances           FinanceWHTRemittance[]            @relation("WHTRemittanceUpdatedBy")
   createdRequestDeductions        FinanceRequestDeduction[]         @relation("RequestDeductionCreatedBy")
   remittedRequestDeductions       FinanceRequestDeduction[]         @relation("RequestDeductionRemittedBy")
+  createdRequestDeductionRemittanceAllocations FinanceRequestDeductionRemittanceAllocation[] @relation("RequestDeductionAllocationCreatedBy")
+  remittedRequestDeductionAllocations FinanceRequestDeductionRemittanceAllocation[] @relation("RequestDeductionAllocationRemittedBy")
   procurementRequisitions         ProcurementRequisition[]          @relation("PrRequestedBy")
   procurementOrders               ProcurementOrder[]                @relation("PoCreatedBy")
   grnRaised                       ProcurementGRN[]                  @relation("GrnRaisedBy")
@@ -1064,6 +1066,7 @@ model FinanceAccount {
   expenses          FinanceExpense[]
   whtRemittances    FinanceWHTRemittance[]    @relation("WHTRemittanceAccount")
   requestDeductions FinanceRequestDeduction[] @relation("RequestDeductionAccount")
+  requestDeductionRemittanceAllocations FinanceRequestDeductionRemittanceAllocation[] @relation("RequestDeductionRemittanceAccount")
 
   @@unique([organizationId, name], name: "unique_finance_account_name_per_org")
   @@index([organizationId])
@@ -2853,6 +2856,7 @@ model FileAsset {
   documents              Document[]
   profileSignatures      Profile[]                   @relation("ProfileSignatureFile")
   requestDeductions      FinanceRequestDeduction[]   @relation("RequestDeductionEvidence")
+  requestDeductionRemittanceAllocations FinanceRequestDeductionRemittanceAllocation[] @relation("RequestDeductionRemittanceEvidence")
   procurementAttachments ProcurementAttachment[]
 
   @@index([organizationId])
@@ -2972,6 +2976,7 @@ model FinancePaymentVoucher {
   corrections     FinancePaymentVoucherCorrection[]
   deductions      FinancePVDeduction[]
   requestDeductions FinanceRequestDeduction[]       @relation("RequestDeductionPaymentVoucher")
+  requestDeductionRemittanceAllocations FinanceRequestDeductionRemittanceAllocation[] @relation("RequestDeductionRemittancePaymentVoucher")
   whtAccruals     FinanceVendorWHTAccrual[]
   voucherItems    FinancePaymentVoucherItem[]
 
@@ -3520,6 +3525,7 @@ model FinanceRequestDeduction {
   paidFromAccount FinanceAccount?      @relation("RequestDeductionAccount", fields: [paidFromAccountId], references: [id], onDelete: SetNull)
   evidenceFile    FileAsset?           @relation("RequestDeductionEvidence", fields: [evidenceFileId], references: [id], onDelete: SetNull)
   pvDeduction     FinancePVDeduction?
+  remittanceAllocations FinanceRequestDeductionRemittanceAllocation[]
 
   @@index([requestId])
   @@index([paymentVoucherId])
@@ -3528,6 +3534,38 @@ model FinanceRequestDeduction {
   @@index([deductionTypeId])
   @@index([remittanceNumber])
   @@map("sta_finance_request_deductions")
+}
+
+model FinanceRequestDeductionRemittanceAllocation {
+  id                  String    @id @default(uuid()) @db.Uuid
+  requestDeductionId  String    @map("request_deduction_id") @db.Uuid
+  remittanceNumber    String    @map("remittance_number") @db.VarChar(60)
+  remittanceRef       String?   @map("remittance_ref") @db.VarChar(255)
+  allocatedAmount     Decimal   @map("allocated_amount") @db.Decimal(15, 2)
+  remittedAt          DateTime? @map("remitted_at")
+  paymentVoucherId    String?   @map("payment_voucher_id") @db.Uuid
+  remittedBy          BigInt?   @map("remitted_by")
+  paidFromAccountId   String?   @map("paid_from_account_id") @db.Uuid
+  evidenceFileId      String?   @map("evidence_file_id") @db.Uuid
+  evidenceFileIds     Json?     @map("evidence_file_ids")
+  notes               String?
+  createdBy           BigInt    @map("created_by")
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+
+  requestDeduction FinanceRequestDeduction @relation(fields: [requestDeductionId], references: [id], onDelete: Cascade)
+  paymentVoucher  FinancePaymentVoucher?   @relation("RequestDeductionRemittancePaymentVoucher", fields: [paymentVoucherId], references: [id], onDelete: SetNull)
+  remittedByUser  Profile?                 @relation("RequestDeductionAllocationRemittedBy", fields: [remittedBy], references: [id])
+  paidFromAccount FinanceAccount?          @relation("RequestDeductionRemittanceAccount", fields: [paidFromAccountId], references: [id], onDelete: SetNull)
+  evidenceFile    FileAsset?               @relation("RequestDeductionRemittanceEvidence", fields: [evidenceFileId], references: [id], onDelete: SetNull)
+  createdByUser   Profile                  @relation("RequestDeductionAllocationCreatedBy", fields: [createdBy], references: [id])
+
+  @@index([requestDeductionId], map: "frdra_request_deduction_id_idx")
+  @@index([remittanceNumber], map: "frdra_remittance_number_idx")
+  @@index([remittanceRef], map: "frdra_remittance_ref_idx")
+  @@index([paymentVoucherId], map: "frdra_payment_voucher_id_idx")
+  @@index([remittedBy], map: "frdra_remitted_by_idx")
+  @@map("sta_finance_request_deduction_remittance_allocations")
 }
 
 model FinanceVendorWHTAccrual {
