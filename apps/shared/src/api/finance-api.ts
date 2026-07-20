@@ -232,12 +232,27 @@ export type FinanceRequestDeductionRecord = {
   amount: number;
   rate: number;
   gross_amount: number;
-  status: "pending" | "remitted";
+  status: "pending" | "partially_remitted" | "remitted";
+  allocated_amount?: number;
+  remaining_amount?: number;
   remittance_number: string | null;
   remitted_at: string | null;
   remittance_ref: string | null;
   paid_from_account: { id: string; name: string; bank_name: string | null; account_number: string | null } | null;
   evidence_file: { id: string; file_name: string; public_url: string | null } | null;
+  evidence_files?: Array<{ id: string; file_name: string; public_url: string | null }>;
+  remittance_allocations?: Array<{
+    id: string;
+    remittance_number: string;
+    remittance_ref: string | null;
+    allocated_amount: number;
+    remitted_at: string | null;
+    remitted_by: { id: string; name: string } | null;
+    payment_voucher: { id: string; voucher_number: string } | null;
+    paid_from_account: { id: string; name: string; bank_name: string | null; account_number: string | null } | null;
+    evidence_file_ids: string[];
+    notes: string | null;
+  }>;
   notes: string | null;
   created_by_name: string;
   created_at: string;

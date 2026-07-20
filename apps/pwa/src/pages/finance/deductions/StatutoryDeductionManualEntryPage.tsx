@@ -40,12 +40,15 @@ type RemittanceRecord = {
   request_number?: string;
   deduction_type_name?: string;
   amount: number;
+  allocated_amount?: number;
+  remaining_amount?: number;
   status: string;
   remittance_ref?: string | null;
   remitted_at?: string | null;
   paid_from_account?: { id: string; name: string } | null;
   evidence_files?: Array<{ id: string; file_name?: string }>;
   notes?: string | null;
+  remittance_allocations?: Array<{ id: string; allocated_amount: number; remittance_number: string; remittance_ref?: string | null }>;
 };
 
 export default function StatutoryDeductionManualEntryPage() {
@@ -82,6 +85,8 @@ export default function StatutoryDeductionManualEntryPage() {
   const [remitEvidenceFiles, setRemitEvidenceFiles] = useState<Array<{ id: string; file_name: string }>>([]);
   const [showEvidencePicker, setShowEvidencePicker] = useState(false);
   const [selectedDeductionIds, setSelectedDeductionIds] = useState<string[]>([]);
+  const [allocationAmounts, setAllocationAmounts] = useState<Record<string, number>>({});
+  const [deductionLookup, setDeductionLookup] = useState("");
   const [activeRemittanceRows, setActiveRemittanceRows] = useState<RemittanceRecord[]>([]);
   const [loadingRemittance, setLoadingRemittance] = useState(false);
   const [savingRemittance, setSavingRemittance] = useState(false);
@@ -138,17 +143,17 @@ export default function StatutoryDeductionManualEntryPage() {
 
   const { data: pendingDeductionsPayload } = useCachedQuery(
     `finance:statutory-deduction-manual-entry:pending-deductions:${refreshKey}`,
-    () => financeApi.listRequestDeductions({ status: "pending", per_page: 100 }),
+    () => financeApi.listRequestDeductions({ per_page: 100 }),
     { ttlMs: 0, storage: "memory" },
   );
-  const pendingDeductions = pendingDeductionsPayload?.items ?? [];
+  const pendingDeductions = (pendingDeductionsPayload?.items ?? []).filter((row: RemittanceRecord) => row.status !== "remitted");
 
   const { data: remittedDeductionsPayload } = useCachedQuery(
     `finance:statutory-deduction-manual-entry:remitted-deductions:${refreshKey}`,
-    () => financeApi.listRequestDeductions({ status: "remitted", per_page: 200 }),
+    () => financeApi.listRequestDeductions({ per_page: 200 }),
     { ttlMs: 0, storage: "memory" },
   );
-  const remittedDeductions = remittedDeductionsPayload?.items ?? [];
+  const remittedDeductions = (remittedDeductionsPayload?.items ?? []).filter((row: RemittanceRecord) => row.status !== "pending");
   const remittanceGroups = useMemo(() => {
     const groups = new Map<string, { ref: string; remitted_at: string | null; paid_from_account: string | null; total: number; count: number; rows: RemittanceRecord[] }>();
     for (const row of remittedDeductions as RemittanceRecord[]) {
@@ -217,6 +222,7 @@ export default function StatutoryDeductionManualEntryPage() {
     setRemitNotes("");
     setRemitEvidenceFiles([]);
     setSelectedDeductionIds([]);
+    setAllocationAmounts({});
     setActiveRemittanceRows([]);
   };
 
@@ -249,6 +255,7 @@ export default function StatutoryDeductionManualEntryPage() {
       const first = rows[0] as any;
       setActiveRemittanceRows(rows as any);
       setSelectedDeductionIds(rows.map((row: any) => row.id));
+      setAllocationAmounts(Object.fromEntries(rows.map((row: any) => [row.id, Number(row.allocated_amount || row.amount || 0)])));
       setLookupRemittance(value);
       setRemitNumber(String(first.remittance_number || ""));
       setRemitRef(String(first.remittance_ref || ""));
@@ -269,6 +276,19 @@ export default function StatutoryDeductionManualEntryPage() {
     setSelectedDeductionIds((prev) => prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]);
   };
 
+  const detachDeduction = (id: string) => {
+    setSelectedDeductionIds((prev) => prev.filter((item) => item !== id));
+    setAllocationAmounts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+  };
+
+  const setAllocationAmount = (id: string, value: number) => {
+    setAllocationAmounts((prev) => ({ ...prev, [id]: Number.isFinite(value) ? value : 0 }));
+  };
+
   const handleSaveRemittance = async () => {
     if (!remitRef.trim()) {
       showToast({ tone: "warning", title: "Reference required", message: "Enter a remittance reference." });
@@ -276,6 +296,15 @@ export default function StatutoryDeductionManualEntryPage() {
     }
     if (selectedDeductionIds.length === 0) {
       showToast({ tone: "warning", title: "No deductions selected", message: "Select at least one deduction." });
+      return;
+    }
+    const selectedRows = (activeRemittanceRows.length > 0 ? activeRemittanceRows : pendingDeductions).filter((row: RemittanceRecord) => selectedDeductionIds.includes(row.id));
+    const allocations = selectedRows.map((row: RemittanceRecord) => ({
+      deduction_id: row.id,
+      allocated_amount: Number(allocationAmounts[row.id] ?? row.remaining_amount ?? row.amount ?? 0),
+    }));
+    if (allocations.some((entry) => entry.allocated_amount <= 0)) {
+      showToast({ tone: "warning", title: "Invalid allocation", message: "Each selected deduction needs a positive allocated amount." });
       return;
     }
     try {
@@ -291,6 +320,10 @@ export default function StatutoryDeductionManualEntryPage() {
             remitted_by: remittedByUserId || undefined,
             evidence_file_ids: remitEvidenceFiles.map((file) => file.id),
             notes: remitNotes.trim() || undefined,
+            allocations: (activeRemittanceRows.find((row) => row.id === id)?.remittance_allocations || []).map((allocation) => ({
+              id: allocation.id,
+              allocated_amount: Number(allocationAmounts[id] ?? allocation.allocated_amount),
+            })),
           })
         ));
         showToast({ tone: "success", title: "Updated", message: "Remittance updated." });
@@ -304,6 +337,7 @@ export default function StatutoryDeductionManualEntryPage() {
           remitted_by: remittedByUserId || undefined,
           evidence_file_ids: remitEvidenceFiles.map((file) => file.id),
           notes: remitNotes.trim() || undefined,
+          allocations,
         });
         showToast({ tone: "success", title: "Created", message: "Remittance recorded." });
       }
@@ -432,6 +466,15 @@ export default function StatutoryDeductionManualEntryPage() {
   };
 
   const userName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.email || "Staff";
+  const deductionLookupValue = deductionLookup.trim().toLowerCase();
+  const filteredPendingDeductions = pendingDeductions.filter((row: RemittanceRecord) => {
+    if (!deductionLookupValue) return true;
+    return [row.request_number, row.request_id, row.deduction_type_name, row.remittance_ref, row.remittance_number]
+      .some((value) => String(value || "").toLowerCase().includes(deductionLookupValue));
+  });
+  const workspaceRows = (activeRemittanceRows.length > 0 ? activeRemittanceRows : pendingDeductions).filter((row: RemittanceRecord) => selectedDeductionIds.includes(row.id));
+  const workspaceAllocatedTotal = workspaceRows.reduce((sum, row) => sum + Number(allocationAmounts[row.id] ?? row.allocated_amount ?? row.remaining_amount ?? row.amount ?? 0), 0);
+  const loadedRemittanceSummary = activeRemittanceRows[0] ?? null;
 
   return (
     <AppShell
@@ -442,18 +485,19 @@ export default function StatutoryDeductionManualEntryPage() {
     >
       <PageHeader
         eyebrow="Finance"
-        breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Manual Entries" }, { label: "Statutory Deduction Entry" }]}
-        title="Statutory Deduction Entry"
-        description="Post balanced statutory deduction journal entries for withholdings and related adjustments."
+        breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Manual Tools" }, { label: "Statutory Deductions" }]}
+        title="Manual Statutory Deductions"
+        description="Backoffice workspace for entering, loading, correcting, and linking statutory deductions and remittances, including backdated records."
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatCard label="Total Debit" value={formatCurrency(totals.debit, currency)} tone="neutral" />
-        <StatCard label="Total Credit" value={formatCurrency(totals.credit, currency)} tone="neutral" />
-        <StatCard label="Status" value={balanced ? "Balanced" : "Unbalanced"} tone={balanced ? "success" : "danger"} />
+      <div className="grid gap-4 md:grid-cols-4">
+        <StatCard label="Open Deductions" value={String(pendingDeductions.length)} tone="warning" />
+        <StatCard label="Remittance Batches" value={String(remittanceGroups.length)} tone="neutral" />
+        <StatCard label="Workspace Items" value={String(selectedDeductionIds.length)} tone="neutral" />
+        <StatCard label="Entry Balance" value={balanced ? "Balanced" : "Unbalanced"} tone={balanced ? "success" : "danger"} />
       </div>
 
-      <SectionCard title="Entry Header">
+      <SectionCard title="Add Backdated Deduction" description="Use this only when you need to create a deduction manually and anchor it with its journal lines.">
         <div className="grid gap-4 md:grid-cols-3">
           <label className="grid gap-1.5 text-sm">
             <span className="font-semibold text-slate-700">Entry Date</span>
@@ -470,7 +514,7 @@ export default function StatutoryDeductionManualEntryPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Statutory Details">
+      <SectionCard title="Deduction Details">
         <div className="grid gap-4 md:grid-cols-3">
           <label className="grid gap-1.5 text-sm md:col-span-2">
             <span className="font-semibold text-slate-700">Deduction Type</span>
@@ -492,15 +536,16 @@ export default function StatutoryDeductionManualEntryPage() {
         </div>
       </SectionCard>
 
-      <SectionCard
-        title="Remittance Workspace"
-        description="Add a new remittance or load an existing one for editing, like the manual request workspace."
-        action={<Button variant="secondary" onClick={resetRemittanceForm}>New Remittance</Button>}
-      >
+      <div className="grid gap-5 xl:grid-cols-[1.5fr,0.9fr]">
+        <SectionCard
+          title="Remittance Workspace"
+          description="Search, load, create, edit, and reattach deductions and allocations under a remittance."
+          action={<Button variant="secondary" onClick={resetRemittanceForm}>New Remittance</Button>}
+        >
         <div className="grid gap-4 md:grid-cols-4">
           <label className="grid gap-1.5 text-sm md:col-span-3">
             <span className="font-semibold text-slate-700">Load Existing Remittance</span>
-            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={lookupRemittance} onChange={(e) => setLookupRemittance(e.target.value)} placeholder="Deduction ID, remittance no., or payment reference" />
+            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={lookupRemittance} onChange={(e) => setLookupRemittance(e.target.value)} placeholder="Remittance number, payment reference, or deduction ID" />
           </label>
           <div className="flex items-end">
             <Button variant="secondary" onClick={() => void loadRemittance()} disabled={loadingRemittance}>{loadingRemittance ? "Loading..." : "Load"}</Button>
@@ -537,7 +582,7 @@ export default function StatutoryDeductionManualEntryPage() {
             </select>
           </label>
           <label className="grid gap-1.5 text-sm md:col-span-4">
-            <span className="font-semibold text-slate-700">Payment Voucher</span>
+            <span className="font-semibold text-slate-700">Funding Payment Voucher</span>
             <select className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitPaymentVoucherId} onChange={(e) => setRemitPaymentVoucherId(e.target.value)}>
               <option value="">Select payment voucher</option>
               {paymentVouchers.map((pv: any) => (
@@ -563,13 +608,33 @@ export default function StatutoryDeductionManualEntryPage() {
           </label>
           <label className="grid gap-1.5 text-sm md:col-span-4">
             <span className="font-semibold text-slate-700">Notes</span>
-            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitNotes} onChange={(e) => setRemitNotes(e.target.value)} placeholder="Optional remittance note" />
+            <input className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitNotes} onChange={(e) => setRemitNotes(e.target.value)} placeholder="Internal note for this remittance batch" />
           </label>
+        </div>
+
+        <div className="mt-4 grid gap-4 md:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mode</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{activeRemittanceRows.length > 0 ? "Edit Existing Remittance" : "Create New Remittance"}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Attached Deductions</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{selectedDeductionIds.length}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Allocated Total</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(workspaceAllocatedTotal, "NGN")}</div>
+          </div>
         </div>
 
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
           <div>
-            <h4 className="mb-2 text-sm font-semibold text-slate-800">Pending Deductions</h4>
+            <h4 className="mb-2 text-sm font-semibold text-slate-800">Available Deductions</h4>
+            <p className="mb-3 text-xs text-slate-500">Select deductions to attach to this remittance. You can allocate the full balance or only part of it.</p>
+            <div className="mb-3 flex gap-2">
+              <input className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm" value={deductionLookup} onChange={(e) => setDeductionLookup(e.target.value)} placeholder="Search by request, deduction type, remittance ref, or deduction id" />
+              {deductionLookup ? <Button variant="secondary" onClick={() => setDeductionLookup("")}>Clear</Button> : null}
+            </div>
             <div className="max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white">
               <Table caption="Pending deductions">
                 <TableHead>
@@ -578,17 +643,26 @@ export default function StatutoryDeductionManualEntryPage() {
                     <TableHeaderCell>Request</TableHeaderCell>
                     <TableHeaderCell>Type</TableHeaderCell>
                     <TableHeaderCell className="text-right">Amount</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Remaining</TableHeaderCell>
+                    <TableHeaderCell>Allocate</TableHeaderCell>
                   </TableHeaderRow>
                 </TableHead>
                 <TableBody>
-                  {pendingDeductions.map((row: any) => (
+                  {filteredPendingDeductions.map((row: any) => (
                     <TableRow key={row.id}>
                       <TableCell><input type="checkbox" checked={selectedDeductionIds.includes(row.id)} onChange={() => toggleDeductionSelection(row.id)} /></TableCell>
                       <TableCell>{row.request_number || row.request_id}</TableCell>
                       <TableCell>{row.deduction_type_name}</TableCell>
                       <TableCell className="text-right">{formatCurrency(Number(row.amount || 0), "NGN")}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(Number(row.remaining_amount ?? row.amount ?? 0), "NGN")}</TableCell>
+                      <TableCell><input type="number" min={0} step="0.01" value={String(allocationAmounts[row.id] ?? row.remaining_amount ?? row.amount ?? 0)} onChange={(e) => setAllocationAmount(row.id, Number(e.target.value))} className="w-24 rounded-xl border border-slate-200 px-2 py-1" /></TableCell>
                     </TableRow>
                   ))}
+                  {filteredPendingDeductions.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="py-8 text-center text-slate-400">No deductions matched your search.</TableCell>
+                    </TableRow>
+                  ) : null}
                 </TableBody>
               </Table>
             </div>
@@ -596,6 +670,7 @@ export default function StatutoryDeductionManualEntryPage() {
 
           <div>
             <h4 className="mb-2 text-sm font-semibold text-slate-800">Loaded Remittance Deductions</h4>
+            <p className="mb-3 text-xs text-slate-500">When a remittance is loaded, this shows the deductions already tied to it and the amount currently allocated on each one.</p>
             <div className="max-h-72 overflow-auto rounded-2xl border border-slate-200 bg-white">
               <Table caption="Loaded remittance deductions">
                 <TableHead>
@@ -603,6 +678,8 @@ export default function StatutoryDeductionManualEntryPage() {
                     <TableHeaderCell>Request</TableHeaderCell>
                     <TableHeaderCell>Type</TableHeaderCell>
                     <TableHeaderCell className="text-right">Amount</TableHeaderCell>
+                    <TableHeaderCell className="text-right">Allocated</TableHeaderCell>
+                    <TableHeaderCell>Actions</TableHeaderCell>
                   </TableHeaderRow>
                 </TableHead>
                 <TableBody>
@@ -611,28 +688,109 @@ export default function StatutoryDeductionManualEntryPage() {
                       <TableCell>{row.request_number || row.request_id}</TableCell>
                       <TableCell>{row.deduction_type_name}</TableCell>
                       <TableCell className="text-right">{formatCurrency(Number(row.amount || 0), "NGN")}</TableCell>
+                      <TableCell className="text-right">{formatCurrency(Number(allocationAmounts[row.id] ?? row.allocated_amount ?? row.amount ?? 0), "NGN")}</TableCell>
+                      <TableCell>
+                        <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => detachDeduction(row.id)}>Remove</button>
+                      </TableCell>
                     </TableRow>
                   )) : (
                     <TableRow>
-                      <TableCell colSpan={3} className="text-center text-slate-400 py-8">No remittance loaded.</TableCell>
+                      <TableCell colSpan={5} className="text-center text-slate-400 py-8">No remittance loaded.</TableCell>
                     </TableRow>
                   )}
                 </TableBody>
               </Table>
             </div>
+
+            {activeRemittanceRows.length > 0 ? (
+              <div className="mt-4 space-y-3">
+                {activeRemittanceRows.map((row) => (
+                  <div key={`${row.id}-history`} className="rounded-2xl border border-slate-200 p-3">
+                    <div className="mb-2 flex items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-semibold text-slate-900">{row.deduction_type_name}</div>
+                        <div className="text-xs text-slate-500">{row.request_number || row.request_id}</div>
+                      </div>
+                      <div className="text-xs font-semibold text-slate-500">Remaining {formatCurrency(Number(row.remaining_amount ?? 0), "NGN")}</div>
+                    </div>
+                    <div className="space-y-2">
+                      {(row.remittance_allocations || []).map((allocation) => (
+                        <div key={allocation.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                          <span>{allocation.remittance_number} {allocation.remittance_ref ? `• ${allocation.remittance_ref}` : ""}</span>
+                          <span className="font-semibold">{formatCurrency(Number(allocation.allocated_amount || 0), "NGN")}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : null}
           </div>
         </div>
+        </SectionCard>
 
-        <div className="mt-4 flex justify-end">
+        <div className="space-y-5">
+          <SectionCard title="Loaded Batch" description="Current remittance record in focus.">
+            {loadedRemittanceSummary ? (
+              <dl className="space-y-3 text-sm">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-slate-500">TRM Number</dt>
+                  <dd className="font-semibold text-slate-900">{loadedRemittanceSummary.remittance_number || "-"}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-slate-500">Reference</dt>
+                  <dd className="font-semibold text-slate-900">{loadedRemittanceSummary.remittance_ref || "-"}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-slate-500">Remitted On</dt>
+                  <dd className="font-semibold text-slate-900">{loadedRemittanceSummary.remitted_at ? formatDate(loadedRemittanceSummary.remitted_at) : "-"}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-slate-500">Created By</dt>
+                  <dd className="font-semibold text-slate-900">{loadedRemittanceSummary.remitted_by?.name || "-"}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-slate-500">Payment Voucher</dt>
+                  <dd className="font-semibold text-slate-900">{loadedRemittanceSummary.payment_voucher?.voucher_number || "-"}</dd>
+                </div>
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="text-slate-500">Paid From</dt>
+                  <dd className="font-semibold text-slate-900">{loadedRemittanceSummary.paid_from_account?.name || "-"}</dd>
+                </div>
+              </dl>
+            ) : (
+              <p className="text-sm text-slate-500">No remittance loaded yet. Start a new one or load an existing batch from the list below.</p>
+            )}
+          </SectionCard>
+
+          <SectionCard title="Workspace Checklist" description="Quick audit before saving.">
+            <div className="space-y-2 text-sm text-slate-700">
+              <div className="flex items-center justify-between"><span>Reference entered</span><span className="font-semibold">{remitRef.trim() ? "Yes" : "No"}</span></div>
+              <div className="flex items-center justify-between"><span>Deductions attached</span><span className="font-semibold">{selectedDeductionIds.length}</span></div>
+              <div className="flex items-center justify-between"><span>Allocated total</span><span className="font-semibold">{formatCurrency(workspaceAllocatedTotal, "NGN")}</span></div>
+              <div className="flex items-center justify-between"><span>Evidence files</span><span className="font-semibold">{remitEvidenceFiles.length}</span></div>
+            </div>
+          </SectionCard>
+        </div>
+      </div>
+
+      <div className="mt-5 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-4 py-3">
+        <div className="text-sm text-slate-600">
+          <span className="font-semibold text-slate-900">{selectedDeductionIds.length}</span> deductions attached
+          <span className="mx-2 text-slate-300">|</span>
+          Allocation total <span className="font-semibold text-slate-900">{formatCurrency(workspaceAllocatedTotal, "NGN")}</span>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="secondary" onClick={resetRemittanceForm}>Reset Workspace</Button>
           <Button onClick={() => void handleSaveRemittance()} disabled={savingRemittance || selectedDeductionIds.length === 0}>
             {savingRemittance ? "Saving..." : activeRemittanceRows.length > 0 ? "Update Remittance" : "Add Remittance"}
           </Button>
         </div>
-      </SectionCard>
+      </div>
 
       <SectionCard
-        title="Journal Lines"
-        description="Each entry must be balanced before posting."
+        title="Manual Journal Lines"
+        description="Only needed when you are creating or correcting backdated deductions through this page."
         action={<Button variant="secondary" onClick={addLine}><Icon name="add" className="text-[16px]" />Add Line</Button>}
       >
         <div className="space-y-3">
@@ -670,7 +828,7 @@ export default function StatutoryDeductionManualEntryPage() {
         </div>
       </SectionCard>
 
-      <SectionCard title="Recent Statutory Deduction Entries">
+      <SectionCard title="Recent Manual Deduction Entries" description="These are the journal-backed manual deductions created from this page.">
         {loading ? <p className="text-sm text-slate-500">Loading entries...</p> : null}
         {entries.length ? (
           <Table caption="Statutory deduction manual journal entries">
@@ -704,7 +862,7 @@ export default function StatutoryDeductionManualEntryPage() {
         ) : null}
       </SectionCard>
 
-      <SectionCard title="Recent Remittances" description="Load an existing remittance back into the workspace for review or edit.">
+      <SectionCard title="Recent Remittances" description="Use this list to load, review, and correct remittance batches and their linked deductions.">
         {remittanceGroups.length ? (
           <Table caption="Recent remittances">
             <TableHead>

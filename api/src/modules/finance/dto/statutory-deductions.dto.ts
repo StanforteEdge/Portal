@@ -1,5 +1,6 @@
-import { IsArray, IsDateString, IsIn, IsNumberString, IsOptional, IsString, IsUUID } from 'class-validator';
+import { IsArray, IsDateString, IsIn, IsNumber, IsNumberString, IsOptional, IsString, IsUUID, Min, ValidateNested } from 'class-validator';
 import { ApiPropertyOptional, ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
 
 export class StatutoryDeductionsQueryDto {
   @ApiPropertyOptional()
@@ -7,9 +8,9 @@ export class StatutoryDeductionsQueryDto {
   @IsUUID()
   id?: string;
 
-  @ApiPropertyOptional({ enum: ['pending', 'remitted'] })
+  @ApiPropertyOptional({ enum: ['pending', 'partially_remitted', 'remitted'] })
   @IsOptional()
-  @IsIn(['pending', 'remitted'])
+  @IsIn(['pending', 'partially_remitted', 'remitted'])
   status?: string;
 
   @ApiPropertyOptional()
@@ -108,4 +109,23 @@ export class RemitStatutoryDeductionsDto {
   @IsOptional()
   @IsString()
   notes?: string;
+
+  @ApiPropertyOptional({ type: [Object], description: 'Optional explicit per-deduction allocations for partial remittances' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RemitStatutoryDeductionAllocationDto)
+  allocations?: RemitStatutoryDeductionAllocationDto[];
+}
+
+export class RemitStatutoryDeductionAllocationDto {
+  @ApiProperty()
+  @IsUUID()
+  deduction_id!: string;
+
+  @ApiProperty()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  allocated_amount!: number;
 }
