@@ -64,8 +64,45 @@ export class StatutoryDeductionsQueryDto {
   per_page?: string;
 }
 
+export class RequestRemittancesQueryDto {
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by TRM/remittance number' })
+  @IsOptional()
+  @IsString()
+  remittance_number?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by payment/remittance reference' })
+  @IsOptional()
+  @IsString()
+  reference?: string;
+
+  @ApiPropertyOptional({ description: 'Filter by linked payment voucher id' })
+  @IsOptional()
+  @IsUUID()
+  payment_voucher_id?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @ApiPropertyOptional({ default: 1 })
+  @IsOptional()
+  @IsNumberString()
+  page?: string;
+
+  @ApiPropertyOptional({ default: 50 })
+  @IsOptional()
+  @IsNumberString()
+  per_page?: string;
+}
+
 export class RemitStatutoryDeductionsDto {
-  @ApiProperty({ type: [String], description: 'IDs of FinanceRequestDeduction to mark as remitted' })
+  @ApiProperty({ type: [String], description: 'IDs of FinanceRequestDeduction to attach to this remittance' })
   @IsArray()
   @IsUUID('4', { each: true })
   deduction_ids!: string[];
@@ -79,10 +116,22 @@ export class RemitStatutoryDeductionsDto {
   @IsString()
   reference!: string;
 
+  @ApiPropertyOptional({ description: 'Manual TRM/remittance number. If omitted, the system generates TRM/<year>/<seq>.' })
+  @IsOptional()
+  @IsString()
+  remittance_number?: string;
+
   @ApiPropertyOptional({ description: 'Account the tax was paid from' })
   @IsOptional()
   @IsUUID()
   paid_from_account_id?: string;
+
+  @ApiPropertyOptional({ description: 'Total amount paid by this remittance batch' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  remittance_total_amount?: number;
 
   @ApiPropertyOptional({ description: 'Payment voucher that funded this remittance' })
   @IsOptional()

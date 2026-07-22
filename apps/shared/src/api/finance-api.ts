@@ -233,6 +233,7 @@ export type FinanceRequestDeductionRecord = {
   rate: number;
   gross_amount: number;
   status: "pending" | "partially_remitted" | "remitted";
+  remittance_id?: string | null;
   allocated_amount?: number;
   remaining_amount?: number;
   remittance_number: string | null;
@@ -256,6 +257,40 @@ export type FinanceRequestDeductionRecord = {
   notes: string | null;
   created_by_name: string;
   created_at: string;
+};
+
+export type FinanceRequestRemittanceRecord = {
+  id: string;
+  remittance_number: string;
+  reference: string | null;
+  remitted_at: string | null;
+  total_amount: number;
+  allocated_amount: number;
+  unallocated_amount: number;
+  remitted_by: { id: string; name: string } | null;
+  created_by: { id: string; name: string } | null;
+  payment_voucher: { id: string; voucher_number: string } | null;
+  paid_from_account: { id: string; name: string; bank_name: string | null; account_number: string | null } | null;
+  evidence_file: { id: string; file_name: string; public_url: string | null } | null;
+  evidence_files: Array<{ id: string; file_name: string; public_url: string | null }>;
+  notes: string | null;
+  deductions: Array<{
+    allocation_id: string;
+    deduction_id: string;
+    request_id: string;
+    request_number: string;
+    deduction_type_id: string;
+    deduction_type_name: string;
+    deduction_type_code: string;
+    amount: number;
+    allocated_amount: number;
+    total_allocated_amount: number;
+    remaining_amount: number;
+    status: "pending" | "partially_remitted" | "remitted";
+    payment_voucher: { id: string; voucher_number: string } | null;
+  }>;
+  created_at: string;
+  updated_at: string;
 };
 
 export type FinancePaymentVoucherRecord = {
@@ -917,9 +952,17 @@ export function createFinanceApi(httpRequest: HttpRequest) {
       };
     },
 
+    async listRequestRemittances(params?: Record<string, unknown>) {
+      const res = await httpRequest<any>(`/finance/request-remittances${toQuery(params)}`);
+      return {
+        items: ((res as any)?.data?.items ?? []) as FinanceRequestRemittanceRecord[],
+        pagination: (res as any)?.data?.pagination ?? null,
+      };
+    },
+
     batchRemitDeductions(body: Record<string, unknown>) {
-      return httpRequest<{ updated: number }>('/finance/statutory-deductions/remit', {
-        method: 'PATCH',
+      return httpRequest<FinanceRequestRemittanceRecord>('/finance/request-remittances', {
+        method: 'POST',
         body,
       });
     },
@@ -932,15 +975,22 @@ export function createFinanceApi(httpRequest: HttpRequest) {
     },
 
     updateRemittanceRecord(id: string, payload: Record<string, unknown>) {
-      return httpRequest<Record<string, unknown>>(`/finance/statutory-deductions/${id}/remittance`, {
+      return httpRequest<FinanceRequestRemittanceRecord>(`/finance/request-remittances/${id}`, {
         method: 'PATCH',
         body: payload,
       });
     },
 
-    downloadTrmSlip(deductionId: string) {
+    addRemittanceAllocations(id: string, payload: Record<string, unknown>) {
+      return httpRequest<FinanceRequestRemittanceRecord>(`/finance/request-remittances/${id}/allocations`, {
+        method: 'POST',
+        body: payload,
+      });
+    },
+
+    downloadTrmSlip(remittanceId: string) {
       return httpRequest<{ file_name: string; mime_type: string; content_base64: string }>(
-        `/finance/statutory-deductions/${deductionId}/pdf`,
+        `/finance/request-remittances/${remittanceId}/pdf`,
         { method: 'POST' },
       );
     },

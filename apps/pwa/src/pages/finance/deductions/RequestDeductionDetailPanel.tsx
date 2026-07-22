@@ -32,22 +32,22 @@ export function RequestDeductionDetailPanel({ deduction: d, onClose, onRemit, on
   const isRemitted = d.status === "remitted";
 
   useEffect(() => {
-    if (!isRemitted || !d.remittance_ref) {
+    if (!isRemitted || !d.remittance_id) {
       setBatchSiblings(null);
       return;
     }
     setBatchLoading(true);
     financeApi
-      .listRequestDeductions({ remittance_ref: d.remittance_ref, per_page: 100 })
-      .then((res) => setBatchSiblings(res.items.filter((item) => item.id !== d.id)))
+      .listRequestDeductions({ remittance_number: d.remittance_number ?? undefined, per_page: 100 })
+      .then((res) => setBatchSiblings(res.items.filter((item) => item.id !== d.id && item.remittance_id === d.remittance_id)))
       .catch(() => setBatchSiblings([]))
       .finally(() => setBatchLoading(false));
-  }, [d.id, d.remittance_ref, isRemitted]);
+  }, [d.id, d.remittance_id, d.remittance_number, isRemitted]);
 
   async function handleDownloadTrm() {
     setDownloading(true);
     try {
-      const res = await financeApi.downloadTrmSlip(d.id);
+      const res = await financeApi.downloadTrmSlip(String(d.remittance_id ?? d.id));
       downloadBase64Pdf(res as any);
     } catch {
       showToast({ tone: "danger", title: "Download failed", message: "Could not generate TRM slip." });
@@ -178,7 +178,7 @@ export function RequestDeductionDetailPanel({ deduction: d, onClose, onRemit, on
             </div>
           )}
 
-          {isRemitted && d.remittance_ref && (
+          {isRemitted && d.remittance_id && (
             <div>
               <p className="mb-2 text-xs font-bold uppercase tracking-widest text-slate-400">
                 Other taxes in this payment

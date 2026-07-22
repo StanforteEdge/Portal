@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import {
   Button, Icon, PageHeader,
   Table, TableHead, TableHeaderRow, TableHeaderCell,
@@ -17,6 +17,40 @@ import { RequestDeductionDetailPanel } from "./RequestDeductionDetailPanel";
 
 type Account = { id: string; name: string; bank_name: string | null };
 
+type FinanceRequestRemittanceRecord = {
+  id: string;
+  remittance_number: string;
+  reference: string | null;
+  remitted_at: string | null;
+  total_amount: number;
+  allocated_amount: number;
+  unallocated_amount: number;
+  remitted_by: { id: string; name: string } | null;
+  created_by: { id: string; name: string } | null;
+  payment_voucher: { id: string; voucher_number: string } | null;
+  paid_from_account: { id: string; name: string; bank_name: string | null; account_number: string | null } | null;
+  evidence_file: { id: string; file_name: string; public_url: string | null } | null;
+  evidence_files: Array<{ id: string; file_name: string; public_url: string | null }>;
+  notes: string | null;
+  deductions: Array<{
+    allocation_id: string;
+    deduction_id: string;
+    request_id: string;
+    request_number: string;
+    deduction_type_id: string;
+    deduction_type_name: string;
+    deduction_type_code: string;
+    amount: number;
+    allocated_amount: number;
+    total_allocated_amount: number;
+    remaining_amount: number;
+    status: "pending" | "partially_remitted" | "remitted";
+    payment_voucher: { id: string; voucher_number: string } | null;
+  }>;
+  created_at: string;
+  updated_at: string;
+};
+
 export default function StatutoryDeductionsPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -34,6 +68,8 @@ export default function StatutoryDeductionsPage() {
   const [remitRef, setRemitRef] = useState("");
   const [remitDate, setRemitDate] = useState("");
   const [remitAccountId, setRemitAccountId] = useState("");
+  const [remitTotalAmount, setRemitTotalAmount] = useState(0);
+  const [allocationAmounts, setAllocationAmounts] = useState<Record<string, number>>({});
   const [remitFile, setRemitFile] = useState<File | null>(null);
   const [remitFileUploading, setRemitFileUploading] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -45,10 +81,12 @@ export default function StatutoryDeductionsPage() {
   const [editDeduction, setEditDeduction] = useState<FinanceRequestDeductionRecord | null>(null);
   const [editForm, setEditForm] = useState({ deduction_type_id: "", gross_amount: 0, amount: 0, rate: 0, notes: "" });
   const [editSaving, setEditSaving] = useState(false);
-  const [editRemittance, setEditRemittance] = useState<FinanceRequestDeductionRecord | null>(null);
-  const [editRemitForm, setEditRemitForm] = useState({ remittance_ref: "", remitted_at: "", paid_from_account_id: "", notes: "" });
+  const [editRemittance, setEditRemittance] = useState<FinanceRequestRemittanceRecord | null>(null);
+  const [editRemitForm, setEditRemitForm] = useState({ remittance_ref: "", remitted_at: "", paid_from_account_id: "", notes: "", remittance_total_amount: 0 });
+  const [editRemitAllocations, setEditRemitAllocations] = useState<Record<string, number>>({});
   const [editRemitSaving, setEditRemitSaving] = useState(false);
   const [deductionTypes, setDeductionTypes] = useState<any[]>([]);
+  const [remittanceSearch, setRemittanceSearch] = useState("");
 
   const fetchDeductions = useCallback(async (p = 1) => {
     setLoading(true);
@@ -95,13 +133,53 @@ export default function StatutoryDeductionsPage() {
   }, []);
 
   useEffect(() => {
+    if (!remitOpen) return;
+    const selected = deductions.filter((d) => selectedIds.has(d.id));
+    const nextAllocations = Object.fromEntries(
+      selected.map((d) => [d.id, allocationAmounts[d.id] ?? Number(d.remaining_amount ?? d.amount ?? 0)]),
+    );
+    setAllocationAmounts(nextAllocations);
+    const total = Object.values(nextAllocations).reduce((sum, value) => sum + Number(value || 0), 0);
+    setRemitTotalAmount(total);
+  }, [remitOpen, deductions, selectedIds]);
+
+  useEffect(() => {
     financeApi.listDeductionTypes({ page: 1, per_page: 200 }).then((res: any) => {
       setDeductionTypes(Array.isArray(res?.result) ? res.result : Array.isArray(res) ? res : []);
     }).catch(() => {});
   }, []);
 
+  const [requestRemittances, setRequestRemittances] = useState<FinanceRequestRemittanceRecord[]>([]);
+
+  const fetchRequestRemittances = useCallback(async () => {
+    try {
+      const res = await financeApi.listRequestRemittances({ per_page: 100 });
+      setRequestRemittances(res.items ?? []);
+    } catch {
+      setRequestRemittances([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchRequestRemittances();
+  }, [fetchRequestRemittances]);
+
   const handleRemit = async () => {
     if (!remitRef.trim()) return;
+    const selectedRows = deductions.filter((d) => selectedIds.has(d.id));
+    const allocations = selectedRows.map((d) => ({
+      deduction_id: d.id,
+      allocated_amount: Number(allocationAmounts[d.id] ?? d.remaining_amount ?? d.amount ?? 0),
+    }));
+    if (allocations.some((entry) => entry.allocated_amount <= 0)) {
+      showToast({ tone: "warning", title: "Invalid allocation", message: "Every selected deduction needs a positive allocated amount." });
+      return;
+    }
+    const allocatedTotal = allocations.reduce((sum, entry) => sum + entry.allocated_amount, 0);
+    if (remitTotalAmount > 0 && allocatedTotal - remitTotalAmount > 0.0001) {
+      showToast({ tone: "warning", title: "Remittance too small", message: "Allocated deductions exceed the remittance total amount." });
+      return;
+    }
 
     let evidenceFileId: string | undefined;
     if (remitFile) {
@@ -122,6 +200,8 @@ export default function StatutoryDeductionsPage() {
       const body: Record<string, unknown> = {
         deduction_ids: Array.from(selectedIds),
         reference: remitRef.trim(),
+        remittance_total_amount: remitTotalAmount || allocatedTotal,
+        allocations,
       };
       if (remitDate) body.remitted_at = new Date(remitDate).toISOString();
       if (remitAccountId) body.paid_from_account_id = remitAccountId;
@@ -133,8 +213,11 @@ export default function StatutoryDeductionsPage() {
       setRemitRef("");
       setRemitDate("");
       setRemitAccountId("");
+      setRemitTotalAmount(0);
+      setAllocationAmounts({});
       setRemitFile(null);
       setRemitOpen(false);
+      void fetchRequestRemittances();
       void fetchDeductions(page);
     } catch {
       showToast({ tone: "danger", title: "Remit failed", message: "Failed to remit deductions." });
@@ -149,6 +232,10 @@ export default function StatutoryDeductionsPage() {
       next.has(id) ? next.delete(id) : next.add(id);
       return next;
     });
+  };
+
+  const setAllocationAmount = (id: string, value: number) => {
+    setAllocationAmounts((prev) => ({ ...prev, [id]: Number.isFinite(value) ? value : 0 }));
   };
 
   const toggleAll = () => {
@@ -186,23 +273,63 @@ export default function StatutoryDeductionsPage() {
     }
   };
 
-  const openEditRemittance = (d: FinanceRequestDeductionRecord) => {
-    setEditRemittance(d);
+  const openEditRemittance = async (d: FinanceRequestDeductionRecord) => {
+    if (!d.remittance_id) {
+      showToast({ tone: "warning", title: "Missing remittance", message: "This deduction is not linked to a remittance record." });
+      return;
+    }
+    try {
+      const res = await financeApi.listRequestRemittances({ id: d.remittance_id, per_page: 1 });
+      const remittance = res.items?.[0] ?? null;
+      if (!remittance) {
+        showToast({ tone: "danger", title: "Load failed", message: "Could not load remittance details." });
+        return;
+      }
+      setEditRemittance(remittance);
+      setEditRemitForm({
+        remittance_ref: remittance.reference || "",
+        remitted_at: remittance.remitted_at ? remittance.remitted_at.slice(0, 10) : "",
+        paid_from_account_id: remittance.paid_from_account?.id || "",
+        notes: remittance.notes || "",
+        remittance_total_amount: remittance.total_amount,
+      });
+      setEditRemitAllocations(
+        Object.fromEntries(remittance.deductions.map((item: FinanceRequestRemittanceRecord["deductions"][number]) => [item.allocation_id, Number(item.allocated_amount || 0)])),
+      );
+    } catch (err) {
+      showToast({ tone: "danger", title: "Load failed", message: err instanceof Error ? err.message : "Unable to load remittance." });
+    }
+  };
+
+  const openRemittanceRecord = (remittance: FinanceRequestRemittanceRecord) => {
+    setEditRemittance(remittance);
     setEditRemitForm({
-      remittance_ref: d.remittance_ref || "",
-      remitted_at: d.remitted_at ? d.remitted_at.slice(0, 10) : "",
-      paid_from_account_id: d.paid_from_account?.id || "",
-      notes: d.notes || "",
+      remittance_ref: remittance.reference || "",
+      remitted_at: remittance.remitted_at ? remittance.remitted_at.slice(0, 10) : "",
+      paid_from_account_id: remittance.paid_from_account?.id || "",
+      notes: remittance.notes || "",
+      remittance_total_amount: remittance.total_amount,
     });
+    setEditRemitAllocations(
+      Object.fromEntries(remittance.deductions.map((item: FinanceRequestRemittanceRecord["deductions"][number]) => [item.allocation_id, Number(item.allocated_amount || 0)])),
+    );
   };
 
   const handleUpdateRemittance = async () => {
     if (!editRemittance) return;
     try {
       setEditRemitSaving(true);
-      await financeApi.updateRemittanceRecord(editRemittance.id, editRemitForm);
+      await financeApi.updateRemittanceRecord(editRemittance.id, {
+        ...editRemitForm,
+        allocations: editRemittance.deductions.map((item) => ({
+          id: item.allocation_id,
+          allocated_amount: Number(editRemitAllocations[item.allocation_id] ?? item.allocated_amount),
+        })),
+      });
       showToast({ tone: "success", title: "Updated", message: "Remittance record updated." });
       setEditRemittance(null);
+      setEditRemitAllocations({});
+      void fetchRequestRemittances();
       void fetchDeductions(page);
     } catch (err) {
       showToast({ tone: "danger", title: "Update failed", message: err instanceof Error ? err.message : "Unable to update." });
@@ -212,6 +339,28 @@ export default function StatutoryDeductionsPage() {
   };
 
   const pendingRows = deductions.filter((d) => d.status === "pending");
+  const filteredRemittances = useMemo(() => {
+    const q = remittanceSearch.trim().toLowerCase();
+    if (!q) return requestRemittances;
+    return requestRemittances.filter((item) =>
+      [item.remittance_number, item.reference, item.payment_voucher?.voucher_number, item.paid_from_account?.name]
+        .some((value) => String(value || "").toLowerCase().includes(q)),
+    );
+  }, [requestRemittances, remittanceSearch]);
+  const selectedPendingRows = useMemo(
+    () => deductions.filter((d) => selectedIds.has(d.id) && d.status === "pending"),
+    [deductions, selectedIds],
+  );
+  const selectedAllocationTotal = selectedPendingRows.reduce(
+    (sum, d) => sum + Number(allocationAmounts[d.id] ?? d.remaining_amount ?? d.amount ?? 0),
+    0,
+  );
+  const editAllocationTotal = editRemittance
+    ? editRemittance.deductions.reduce(
+        (sum: number, item: FinanceRequestRemittanceRecord["deductions"][number]) => sum + Number(editRemitAllocations[item.allocation_id] ?? item.allocated_amount ?? 0),
+        0,
+      )
+    : 0;
 
   const downloadBase64Pdf = (res: { file_name: string; content_base64: string }) => {
     const bytes = Uint8Array.from(atob(res.content_base64), (c) => c.charCodeAt(0));
@@ -232,6 +381,17 @@ export default function StatutoryDeductionsPage() {
     }
   };
 
+  const openNewRemittanceWorkspace = () => {
+    setSelectedIds(new Set());
+    setAllocationAmounts({});
+    setRemitRef("");
+    setRemitDate("");
+    setRemitAccountId("");
+    setRemitTotalAmount(0);
+    setRemitFile(null);
+    setRemitOpen(true);
+  };
+
   return (
     <AppShell
       navigation={buildAppNavigation()}
@@ -245,20 +405,21 @@ export default function StatutoryDeductionsPage() {
         description="Track and remit withheld statutory amounts across all requests."
       />
 
-      <SectionCard
-        title="Deductions Register"
-        action={
-          <Button
-            variant="primary"
-            disabled={selectedIds.size === 0}
-            onClick={() => setRemitOpen(true)}
-          >
-            <Icon name="CheckSquare" className="w-4 h-4 mr-1" />
-            Remit ({selectedIds.size})
-          </Button>
-        }
-      >
-        <div className="mb-4 flex flex-wrap gap-3 items-end">
+      <div className="grid gap-6 xl:grid-cols-[1.35fr,1fr]">
+        <SectionCard
+          title="Deductions Register"
+          action={
+            <Button
+              variant="primary"
+              disabled={selectedIds.size === 0}
+              onClick={() => setRemitOpen(true)}
+            >
+              <Icon name="CheckSquare" className="w-4 h-4 mr-1" />
+              Remit ({selectedIds.size})
+            </Button>
+          }
+        >
+          <div className="mb-4 flex flex-wrap gap-3 items-end">
           <div className="flex-1 min-w-[200px]">
             <TextField
               label="Search request"
@@ -283,8 +444,8 @@ export default function StatutoryDeductionsPage() {
           </Button>
         </div>
 
-        <div className="rounded-[22px] border border-slate-200 bg-white overflow-x-auto">
-          <Table>
+          <div className="rounded-[22px] border border-slate-200 bg-white overflow-x-auto">
+            <Table>
             <TableHead>
               <TableHeaderRow>
                 <TableHeaderCell>
@@ -384,23 +545,79 @@ export default function StatutoryDeductionsPage() {
                 ))
               )}
             </TableBody>
-          </Table>
-        </div>
-
-        {pagination && pagination.total_pages > 1 && (
-          <div className="mt-3 flex gap-2 items-center">
-            <Button variant="secondary" disabled={page <= 1} onClick={() => void fetchDeductions(page - 1)}>Prev</Button>
-            <span className="text-sm text-slate-600">Page {page} of {pagination.total_pages} ({pagination.total} total)</span>
-            <Button variant="secondary" disabled={page >= pagination.total_pages} onClick={() => void fetchDeductions(page + 1)}>Next</Button>
+            </Table>
           </div>
-        )}
-      </SectionCard>
+
+          {pagination && pagination.total_pages > 1 && (
+            <div className="mt-3 flex gap-2 items-center">
+              <Button variant="secondary" disabled={page <= 1} onClick={() => void fetchDeductions(page - 1)}>Prev</Button>
+              <span className="text-sm text-slate-600">Page {page} of {pagination.total_pages} ({pagination.total} total)</span>
+              <Button variant="secondary" disabled={page >= pagination.total_pages} onClick={() => void fetchDeductions(page + 1)}>Next</Button>
+            </div>
+          )}
+        </SectionCard>
+
+        <SectionCard
+          title="Remittance List"
+          description="Open an existing remittance or start a new remittance workspace independently of the deductions grid."
+          action={<Button variant="secondary" onClick={openNewRemittanceWorkspace}>New Remittance</Button>}
+        >
+          <div className="mb-4">
+            <TextField
+              label="Search remittance"
+              value={remittanceSearch}
+              onChange={(e) => setRemittanceSearch(e.target.value)}
+              placeholder="TRM number, reference, voucher, or account"
+            />
+          </div>
+          <div className="rounded-[22px] border border-slate-200 bg-white overflow-x-auto">
+            <Table>
+              <TableHead>
+                <TableHeaderRow>
+                  <TableHeaderCell>TRM</TableHeaderCell>
+                  <TableHeaderCell>Total</TableHeaderCell>
+                  <TableHeaderCell>Allocated</TableHeaderCell>
+                  <TableHeaderCell>Unallocated</TableHeaderCell>
+                  <TableHeaderCell>Deductions</TableHeaderCell>
+                  <TableHeaderCell>{" "}</TableHeaderCell>
+                </TableHeaderRow>
+              </TableHead>
+              <TableBody>
+                {filteredRemittances.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={6} className="text-center text-slate-400 py-8">No remittances found.</TableCell>
+                  </TableRow>
+                ) : (
+                  filteredRemittances.map((item: FinanceRequestRemittanceRecord) => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div className="text-sm font-mono font-semibold text-slate-800">{item.remittance_number}</div>
+                        <div className="text-xs text-slate-400">{item.reference || "—"}</div>
+                      </TableCell>
+                      <TableCell className="text-sm">{formatCurrency(item.total_amount, "NGN")}</TableCell>
+                      <TableCell className="text-sm">{formatCurrency(item.allocated_amount, "NGN")}</TableCell>
+                      <TableCell className="text-sm">{formatCurrency(item.unallocated_amount, "NGN")}</TableCell>
+                      <TableCell className="text-sm">{item.deductions.length}</TableCell>
+                      <TableCell>
+                        <div className="flex gap-2 items-center">
+                          <button className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => openRemittanceRecord(item)}>Open</button>
+                          <button className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => void handleDownloadTrm(item.id)}>TRM Slip</button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
+                )}
+              </TableBody>
+            </Table>
+          </div>
+        </SectionCard>
+      </div>
 
       <SlideOver open={remitOpen} onClose={() => setRemitOpen(false)} size="sm">
         <div className="space-y-4 p-4">
           <h3 className="font-semibold text-slate-800">Remit Deductions</h3>
           <p className="text-sm text-slate-600">
-            {selectedIds.size} deduction(s) selected. Each will receive a unique TRM reference number.
+            {selectedIds.size} deduction(s) selected. Split the remittance across multiple deductions by setting the allocated amount for each one.
           </p>
 
           <TextField
@@ -409,6 +626,44 @@ export default function StatutoryDeductionsPage() {
             onChange={(e) => setRemitRef(e.target.value)}
             placeholder="e.g. FIRS/WHT/2026/Q1"
           />
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Remittance Total Amount</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              value={remitTotalAmount}
+              onChange={(e) => setRemitTotalAmount(Number(e.target.value) || 0)}
+            />
+            <p className="mt-1 text-xs text-slate-500">Allocated total: {formatCurrency(selectedAllocationTotal, "NGN")}</p>
+          </div>
+
+          <div className="rounded-xl border border-slate-200">
+            <div className="border-b border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">Allocation Split</div>
+            <div className="max-h-72 overflow-auto divide-y divide-slate-100">
+              {selectedPendingRows.map((d) => (
+                <div key={d.id} className="grid gap-3 px-3 py-3 md:grid-cols-[1.6fr,0.8fr,0.9fr] items-center">
+                  <div>
+                    <p className="text-sm font-medium text-slate-800">{d.deduction_type_name}</p>
+                    <p className="text-xs text-slate-500">{d.request_number}</p>
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    Remaining: <span className="font-semibold text-slate-700">{formatCurrency(Number(d.remaining_amount ?? d.amount ?? 0), "NGN")}</span>
+                  </div>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                    value={String(allocationAmounts[d.id] ?? d.remaining_amount ?? d.amount ?? 0)}
+                    onChange={(e) => setAllocationAmount(d.id, Number(e.target.value))}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
 
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
@@ -454,7 +709,7 @@ export default function StatutoryDeductionsPage() {
             <Button
               variant="primary"
               onClick={() => void handleRemit()}
-              disabled={!remitRef.trim() || remitting || remitFileUploading}
+              disabled={!remitRef.trim() || remitting || remitFileUploading || selectedPendingRows.length === 0}
             >
               {remitFileUploading ? "Uploading..." : remitting ? "Remitting..." : "Confirm Remit"}
             </Button>
@@ -521,6 +776,11 @@ export default function StatutoryDeductionsPage() {
               <input className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editRemitForm.remittance_ref} onChange={(e) => setEditRemitForm((p) => ({ ...p, remittance_ref: e.target.value }))} />
             </div>
             <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Remittance Total Amount</label>
+              <input type="number" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editRemitForm.remittance_total_amount} onChange={(e) => setEditRemitForm((p) => ({ ...p, remittance_total_amount: Number(e.target.value) || 0 }))} />
+              <p className="mt-1 text-xs text-slate-500">Allocated total: {formatCurrency(editAllocationTotal, "NGN")}</p>
+            </div>
+            <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
               <input type="date" className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" value={editRemitForm.remitted_at} onChange={(e) => setEditRemitForm((p) => ({ ...p, remitted_at: e.target.value }))} />
             </div>
@@ -534,6 +794,30 @@ export default function StatutoryDeductionsPage() {
             <div>
               <label className="block text-sm font-medium text-slate-700 mb-1">Notes</label>
               <textarea className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm" rows={3} value={editRemitForm.notes} onChange={(e) => setEditRemitForm((p) => ({ ...p, notes: e.target.value }))} />
+            </div>
+            <div className="rounded-xl border border-slate-200">
+              <div className="border-b border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">Allocation Split</div>
+              <div className="max-h-72 overflow-auto divide-y divide-slate-100">
+                {editRemittance.deductions.map((item: FinanceRequestRemittanceRecord["deductions"][number]) => (
+                  <div key={item.allocation_id} className="grid gap-3 px-3 py-3 md:grid-cols-[1.6fr,0.8fr,0.9fr] items-center">
+                    <div>
+                      <p className="text-sm font-medium text-slate-800">{item.deduction_type_name}</p>
+                      <p className="text-xs text-slate-500">{item.request_number}</p>
+                    </div>
+                    <div className="text-xs text-slate-500">
+                      Withheld: <span className="font-semibold text-slate-700">{formatCurrency(Number(item.amount || 0), "NGN")}</span>
+                    </div>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm"
+                      value={String(editRemitAllocations[item.allocation_id] ?? item.allocated_amount ?? 0)}
+                      onChange={(e) => setEditRemitAllocations((prev) => ({ ...prev, [item.allocation_id]: Number(e.target.value) || 0 }))}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
             <div className="flex gap-2 justify-end pt-4">
               <Button variant="secondary" onClick={() => setEditRemittance(null)}>Cancel</Button>

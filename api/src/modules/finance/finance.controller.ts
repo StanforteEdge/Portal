@@ -39,9 +39,9 @@ import { DeductionService } from './deduction.service';
 import { UpsertDeductionTypeDto } from './dto/upsert-deduction-type.dto';
 import { ApplyPVDeductionsDto } from './dto/apply-pv-deductions.dto';
 import { CreateWHTRemittanceDto } from './dto/create-wht-remittance.dto';
-import { StatutoryDeductionsQueryDto, RemitStatutoryDeductionsDto } from './dto/statutory-deductions.dto';
+import { RequestRemittancesQueryDto, StatutoryDeductionsQueryDto, RemitStatutoryDeductionsDto } from './dto/statutory-deductions.dto';
 import { UpdateJournalEntryDto } from './dto/update-journal-entry.dto';
-import { UpdatePendingDeductionDto, UpdateRemittanceRecordDto } from './dto/update-deduction.dto';
+import { AddRemittanceAllocationsDto, UpdatePendingDeductionDto, UpdateRemittanceRecordDto } from './dto/update-deduction.dto';
 
 @Controller('finance')
 @UseGuards(JwtAuthGuard, PermissionsGuard)
@@ -1015,9 +1015,16 @@ export class FinanceController {
     return this.deductionService.listRequestDeductions(query);
   }
 
-  @Patch('statutory-deductions/remit')
+  @Get('request-remittances')
+  @Permissions('finance.view')
+  @ApiOperation({ summary: 'List standalone request remittances' })
+  listRequestRemittances(@Query() query: RequestRemittancesQueryDto) {
+    return this.deductionService.listRequestRemittances(query);
+  }
+
+  @Post('request-remittances')
   @Permissions('finance.manage')
-  @ApiOperation({ summary: 'Batch-remit selected statutory deductions' })
+  @ApiOperation({ summary: 'Create request remittance and attach deductions' })
   batchRemitDeductions(@Req() req: any, @Body() dto: RemitStatutoryDeductionsDto) {
     return this.deductionService.batchRemitDeductions(dto, req.user?.id);
   }
@@ -1030,17 +1037,25 @@ export class FinanceController {
     return this.deductionService.updatePendingDeduction(id, dto);
   }
 
-  @Patch('statutory-deductions/:id/remittance')
+  @Patch('request-remittances/:id')
   @Permissions('finance.manage')
-  @ApiOperation({ summary: 'Update remittance record for a remitted deduction' })
+  @ApiOperation({ summary: 'Update request remittance record' })
   @ApiBody({ type: UpdateRemittanceRecordDto })
   updateRemittanceRecord(@Param('id') id: string, @Body() dto: UpdateRemittanceRecordDto) {
     return this.deductionService.updateRemittanceRecord(id, dto);
   }
 
-  @Post('statutory-deductions/:id/pdf')
+  @Post('request-remittances/:id/allocations')
+  @Permissions('finance.manage')
+  @ApiOperation({ summary: 'Attach more deductions to an existing request remittance' })
+  @ApiBody({ type: AddRemittanceAllocationsDto })
+  addRequestRemittanceAllocations(@Req() req: any, @Param('id') id: string, @Body() dto: AddRemittanceAllocationsDto) {
+    return this.deductionService.addRemittanceAllocations(id, dto, req.user?.id);
+  }
+
+  @Post('request-remittances/:id/pdf')
   @Permissions('finance.view')
-  @ApiOperation({ summary: 'Download TRM slip PDF for a remitted deduction' })
+  @ApiOperation({ summary: 'Download TRM slip PDF for a request remittance' })
   downloadTrmSlip(@Param('id') id: string) {
     return this.deductionService.generateTrmSlipPdf(id);
   }
