@@ -14,6 +14,9 @@ import type { FinanceRequestDeductionRecord } from "@/shared";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { formatCurrency, formatDisplayDate } from "@stanforte/shared";
 import { RequestDeductionDetailPanel } from "./RequestDeductionDetailPanel";
+import { MediaPickerModal } from "@/shared/components/media/MediaPickerModal";
+import { listFileAssets, uploadFileAsset } from "@/pages/files/files-api";
+import { SlideOverContent, SlideOverFooter, SlideOverHeader } from "@/shared/components/ui/SlideOver";
 
 type Account = { id: string; name: string; bank_name: string | null };
 
@@ -70,8 +73,8 @@ export default function StatutoryDeductionsPage() {
   const [remitAccountId, setRemitAccountId] = useState("");
   const [remitTotalAmount, setRemitTotalAmount] = useState(0);
   const [allocationAmounts, setAllocationAmounts] = useState<Record<string, number>>({});
-  const [remitFile, setRemitFile] = useState<File | null>(null);
-  const [remitFileUploading, setRemitFileUploading] = useState(false);
+  const [remitEvidenceFiles, setRemitEvidenceFiles] = useState<Array<{ id: string; file_name: string }>>([]);
+  const [showEvidencePicker, setShowEvidencePicker] = useState(false);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [remitting, setRemitting] = useState(false);
   const [pagination, setPagination] = useState<{ page: number; total: number; total_pages: number } | null>(null);
@@ -181,20 +184,6 @@ export default function StatutoryDeductionsPage() {
       return;
     }
 
-    let evidenceFileId: string | undefined;
-    if (remitFile) {
-      setRemitFileUploading(true);
-      try {
-        const uploaded = await resourceApi.uploadFile(remitFile);
-        evidenceFileId = (uploaded as any)?.id;
-      } catch {
-        showToast({ tone: "danger", title: "Upload failed", message: "Could not upload evidence file." });
-        setRemitFileUploading(false);
-        return;
-      }
-      setRemitFileUploading(false);
-    }
-
     setRemitting(true);
     try {
       const body: Record<string, unknown> = {
@@ -205,7 +194,7 @@ export default function StatutoryDeductionsPage() {
       };
       if (remitDate) body.remitted_at = new Date(remitDate).toISOString();
       if (remitAccountId) body.paid_from_account_id = remitAccountId;
-      if (evidenceFileId) body.evidence_file_id = evidenceFileId;
+      if (remitEvidenceFiles.length > 0) body.evidence_file_ids = remitEvidenceFiles.map((file) => file.id);
 
       const result = await financeApi.batchRemitDeductions(body);
       showToast({ tone: "success", title: "Remitted", message: `${(result as any).updated} deduction(s) marked as remitted.` });
@@ -215,7 +204,7 @@ export default function StatutoryDeductionsPage() {
       setRemitAccountId("");
       setRemitTotalAmount(0);
       setAllocationAmounts({});
-      setRemitFile(null);
+      setRemitEvidenceFiles([]);
       setRemitOpen(false);
       void fetchRequestRemittances();
       void fetchDeductions(page);
@@ -338,7 +327,7 @@ export default function StatutoryDeductionsPage() {
     }
   };
 
-  const pendingRows = deductions.filter((d) => d.status === "pending");
+  const pendingRows = deductions.filter((d) => d.status !== "remitted" && Number(d.remaining_amount ?? d.amount ?? 0) > 0);
   const filteredRemittances = useMemo(() => {
     const q = remittanceSearch.trim().toLowerCase();
     if (!q) return requestRemittances;
@@ -348,7 +337,11 @@ export default function StatutoryDeductionsPage() {
     );
   }, [requestRemittances, remittanceSearch]);
   const selectedPendingRows = useMemo(
-    () => deductions.filter((d) => selectedIds.has(d.id) && d.status === "pending"),
+    () => deductions.filter((d) => selectedIds.has(d.id) && d.status !== "remitted" && Number(d.remaining_amount ?? d.amount ?? 0) > 0),
+    [deductions, selectedIds],
+  );
+  const selectedAllocationRows = useMemo(
+    () => deductions.filter((d) => selectedIds.has(d.id) && d.status !== "remitted" && Number(d.remaining_amount ?? d.amount ?? 0) > 0),
     [deductions, selectedIds],
   );
   const selectedAllocationTotal = selectedPendingRows.reduce(
@@ -388,7 +381,7 @@ export default function StatutoryDeductionsPage() {
     setRemitDate("");
     setRemitAccountId("");
     setRemitTotalAmount(0);
-    setRemitFile(null);
+    setRemitEvidenceFiles([]);
     setRemitOpen(true);
   };
 
@@ -405,7 +398,7 @@ export default function StatutoryDeductionsPage() {
         description="Track and remit withheld statutory amounts across all requests."
       />
 
-      <div className="grid gap-6 xl:grid-cols-[1.35fr,1fr]">
+      <div className="space-y-6">
         <SectionCard
           title="Deductions Register"
           action={
@@ -613,12 +606,13 @@ export default function StatutoryDeductionsPage() {
         </SectionCard>
       </div>
 
-      <SlideOver open={remitOpen} onClose={() => setRemitOpen(false)} size="sm">
-        <div className="space-y-4 p-4">
-          <h3 className="font-semibold text-slate-800">Remit Deductions</h3>
-          <p className="text-sm text-slate-600">
-            {selectedIds.size} deduction(s) selected. Split the remittance across multiple deductions by setting the allocated amount for each one.
-          </p>
+      <SlideOver open={remitOpen} onClose={() => setRemitOpen(false)} size="md">
+        <SlideOverHeader title="Remit Deductions" subtitle={`${selectedIds.size} deduction(s) selected`} onClose={() => setRemitOpen(false)} />
+        <SlideOverContent>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">
+              Split the remittance across multiple deductions by setting the allocated amount for each one.
+            </p>
 
           <TextField
             label="Remittance Reference *"
@@ -643,7 +637,7 @@ export default function StatutoryDeductionsPage() {
           <div className="rounded-xl border border-slate-200">
             <div className="border-b border-slate-200 px-3 py-2 text-sm font-medium text-slate-700">Allocation Split</div>
             <div className="max-h-72 overflow-auto divide-y divide-slate-100">
-              {selectedPendingRows.map((d) => (
+              {selectedAllocationRows.map((d) => (
                 <div key={d.id} className="grid gap-3 px-3 py-3 md:grid-cols-[1.6fr,0.8fr,0.9fr] items-center">
                   <div>
                     <p className="text-sm font-medium text-slate-800">{d.deduction_type_name}</p>
@@ -691,31 +685,58 @@ export default function StatutoryDeductionsPage() {
             </select>
           </div>
 
-          <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Evidence (receipt)</label>
-            <input
-              type="file"
-              accept=".pdf,.jpg,.jpeg,.png"
-              className="block w-full text-sm text-slate-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-slate-100 file:text-slate-700 hover:file:bg-slate-200"
-              onChange={(e) => setRemitFile(e.target.files?.[0] ?? null)}
-            />
-            {remitFile && (
-              <p className="mt-1 text-xs text-slate-500">{remitFile.name}</p>
-            )}
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Evidence Files</label>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" onClick={() => setShowEvidencePicker(true)}>Select Evidence Files</Button>
+              </div>
+              {remitEvidenceFiles.length > 0 ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {remitEvidenceFiles.map((file) => (
+                    <span key={file.id} className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-700">
+                      {file.file_name}
+                      <button type="button" onClick={() => setRemitEvidenceFiles((prev) => prev.filter((item) => item.id !== file.id))}>×</button>
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+            </div>
           </div>
-
-          <div className="flex gap-2 justify-end pt-4">
+        </SlideOverContent>
+        <SlideOverFooter>
+          <div className="flex gap-2 justify-end w-full">
             <Button variant="secondary" onClick={() => setRemitOpen(false)}>Cancel</Button>
             <Button
               variant="primary"
               onClick={() => void handleRemit()}
-              disabled={!remitRef.trim() || remitting || remitFileUploading || selectedPendingRows.length === 0}
+              disabled={!remitRef.trim() || remitting || selectedAllocationRows.length === 0}
             >
-              {remitFileUploading ? "Uploading..." : remitting ? "Remitting..." : "Confirm Remit"}
+              {remitting ? "Remitting..." : "Confirm Remit"}
             </Button>
           </div>
-        </div>
+        </SlideOverFooter>
       </SlideOver>
+
+      <MediaPickerModal
+        open={showEvidencePicker}
+        onClose={() => setShowEvidencePicker(false)}
+        title="Select Remittance Evidence"
+        multiple
+        selectedIds={remitEvidenceFiles.map((file) => file.id)}
+        loadFiles={async (searchValue) => listFileAssets({ include_usage: true, per_page: 200, search: searchValue })}
+        uploadFiles={async (files, onProgress) => {
+          const total = files.length;
+          let uploaded = 0;
+          for (const file of Array.from(files)) {
+            onProgress?.({ uploaded, total, current_file_name: file.name });
+            const asset = await uploadFileAsset(file, { metadata: { source: "request_remittance_evidence" } });
+            uploaded += 1;
+            onProgress?.({ uploaded, total, current_file_name: file.name });
+            setRemitEvidenceFiles((prev) => prev.some((item) => item.id === asset.id) ? prev : [...prev, { id: asset.id, file_name: asset.file_name }]);
+          }
+        }}
+        onSelect={(files) => setRemitEvidenceFiles(files.map((file) => ({ id: file.id, file_name: file.file_name })))}
+      />
 
       {selectedDeduction && (
         <RequestDeductionDetailPanel
