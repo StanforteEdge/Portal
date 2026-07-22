@@ -25,6 +25,7 @@ import { getWorkspaceProfile } from "@/shared/api/workspace-api";
 import {
   getPayrollRun,
   authorizePayrollRun,
+  rejectPayrollRun,
   downloadMonthlyBreakdown,
 } from "@/shared/api/payroll-api";
 
@@ -76,6 +77,26 @@ export default function AdminPayrollRunAuthorizePage() {
       refetch();
     } catch (err) {
       showToast({ tone: "danger", title: "Authorization failed", message: err instanceof Error ? err.message : "Unable to authorize." });
+    } finally {
+      setActing(null);
+    }
+  }
+
+  async function handleReturnToFinance() {
+    if (!id) return;
+    const trimmed = notes.trim();
+    if (!trimmed) {
+      showToast({ tone: "danger", title: "Comment required", message: "Add a comment before returning this run to Finance/HR." });
+      return;
+    }
+    setActing("reject");
+    try {
+      await rejectPayrollRun(id, { note: trimmed });
+      showToast({ tone: "success", title: "Returned", message: "Payroll run returned for correction." });
+      setNotes("");
+      refetch();
+    } catch (err) {
+      showToast({ tone: "danger", title: "Return failed", message: err instanceof Error ? err.message : "Unable to return run." });
     } finally {
       setActing(null);
     }
@@ -135,9 +156,14 @@ export default function AdminPayrollRunAuthorizePage() {
               {acting === "export" ? "Exporting..." : "Download Breakdown"}
             </Button>
             {canAuthorize && (
-              <Button size="sm" disabled={acting === "authorize"} onClick={() => void handleAuthorize()}>
-                {acting === "authorize" ? "Authorizing..." : "Authorize Payment"}
-              </Button>
+              <>
+                <Button variant="ghost" size="sm" disabled={acting === "reject"} onClick={() => void handleReturnToFinance()}>
+                  {acting === "reject" ? "Returning..." : "Return for Correction"}
+                </Button>
+                <Button size="sm" disabled={acting === "authorize"} onClick={() => void handleAuthorize()}>
+                  {acting === "authorize" ? "Authorizing..." : "Authorize Payment"}
+                </Button>
+              </>
             )}
           </div>
         }
@@ -161,7 +187,7 @@ export default function AdminPayrollRunAuthorizePage() {
                 label="Authorization Notes (optional)"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="e.g. Approved for May cycle — all figures verified."
+                placeholder="Add approval notes, or explain what must be corrected before this returns."
               />
             </div>
           </SectionCard>

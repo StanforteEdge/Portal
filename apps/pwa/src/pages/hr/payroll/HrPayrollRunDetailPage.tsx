@@ -40,10 +40,10 @@ function runStatusTone(
 ): "neutral" | "warning" | "success" | "danger" {
   switch (status) {
     case "draft": return "neutral";
-    case "generated": return "neutral";
-    case "submitted": return "warning";
-    case "reviewed": return "warning";
+    case "prepared": return "neutral";
+    case "under_review": return "warning";
     case "approved": return "success";
+    case "authorized": return "success";
     case "paid": return "success";
     case "closed": return "neutral";
     case "rejected": return "danger";
@@ -100,8 +100,8 @@ export default function HrPayrollRunDetailPage() {
       await submitPayrollRun(id);
       showToast({ message: "Run submitted to Finance for approval", tone: "success" });
       refetch();
-    } catch {
-      showToast({ message: "Failed to submit run", tone: "danger" });
+    } catch (err) {
+      showToast({ message: err instanceof Error ? err.message : "Failed to submit run", tone: "danger" });
     } finally {
       setActing(null);
     }
@@ -149,9 +149,9 @@ export default function HrPayrollRunDetailPage() {
   }
 
   const period = `${MONTH_NAMES[run.month] ?? run.month} ${run.year}`;
-  const canGenerate = run.status === "draft";
-  const canSubmit = run.status === "generated";
-  const canDelete = ["draft", "generated"].includes(run.status);
+  const canGenerate = run.status === "draft" || run.status === "prepared";
+  const canSubmit = run.status === "prepared";
+  const canDelete = ["draft", "prepared"].includes(run.status);
   const canEdit = ["draft"].includes(run.status);
   const items = run.items ?? [];
 

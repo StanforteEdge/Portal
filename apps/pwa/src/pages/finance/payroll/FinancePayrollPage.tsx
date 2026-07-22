@@ -31,13 +31,32 @@ function runStatusTone(
   status: string,
 ): "neutral" | "warning" | "success" | "danger" {
   switch (status) {
-    case "submitted": return "warning";
-    case "reviewed": return "warning";
+    case "under_review": return "warning";
     case "approved": return "success";
+    case "authorized": return "success";
     case "paid": return "success";
     case "closed": return "neutral";
     case "rejected": return "danger";
     default: return "neutral";
+  }
+}
+
+function formatRunStatus(status: string) {
+  switch (status) {
+    case "under_review":
+      return "Pending Finance Review";
+    case "approved":
+      return "Approved";
+    case "authorized":
+      return "Authorized for Payment";
+    case "paid":
+      return "Paid";
+    case "closed":
+      return "Closed";
+    case "rejected":
+      return "Returned to HR";
+    default:
+      return status;
   }
 }
 
@@ -60,9 +79,9 @@ export default function FinancePayrollPage() {
   const allRuns: PayrollRunSummary[] = runsResp?.items ?? [];
 
   const pendingReview = allRuns.filter((r) =>
-    r.status === "submitted" || r.status === "prepared" || r.status === "reviewed",
+    r.status === "under_review",
   );
-  const approved = allRuns.filter((r) => r.status === "approved");
+  const approved = allRuns.filter((r) => r.status === "approved" || r.status === "authorized");
   const paid = allRuns.filter(
     (r) => r.status === "paid" && r.year === new Date().getFullYear(),
   );
@@ -85,7 +104,7 @@ export default function FinancePayrollPage() {
       <PageHeader
         breadcrumbs={[{ label: "Financial", path: "/finance" }, { label: "Payroll" }]}
         title="Payroll Approval"
-        description="Review and approve payroll runs submitted by HR."
+        description="Review, approve, and pay payroll runs routed from HR."
       />
 
       <div className="grid gap-6">
@@ -113,7 +132,7 @@ export default function FinancePayrollPage() {
         {pendingReview.length > 0 && (
           <SectionCard
             title="Pending Review"
-            description="Runs submitted by HR awaiting Finance review."
+            description="Runs awaiting Finance review."
           >
             <Table>
               <TableHead>
@@ -142,7 +161,7 @@ export default function FinancePayrollPage() {
                         : "-"}
                     </TableCell>
                     <TableCell>
-                      <Chip variant={runStatusTone(run.status)}>{run.status}</Chip>
+                      <Chip variant={runStatusTone(run.status)}>{formatRunStatus(run.status)}</Chip>
                     </TableCell>
                     <TableCell>
                       <Button
@@ -199,7 +218,7 @@ export default function FinancePayrollPage() {
                         : "-"}
                     </TableCell>
                     <TableCell>
-                      <Chip variant={runStatusTone(run.status)}>{run.status}</Chip>
+                      <Chip variant={runStatusTone(run.status)}>{formatRunStatus(run.status)}</Chip>
                     </TableCell>
                     <TableCell>
                       <Button
@@ -217,7 +236,7 @@ export default function FinancePayrollPage() {
           ) : (
             <EmptyState
               title="No payroll runs"
-              description="HR has not submitted any payroll runs yet."
+              description="No payroll runs are currently visible to Finance."
             />
           )}
         </SectionCard>

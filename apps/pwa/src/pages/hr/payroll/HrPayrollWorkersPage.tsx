@@ -46,6 +46,37 @@ function nextPcKey() {
   return ++_profileComponentKey;
 }
 
+function formatPayBasis(value?: string | null) {
+  switch (value) {
+    case "monthly_fixed":
+      return "Monthly Fixed";
+    case "hourly_timesheet":
+      return "Hourly / Timesheet";
+    case "daily_rate":
+      return "Daily Rate";
+    case "retainer":
+      return "Retainer";
+    case "manual":
+      return "Manual";
+    default:
+      return value ?? "-";
+  }
+}
+
+function readableWorkerError(message: string) {
+  if (message.includes("profile.base_amount")) {
+    return "Base amount must be a valid number greater than or equal to 0.";
+  }
+  return message;
+}
+
+function isWithholdingComponent(component?: PayrollComponent | null) {
+  if (!component) return false;
+  const code = String(component.code ?? "").toLowerCase();
+  const name = String(component.name ?? "").toLowerCase();
+  return code === "withholding_tax" || name.includes("withholding");
+}
+
 const EMPTY_FORM: UpsertWorkerPayload = {
   full_name: "",
   worker_type: "employee",
@@ -296,6 +327,21 @@ export default function HrPayrollWorkersPage() {
         })
         .filter((pc) => pc.amount !== undefined || pc.rate !== undefined || pc.formula);
 
+      const hasWithholdingComponent = profileComponents.some((pc) => {
+        const component = components.find((x) => x.id === pc.component_id);
+        return isWithholdingComponent(component);
+      });
+
+      if ((form.worker_type ?? "employee") === "consultant" && withholdingRate && hasWithholdingComponent) {
+        showToast({
+          tone: "danger",
+          title: "Choose one WHT method",
+          message: "Use either Withholding Rate Override or a recurring Withholding Tax component for this consultant, not both.",
+        });
+        setSaving(false);
+        return;
+      }
+
       const hasProfileFields = baseAmount || effectiveFrom || componentRows.length > 0;
 
       const payload: UpsertWorkerPayload = {
@@ -357,7 +403,7 @@ export default function HrPayrollWorkersPage() {
       setShowSlideOver(false);
       setListKey((k) => k + 1);
     } catch (err) {
-      showToast({ tone: "danger", title: "Save failed", message: err instanceof Error ? err.message : "Unable to save worker." });
+      showToast({ tone: "danger", title: "Save failed", message: err instanceof Error ? readableWorkerError(err.message) : "Unable to save worker." });
     } finally {
       setSaving(false);
     }
@@ -450,7 +496,7 @@ export default function HrPayrollWorkersPage() {
                     </TableCell>
                     <TableCell>{w.email ?? "-"}</TableCell>
                     <TableCell className="capitalize">{w.worker_type}</TableCell>
-                    <TableCell className="text-slate-600">{w.pay_basis ?? "-"}</TableCell>
+                    <TableCell className="text-slate-600">{formatPayBasis(w.pay_basis)}</TableCell>
                     <TableCell>{w.currency ?? "NGN"}</TableCell>
                     <TableCell>
                       {w.bank_name
@@ -624,7 +670,12 @@ export default function HrPayrollWorkersPage() {
                     onChange={(e) => setBaseAmount(e.target.value)}
                     placeholder="0.00"
                   />
-                  <TextField label="Payment Mode" value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)} placeholder="bank_transfer" />
+                  <SelectField label="Payment Mode" value={paymentMode} onChange={(e) => setPaymentMode(e.target.value)}>
+                    <option value="bank_transfer">Bank Transfer</option>
+                    <option value="cash">Cash</option>
+                    <option value="cheque">Cheque</option>
+                    <option value="mobile_money">Mobile Money</option>
+                  </SelectField>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <TextField label="Effective From" type="date" value={effectiveFrom} onChange={(e) => setEffectiveFrom(e.target.value)} />
@@ -912,7 +963,7 @@ export default function HrPayrollWorkersPage() {
                 </div>
                 {(form.worker_type ?? "employee") === "consultant" ? (
                   <div className="grid grid-cols-2 gap-4">
-                    <TextField label="Withholding Rate Override" type="number" value={withholdingRate} onChange={(e) => setWithholdingRate(e.target.value)} placeholder="e.g. 0.05" />
+                    <TextField label="Withholding Rate Override" type="number" value={withholdingRate} onChange={(e) => setWithholdingRate(e.target.value)} placeholder="e.g. 0.05" helpText="Use this only if you are not adding a recurring Withholding Tax component in Pay Profile." />
                     <TextField label="Consultant Pension Override" type="number" value={consultantPensionRate} onChange={(e) => setConsultantPensionRate(e.target.value)} placeholder="e.g. 0.00" />
                   </div>
                 ) : null}

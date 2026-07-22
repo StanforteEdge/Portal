@@ -32,10 +32,10 @@ const MONTH_NAMES = [
 function runStatusTone(status: string): "neutral" | "warning" | "success" | "danger" {
   switch (status) {
     case "draft": return "neutral";
-    case "generated": return "neutral";
-    case "submitted": return "warning";
-    case "reviewed": return "warning";
+    case "prepared": return "neutral";
+    case "under_review": return "warning";
     case "approved": return "success";
+    case "authorized": return "success";
     case "paid": return "success";
     case "closed": return "neutral";
     case "rejected": return "danger";
@@ -67,10 +67,10 @@ export default function HrPayrollPage() {
   const allRuns: PayrollRunSummary[] = runsResp?.items ?? [];
 
   const pendingSubmission = allRuns.filter((r) =>
-    r.status === "draft" || r.status === "generated",
+    r.status === "draft" || r.status === "prepared",
   ).length;
   const awaitingApproval = allRuns.filter((r) =>
-    r.status === "submitted" || r.status === "reviewed" || r.status === "approved",
+    r.status === "under_review" || r.status === "approved" || r.status === "authorized",
   ).length;
   const paidThisYear = allRuns.filter((r) =>
     r.status === "paid" && r.year === new Date().getFullYear(),
@@ -135,7 +135,7 @@ export default function HrPayrollPage() {
 
         <SectionCard
           title="Payroll Runs"
-          description="All runs you have created. Submit a generated run to send it to Finance for approval."
+          description="All runs you have created. Submit a prepared run to send it to Finance for approval."
         >
           <div className="mb-4">
             <SelectField
@@ -145,10 +145,10 @@ export default function HrPayrollPage() {
             >
               <option value="all">All</option>
               <option value="draft">Draft</option>
-              <option value="generated">Generated</option>
-              <option value="submitted">Submitted</option>
-              <option value="reviewed">Under Review</option>
+              <option value="prepared">Prepared</option>
+              <option value="under_review">Under Review</option>
               <option value="approved">Approved</option>
+              <option value="authorized">Authorized</option>
               <option value="paid">Paid</option>
               <option value="rejected">Rejected</option>
               <option value="closed">Closed</option>

@@ -41,13 +41,32 @@ const MONTH_NAMES = [
 
 function runStatusTone(status: string): "neutral" | "warning" | "success" | "danger" {
   switch (status) {
-    case "submitted": return "warning";
-    case "reviewed": return "warning";
+    case "under_review": return "warning";
     case "approved": return "success";
+    case "authorized": return "success";
     case "paid": return "success";
     case "closed": return "neutral";
     case "rejected": return "danger";
     default: return "neutral";
+  }
+}
+
+function formatRunStatus(status: string) {
+  switch (status) {
+    case "under_review":
+      return "Pending Finance Review";
+    case "approved":
+      return "Approved";
+    case "authorized":
+      return "Authorized for Payment";
+    case "paid":
+      return "Paid";
+    case "closed":
+      return "Closed";
+    case "rejected":
+      return "Returned to HR";
+    default:
+      return status;
   }
 }
 
@@ -123,13 +142,11 @@ export default function FinancePayrollRunDetailPage() {
   const period = `${MONTH_NAMES[run.month] ?? run.month} ${run.year}`;
   const items = run.items ?? [];
 
-  const canReview = run.status === "submitted";
-  const canApprove = run.status === "submitted" || run.status === "reviewed";
-  const canReject = ["submitted", "reviewed", "approved"].includes(run.status);
+  const canReview = false;
+  const canApprove = run.status === "under_review";
+  const canReject = ["under_review", "approved"].includes(run.status);
   const canPay = run.status === "authorized";
   const canClose = run.status === "paid";
-  const canReopen = run.status === "rejected" || run.status === "closed";
-
   return (
     <AppShell
       navigation={buildAppNavigation()}
@@ -150,18 +167,6 @@ export default function FinancePayrollRunDetailPage() {
         description={`${period} · ${run.currency}`}
         actions={
           <div className="flex flex-wrap gap-2">
-            {canReview && (
-              <Button
-                size="sm"
-                requiredPermissions={["payroll.approve"]}
-                disabled={acting === "review"}
-                onClick={() =>
-                  act("review", () => reviewPayrollRun(id!, {}), "Run marked as reviewed")
-                }
-              >
-                {acting === "review" ? "Reviewing..." : "Mark Reviewed"}
-              </Button>
-            )}
             {canApprove && (
               <Button
                 size="sm"
@@ -172,6 +177,24 @@ export default function FinancePayrollRunDetailPage() {
                 }
               >
                 {acting === "approve" ? "Approving..." : "Approve"}
+              </Button>
+            )}
+            {canReject && (
+              <Button
+                size="sm"
+                variant="ghost"
+                requiredPermissions={["payroll.approve"]}
+                disabled={acting === "reject"}
+                onClick={() => {
+                  const trimmed = note.trim();
+                  if (!trimmed) {
+                    showToast({ message: "Add a comment before returning this run to HR.", tone: "danger" });
+                    return;
+                  }
+                  void act("reject", () => rejectPayrollRun(id!, { note: trimmed }), "Run returned to HR for correction");
+                }}
+              >
+                {acting === "reject" ? "Returning..." : "Return to HR"}
               </Button>
             )}
             {canPay && (
@@ -232,7 +255,7 @@ export default function FinancePayrollRunDetailPage() {
         <div className="grid gap-4 md:grid-cols-3">
           <StatCard
             label="Status"
-            value={run.status}
+            value={formatRunStatus(run.status)}
             tone={runStatusTone(run.status)}
             icon="info"
           />
@@ -281,9 +304,9 @@ export default function FinancePayrollRunDetailPage() {
           </SectionCard>
         )}
 
-        <SectionCard title="Review Note">
+        <SectionCard title="Finance Comment">
           <TextAreaField
-            label="Note (optional — attached to any action you take above)"
+            label="Comment (required when returning to HR)"
             value={note}
             onChange={(e) => setNote(e.target.value)}
             placeholder="Add a note for HR or the audit trail..."
