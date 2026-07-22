@@ -15,7 +15,7 @@ import { toBigInt } from '../../common/utils/ids';
 import { UpsertDeductionTypeDto } from './dto/upsert-deduction-type.dto';
 import { ApplyPVDeductionsDto } from './dto/apply-pv-deductions.dto';
 import { CreateWHTRemittanceDto } from './dto/create-wht-remittance.dto';
-import { StatutoryDeductionsQueryDto, RemitStatutoryDeductionsDto } from './dto/statutory-deductions.dto';
+import { RequestRemittancesQueryDto, StatutoryDeductionsQueryDto, RemitStatutoryDeductionsDto } from './dto/statutory-deductions.dto';
 import { PdfService } from '../../common/pdf/pdf.service';
 
 @Injectable()
@@ -37,17 +37,113 @@ export class DeductionService {
     return 'partially_remitted';
   }
 
+  private formatProfileName(user?: { firstName?: string | null; lastName?: string | null; email?: string | null; username?: string | null; id?: bigint | number | string | null } | null) {
+    if (!user) return null;
+    const name = `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.username || user.email || '';
+    return {
+      id: user.id != null ? String(user.id) : '',
+      name,
+    };
+  }
+
+  private async nextRequestRemittanceNumber(remittedAt: Date) {
+    const year = remittedAt.getFullYear();
+    const count = await this.prisma.financeRequestRemittance.count({
+      where: {
+        createdAt: {
+          gte: new Date(year, 0, 1),
+          lt: new Date(year + 1, 0, 1),
+        },
+      },
+    });
+    return `TRM/${year}/${String(count + 500).padStart(3, '0')}`;
+  }
+
+  private async hydrateEvidenceFiles(fileIds: unknown) {
+    const ids = Array.isArray(fileIds) ? fileIds.map(String) : [];
+    if (ids.length === 0) return [];
+    const files = await this.prisma.fileAsset.findMany({
+      where: { id: { in: ids } },
+      select: { id: true, fileName: true, publicUrl: true },
+    });
+    const fileMap = new Map(files.map((file) => [file.id, file]));
+    return ids
+      .map((id) => fileMap.get(id))
+      .filter(Boolean)
+      .map((file: any) => ({ id: file.id, file_name: file.fileName, public_url: file.publicUrl ?? null }));
+  }
+
+  private async mapRequestRemittance(remittance: any) {
+    const evidenceFiles = await this.hydrateEvidenceFiles(remittance.evidenceFileIds);
+    return {
+      id: remittance.id,
+      remittance_number: remittance.remittanceNumber,
+      reference: remittance.reference ?? null,
+      remitted_at: remittance.remittedAt?.toISOString() ?? null,
+      total_amount: Number(remittance.totalAmount ?? 0),
+      allocated_amount: this.sumAllocatedAmount(remittance.allocations ?? []),
+      unallocated_amount: Math.max(0, Number(remittance.totalAmount ?? 0) - this.sumAllocatedAmount(remittance.allocations ?? [])),
+      remitted_by: this.formatProfileName(remittance.remittedByUser),
+      created_by: this.formatProfileName(remittance.createdByUser),
+      payment_voucher: remittance.paymentVoucher
+        ? { id: remittance.paymentVoucher.id, voucher_number: remittance.paymentVoucher.voucherNumber }
+        : null,
+      paid_from_account: remittance.paidFromAccount
+        ? {
+            id: remittance.paidFromAccount.id,
+            name: remittance.paidFromAccount.name,
+            bank_name: remittance.paidFromAccount.bankName ?? null,
+            account_number: remittance.paidFromAccount.accountNumber ?? null,
+          }
+        : null,
+      evidence_file: remittance.evidenceFile
+        ? {
+            id: remittance.evidenceFile.id,
+            file_name: remittance.evidenceFile.fileName,
+            public_url: remittance.evidenceFile.publicUrl ?? null,
+          }
+        : null,
+      evidence_files: evidenceFiles,
+      notes: remittance.notes ?? null,
+      deductions: (remittance.allocations ?? []).map((allocation: any) => {
+        const deduction = allocation.requestDeduction;
+        const allocatedAmount = Number(allocation.allocatedAmount ?? 0);
+        const totalAllocated = this.sumAllocatedAmount(deduction?.remittanceAllocations ?? []);
+        return {
+          allocation_id: allocation.id,
+          deduction_id: deduction.id,
+          request_id: String(deduction.requestId),
+          request_number: (deduction.request?.data as any)?.request_number ?? String(deduction.requestId),
+          deduction_type_id: deduction.deductionTypeId,
+          deduction_type_name: deduction.deductionType?.name ?? '',
+          deduction_type_code: deduction.deductionType?.code ?? '',
+          amount: Number(deduction.amount),
+          allocated_amount: allocatedAmount,
+          total_allocated_amount: totalAllocated,
+          remaining_amount: Math.max(0, Number(deduction.amount) - totalAllocated),
+          status: deduction.status,
+          payment_voucher: deduction.pvDeduction?.paymentVoucher
+            ? { id: deduction.pvDeduction.paymentVoucher.id, voucher_number: deduction.pvDeduction.paymentVoucher.voucherNumber }
+            : null,
+        };
+      }),
+      created_at: remittance.createdAt.toISOString(),
+      updated_at: remittance.updatedAt.toISOString(),
+    };
+  }
+
   private async syncDeductionRemittanceSummary(
     tx: Prisma.TransactionClient,
     deductionId: string,
   ) {
     const deduction = await tx.financeRequestDeduction.findUnique({
       where: { id: deductionId },
-      select: {
-        id: true,
-        amount: true,
+      include: {
         remittanceAllocations: {
-          orderBy: [{ remittedAt: 'desc' }, { createdAt: 'desc' }],
+          include: {
+            requestRemittance: true,
+          },
+          orderBy: [{ requestRemittance: { remittedAt: 'desc' } }, { createdAt: 'desc' }],
         },
       },
     });
@@ -55,22 +151,12 @@ export class DeductionService {
 
     const allocations = deduction.remittanceAllocations;
     const allocatedAmount = this.sumAllocatedAmount(allocations);
-    const latest = allocations[0] ?? null;
     const status = this.deriveDeductionStatus(Number(deduction.amount), allocatedAmount);
 
     await tx.financeRequestDeduction.update({
       where: { id: deductionId },
       data: {
         status,
-        remittanceNumber: latest?.remittanceNumber ?? null,
-        remittedAt: latest?.remittedAt ?? null,
-        remittanceRef: latest?.remittanceRef ?? null,
-        paymentVoucherId: latest?.paymentVoucherId ?? null,
-        remittedBy: latest?.remittedBy ?? null,
-        paidFromAccountId: latest?.paidFromAccountId ?? null,
-        evidenceFileId: latest?.evidenceFileId ?? null,
-        evidenceFileIds: latest?.evidenceFileIds ?? Prisma.JsonNull,
-        notes: latest?.notes ?? null,
       },
     });
   }
@@ -394,7 +480,6 @@ export class DeductionService {
                 rate: line.rate,
                 grossAmount: line.gross_amount,
                 status: 'pending',
-                paymentVoucherId: pvId,
                 createdBy: toBigInt(userId),
                 updatedAt: now,
               },
@@ -587,9 +672,16 @@ export class DeductionService {
     if (query.status) where.status = query.status;
     if (query.deduction_type_id) where.deductionTypeId = query.deduction_type_id;
     if (query.request_id) where.requestId = toBigInt(query.request_id);
-    if (query.remittance_ref) where.remittanceRef = query.remittance_ref;
-    if (query.remittance_number) where.remittanceNumber = query.remittance_number;
-    if (query.payment_voucher_id) where.paymentVoucherId = query.payment_voucher_id;
+    const remittanceAllocationFilters: Prisma.FinanceRequestDeductionRemittanceAllocationWhereInput[] = [];
+    if (query.remittance_ref) remittanceAllocationFilters.push({ requestRemittance: { reference: query.remittance_ref } });
+    if (query.remittance_number) remittanceAllocationFilters.push({ requestRemittance: { remittanceNumber: query.remittance_number } });
+    if (query.payment_voucher_id) remittanceAllocationFilters.push({ requestRemittance: { paymentVoucherId: query.payment_voucher_id } });
+    if (remittanceAllocationFilters.length === 1) {
+      where.remittanceAllocations = { some: remittanceAllocationFilters[0] };
+    } else if (remittanceAllocationFilters.length > 1) {
+      const existingAnd = Array.isArray(where.AND) ? where.AND : where.AND ? [where.AND] : [];
+      where.AND = [...existingAnd, ...remittanceAllocationFilters.map((filter) => ({ remittanceAllocations: { some: filter } }))];
+    }
     if (query.search) {
       where.request = { data: { path: ['request_number'], string_contains: query.search } };
     }
@@ -607,17 +699,23 @@ export class DeductionService {
           deductionType: { select: { id: true, name: true, code: true } },
           request: { select: { id: true, createdAt: true, status: true, data: true } },
           createdByUser: { select: { id: true, firstName: true, lastName: true } },
-          remittedByUser: { select: { id: true, firstName: true, lastName: true } },
-          paymentVoucher: { select: { id: true, voucherNumber: true } },
-          paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
-          evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
+          pvDeduction: {
+            select: {
+              paymentVoucher: { select: { id: true, voucherNumber: true } },
+            },
+          },
           remittanceAllocations: {
             include: {
-              remittedByUser: { select: { id: true, firstName: true, lastName: true } },
-              paymentVoucher: { select: { id: true, voucherNumber: true } },
-              paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
+              requestRemittance: {
+                include: {
+                  remittedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+                  paymentVoucher: { select: { id: true, voucherNumber: true } },
+                  paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
+                  evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
+                },
+              },
             },
-            orderBy: [{ remittedAt: 'desc' }, { createdAt: 'desc' }],
+            orderBy: [{ requestRemittance: { remittedAt: 'desc' } }, { createdAt: 'desc' }],
           },
         },
         orderBy: { createdAt: 'desc' },
@@ -627,9 +725,17 @@ export class DeductionService {
       this.prisma.financeRequestDeduction.count({ where }),
     ]);
 
-    const extraEvidenceIds = Array.from(new Set(
-      rows.flatMap((row: any) => Array.isArray(row.evidenceFileIds) ? row.evidenceFileIds.map(String) : [])
-    ));
+    const extraEvidenceIds = Array.from(
+      new Set(
+        rows.flatMap((row: any) =>
+          (row.remittanceAllocations ?? []).flatMap((allocation: any) =>
+            Array.isArray(allocation.requestRemittance?.evidenceFileIds)
+              ? allocation.requestRemittance.evidenceFileIds.map(String)
+              : [],
+          ),
+        ),
+      ),
+    );
     const extraEvidenceFiles = extraEvidenceIds.length > 0
       ? await this.prisma.fileAsset.findMany({
           where: { id: { in: extraEvidenceIds } },
@@ -643,6 +749,8 @@ export class DeductionService {
         items: rows.map((d: any) => {
           const allocated_amount = this.sumAllocatedAmount(d.remittanceAllocations ?? []);
           const remaining_amount = Math.max(0, Number(d.amount) - allocated_amount);
+          const latestAllocation = (d.remittanceAllocations ?? [])[0] ?? null;
+          const latestRemittance = latestAllocation?.requestRemittance ?? null;
           return ({
           id: d.id,
           request_id: String(d.requestId),
@@ -656,45 +764,48 @@ export class DeductionService {
           status: d.status,
           allocated_amount,
           remaining_amount,
-          remittance_number: d.remittanceNumber ?? null,
-          remitted_at: d.remittedAt?.toISOString() ?? null,
-          remittance_ref: d.remittanceRef ?? null,
-          remitted_by: d.remittedByUser ? { id: d.remittedByUser.id.toString(), name: `${d.remittedByUser.firstName || ''} ${d.remittedByUser.lastName || ''}`.trim() } : null,
-          payment_voucher: d.paymentVoucher ? { id: d.paymentVoucher.id, voucher_number: d.paymentVoucher.voucherNumber } : null,
-          evidence_files: Array.isArray(d.evidenceFileIds)
-            ? (d.evidenceFileIds as string[])
+          remittance_number: latestRemittance?.remittanceNumber ?? null,
+          remitted_at: latestRemittance?.remittedAt?.toISOString() ?? null,
+          remittance_ref: latestRemittance?.reference ?? null,
+          remittance_id: latestRemittance?.id ?? null,
+          remitted_by: this.formatProfileName(latestRemittance?.remittedByUser),
+          payment_voucher: latestRemittance?.paymentVoucher ? { id: latestRemittance.paymentVoucher.id, voucher_number: latestRemittance.paymentVoucher.voucherNumber } : null,
+          evidence_files: Array.isArray(latestRemittance?.evidenceFileIds)
+            ? (latestRemittance.evidenceFileIds as string[])
                 .map((id) => extraEvidenceMap.get(String(id)))
                 .filter(Boolean)
                 .map((file: any) => ({ id: file.id, file_name: file.fileName, public_url: file.publicUrl ?? null }))
             : [],
-          paid_from_account: d.paidFromAccount ? {
-            id: d.paidFromAccount.id,
-            name: d.paidFromAccount.name,
-            bank_name: d.paidFromAccount.bankName ?? null,
-            account_number: d.paidFromAccount.accountNumber ?? null,
+          paid_from_account: latestRemittance?.paidFromAccount ? {
+            id: latestRemittance.paidFromAccount.id,
+            name: latestRemittance.paidFromAccount.name,
+            bank_name: latestRemittance.paidFromAccount.bankName ?? null,
+            account_number: latestRemittance.paidFromAccount.accountNumber ?? null,
           } : null,
-          evidence_file: d.evidenceFile ? {
-            id: d.evidenceFile.id,
-            file_name: d.evidenceFile.fileName,
-            public_url: d.evidenceFile.publicUrl ?? null,
+          evidence_file: latestRemittance?.evidenceFile ? {
+            id: latestRemittance.evidenceFile.id,
+            file_name: latestRemittance.evidenceFile.fileName,
+            public_url: latestRemittance.evidenceFile.publicUrl ?? null,
           } : null,
-          notes: d.notes ?? null,
+          notes: latestRemittance?.notes ?? null,
           remittance_allocations: (d.remittanceAllocations ?? []).map((allocation: any) => ({
             id: allocation.id,
-            remittance_number: allocation.remittanceNumber,
-            remittance_ref: allocation.remittanceRef ?? null,
+            remittance_id: allocation.requestRemittance?.id ?? null,
+            remittance_number: allocation.requestRemittance?.remittanceNumber ?? null,
+            remittance_ref: allocation.requestRemittance?.reference ?? null,
+            remittance_total_amount: allocation.requestRemittance?.totalAmount ? Number(allocation.requestRemittance.totalAmount) : null,
             allocated_amount: Number(allocation.allocatedAmount),
-            remitted_at: allocation.remittedAt?.toISOString() ?? null,
-            remitted_by: allocation.remittedByUser ? { id: allocation.remittedByUser.id.toString(), name: `${allocation.remittedByUser.firstName || ''} ${allocation.remittedByUser.lastName || ''}`.trim() } : null,
-            payment_voucher: allocation.paymentVoucher ? { id: allocation.paymentVoucher.id, voucher_number: allocation.paymentVoucher.voucherNumber } : null,
-            paid_from_account: allocation.paidFromAccount ? {
-              id: allocation.paidFromAccount.id,
-              name: allocation.paidFromAccount.name,
-              bank_name: allocation.paidFromAccount.bankName ?? null,
-              account_number: allocation.paidFromAccount.accountNumber ?? null,
+            remitted_at: allocation.requestRemittance?.remittedAt?.toISOString() ?? null,
+            remitted_by: this.formatProfileName(allocation.requestRemittance?.remittedByUser),
+            payment_voucher: allocation.requestRemittance?.paymentVoucher ? { id: allocation.requestRemittance.paymentVoucher.id, voucher_number: allocation.requestRemittance.paymentVoucher.voucherNumber } : null,
+            paid_from_account: allocation.requestRemittance?.paidFromAccount ? {
+              id: allocation.requestRemittance.paidFromAccount.id,
+              name: allocation.requestRemittance.paidFromAccount.name,
+              bank_name: allocation.requestRemittance.paidFromAccount.bankName ?? null,
+              account_number: allocation.requestRemittance.paidFromAccount.accountNumber ?? null,
             } : null,
-            evidence_file_ids: Array.isArray(allocation.evidenceFileIds) ? allocation.evidenceFileIds.map(String) : [],
-            notes: allocation.notes ?? null,
+            evidence_file_ids: Array.isArray(allocation.requestRemittance?.evidenceFileIds) ? allocation.requestRemittance.evidenceFileIds.map(String) : [],
+            notes: allocation.requestRemittance?.notes ?? null,
           })),
           created_by_name: d.createdByUser
             ? `${d.createdByUser.firstName || ''} ${d.createdByUser.lastName || ''}`.trim()
@@ -702,6 +813,66 @@ export class DeductionService {
           created_at: d.createdAt.toISOString(),
         });
         }),
+        pagination: { page, per_page: perPage, total, total_pages: Math.ceil(total / perPage) },
+      },
+    };
+  }
+
+  async listRequestRemittances(query: RequestRemittancesQueryDto) {
+    const page = Math.max(1, Number(query.page ?? 1));
+    const perPage = Math.min(200, Math.max(1, Number(query.per_page ?? 50)));
+    const skip = (page - 1) * perPage;
+
+    const where: Prisma.FinanceRequestRemittanceWhereInput = {};
+    if (query.id) where.id = query.id;
+    if (query.remittance_number) where.remittanceNumber = query.remittance_number;
+    if (query.reference) where.reference = query.reference;
+    if (query.payment_voucher_id) where.paymentVoucherId = query.payment_voucher_id;
+    if (query.search) {
+      where.OR = [
+        { remittanceNumber: { contains: query.search, mode: 'insensitive' } },
+        { reference: { contains: query.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [rows, total] = await Promise.all([
+      this.prisma.financeRequestRemittance.findMany({
+        where,
+        include: {
+          paymentVoucher: { select: { id: true, voucherNumber: true } },
+          remittedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+          createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+          paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
+          evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
+          allocations: {
+            include: {
+              requestDeduction: {
+                include: {
+                  deductionType: { select: { id: true, name: true, code: true } },
+                  request: { select: { id: true, data: true } },
+                  pvDeduction: {
+                    select: {
+                      paymentVoucher: { select: { id: true, voucherNumber: true } },
+                    },
+                  },
+                  remittanceAllocations: { select: { allocatedAmount: true } },
+                },
+              },
+            },
+            orderBy: [{ createdAt: 'asc' }],
+          },
+        },
+        orderBy: [{ remittedAt: 'desc' }, { createdAt: 'desc' }],
+        skip,
+        take: perPage,
+      }),
+      this.prisma.financeRequestRemittance.count({ where }),
+    ]);
+
+    const items = await Promise.all(rows.map((row) => this.mapRequestRemittance(row)));
+    return {
+      data: {
+        items,
         pagination: { page, per_page: perPage, total, total_pages: Math.ceil(total / perPage) },
       },
     };
@@ -733,40 +904,77 @@ export class DeductionService {
     if (allocationMap.size > 0 && allocationMap.size !== ids.length) {
       throw new BadRequestException('allocations must cover every selected deduction');
     }
+    const remittanceTotalAmount = dto.remittance_total_amount !== undefined ? Number(dto.remittance_total_amount) : ids.reduce((sum, id) => sum + (allocationMap.get(id) ?? 0), 0);
+    const requestedTotal = ids.reduce((sum, id) => sum + (allocationMap.get(id) ?? 0), 0);
+    if (requestedTotal - remittanceTotalAmount > 0.0001) {
+      throw new BadRequestException('Allocated deductions exceed remittance total amount');
+    }
 
-    // Count existing remittances this year to generate sequential TRM numbers
-    const existingCount = await this.prisma.financeRequestDeduction.count({
-      where: { remittanceNumber: { not: null }, remittedAt: { gte: new Date(year, 0, 1), lt: new Date(year + 1, 0, 1) } },
-    });
+    const remittanceNumber = dto.remittance_number?.trim() || await this.nextRequestRemittanceNumber(now);
 
-    await this.prisma.$transaction(async (tx) => {
-      for (let i = 0; i < ids.length; i++) {
-        const remittanceNumber = `TRM/${year}/${String(existingCount + i + 500).padStart(3, '0')}`;
-        const deduction = existing.find((row) => row.id === ids[i]);
+    const created = await this.prisma.$transaction(async (tx) => {
+      const remittance = await tx.financeRequestRemittance.create({
+        data: {
+          remittanceNumber,
+          reference: dto.reference,
+          totalAmount: remittanceTotalAmount,
+          remittedAt: now,
+          paymentVoucherId: dto.payment_voucher_id ?? null,
+          remittedBy: dto.remitted_by ? toBigInt(dto.remitted_by) : null,
+          paidFromAccountId: dto.paid_from_account_id ?? null,
+          evidenceFileId: dto.evidence_file_id ?? null,
+          evidenceFileIds: dto.evidence_file_ids ? (dto.evidence_file_ids as any) : (dto.evidence_file_id ? [dto.evidence_file_id] as any : null),
+          notes: dto.notes ?? null,
+          createdBy: toBigInt(userId),
+          updatedBy: toBigInt(userId),
+        },
+      });
+
+      for (const deductionId of ids) {
+        const deduction = existing.find((row) => row.id === deductionId);
         const alreadyAllocated = deduction ? this.sumAllocatedAmount(deduction.remittanceAllocations) : 0;
         const remaining = deduction ? Number(deduction.amount) - alreadyAllocated : 0;
-        const allocatedAmount = allocationMap.get(ids[i]) ?? remaining;
+        const allocatedAmount = allocationMap.get(deductionId) ?? remaining;
         await tx.financeRequestDeductionRemittanceAllocation.create({
           data: {
-            requestDeductionId: ids[i],
-            remittanceNumber,
-            remittanceRef: dto.reference,
+            requestDeductionId: deductionId,
+            requestRemittanceId: remittance.id,
             allocatedAmount,
-            remittedAt: now,
-            paymentVoucherId: dto.payment_voucher_id ?? null,
-            remittedBy: dto.remitted_by ? toBigInt(dto.remitted_by) : null,
-            paidFromAccountId: dto.paid_from_account_id ?? null,
-            evidenceFileId: dto.evidence_file_id ?? null,
-            evidenceFileIds: dto.evidence_file_ids ? (dto.evidence_file_ids as any) : (dto.evidence_file_id ? [dto.evidence_file_id] as any : null),
-            notes: dto.notes ?? null,
             createdBy: toBigInt(userId),
           },
         });
-        await this.syncDeductionRemittanceSummary(tx, ids[i]);
+        await this.syncDeductionRemittanceSummary(tx, deductionId);
       }
+
+      return tx.financeRequestRemittance.findUnique({
+        where: { id: remittance.id },
+        include: {
+          paymentVoucher: { select: { id: true, voucherNumber: true } },
+          remittedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+          createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+          paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
+          evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
+          allocations: {
+            include: {
+              requestDeduction: {
+                include: {
+                  deductionType: { select: { id: true, name: true, code: true } },
+                  request: { select: { id: true, data: true } },
+                  pvDeduction: {
+                    select: {
+                      paymentVoucher: { select: { id: true, voucherNumber: true } },
+                    },
+                  },
+                  remittanceAllocations: { select: { allocatedAmount: true } },
+                },
+              },
+            },
+          },
+        },
+      });
     });
 
-    return { updated: ids.length };
+    return created ? this.mapRequestRemittance(created) : { updated: ids.length };
   }
 
   async updatePendingDeduction(id: string, dto: {
@@ -806,6 +1014,7 @@ export class DeductionService {
     remittance_number?: string;
     remittance_ref?: string;
     remitted_at?: string;
+    remittance_total_amount?: number;
     paid_from_account_id?: string;
     payment_voucher_id?: string;
     remitted_by?: string;
@@ -814,16 +1023,19 @@ export class DeductionService {
     notes?: string;
     allocations?: Array<{ id?: string; allocated_amount?: number }>;
   }) {
-    const existing = await this.prisma.financeRequestDeduction.findUnique({ where: { id } });
-    if (!existing) throw new NotFoundException('Deduction not found');
-    if (!['remitted', 'partially_remitted'].includes(existing.status)) throw new BadRequestException('Only remitted deductions can be edited');
+    const existing = await this.prisma.financeRequestRemittance.findUnique({
+      where: { id },
+      include: { allocations: { include: { requestDeduction: { select: { id: true, amount: true } } } } },
+    });
+    if (!existing) throw new NotFoundException('Remittance not found');
 
     return this.prisma.$transaction(async (tx) => {
       const allocations = await tx.financeRequestDeductionRemittanceAllocation.findMany({
-        where: { requestDeductionId: id },
-        orderBy: [{ remittedAt: 'desc' }, { createdAt: 'desc' }],
+        where: { requestRemittanceId: id },
+        include: { requestDeduction: { select: { id: true, amount: true, remittanceAllocations: { select: { id: true, allocatedAmount: true } } } } },
+        orderBy: [{ createdAt: 'desc' }],
       });
-      if (allocations.length === 0) throw new BadRequestException('No remittance allocations found for this deduction');
+      if (allocations.length === 0) throw new BadRequestException('No remittance allocations found for this remittance');
 
       const allocationUpdates = dto.allocations ?? [];
       if (allocationUpdates.length > 0) {
@@ -831,10 +1043,17 @@ export class DeductionService {
         let nextTotal = 0;
         for (const allocation of allocations) {
           const override = allocationUpdates.find((entry) => entry.id === allocation.id);
-          nextTotal += override?.allocated_amount ?? Number(allocation.allocatedAmount);
+          const nextAllocated = override?.allocated_amount ?? Number(allocation.allocatedAmount);
+          const otherAllocated = this.sumAllocatedAmount(
+            (allocation.requestDeduction.remittanceAllocations ?? []).filter((entry: any) => entry.id !== allocation.id),
+          );
+          if (nextAllocated + otherAllocated - Number(allocation.requestDeduction.amount) > 0.0001) {
+            throw new BadRequestException(`Updated allocation exceeds deduction amount for ${allocation.requestDeduction.id}`);
+          }
+          nextTotal += nextAllocated;
         }
-        if (nextTotal - Number(existing.amount) > 0.0001) {
-          throw new BadRequestException('Updated allocations exceed deduction amount');
+        if (dto.remittance_total_amount !== undefined && nextTotal - Number(dto.remittance_total_amount) > 0.0001) {
+          throw new BadRequestException('Updated allocations exceed remittance total amount');
         }
         for (const entry of allocationUpdates) {
           if (!entry.id) continue;
@@ -850,33 +1069,112 @@ export class DeductionService {
 
       const patch: Record<string, any> = {};
       if (dto.remittance_number !== undefined) patch.remittanceNumber = dto.remittance_number || null;
-      if (dto.remittance_ref !== undefined) patch.remittanceRef = dto.remittance_ref || null;
+      if (dto.remittance_ref !== undefined) patch.reference = dto.remittance_ref || null;
       if (dto.remitted_at !== undefined) patch.remittedAt = new Date(dto.remitted_at);
+      if (dto.remittance_total_amount !== undefined) patch.totalAmount = dto.remittance_total_amount;
       if (dto.paid_from_account_id !== undefined) patch.paidFromAccountId = dto.paid_from_account_id || null;
       if (dto.payment_voucher_id !== undefined) patch.paymentVoucherId = dto.payment_voucher_id || null;
       if (dto.remitted_by !== undefined) patch.remittedBy = dto.remitted_by ? toBigInt(dto.remitted_by) : null;
       if (dto.evidence_file_id !== undefined) patch.evidenceFileId = dto.evidence_file_id || null;
       if (dto.evidence_file_ids !== undefined) patch.evidenceFileIds = dto.evidence_file_ids as any;
       if (dto.notes !== undefined) patch.notes = dto.notes || null;
+      patch.updatedBy = existing.updatedBy ?? existing.createdBy;
       if (Object.keys(patch).length > 0) {
-        await tx.financeRequestDeductionRemittanceAllocation.updateMany({
-          where: { requestDeductionId: id },
+        await tx.financeRequestRemittance.update({
+          where: { id },
           data: patch,
         });
       }
 
-      await this.syncDeductionRemittanceSummary(tx, id);
-      return tx.financeRequestDeduction.findUnique({ where: { id } });
+      for (const allocation of allocations) {
+        await this.syncDeductionRemittanceSummary(tx, allocation.requestDeduction.id);
+      }
+      return tx.financeRequestRemittance.findUnique({
+        where: { id },
+        include: {
+          paymentVoucher: { select: { id: true, voucherNumber: true } },
+          remittedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+          createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
+          paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
+          evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
+          allocations: {
+            include: {
+              requestDeduction: {
+                include: {
+                  deductionType: { select: { id: true, name: true, code: true } },
+                  request: { select: { id: true, data: true } },
+                  pvDeduction: {
+                    select: {
+                      paymentVoucher: { select: { id: true, voucherNumber: true } },
+                    },
+                  },
+                  remittanceAllocations: { select: { allocatedAmount: true } },
+                },
+              },
+            },
+          },
+        },
+      });
     });
+  }
+
+  async addRemittanceAllocations(id: string, dto: { deduction_ids: string[]; allocations?: Array<{ id?: string; allocated_amount?: number }> }, userId: number) {
+    const remittance = await this.prisma.financeRequestRemittance.findUnique({ where: { id } });
+    if (!remittance) throw new NotFoundException('Remittance not found');
+
+    const deductions = await this.prisma.financeRequestDeduction.findMany({
+      where: { id: { in: dto.deduction_ids } },
+      select: { id: true, amount: true, remittanceAllocations: { select: { allocatedAmount: true } } },
+    });
+    if (deductions.length !== dto.deduction_ids.length) throw new NotFoundException('Some deductions were not found');
+
+    const allocationMap = new Map((dto.allocations ?? []).map((allocation) => [allocation.id, Number(allocation.allocated_amount)]));
+    const currentRemittanceAllocated = await this.prisma.financeRequestDeductionRemittanceAllocation.aggregate({
+      where: { requestRemittanceId: id },
+      _sum: { allocatedAmount: true },
+    });
+    let newTotal = Number(currentRemittanceAllocated._sum.allocatedAmount ?? 0);
+
+    for (const deduction of deductions) {
+      const alreadyAllocated = this.sumAllocatedAmount(deduction.remittanceAllocations);
+      const remaining = Number(deduction.amount) - alreadyAllocated;
+      const allocatedAmount = allocationMap.get(deduction.id) ?? remaining;
+      if (allocatedAmount <= 0) throw new BadRequestException('allocated_amount must be greater than zero');
+      if (allocatedAmount - remaining > 0.0001) throw new BadRequestException(`Allocation for deduction ${deduction.id} exceeds remaining balance`);
+      newTotal += allocatedAmount;
+    }
+
+    if (newTotal - Number(remittance.totalAmount) > 0.0001) {
+      throw new BadRequestException('Allocations exceed remittance total amount');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      for (const deduction of deductions) {
+        const alreadyAllocated = this.sumAllocatedAmount(deduction.remittanceAllocations);
+        const remaining = Number(deduction.amount) - alreadyAllocated;
+        const allocatedAmount = allocationMap.get(deduction.id) ?? remaining;
+        await tx.financeRequestDeductionRemittanceAllocation.create({
+          data: {
+            requestDeductionId: deduction.id,
+            requestRemittanceId: id,
+            allocatedAmount,
+            createdBy: toBigInt(userId),
+          },
+        });
+        await this.syncDeductionRemittanceSummary(tx, deduction.id);
+      }
+    });
+
+    return this.listRequestRemittances({ id, page: '1', per_page: '1' }).then((res: any) => res.data.items[0]);
   }
 
   // ── TRM Slip PDF ──────────────────────────────────────────────────────────
 
   async listRemittedDeductionsForRequest(requestId: string) {
-    return this.prisma.financeRequestDeduction.findMany({
-      where: { requestId: toBigInt(requestId), status: 'remitted' },
+    return this.prisma.financeRequestRemittance.findMany({
+      where: { allocations: { some: { requestDeduction: { requestId: toBigInt(requestId) } } } },
       select: { id: true, remittanceNumber: true },
-      orderBy: { remittedAt: 'asc' },
+      orderBy: [{ remittedAt: 'asc' }, { createdAt: 'asc' }],
     });
   }
 
@@ -886,40 +1184,47 @@ export class DeductionService {
   }
 
   async buildTrmSlipPdf(id: string): Promise<{ buffer: Buffer; fileName: string }> {
-    const d = await this.prisma.financeRequestDeduction.findUnique({
+    const remittance = await this.prisma.financeRequestRemittance.findUnique({
       where: { id },
       include: {
-        deductionType: true,
-        request: { select: { id: true, status: true, data: true, createdAt: true, creator: { select: { firstName: true, lastName: true, email: true, username: true } } } },
         createdByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
         remittedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
         paymentVoucher: { select: { id: true, voucherNumber: true } },
         paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
         evidenceFile: { select: { id: true, fileName: true, publicUrl: true } },
-        remittanceAllocations: {
+        allocations: {
           include: {
-            remittedByUser: { select: { id: true, firstName: true, lastName: true, email: true } },
-            paymentVoucher: { select: { id: true, voucherNumber: true } },
-            paidFromAccount: { select: { id: true, name: true, bankName: true, accountNumber: true } },
+            requestDeduction: {
+                include: {
+                  deductionType: true,
+                  request: { select: { id: true, status: true, data: true, createdAt: true, creator: { select: { firstName: true, lastName: true, email: true, username: true } } } },
+                  pvDeduction: {
+                    select: {
+                      paymentVoucher: { select: { id: true, voucherNumber: true } },
+                    },
+                  },
+                },
+            },
           },
-          orderBy: [{ remittedAt: 'asc' }, { createdAt: 'asc' }],
+          orderBy: [{ createdAt: 'asc' }],
         },
       },
     });
-    if (!d) throw new NotFoundException('Deduction not found');
-    if (d.status !== 'remitted') throw new BadRequestException('Deduction has not been remitted yet — no TRM slip available');
+    if (!remittance) throw new NotFoundException('Remittance not found');
+    if ((remittance.allocations ?? []).length === 0) throw new BadRequestException('Remittance has no allocated deductions');
 
     const org = await this.fetchOrgSettings();
-    const requestNumber = (d.request?.data as any)?.request_number ?? String(d.requestId);
-    const creatorName = d.request?.creator
-      ? `${d.request.creator.firstName ?? ''} ${d.request.creator.lastName ?? ''}`.trim() || d.request.creator.username || d.request.creator.email || '—'
+    const primaryAllocation = remittance.allocations[0];
+    const primaryRequest = primaryAllocation.requestDeduction.request;
+    const requestNumber = (primaryRequest?.data as any)?.request_number ?? String(primaryAllocation.requestDeduction.requestId);
+    const creatorName = primaryRequest?.creator
+      ? `${primaryRequest.creator.firstName ?? ''} ${primaryRequest.creator.lastName ?? ''}`.trim() || primaryRequest.creator.username || primaryRequest.creator.email || '—'
       : '—';
-    const remittedByName = d.remittedByUser
-      ? `${d.remittedByUser.firstName ?? ''} ${d.remittedByUser.lastName ?? ''}`.trim() || d.remittedByUser.email
+    const remittedByName = remittance.remittedByUser
+      ? `${remittance.remittedByUser.firstName ?? ''} ${remittance.remittedByUser.lastName ?? ''}`.trim() || remittance.remittedByUser.email
       : '—';
-    const latestAllocation = d.remittanceAllocations[d.remittanceAllocations.length - 1] ?? null;
-    const totalAllocatedAmount = this.sumAllocatedAmount(d.remittanceAllocations);
-    const evidenceIds = Array.isArray(d.evidenceFileIds) ? d.evidenceFileIds.map(String) : [];
+    const totalAllocatedAmount = this.sumAllocatedAmount(remittance.allocations);
+    const evidenceIds = Array.isArray(remittance.evidenceFileIds) ? remittance.evidenceFileIds.map(String) : [];
     const evidenceFiles = evidenceIds.length > 0
       ? await this.prisma.fileAsset.findMany({
           where: { id: { in: evidenceIds } },
@@ -943,7 +1248,7 @@ export class DeductionService {
         <div>
           <div class="doc-title">Tax Remittance Slip</div>
           <div class="doc-subtitle" style="text-align:right; margin-top:4px;">
-            <span class="ref-badge">${this.esc(d.remittanceNumber ?? '—')}</span>
+            <span class="ref-badge">${this.esc(remittance.remittanceNumber ?? '—')}</span>
           </div>
         </div>
       </div>
@@ -953,12 +1258,12 @@ export class DeductionService {
       <div>
         <h3 style="margin:0 0 8px;">Remittance Details</h3>
         <div class="detail-list">
-          <div><strong>Remittance Date:</strong> ${this.fmtDate(d.remittedAt)}</div>
-          <div><strong>Reference Number:</strong> ${this.esc(d.remittanceNumber ?? '—')}</div>
-          <div><strong>Payment Reference:</strong> ${this.esc(d.remittanceRef ?? '—')}</div>
+          <div><strong>Remittance Date:</strong> ${this.fmtDate(remittance.remittedAt)}</div>
+          <div><strong>Reference Number:</strong> ${this.esc(remittance.remittanceNumber ?? '—')}</div>
+          <div><strong>Payment Reference:</strong> ${this.esc(remittance.reference ?? '—')}</div>
           <div><strong>Created / Remitted By:</strong> ${this.esc(remittedByName)}</div>
-          <div><strong>Paid From:</strong> ${d.paidFromAccount ? `${this.esc(d.paidFromAccount.name)}${d.paidFromAccount.bankName ? ` — ${this.esc(d.paidFromAccount.bankName)}` : ''}` : '—'}</div>
-          <div><strong>Payment Voucher:</strong> ${this.esc(d.paymentVoucher?.voucherNumber ?? '—')}</div>
+          <div><strong>Paid From:</strong> ${remittance.paidFromAccount ? `${this.esc(remittance.paidFromAccount.name)}${remittance.paidFromAccount.bankName ? ` — ${this.esc(remittance.paidFromAccount.bankName)}` : ''}` : '—'}</div>
+          <div><strong>Payment Voucher:</strong> ${this.esc(remittance.paymentVoucher?.voucherNumber ?? '—')}</div>
         </div>
       </div>
       <div>
@@ -966,7 +1271,7 @@ export class DeductionService {
         <div class="detail-list">
           <div><strong>Request Number:</strong> ${this.esc(requestNumber)}</div>
           <div><strong>Created By:</strong> ${this.esc(creatorName)}</div>
-          <div><strong>Deduction Created:</strong> ${this.fmtDate(d.createdAt)}</div>
+          <div><strong>Remittance Created:</strong> ${this.fmtDate(remittance.createdAt)}</div>
         </div>
       </div>
     </div>
@@ -978,21 +1283,15 @@ export class DeductionService {
       <table class="tbl">
         <thead>
           <tr>
+            <th>Request</th>
             <th>Deduction Type</th>
-            <th>Rate</th>
             <th>Gross Invoice Amount</th>
             <th>Amount Withheld</th>
-            <th>Amount Remitted</th>
+            <th>Allocated</th>
           </tr>
         </thead>
         <tbody>
-          <tr>
-            <td>${this.esc(d.deductionType.name)} (${this.esc(d.deductionType.code)})</td>
-            <td>${(Number(d.rate) * 100).toFixed(1)}%</td>
-            <td>${this.fmtMoney(d.grossAmount)}</td>
-            <td><strong>${this.fmtMoney(d.amount)}</strong></td>
-            <td><strong>${this.fmtMoney(totalAllocatedAmount)}</strong></td>
-          </tr>
+          ${remittance.allocations.map((allocation) => `<tr><td>${this.esc((allocation.requestDeduction.request?.data as any)?.request_number ?? String(allocation.requestDeduction.requestId))}</td><td>${this.esc(allocation.requestDeduction.deductionType.name)} (${this.esc(allocation.requestDeduction.deductionType.code)})</td><td>${this.fmtMoney(allocation.requestDeduction.grossAmount)}</td><td><strong>${this.fmtMoney(allocation.requestDeduction.amount)}</strong></td><td><strong>${this.fmtMoney(allocation.allocatedAmount)}</strong></td></tr>`).join('')}
         </tbody>
       </table>
     </div>
@@ -1003,7 +1302,7 @@ export class DeductionService {
     <div class="value">${this.fmtMoney(totalAllocatedAmount)}</div>
   </div>
 
-  ${d.remittanceAllocations.length > 0 ? `
+  ${remittance.allocations.length > 0 ? `
   <div class="card">
     <div class="rowpad">
       <h3 style="margin:0 0 8px;">Allocation History</h3>
@@ -1017,17 +1316,17 @@ export class DeductionService {
           </tr>
         </thead>
         <tbody>
-          ${d.remittanceAllocations.map((allocation) => `<tr><td>${this.esc(allocation.remittanceNumber)}</td><td>${this.esc(allocation.remittanceRef ?? '—')}</td><td>${this.fmtDate(allocation.remittedAt)}</td><td>${this.fmtMoney(allocation.allocatedAmount)}</td></tr>`).join('')}
+          ${remittance.allocations.map((allocation) => `<tr><td>${this.esc(remittance.remittanceNumber)}</td><td>${this.esc(remittance.reference ?? '—')}</td><td>${this.fmtDate(remittance.remittedAt)}</td><td>${this.fmtMoney(allocation.allocatedAmount)}</td></tr>`).join('')}
         </tbody>
       </table>
     </div>
   </div>` : ''}
 
-  ${(d.notes || evidenceFiles.length > 0) ? `
+  ${(remittance.notes || evidenceFiles.length > 0) ? `
   <div class="card">
     <div class="rowpad">
-      ${d.notes ? `<h3 style="margin:0 0 6px;">Notes</h3><p style="margin:0; line-height:1.6;">${this.esc(d.notes)}</p>` : ''}
-      ${evidenceFiles.length > 0 ? `<h3 style="margin:${d.notes ? '14px' : '0'} 0 6px;">Evidence Files</h3><ul>${evidenceFiles.map((file) => `<li>${this.esc(file.fileName)}</li>`).join('')}</ul>` : ''}
+      ${remittance.notes ? `<h3 style="margin:0 0 6px;">Notes</h3><p style="margin:0; line-height:1.6;">${this.esc(remittance.notes)}</p>` : ''}
+      ${evidenceFiles.length > 0 ? `<h3 style="margin:${remittance.notes ? '14px' : '0'} 0 6px;">Evidence Files</h3><ul>${evidenceFiles.map((file) => `<li>${this.esc(file.fileName)}</li>`).join('')}</ul>` : ''}
     </div>
   </div>` : ''}
 
@@ -1044,25 +1343,25 @@ export class DeductionService {
         <div>
           <div class="sig-label">Date</div>
           <div class="sig-line"></div>
-          <div class="sig-name">${this.fmtDate(d.remittedAt)}</div>
+          <div class="sig-name">${this.fmtDate(remittance.remittedAt)}</div>
         </div>
       </div>
     </div>
   </div>
 
   <div class="footer-note">
-    This document was generated on ${this.fmtDate(new Date())}. TRM Reference: ${this.esc(d.remittanceNumber ?? '—')}
+    This document was generated on ${this.fmtDate(new Date())}. TRM Reference: ${this.esc(remittance.remittanceNumber ?? '—')}
   </div>
 </body>
 </html>`;
 
     const slipBuffer = await this.pdfService.renderPdfFromHtml(html, [
       'TAX REMITTANCE SLIP',
-      `Reference: ${d.remittanceNumber ?? '—'}`,
+      `Reference: ${remittance.remittanceNumber ?? '—'}`,
        `Amount: ${this.fmtMoney(totalAllocatedAmount)}`,
-      `Remitted: ${this.fmtDate(d.remittedAt)}`,
+      `Remitted: ${this.fmtDate(remittance.remittedAt)}`,
       `Remitted By: ${remittedByName}`,
-      `Payment Voucher: ${d.paymentVoucher?.voucherNumber ?? '—'}`,
+      `Payment Voucher: ${remittance.paymentVoucher?.voucherNumber ?? '—'}`,
       ...(evidenceFiles.length > 0 ? [`Evidence: ${evidenceFiles.map((file) => file.fileName).join(', ')}`] : []),
     ]);
     const mergedPdf = await PDFDocument.create();
@@ -1081,7 +1380,7 @@ export class DeductionService {
       await this.appendTextPage(mergedPdf, 'Skipped Evidence Files', skippedFiles);
     }
     const buffer = Buffer.from(await mergedPdf.save());
-    const fileName = `TRM-${(d.remittanceNumber ?? id).replace(/\//g, '-')}.pdf`;
+    const fileName = `TRM-${(remittance.remittanceNumber ?? id).replace(/\//g, '-')}.pdf`;
     return { buffer, fileName };
   }
 
@@ -1099,7 +1398,21 @@ export class DeductionService {
           },
         },
         requestDeduction: {
-          select: { remittanceNumber: true, remittedAt: true, remittanceRef: true },
+          select: {
+            remittanceAllocations: {
+              include: {
+                requestRemittance: {
+                  select: {
+                    remittanceNumber: true,
+                    remittedAt: true,
+                    reference: true,
+                  },
+                },
+              },
+              orderBy: [{ requestRemittance: { remittedAt: 'desc' } }, { createdAt: 'desc' }],
+              take: 1,
+            },
+          },
         },
       },
     });
@@ -1124,7 +1437,7 @@ export class DeductionService {
     const requestNumber = (request?.data as any)?.request_number ?? String(pv.requestId);
     const org = await this.fetchOrgSettings();
 
-    const trmRecord = pvd.requestDeduction?.remittedAt ? pvd.requestDeduction : null;
+    const trmRecord = pvd.requestDeduction?.remittanceAllocations?.[0]?.requestRemittance ?? null;
 
     const vendorName = pv.contact?.name ?? (request?.creator ? `${request.creator.firstName ?? ''} ${request.creator.lastName ?? ''}`.trim() : '—');
     const vendorEmail = pv.contact?.email ?? request?.creator?.email ?? '';
@@ -1224,7 +1537,7 @@ export class DeductionService {
         <tbody>
           <tr>
             <td><strong>${this.esc(trmRecord.remittanceNumber ?? '—')}</strong></td>
-            <td>${this.esc(trmRecord.remittanceRef ?? '—')}</td>
+            <td>${this.esc(trmRecord.reference ?? '—')}</td>
             <td>${this.fmtDate(trmRecord.remittedAt)}</td>
           </tr>
         </tbody>

@@ -52,12 +52,16 @@ export class DocumentGeneratorService {
         remittanceAllocations: {
           select: {
             id: true,
-            remittanceNumber: true,
-            remittanceRef: true,
             allocatedAmount: true,
-            remittedAt: true,
+            requestRemittance: {
+              select: {
+                remittanceNumber: true,
+                reference: true,
+                remittedAt: true,
+              },
+            },
           },
-          orderBy: [{ remittedAt: 'asc' }, { createdAt: 'asc' }],
+          orderBy: [{ requestRemittance: { remittedAt: 'asc' } }, { createdAt: 'asc' }],
         },
         pvDeduction: {
           select: {
@@ -65,7 +69,7 @@ export class DocumentGeneratorService {
           },
         },
       },
-      orderBy: [{ remittedAt: 'asc' }, { createdAt: 'asc' }],
+      orderBy: [{ createdAt: 'asc' }],
     });
 
     return rows.map((row: any) => {
@@ -82,10 +86,10 @@ export class DocumentGeneratorService {
         remainingBalance: Math.max(0, Number(row.amount || 0) - allocatedTotal),
         allocations: row.remittanceAllocations.map((allocation: any) => ({
           allocationId: allocation.id,
-          remittanceNumber: allocation.remittanceNumber,
-          remittanceRef: allocation.remittanceRef ?? null,
+          remittanceNumber: allocation.requestRemittance?.remittanceNumber ?? '-',
+          remittanceRef: allocation.requestRemittance?.reference ?? null,
           allocatedAmount: Number(allocation.allocatedAmount || 0),
-          remittedAt: allocation.remittedAt ?? null,
+          remittedAt: allocation.requestRemittance?.remittedAt ?? null,
         })),
       };
     });

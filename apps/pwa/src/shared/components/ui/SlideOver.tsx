@@ -1,4 +1,5 @@
 import { ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 type SlideOverProps = {
   open: boolean;
@@ -23,17 +24,17 @@ export function SlideOver({
     xxl: "lg:max-w-4xl",  
   }[size];
 
-  return (
-    <div className="fixed inset-x-0 bottom-20 top-16 z-[60] flex justify-end lg:bottom-0">
+  const content = (
+    <div className="fixed inset-0 z-[100] flex justify-end">
       {/* Backdrop */}
       <div className="absolute inset-0 top-0 bg-black/50" onClick={onClose} />
 
       {/* Panel - full width mobile, fixed max-width desktop */}
       <div
         className={`
-          relative w-full  flex flex-col bg-white shadow-xl
+          relative z-[101] w-full flex flex-col bg-white shadow-xl
           ${sizeClasses}
-          max-h-[calc(100vh-9rem)] lg:max-h-[calc(100vh-4rem)]
+          max-h-[100dvh] lg:max-h-[calc(100vh-4rem)]
         `}
       >
         {/* Inner container with overflow handling */}
@@ -43,6 +44,9 @@ export function SlideOver({
       </div>
     </div>
   );
+
+  if (typeof document === "undefined") return content;
+  return createPortal(content, document.body);
 }
 
 type SlideOverPanelProps = {

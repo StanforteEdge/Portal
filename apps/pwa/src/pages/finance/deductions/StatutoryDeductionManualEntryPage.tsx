@@ -33,6 +33,7 @@ type EntryLine = {
 
 type RemittanceRecord = {
   id: string;
+  remittance_id?: string | null;
   remittance_number?: string | null;
   remitted_by?: { id: string; name: string } | null;
   payment_voucher?: { id: string; voucher_number: string } | null;
@@ -49,6 +50,33 @@ type RemittanceRecord = {
   evidence_files?: Array<{ id: string; file_name?: string }>;
   notes?: string | null;
   remittance_allocations?: Array<{ id: string; allocated_amount: number; remittance_number: string; remittance_ref?: string | null }>;
+};
+
+type RequestRemittanceRecord = {
+  id: string;
+  remittance_number: string;
+  reference: string | null;
+  remitted_at: string | null;
+  total_amount: number;
+  allocated_amount: number;
+  unallocated_amount: number;
+  remitted_by: { id: string; name: string } | null;
+  payment_voucher: { id: string; voucher_number: string } | null;
+  paid_from_account: { id: string; name: string } | null;
+  evidence_files: Array<{ id: string; file_name: string }>;
+  notes: string | null;
+  deductions: Array<{
+    allocation_id: string;
+    deduction_id: string;
+    request_id: string;
+    request_number: string;
+    deduction_type_name: string;
+    amount: number;
+    allocated_amount: number;
+    remaining_amount: number;
+    status: string;
+    payment_voucher: { id: string; voucher_number: string } | null;
+  }>;
 };
 
 export default function StatutoryDeductionManualEntryPage() {
@@ -79,6 +107,7 @@ export default function StatutoryDeductionManualEntryPage() {
   const [remitRef, setRemitRef] = useState("");
   const [remitDate, setRemitDate] = useState(new Date().toISOString().slice(0, 10));
   const [remitAccountId, setRemitAccountId] = useState("");
+  const [remitTotalAmount, setRemitTotalAmount] = useState<number>(0);
   const [remitPaymentVoucherId, setRemitPaymentVoucherId] = useState("");
   const [remittedByUserId, setRemittedByUserId] = useState(user?.id ? String(user.id) : "");
   const [remitNotes, setRemitNotes] = useState("");
@@ -87,9 +116,10 @@ export default function StatutoryDeductionManualEntryPage() {
   const [selectedDeductionIds, setSelectedDeductionIds] = useState<string[]>([]);
   const [allocationAmounts, setAllocationAmounts] = useState<Record<string, number>>({});
   const [deductionLookup, setDeductionLookup] = useState("");
-  const [activeRemittanceRows, setActiveRemittanceRows] = useState<RemittanceRecord[]>([]);
+  const [activeRemittance, setActiveRemittance] = useState<RequestRemittanceRecord | null>(null);
   const [loadingRemittance, setLoadingRemittance] = useState(false);
   const [savingRemittance, setSavingRemittance] = useState(false);
+  const [remittanceSearch, setRemittanceSearch] = useState("");
 
   const { data: chartAccountsData } = useCachedQuery(
     "finance:statutory-deduction-manual-entry:chart-accounts",
@@ -153,21 +183,12 @@ export default function StatutoryDeductionManualEntryPage() {
     () => financeApi.listRequestDeductions({ per_page: 200 }),
     { ttlMs: 0, storage: "memory" },
   );
-  const remittedDeductions = (remittedDeductionsPayload?.items ?? []).filter((row: RemittanceRecord) => row.status !== "pending");
-  const remittanceGroups = useMemo(() => {
-    const groups = new Map<string, { ref: string; remitted_at: string | null; paid_from_account: string | null; total: number; count: number; rows: RemittanceRecord[] }>();
-    for (const row of remittedDeductions as RemittanceRecord[]) {
-      const ref = String(row.remittance_ref || row.remittance_number || row.id);
-      const existing = groups.get(ref) ?? { ref, remitted_at: row.remitted_at ?? null, paid_from_account: row.paid_from_account?.name ?? null, total: 0, count: 0, rows: [] };
-      existing.total += Number(row.amount || 0);
-      existing.count += 1;
-      existing.rows.push(row);
-      if (!existing.remitted_at && row.remitted_at) existing.remitted_at = row.remitted_at;
-      if (!existing.paid_from_account && row.paid_from_account?.name) existing.paid_from_account = row.paid_from_account.name;
-      groups.set(ref, existing);
-    }
-    return Array.from(groups.values());
-  }, [remittedDeductions]);
+  const { data: requestRemittancesPayload } = useCachedQuery(
+    `finance:statutory-deduction-manual-entry:request-remittances:${refreshKey}`,
+    () => financeApi.listRequestRemittances({ per_page: 100 }),
+    { ttlMs: 0, storage: "memory" },
+  );
+  const requestRemittances = (requestRemittancesPayload?.items ?? []) as RequestRemittanceRecord[];
 
   const totals = useMemo(
     () =>
@@ -217,13 +238,14 @@ export default function StatutoryDeductionManualEntryPage() {
     setRemitRef("");
     setRemitDate(new Date().toISOString().slice(0, 10));
     setRemitAccountId("");
+    setRemitTotalAmount(0);
     setRemitPaymentVoucherId("");
     setRemittedByUserId(user?.id ? String(user.id) : "");
     setRemitNotes("");
     setRemitEvidenceFiles([]);
     setSelectedDeductionIds([]);
     setAllocationAmounts({});
-    setActiveRemittanceRows([]);
+    setActiveRemittance(null);
   };
 
   const loadRemittance = async (lookupValue?: string) => {
@@ -231,40 +253,43 @@ export default function StatutoryDeductionManualEntryPage() {
     if (!value) return;
     try {
       setLoadingRemittance(true);
-      const byId = await financeApi.listRequestDeductions({ id: value, per_page: 100 }).catch(() => ({ items: [] }));
-      let rows = byId.items ?? [];
-      if (rows.length === 0) {
-        const byRef = await financeApi.listRequestDeductions({ remittance_ref: value, per_page: 100 }).catch(() => ({ items: [] }));
-        rows = byRef.items ?? [];
+      let remittance = requestRemittances.find((row) => row.id === value) ?? null;
+      if (!remittance) {
+        const byId = await financeApi.listRequestRemittances({ id: value, per_page: 1 }).catch(() => ({ items: [] }));
+        remittance = byId.items?.[0] ?? null;
       }
-      if (rows.length === 0) {
-        const byNumber = await financeApi.listRequestDeductions({ remittance_number: value, per_page: 100 }).catch(() => ({ items: [] }));
-        rows = byNumber.items ?? [];
+      if (!remittance) {
+        const byRef = await financeApi.listRequestRemittances({ reference: value, per_page: 10 }).catch(() => ({ items: [] }));
+        remittance = byRef.items?.[0] ?? null;
       }
-      if (rows.length === 0) {
+      if (!remittance) {
+        const byNumber = await financeApi.listRequestRemittances({ remittance_number: value, per_page: 10 }).catch(() => ({ items: [] }));
+        remittance = byNumber.items?.[0] ?? null;
+      }
+      if (!remittance) {
         const lowered = value.toLowerCase();
-        rows = (remittedDeductions as any[]).filter((row) =>
-          String(row.remittance_ref || "").toLowerCase().includes(lowered) ||
-          String(row.remittance_number || "").toLowerCase().includes(lowered)
-        );
+        remittance = requestRemittances.find((row) =>
+          String(row.reference || "").toLowerCase().includes(lowered) ||
+          String(row.remittance_number || "").toLowerCase().includes(lowered),
+        ) ?? null;
       }
-      if (rows.length === 0) {
+      if (!remittance) {
         showToast({ tone: "warning", title: "Not found", message: "No remittance matched that ID or reference." });
         return;
       }
-      const first = rows[0] as any;
-      setActiveRemittanceRows(rows as any);
-      setSelectedDeductionIds(rows.map((row: any) => row.id));
-      setAllocationAmounts(Object.fromEntries(rows.map((row: any) => [row.id, Number(row.allocated_amount || row.amount || 0)])));
+      setActiveRemittance(remittance);
+      setSelectedDeductionIds(remittance.deductions.map((row) => row.deduction_id));
+      setAllocationAmounts(Object.fromEntries(remittance.deductions.map((row) => [row.deduction_id, Number(row.allocated_amount || row.amount || 0)])));
       setLookupRemittance(value);
-      setRemitNumber(String(first.remittance_number || ""));
-      setRemitRef(String(first.remittance_ref || ""));
-      setRemitDate(String(first.remitted_at || "").slice(0, 10));
-      setRemitAccountId(String(first.paid_from_account?.id || ""));
-      setRemitPaymentVoucherId(String(first.payment_voucher?.id || ""));
-      setRemittedByUserId(String(first.remitted_by?.id || user?.id || ""));
-      setRemitNotes(String(first.notes || ""));
-      setRemitEvidenceFiles((first.evidence_files || []).map((file: any) => ({ id: String(file.id), file_name: String(file.file_name || file.id) })));
+      setRemitNumber(String(remittance.remittance_number || ""));
+      setRemitRef(String(remittance.reference || ""));
+      setRemitDate(String(remittance.remitted_at || "").slice(0, 10));
+      setRemitAccountId(String(remittance.paid_from_account?.id || ""));
+      setRemitTotalAmount(Number(remittance.total_amount || 0));
+      setRemitPaymentVoucherId(String(remittance.payment_voucher?.id || ""));
+      setRemittedByUserId(String(remittance.remitted_by?.id || user?.id || ""));
+      setRemitNotes(String(remittance.notes || ""));
+      setRemitEvidenceFiles((remittance.evidence_files || []).map((file: any) => ({ id: String(file.id), file_name: String(file.file_name || file.id) })));
     } catch (err) {
       showToast({ tone: "danger", title: "Load failed", message: err instanceof Error ? err.message : "Unable to load remittance." });
     } finally {
@@ -298,8 +323,13 @@ export default function StatutoryDeductionManualEntryPage() {
       showToast({ tone: "warning", title: "No deductions selected", message: "Select at least one deduction." });
       return;
     }
-    const selectedRows = (activeRemittanceRows.length > 0 ? activeRemittanceRows : pendingDeductions).filter((row: RemittanceRecord) => selectedDeductionIds.includes(row.id));
-    const allocations = selectedRows.map((row: RemittanceRecord) => ({
+    const selectedRows = (activeRemittance ? activeRemittance.deductions.map((row) => ({
+      id: row.deduction_id,
+      remaining_amount: row.remaining_amount,
+      amount: row.amount,
+      remittance_allocations: row.allocation_id ? [{ id: row.allocation_id, allocated_amount: row.allocated_amount }] : [],
+    })) : pendingDeductions).filter((row: any) => selectedDeductionIds.includes(row.id));
+    const allocations = selectedRows.map((row: any) => ({
       deduction_id: row.id,
       allocated_amount: Number(allocationAmounts[row.id] ?? row.remaining_amount ?? row.amount ?? 0),
     }));
@@ -307,31 +337,44 @@ export default function StatutoryDeductionManualEntryPage() {
       showToast({ tone: "warning", title: "Invalid allocation", message: "Each selected deduction needs a positive allocated amount." });
       return;
     }
+    const allocatedTotal = allocations.reduce((sum, entry) => sum + entry.allocated_amount, 0);
+    if (remitTotalAmount > 0 && allocatedTotal - remitTotalAmount > 0.0001) {
+      showToast({ tone: "warning", title: "Remittance too small", message: "Allocated deductions exceed the remittance total amount." });
+      return;
+    }
     try {
       setSavingRemittance(true);
-      if (activeRemittanceRows.length > 0) {
-        await Promise.all(selectedDeductionIds.map((id) =>
-          financeApi.updateRemittanceRecord(id, {
-            remittance_number: remitNumber.trim() || undefined,
-            remittance_ref: remitRef.trim(),
-            remitted_at: remitDate || undefined,
-            paid_from_account_id: remitAccountId || undefined,
-            payment_voucher_id: remitPaymentVoucherId || undefined,
-            remitted_by: remittedByUserId || undefined,
-            evidence_file_ids: remitEvidenceFiles.map((file) => file.id),
-            notes: remitNotes.trim() || undefined,
-            allocations: (activeRemittanceRows.find((row) => row.id === id)?.remittance_allocations || []).map((allocation) => ({
-              id: allocation.id,
-              allocated_amount: Number(allocationAmounts[id] ?? allocation.allocated_amount),
-            })),
-          })
-        ));
+      if (activeRemittance) {
+        await financeApi.updateRemittanceRecord(activeRemittance.id, {
+          remittance_number: remitNumber.trim() || undefined,
+          remittance_ref: remitRef.trim(),
+          remitted_at: remitDate || undefined,
+          remittance_total_amount: remitTotalAmount || allocatedTotal,
+          paid_from_account_id: remitAccountId || undefined,
+          payment_voucher_id: remitPaymentVoucherId || undefined,
+          remitted_by: remittedByUserId || undefined,
+          evidence_file_ids: remitEvidenceFiles.map((file) => file.id),
+          notes: remitNotes.trim() || undefined,
+          allocations: activeRemittance.deductions.map((row) => ({
+            id: row.allocation_id,
+            allocated_amount: Number(allocationAmounts[row.deduction_id] ?? row.allocated_amount),
+          })),
+        });
+        const newDeductionIds = selectedDeductionIds.filter((id) => !activeRemittance.deductions.some((row) => row.deduction_id === id));
+        if (newDeductionIds.length > 0) {
+          await financeApi.addRemittanceAllocations(activeRemittance.id, {
+            deduction_ids: newDeductionIds,
+            allocations: newDeductionIds.map((id) => ({ id, allocated_amount: Number(allocationAmounts[id] ?? 0) })),
+          });
+        }
         showToast({ tone: "success", title: "Updated", message: "Remittance updated." });
       } else {
         await financeApi.batchRemitDeductions({
           deduction_ids: selectedDeductionIds,
+          remittance_number: remitNumber.trim() || undefined,
           reference: remitRef.trim(),
           remitted_at: remitDate ? new Date(remitDate).toISOString() : undefined,
+          remittance_total_amount: remitTotalAmount || allocatedTotal,
           paid_from_account_id: remitAccountId || undefined,
           payment_voucher_id: remitPaymentVoucherId || undefined,
           remitted_by: remittedByUserId || undefined,
@@ -472,9 +515,24 @@ export default function StatutoryDeductionManualEntryPage() {
     return [row.request_number, row.request_id, row.deduction_type_name, row.remittance_ref, row.remittance_number]
       .some((value) => String(value || "").toLowerCase().includes(deductionLookupValue));
   });
-  const workspaceRows = (activeRemittanceRows.length > 0 ? activeRemittanceRows : pendingDeductions).filter((row: RemittanceRecord) => selectedDeductionIds.includes(row.id));
+  const workspaceRows = (activeRemittance ? activeRemittance.deductions.map((row) => ({
+    id: row.deduction_id,
+    request_id: row.request_id,
+    request_number: row.request_number,
+    deduction_type_name: row.deduction_type_name,
+    amount: row.amount,
+    allocated_amount: row.allocated_amount,
+    remaining_amount: row.remaining_amount,
+    remittance_allocations: row.allocation_id ? [{ id: row.allocation_id, allocated_amount: row.allocated_amount, remittance_number: activeRemittance.remittance_number, remittance_ref: activeRemittance.reference }] : [],
+  })) : pendingDeductions).filter((row: any) => selectedDeductionIds.includes(row.id));
   const workspaceAllocatedTotal = workspaceRows.reduce((sum, row) => sum + Number(allocationAmounts[row.id] ?? row.allocated_amount ?? row.remaining_amount ?? row.amount ?? 0), 0);
-  const loadedRemittanceSummary = activeRemittanceRows[0] ?? null;
+  const loadedRemittanceSummary = activeRemittance;
+  const filteredRemittances = requestRemittances.filter((row) => {
+    const q = remittanceSearch.trim().toLowerCase();
+    if (!q) return true;
+    return [row.remittance_number, row.reference, row.payment_voucher?.voucher_number, row.paid_from_account?.name]
+      .some((value) => String(value || "").toLowerCase().includes(q));
+  });
 
   return (
     <AppShell
@@ -487,12 +545,12 @@ export default function StatutoryDeductionManualEntryPage() {
         eyebrow="Finance"
         breadcrumbs={[{ label: "Finance", path: "/finance" }, { label: "Manual Tools" }, { label: "Statutory Deductions" }]}
         title="Manual Statutory Deductions"
-        description="Backoffice workspace for entering, loading, correcting, and linking statutory deductions and remittances, including backdated records."
+          description="Backoffice workspace for entering, loading, correcting, and linking statutory deductions and standalone remittance records, including backdated records."
       />
 
       <div className="grid gap-4 md:grid-cols-4">
         <StatCard label="Open Deductions" value={String(pendingDeductions.length)} tone="warning" />
-        <StatCard label="Remittance Batches" value={String(remittanceGroups.length)} tone="neutral" />
+        <StatCard label="Remittance Batches" value={String(requestRemittances.length)} tone="neutral" />
         <StatCard label="Workspace Items" value={String(selectedDeductionIds.length)} tone="neutral" />
         <StatCard label="Entry Balance" value={balanced ? "Balanced" : "Unbalanced"} tone={balanced ? "success" : "danger"} />
       </div>
@@ -563,6 +621,10 @@ export default function StatutoryDeductionManualEntryPage() {
             <input type="date" className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitDate} onChange={(e) => setRemitDate(e.target.value)} />
           </label>
           <label className="grid gap-1.5 text-sm md:col-span-2">
+            <span className="font-semibold text-slate-700">Remittance Total Amount</span>
+            <input type="number" className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remitTotalAmount} onChange={(e) => setRemitTotalAmount(Number(e.target.value) || 0)} />
+          </label>
+          <label className="grid gap-1.5 text-sm md:col-span-2">
             <span className="font-semibold text-slate-700">Created By</span>
             <select className="rounded-2xl border border-slate-200 px-4 py-2.5" value={remittedByUserId} onChange={(e) => setRemittedByUserId(e.target.value)}>
               <option value="">Select user</option>
@@ -615,7 +677,7 @@ export default function StatutoryDeductionManualEntryPage() {
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Mode</div>
-            <div className="mt-1 text-lg font-semibold text-slate-900">{activeRemittanceRows.length > 0 ? "Edit Existing Remittance" : "Create New Remittance"}</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{activeRemittance ? "Edit Existing Remittance" : "Create New Remittance"}</div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Attached Deductions</div>
@@ -624,6 +686,10 @@ export default function StatutoryDeductionManualEntryPage() {
           <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
             <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Allocated Total</div>
             <div className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(workspaceAllocatedTotal, "NGN")}</div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">Remittance Total</div>
+            <div className="mt-1 text-lg font-semibold text-slate-900">{formatCurrency(remitTotalAmount || workspaceAllocatedTotal, "NGN")}</div>
           </div>
         </div>
 
@@ -683,17 +749,17 @@ export default function StatutoryDeductionManualEntryPage() {
                   </TableHeaderRow>
                 </TableHead>
                 <TableBody>
-                  {activeRemittanceRows.length ? activeRemittanceRows.map((row) => (
-                    <TableRow key={row.id}>
-                      <TableCell>{row.request_number || row.request_id}</TableCell>
-                      <TableCell>{row.deduction_type_name}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(Number(row.amount || 0), "NGN")}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(Number(allocationAmounts[row.id] ?? row.allocated_amount ?? row.amount ?? 0), "NGN")}</TableCell>
-                      <TableCell>
-                        <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => detachDeduction(row.id)}>Remove</button>
-                      </TableCell>
-                    </TableRow>
-                  )) : (
+                    {activeRemittance ? activeRemittance.deductions.map((row) => (
+                      <TableRow key={row.deduction_id}>
+                       <TableCell>{row.request_number || row.request_id}</TableCell>
+                       <TableCell>{row.deduction_type_name}</TableCell>
+                       <TableCell className="text-right">{formatCurrency(Number(row.amount || 0), "NGN")}</TableCell>
+                       <TableCell className="text-right">{formatCurrency(Number(allocationAmounts[row.deduction_id] ?? row.allocated_amount ?? row.amount ?? 0), "NGN")}</TableCell>
+                       <TableCell>
+                         <button type="button" className="text-xs font-semibold text-red-600 hover:underline" onClick={() => detachDeduction(row.deduction_id)}>Remove</button>
+                       </TableCell>
+                     </TableRow>
+                   )) : (
                     <TableRow>
                       <TableCell colSpan={5} className="text-center text-slate-400 py-8">No remittance loaded.</TableCell>
                     </TableRow>
@@ -702,10 +768,10 @@ export default function StatutoryDeductionManualEntryPage() {
               </Table>
             </div>
 
-            {activeRemittanceRows.length > 0 ? (
-              <div className="mt-4 space-y-3">
-                {activeRemittanceRows.map((row) => (
-                  <div key={`${row.id}-history`} className="rounded-2xl border border-slate-200 p-3">
+            {activeRemittance ? (
+               <div className="mt-4 space-y-3">
+                {activeRemittance.deductions.map((row) => (
+                  <div key={`${row.deduction_id}-history`} className="rounded-2xl border border-slate-200 p-3">
                     <div className="mb-2 flex items-center justify-between gap-3">
                       <div>
                         <div className="text-sm font-semibold text-slate-900">{row.deduction_type_name}</div>
@@ -714,12 +780,10 @@ export default function StatutoryDeductionManualEntryPage() {
                       <div className="text-xs font-semibold text-slate-500">Remaining {formatCurrency(Number(row.remaining_amount ?? 0), "NGN")}</div>
                     </div>
                     <div className="space-y-2">
-                      {(row.remittance_allocations || []).map((allocation) => (
-                        <div key={allocation.id} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
-                          <span>{allocation.remittance_number} {allocation.remittance_ref ? `• ${allocation.remittance_ref}` : ""}</span>
-                          <span className="font-semibold">{formatCurrency(Number(allocation.allocated_amount || 0), "NGN")}</span>
-                        </div>
-                      ))}
+                      <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-700">
+                        <span>{activeRemittance.remittance_number} {activeRemittance.reference ? `• ${activeRemittance.reference}` : ""}</span>
+                        <span className="font-semibold">{formatCurrency(Number(row.allocated_amount || 0), "NGN")}</span>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -739,7 +803,7 @@ export default function StatutoryDeductionManualEntryPage() {
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-slate-500">Reference</dt>
-                  <dd className="font-semibold text-slate-900">{loadedRemittanceSummary.remittance_ref || "-"}</dd>
+                  <dd className="font-semibold text-slate-900">{loadedRemittanceSummary.reference || "-"}</dd>
                 </div>
                 <div className="flex items-center justify-between gap-4">
                   <dt className="text-slate-500">Remitted On</dt>
@@ -783,7 +847,7 @@ export default function StatutoryDeductionManualEntryPage() {
         <div className="flex gap-2">
           <Button variant="secondary" onClick={resetRemittanceForm}>Reset Workspace</Button>
           <Button onClick={() => void handleSaveRemittance()} disabled={savingRemittance || selectedDeductionIds.length === 0}>
-            {savingRemittance ? "Saving..." : activeRemittanceRows.length > 0 ? "Update Remittance" : "Add Remittance"}
+            {savingRemittance ? "Saving..." : activeRemittance ? "Update Remittance" : "Add Remittance"}
           </Button>
         </div>
       </div>
@@ -863,7 +927,10 @@ export default function StatutoryDeductionManualEntryPage() {
       </SectionCard>
 
       <SectionCard title="Recent Remittances" description="Use this list to load, review, and correct remittance batches and their linked deductions.">
-        {remittanceGroups.length ? (
+        <div className="mb-4">
+          <input className="w-full rounded-2xl border border-slate-200 px-4 py-2.5 text-sm" value={remittanceSearch} onChange={(e) => setRemittanceSearch(e.target.value)} placeholder="Search TRM number, reference, voucher, or account" />
+        </div>
+        {requestRemittances.length ? (
           <Table caption="Recent remittances">
             <TableHead>
               <TableHeaderRow>
@@ -876,15 +943,15 @@ export default function StatutoryDeductionManualEntryPage() {
               </TableHeaderRow>
             </TableHead>
             <TableBody>
-              {remittanceGroups.map((group) => (
-                <TableRow key={group.ref}>
-                  <TableCell>{group.ref}</TableCell>
+              {filteredRemittances.map((group) => (
+                <TableRow key={group.id}>
+                  <TableCell>{group.remittance_number}</TableCell>
                   <TableCell>{formatDate(group.remitted_at)}</TableCell>
-                  <TableCell>{group.paid_from_account || "-"}</TableCell>
-                  <TableCell className="text-right">{formatCurrency(group.total, "NGN")}</TableCell>
-                  <TableCell className="text-right">{group.count}</TableCell>
+                  <TableCell>{group.paid_from_account?.name || "-"}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(group.total_amount, "NGN")}</TableCell>
+                  <TableCell className="text-right">{group.deductions.length}</TableCell>
                   <TableCell>
-                    <button className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => void loadRemittance(group.ref)}>Load</button>
+                    <button className="text-xs font-semibold text-brand-700 hover:underline" onClick={() => void loadRemittance(group.id)}>Load</button>
                   </TableCell>
                 </TableRow>
               ))}
